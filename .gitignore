@@ -1,0 +1,13 @@
+# Roblox
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# Araçlar
+/sourcemap.json
+/.rojo
+
+# Editör
+.vscode/
+.DS_Store
