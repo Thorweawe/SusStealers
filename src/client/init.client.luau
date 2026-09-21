@@ -396,6 +396,8 @@ local currentPlot: Model? = nil
 -- güncellense kamerayı çevirdiğinde takılarak döner.
 RunService.RenderStepped:Connect(function()
 	guide.Update(currentPlot)
+	-- Harita işaretleri de her karede: yavaş döngüde dönerken takılıyordu
+	minimap.Markers(colors.ColorOf, currentPlot)
 end)
 
 task.spawn(function()

@@ -281,7 +281,12 @@ do
 			local openH = openTop - openBottom
 			local openMid = (openBottom + openTop) / 2
 
-			place("Glass", center, g, openH, openMid, 0.5, GLASS, Enum.Material.Glass, false, 0.93)
+			--[[
+				Cam KATI olmalı. İlk halinde CanCollide kapalıydı ve açıklık
+				gerçek bir delikti — oyuncu pencereden dışarı atlayıp boşluğa
+				düşüyordu. Neredeyse tamamen şeffaf ama geçilmez.
+			]]
+			place("Glass", center, g, openH, openMid, 0.5, GLASS, Enum.Material.Glass, true, 0.93)
 
 			place("WinBelow", center, g, openBottom - 3.5, 3.5 + (openBottom - 3.5) / 2, 2.4, HULL, Enum.Material.Metal, true)
 			place("WinAbove", center, g, WALL_H - openTop, openTop + (WALL_H - openTop) / 2, 2.4, HULL, Enum.Material.Metal, true)

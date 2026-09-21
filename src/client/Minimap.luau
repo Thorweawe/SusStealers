@@ -20,7 +20,10 @@ local SIZE = 176          -- panelin piksel boyutu
 local PAD = 12            -- kenar payı
 
 export type Map = {
+	-- Kutular, renkler, doluluk: 0.2 sn'de bir yeterli
 	Update: (ownerColor: (Player) -> Color3) -> (),
+	-- Oyuncu işareti ve hedef çizgisi: her kare, yoksa dönerken takılıyor
+	Markers: (ownerColor: (Player) -> Color3, myPlot: Model?) -> (),
 }
 
 type Cell = {
@@ -105,6 +108,21 @@ function Minimap.Create(screen: ScreenGui): Map
 	dotCorner.CornerRadius = UDim.new(1, 0)
 	dotCorner.Parent = dot
 
+	--[[
+		Taşırken üssüne uzanan çizgi. Ok ekranda yönü veriyor ama harita
+		üstünde mesafeyi ve yolu birlikte görmek daha hızlı okunuyor.
+	]]
+	local route = Instance.new("Frame")
+	route.Name = "Route"
+	route.AnchorPoint = Vector2.new(0, 0.5)
+	route.Size = UDim2.fromOffset(0, 2)
+	route.BackgroundColor3 = Color3.fromRGB(255, 190, 90)
+	route.BackgroundTransparency = 0.25
+	route.BorderSizePixel = 0
+	route.ZIndex = 4
+	route.Visible = false
+	route.Parent = canvas
+
 	-- Diğer oyuncular: gerektikçe yaratılıyor
 	local others: { [Player]: Frame } = {}
 
@@ -160,10 +178,26 @@ function Minimap.Create(screen: ScreenGui): Map
 		return Vector2.new(minX - pad, minZ - pad), Vector2.new(maxX + pad, maxZ + pad)
 	end
 
+	--[[
+		Dünya -> harita dönüşümü. Update her hesapladığında burada saklanıyor;
+		her kare çalışan Markers aynı dönüşümü yeniden hesaplamak zorunda
+		kalmıyor, sadece okuyor.
+	]]
+	local mapping: { lo: Vector2, scale: number, offX: number, offY: number, w: number, h: number }? = nil
+
+	local function toCanvas(worldX: number, worldZ: number): (number, number)
+		local m = mapping
+		if not m then
+			return 0, 0
+		end
+		return m.offX + (worldX - m.lo.X) * m.scale, m.offY + (worldZ - m.lo.Y) * m.scale
+	end
+
 	local function update(ownerColor: (Player) -> Color3)
 		local plots = workspace:FindFirstChild("Plots")
 		if not plots then
 			holder.Visible = false
+			mapping = nil
 			return
 		end
 		holder.Visible = true
@@ -183,12 +217,14 @@ function Minimap.Create(screen: ScreenGui): Map
 		--[[ Dünya oranını koruyarak sığdır: harita geniş ama alçaksa
 		     kareye yayıp bozmak yerine üstte altta boşluk bırak. ]]
 		local scale = math.min(w / span.X, h / span.Y)
-		local offX = (w - span.X * scale) / 2
-		local offY = (h - span.Y * scale) / 2
-
-		local function toCanvas(worldX: number, worldZ: number): (number, number)
-			return offX + (worldX - lo.X) * scale, offY + (worldZ - lo.Y) * scale
-		end
+		mapping = {
+			lo = lo,
+			scale = scale,
+			offX = (w - span.X * scale) / 2,
+			offY = (h - span.Y * scale) / 2,
+			w = w,
+			h = h,
+		}
 
 		for _, plot in plots:GetChildren() do
 			local base = plot:FindFirstChild("Base")
@@ -300,22 +336,55 @@ function Minimap.Create(screen: ScreenGui): Map
 			cell.lock.Visible = plot:GetAttribute("Locked") == true
 		end
 
-		-- Oyuncu işareti ve bakış yönü
+	end
+
+	--[[
+		Her kare çalışan kısım. Kutular ve renkler yavaş döngüde kalıyor;
+		burada sadece hareket eden şeyler var. Yön göstergesi 0.2 sn'lik
+		döngüde takılarak dönüyordu.
+	]]
+	local function markers(ownerColor: (Player) -> Color3, myPlot: Model?)
+		local m = mapping
+		if not m then
+			you.Visible = false
+			route.Visible = false
+			return
+		end
+
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
+
 		if root and root:IsA("BasePart") then
 			local px, py = toCanvas(root.Position.X, root.Position.Z)
+			px = math.clamp(px, 0, m.w)
+			py = math.clamp(py, 0, m.h)
+
 			you.Visible = true
-			you.Position = UDim2.fromOffset(math.clamp(px, 0, w), math.clamp(py, 0, h))
+			you.Position = UDim2.fromOffset(px, py)
 
 			--[[
 				Harita üstten bakıyor: dünya +X sağa, +Z aşağı. Karakterin
-				baktığı yön de aynı düzleme indirilip açıya çevriliyor.
+				baktığı yön aynı düzleme indirilip açıya çevriliyor.
 			]]
 			local look = root.CFrame.LookVector
 			you.Rotation = math.deg(math.atan2(look.X, -look.Z))
+
+			-- Taşırken üsse uzanan çizgi
+			local carrying = character and character:FindFirstChild("CarriedUnit")
+			local base = myPlot and myPlot:FindFirstChild("Base")
+			if carrying and base and base:IsA("BasePart") then
+				local bx, by = toCanvas(base.Position.X, base.Position.Z)
+				local dx, dy = bx - px, by - py
+				route.Visible = true
+				route.Position = UDim2.fromOffset(px, py)
+				route.Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), 2)
+				route.Rotation = math.deg(math.atan2(dy, dx))
+			else
+				route.Visible = false
+			end
 		else
 			you.Visible = false
+			route.Visible = false
 		end
 
 		-- Diğer oyuncular
@@ -333,7 +402,7 @@ function Minimap.Create(screen: ScreenGui): Map
 				local ox, oy = toCanvas(r.Position.X, r.Position.Z)
 				d.Visible = true
 				d.BackgroundColor3 = ownerColor(p)
-				d.Position = UDim2.fromOffset(math.clamp(ox, 0, w), math.clamp(oy, 0, h))
+				d.Position = UDim2.fromOffset(math.clamp(ox, 0, m.w), math.clamp(oy, 0, m.h))
 			end
 		end
 
@@ -346,7 +415,7 @@ function Minimap.Create(screen: ScreenGui): Map
 		end
 	end
 
-	return { Update = update }
+	return { Update = update, Markers = markers }
 end
 
 return Minimap
