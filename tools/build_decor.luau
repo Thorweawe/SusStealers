@@ -77,6 +77,15 @@ local WALL_H = 34          -- çeper duvar yüksekliği
 local HULL_DEPTH = 24      -- güverte altı gövde derinliği
 local ARCH_CLEAR = 15      -- kemer altı boşluk
 
+--[[
+	Yüzeye yatırılan ince parçaların (dikiş, halka, şerit, ped) alt yüzeyi
+	dayandığı zeminle tam aynı hizada olmamalı. Çakışık yüzeylerde Roblox
+	hangisini çizeceğine karar veremiyor ve kamera oynadıkça titriyorlar.
+	Bu pay onları bir tık yukarı alıyor; gözle fark edilmiyor ama titremeyi
+	tamamen bitiriyor.
+]]
+local LIFT = 0.03
+
 --[[ Üs merkezleri. PlotService ile aynı formül. ]]
 local function plotOrigin(index: number): Vector3
 	local col = (index - 1) % COLUMNS
@@ -189,7 +198,7 @@ do
 		build({
 			name = "SeamX",
 			size = Vector3.new(0.6, 0.12, halfD * 2 - 6),
-			cf = at((i - 0.5) * PLOT_SPACING, 0.06, centerZ),
+			cf = at((i - 0.5) * PLOT_SPACING, 0.06 + LIFT, centerZ),
 			color = NEON_DIM,
 			material = Enum.Material.Neon,
 			parent = f,
@@ -201,7 +210,7 @@ do
 		build({
 			name = "SeamZ",
 			size = Vector3.new(halfW * 2 - 6, 0.12, 0.6),
-			cf = at(centerX, 0.06, (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)),
+			cf = at(centerX, 0.06 + LIFT, (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)),
 			color = NEON_DIM,
 			material = Enum.Material.Neon,
 			parent = f,
@@ -217,7 +226,7 @@ do
 		build({
 			name = "MainCorridor",
 			size = Vector3.new(halfW * 2 - 20, 0.14, 2),
-			cf = at(centerX, 0.07, centerZ),
+			cf = at(centerX, 0.07 + LIFT, centerZ),
 			color = NEON,
 			material = Enum.Material.Neon,
 			parent = f,
@@ -351,17 +360,23 @@ do
 		local ox, oz = o.X, o.Z
 		local pf = group(string.format("Plot%d", index), f)
 
+		--[[
+			Altlığın üstü güvertenin üstüyle aynı hizada olmamalı. İkisi de
+			y=0'da olunca Roblox hangisini çizeceğine karar veremiyor ve
+			kamera oynadıkça yüzeyler birbirinin önüne geçip titriyordu
+			(z-fighting). 0.3 yukarı alınca altlık ayrı bir basamak oluyor.
+		]]
 		build({
 			name = "Plinth",
 			size = Vector3.new(PLOT_SIZE.X + 6, 1.6, PLOT_SIZE.Z + 6),
-			cf = at(ox, -0.8, oz),
+			cf = at(ox, -0.5, oz),
 			color = TRIM,
 			material = Enum.Material.Metal,
 			collide = true,
 			parent = pf,
 		})
 
-		local frameY = topY + FRAME_H / 2
+		local frameY = topY + FRAME_H / 2 + LIFT
 		for _, s in { -1, 1 } do
 			build({
 				name = "FrameX",
@@ -409,7 +424,7 @@ do
 			build({
 				name = "PodiumRing",
 				size = Vector3.new(5.6, 0.1, 5.6),
-				cf = at(ox + (col - (perRow - 1) / 2) * PODIUM_GAP, topY + 0.05, oz + (if front then -8 else 8)),
+				cf = at(ox + (col - (perRow - 1) / 2) * PODIUM_GAP, topY + 0.05 + LIFT, oz + (if front then -8 else 8)),
 				color = NEON_DIM, material = Enum.Material.Neon, transparency = 0.3, parent = pf,
 			})
 		end
@@ -418,7 +433,7 @@ do
 		local convZ = oz + halfZ - 5
 		for _, e in { -1, 1 } do
 			build({ name = "HazardStrip", size = Vector3.new(PLOT_SIZE.X - 8, 0.12, 0.7),
-				cf = at(ox, topY + 0.06, convZ + e * 3.2), color = HAZARD,
+				cf = at(ox, topY + 0.06 + LIFT, convZ + e * 3.2), color = HAZARD,
 				material = Enum.Material.Neon, parent = pf })
 		end
 
@@ -461,7 +476,7 @@ do
 	local f = group("Vents")
 
 	local function vent(x: number, z: number)
-		local cf = at(x, 0.06, z)
+		local cf = at(x, 0.06 + LIFT, z)
 		build({ name = "VentFrame", size = Vector3.new(6.4, 0.2, 4.4), cf = cf,
 			color = TRIM, material = Enum.Material.Metal, parent = f })
 		for i = -1, 1 do
@@ -608,7 +623,7 @@ do
 		local z = o.Z + side * (halfZ + 9)
 
 		build({ name = "BayPad", size = Vector3.new(14, 0.14, 7),
-			cf = at(o.X, 0.07, z), color = NEON_DIM,
+			cf = at(o.X, 0.07 + LIFT, z), color = NEON_DIM,
 			material = Enum.Material.Neon, transparency = 0.4, parent = f })
 
 		local post = build({ name = "BayPost", size = Vector3.new(1, 1, 1),

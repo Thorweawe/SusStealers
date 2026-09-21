@@ -43,6 +43,21 @@ local NEEDS_UNIT: { [string]: boolean } = {
 	StealPrompt = true,
 }
 
+--[[
+	Aynı parçaya bağlı promptlar ekranda üst üste biniyor. Lock ve Rebirth
+	ikisi de tabelaya bağlı olduğu için yazıları iç içe geçiyordu.
+
+	UIOffset promptun ekrandaki yerini piksel cinsinden kaydırıyor ve
+	istemciden ayarlanabiliyor, yani sunucuya dokunmadan ayırabiliyoruz.
+	Kalıcı çözüm ayrı bir arayüz olurdu ama o istemciden sunucuya remote
+	açmayı gerektiriyor; Net.luau'da bunun bilinçli olarak yapılmadığı
+	yazıyor, o karar Batur'un.
+]]
+local UI_OFFSET: { [string]: Vector2 } = {
+	LockPrompt = Vector2.new(0, -46),
+	RebirthPrompt = Vector2.new(0, 46),
+}
+
 local function podiumHasUnit(prompt: ProximityPrompt): boolean
 	local podium = prompt.Parent
 	if not (podium and podium:IsA("BasePart")) then
@@ -69,6 +84,11 @@ function PromptFilter.Create(): Filter
 			for _, d in plot:GetDescendants() do
 				if not d:IsA("ProximityPrompt") then
 					continue
+				end
+
+				local offset = UI_OFFSET[d.Name]
+				if offset and d.UIOffset ~= offset then
+					d.UIOffset = offset
 				end
 
 				local want: boolean
