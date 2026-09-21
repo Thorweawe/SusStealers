@@ -20,7 +20,7 @@ Config.ConveyorLifetime = 22   -- alınmazsa kaç saniye sonra kaybolur
 Config.ConveyorSpeed = 6
 
 -- ─── Çalma ──────────────────────────────────────────────────────────────────
-Config.StealHoldTime = 3.0     -- prompt kaç saniye basılı tutulur
+Config.StealHoldTime = 4.0     -- prompt kaç saniye basılı tutulur
 Config.StealCooldown = 18      -- bir çalmadan sonra oyuncunun bekleme süresi
 Config.CarryWalkSpeed = 11     -- karakter taşırken hız
 Config.NormalWalkSpeed = 16

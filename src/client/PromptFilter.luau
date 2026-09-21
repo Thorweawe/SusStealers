@@ -19,19 +19,30 @@ local function isOccupied(podium: Part): boolean
 	return typeof(unitId) == "string" and unitId ~= ""
 end
 
+--[[
+	Değer zaten doğruysa YAZMA. Prompt basılı tutulurken Enabled'a yazmak
+	basışı sıfırlıyor; döngü 0.2 sn'de bir çalıştığı için 0.4 sn'lik satış
+	ve 4 sn'lik çalma basışları sürekli iptal oluyordu.
+]]
+local function setEnabled(prompt: ProximityPrompt, want: boolean)
+	if prompt.Enabled ~= want then
+		prompt.Enabled = want
+	end
+end
+
 local function applyTo(podium: Part, mine: boolean)
 	local occupied = isOccupied(podium)
 
 	local sell = podium:FindFirstChild("SellPrompt")
 	if sell and sell:IsA("ProximityPrompt") then
 		-- Sadece kendi kaideni satabilirsin
-		sell.Enabled = mine and occupied
+		setEnabled(sell, mine and occupied)
 	end
 
 	local steal = podium:FindFirstChild("StealPrompt")
 	if steal and steal:IsA("ProximityPrompt") then
 		-- Kendi karakterini çalamazsın
-		steal.Enabled = (not mine) and occupied
+		setEnabled(steal, (not mine) and occupied)
 	end
 end
 

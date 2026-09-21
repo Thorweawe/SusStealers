@@ -52,7 +52,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	local holder = Instance.new("Frame")
 	holder.Name = "Leaderboard"
 	holder.Position = UDim2.new(0, 24, 0, 104)
-	holder.Size = UDim2.new(0, 290, 0, 26 + MAX_ROWS * ROW_HEIGHT + 12)
+	holder.Size = UDim2.new(0, 290, 0, 42 + MAX_ROWS * ROW_HEIGHT + 10)
 	holder.BackgroundColor3 = PANEL
 	holder.BackgroundTransparency = 0.2
 	holder.BorderSizePixel = 0
@@ -79,11 +79,33 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	title.Text = "TOP PLAYERS"
 	title.Parent = holder
 
+	--[[ Sütun başlıkları. Önce satır içinde bir simge (↯) denendi ama Gotham
+	     fontunda o karakter yok, kutu olarak çıkıyordu. ]]
+	local function newHeader(text: string, rightOffset: number, width: number): TextLabel
+		local label = Instance.new("TextLabel")
+		label.Name = text
+		label.AnchorPoint = Vector2.new(1, 0)
+		label.Position = UDim2.new(1, -rightOffset, 0, 20)
+		label.Size = UDim2.new(0, width, 0, 14)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamMedium
+		label.TextSize = 10
+		label.TextXAlignment = Enum.TextXAlignment.Right
+		label.TextColor3 = MUTED
+		label.TextTransparency = 0.35
+		label.Text = text
+		label.Parent = holder
+		return label
+	end
+
+	newHeader("STOLEN", 92, 44)
+	newHeader("CASH", 0, 88)
+
 	local rows: { Row } = {}
 	for index = 1, MAX_ROWS do
 		local frame = Instance.new("Frame")
 		frame.Name = "Row" .. index
-		frame.Position = UDim2.new(0, 0, 0, 22 + (index - 1) * ROW_HEIGHT)
+		frame.Position = UDim2.new(0, 0, 0, 38 + (index - 1) * ROW_HEIGHT)
 		frame.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
 		frame.BackgroundTransparency = 1
 		frame.Visible = false
@@ -153,7 +175,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 			row.rank.TextColor3 = if isMine then MINE else MUTED
 			row.name.Text = entry.DisplayName
 			row.name.TextColor3 = if isMine then MINE else INK
-			row.stolen.Text = "↯" .. stolenOf(entry)
+			row.stolen.Text = tostring(stolenOf(entry))
 			row.stolen.TextColor3 = if isMine then MINE else MUTED
 			row.cash.Text = "$" .. Config.FormatCash(cashOf(entry))
 			row.cash.TextColor3 = if isMine then MINE else GOOD
@@ -161,7 +183,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 		-- Oyuncu sayısı azaldıysa panel de kısalsın
 		local shown = math.min(#list, MAX_ROWS)
-		holder.Size = UDim2.new(0, 290, 0, 26 + math.max(shown, 1) * ROW_HEIGHT + 12)
+		holder.Size = UDim2.new(0, 290, 0, 42 + math.max(shown, 1) * ROW_HEIGHT + 10)
 	end
 
 	return { Update = update }
