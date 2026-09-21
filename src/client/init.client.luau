@@ -1,4 +1,5 @@
 -!strict
+--!strict
 -- HUD: nakit, saniyelik gelir, üs durumu ve bildirim şeridi.
 -- Kod içi yorumlar Türkçe, oyuncunun gördüğü metinler İngilizce.
 
