@@ -248,6 +248,78 @@ do
 			parent = f,
 		})
 	end
+
+	--[[
+		Uç duvarlar. İstasyon boşlukta yüzdüğü için dört tarafı da kapalı
+		olmalı, yoksa oyuncu kenardan düşüp boşluğa gider. Üsler x ekseninde
+		sıralı ama uçlarda geçilecek bir şey yok, kapatmak oyunu engellemiyor.
+	]]
+	local depth = halfZ * 2 + 62
+	for _, side in { -1, 1 } do
+		local x = centerX + side * stationHalf
+
+		build({
+			name = "EndWall",
+			size = Vector3.new(2, WALL_H, depth),
+			cf = at(x, WALL_H / 2, 0),
+			color = HULL,
+			material = Enum.Material.Metal,
+			collide = true,
+			parent = f,
+		})
+		build({
+			name = "EndGlow",
+			size = Vector3.new(0.4, 0.4, depth - 4),
+			cf = at(x - side * 1.1, WALL_H - 3, 0),
+			color = NEON,
+			material = Enum.Material.Neon,
+			parent = f,
+		})
+		build({
+			name = "EndCornice",
+			size = Vector3.new(3.4, 1.4, depth),
+			cf = at(x, WALL_H + 0.7, 0),
+			color = TRIM,
+			material = Enum.Material.Metal,
+			parent = f,
+		})
+	end
+
+	--[[
+		Güverte altı: istasyonun kalınlığı görünsün. Yandan bakınca havada
+		yüzen ince bir levha değil, gövdesi olan bir yapı gibi dursun.
+	]]
+	build({
+		name = "Underside",
+		size = Vector3.new(stationHalf * 2 - 6, 7, depth - 8),
+		cf = at(centerX, -4.2, 0),
+		color = HULL_DARK,
+		material = Enum.Material.Metal,
+		parent = f,
+	})
+	build({
+		name = "Keel",
+		size = Vector3.new(stationHalf * 2 - 24, 3, depth - 26),
+		cf = at(centerX, -9, 0),
+		color = TRIM,
+		material = Enum.Material.Metal,
+		parent = f,
+	})
+	-- Alt kenar boyunca konum ışıkları
+	for i = 0, PLOT_COUNT do
+		local x = (i - 0.5) * PLOT_SPACING
+		for _, side in { -1, 1 } do
+			build({
+				name = "MarkerLight",
+				size = Vector3.new(1.2, 1.2, 1.2),
+				cf = at(x, -7.5, side * (depth / 2 - 5)),
+				color = NEON_WARM,
+				material = Enum.Material.Neon,
+				shape = Enum.PartType.Ball,
+				parent = f,
+			})
+		end
+	end
 end
 
 -- ─── 3. Üs başına: çerçeve, sütun, kemer, kaide halkaları ───────────────────
@@ -535,6 +607,29 @@ do
 	glow.Range = 30
 	glow.Brightness = 2.2
 	glow.Parent = dome
+end
+
+-- ─── Baseplate: istasyonun altına gizle ─────────────────────────────────────
+--[[
+	Varsayılan Baseplate 2048x2048 ve Slate malzemesi koyu rengi yıkıyor;
+	uzaktan bakınca devasa açık gri bir düzlem olarak her şeyi bastırıyordu.
+	İstasyon uzayda yüzüyor, altında sonsuz zemin olmamalı.
+
+	Tamamen silmek yerine istasyonun altına, görünmeyecek şekilde küçültüyoruz:
+	bir şey ters giderse (oyuncu bir delikten düşerse) yakalayacak bir taban
+	kalsın, ama kamerada görünmesin.
+]]
+do
+	local bp = workspace:FindFirstChild("Baseplate")
+	if bp and bp:IsA("BasePart") then
+		bp.Size = Vector3.new(stationHalf * 2 - 10, 4, halfZ * 2 + 50)
+		bp.CFrame = at(centerX, -14, 0)
+		bp.Color = HULL_DARK
+		bp.Material = Enum.Material.SmoothPlastic
+		bp.Anchored = true
+		bp.TopSurface = Enum.SurfaceType.Smooth
+		bp.BottomSurface = Enum.SurfaceType.Smooth
+	end
 end
 
 -- ─── Özet ───────────────────────────────────────────────────────────────────
