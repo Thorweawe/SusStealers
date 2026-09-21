@@ -6,8 +6,9 @@
 	tablosu ve karakter kataloğu duruyor. Oynarken hepsi lazım değil ve
 	çalmaya giderken görüşü kapatıyorlar.
 
-	Yer: sağ üst, üs panelinin hemen solunda. Sohbet düğmesiyle aynı hizada
-	duruyor ki oyuncu "arayüz düğmeleri burada" diye öğrensin.
+	Yer: Roblox'un kendi üst şeridinde, mikrofonun sağında. Oyuncunun
+	arayüz düğmelerini aradığı yer orası; oyunun kendi paneli araya
+	karışmadan aynı sırada duruyor.
 
 	Ne gizliyor: kalabalık yapanlar (harita, görevler, üs paneli, sıralama,
 	katalog, menü düğmeleri). Ne gizlemiyor: nakit, bildirimler, öğretici
@@ -25,6 +26,7 @@
 		local hud = HudToggle.Create(screen)
 ]]
 
+local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 
 local HudToggle = {}
@@ -57,12 +59,44 @@ export type Toggle = {
 }
 
 function HudToggle.Create(screen: ScreenGui): Toggle
+	--[[
+		Düğme KENDİ katmanında duruyor.
+
+		Sebep: normal ScreenGui'ler Roblox'un üst şeridinin altına itiliyor
+		(GUI inset). Düğmeyi mikrofonun yanına, yani şeridin kendi hizasına
+		koyabilmek için IgnoreGuiInset gerekiyor — ama onu ana HUD'a açmak
+		bütün panelleri yukarı kaydırırdı. Ayrı katman ikisini de çözüyor.
+
+		DisplayOrder yüksek: gizlediği panellerin üstünde kalmalı, yoksa
+		kendini gizleyen bir düğme geri gelemezdi.
+	]]
+	local layer = Instance.new("ScreenGui")
+	layer.Name = "SusStealersTopbar"
+	layer.ResetOnSpawn = false
+	layer.IgnoreGuiInset = true
+	layer.DisplayOrder = 20
+	layer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	layer.Parent = screen.Parent
+
+	--[[
+		Roblox kendi üst şerit ikonlarının konumunu API ile vermiyor, o
+		yüzden sabit. Şerit soldan sağa: Roblox logosu, sonra sohbet /
+		balon / mikrofon ikonlarını taşıyan kapsül. Kapsül ~218'de bitiyor,
+		düğme onun hemen sağına düşüyor.
+
+		Sesli sohbet kapalıysa mikrofon çıkmıyor ve kapsül kısalıyor; o
+		durumda düğmenin solunda biraz boşluk kalıyor, üst üste binmiyor.
+	]]
+	local SLOT_X = 228
+
+	local topInset = GuiService:GetGuiInset()
+	local barHeight = if topInset.Y > 0 then topInset.Y else 36
+	local size = math.max(28, barHeight - 8)
+
 	local button = Instance.new("TextButton")
 	button.Name = "HudToggle"
-	button.AnchorPoint = Vector2.new(1, 0)
-	-- Üs paneli sağda 260 geniş ve 24 boşluklu; düğme onun soluna düşüyor
-	button.Position = UDim2.new(1, -292, 0, 20)
-	button.Size = UDim2.new(0, 36, 0, 36)
+	button.Position = UDim2.new(0, SLOT_X, 0, math.floor((barHeight - size) / 2))
+	button.Size = UDim2.new(0, size, 0, size)
 	button.BackgroundColor3 = PANEL
 	button.BackgroundTransparency = 0.15
 	button.BorderSizePixel = 0
@@ -71,29 +105,27 @@ function HudToggle.Create(screen: ScreenGui): Toggle
 	button.TextColor3 = INK
 	button.Text = "👁"
 	button.AutoButtonColor = false
-	-- Gizlenenlerin üstünde kalsın; kendini gizleyen bir düğme geri
-	-- gelemezdi
-	button.ZIndex = 20
-	button.Parent = screen
+	button.Parent = layer
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
+	-- Roblox'un kendi ikonları yuvarlak; aynı dilde olsun
+	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = button
 
+	-- İpucu düğmenin ALTINDA: sağında yer yok, şeridin devamı geliyor
 	local tip = Instance.new("TextLabel")
 	tip.Name = "Tip"
-	tip.AnchorPoint = Vector2.new(1, 0)
-	tip.Position = UDim2.new(1, -42, 0, 20)
-	tip.Size = UDim2.new(0, 120, 0, 36)
+	tip.Position = UDim2.new(0, SLOT_X - 30, 0, barHeight + 4)
+	tip.Size = UDim2.new(0, 100, 0, 18)
 	tip.BackgroundTransparency = 1
 	tip.Font = Enum.Font.GothamMedium
 	tip.TextSize = 12
-	tip.TextXAlignment = Enum.TextXAlignment.Right
+	tip.TextXAlignment = Enum.TextXAlignment.Center
 	tip.TextColor3 = MUTED
+	tip.TextStrokeTransparency = 0.5
 	tip.TextTransparency = 1
 	tip.Text = "Hide UI  (H)"
-	tip.ZIndex = 20
-	tip.Parent = screen
+	tip.Parent = layer
 
 	local hidden = false
 
@@ -164,8 +196,7 @@ function HudToggle.Create(screen: ScreenGui): Toggle
 		end,
 		Destroy = function()
 			input:Disconnect()
-			button:Destroy()
-			tip:Destroy()
+			layer:Destroy()
 		end,
 	}
 end

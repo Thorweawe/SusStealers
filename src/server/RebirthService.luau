@@ -74,16 +74,30 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 	EconomyService.AddCash(player, Config.StartingCash - EconomyService.GetCash(player))
 
 	profile.rebirths += 1
-	PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.rebirths))
+	-- Kat artık rebirth ödülü değil, parayla alınıyor. Yine de burada
+	-- çağırıyoruz: satın alınmış katlar sıfırlamadan sağ çıkmalı.
+	PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.floorsBought))
 	PlotService.RefreshSign(plot)
 
 	local multiplier = Config.GetIncomeMultiplier(profile.rebirths)
-	local floors = Config.GetUnlockedFloors(profile.rebirths)
 
-	notify(player, string.format(
-		"REBIRTH %d! Income x%.1f, floor %d unlocked",
-		profile.rebirths, multiplier, floors
-	), false)
+	--[[
+		Mesaj eskiden "floor N unlocked" diyordu ve artık yalan olurdu:
+		rebirth katı vermiyor, satın alma hakkını veriyor. Yeni bir kat
+		açıldıysa onu söylüyoruz, açılmadıysa sadece çarpanı.
+	]]
+	local next = Config.GetNextFloor(profile.floorsBought)
+	if next and profile.rebirths >= next.rebirths then
+		notify(player, string.format(
+			"REBIRTH %d! Income x%.1f  ·  Floor %d now available for $%s",
+			profile.rebirths, multiplier, next.floor, Config.FormatCash(next.cost)
+		), false)
+	else
+		notify(player, string.format(
+			"REBIRTH %d! Income x%.1f",
+			profile.rebirths, multiplier
+		), false)
+	end
 
 	BadgeService.Award(player, "FirstRebirth")
 

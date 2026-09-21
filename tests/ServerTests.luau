@@ -41,6 +41,7 @@ local TitleService = require(Server.TitleService)
 local TutorialService = require(Server.TutorialService)
 local QuestService = require(Server.QuestService)
 local PotionService = require(Server.PotionService)
+local FloorService = require(Server.FloorService)
 
 local ServerTests = {}
 
@@ -518,8 +519,14 @@ case("Rebirth: parası yetmeyince reddediliyor", function(ctx)
 	eq("seviye değişmedi", ctx.profile.rebirths, 0)
 end)
 
-case("Rebirth: sıfırlıyor, kat açıyor, çarpan veriyor", function(ctx)
+case("Rebirth: sıfırlıyor ve çarpan veriyor", function(ctx)
+	--[[
+		Kat artık rebirth ödülü DEĞİL, parayla alınıyor. Bu test eskiden
+		rebirth'ten sonra katın açılmasını bekliyordu; o kural kalktı.
+		Katın satın almayla açıldığı ayrı testlerde sınanıyor.
+	]]
 	ctx.profile.rebirths = 0
+	ctx.profile.floorsBought = 0
 	PlotService.SetUnlockedFloors(ctx.plot, 1)
 	clearPlot(ctx.plot)
 
@@ -531,7 +538,7 @@ case("Rebirth: sıfırlıyor, kat açıyor, çarpan veriyor", function(ctx)
 
 	eq("seviye 1 oldu", ctx.profile.rebirths, 1)
 	eq("nakit başlangıca döndü", EconomyService.GetCash(ctx.player), Config.StartingCash)
-	eq("açık kat sayısı", ctx.plot:GetAttribute("UnlockedFloors"), 2)
+	eq("kat bedava açılmadı", ctx.plot:GetAttribute("UnlockedFloors"), 1)
 
 	local occupied = 0
 	for _, podium in PlotService.GetPodiums(ctx.plot) do
@@ -541,7 +548,6 @@ case("Rebirth: sıfırlıyor, kat açıyor, çarpan veriyor", function(ctx)
 	end
 	eq("kaideler boşaldı", occupied, 0)
 
-	eq("kullanılabilir kaide iki kat", #PlotService.GetUnlockedPodiums(ctx.plot), Config.PodiumsPerPlot * 2)
 	near("gelir çarpanı", Config.GetIncomeMultiplier(1), 1 + Config.RebirthIncomeBonus, 0.001)
 end)
 
@@ -1713,6 +1719,237 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 	ok("Potions dinlenmiyor", not Net.IsClientToServer("Potions"))
 end)
 
+-- ─── T. Üst kat satın alma ──────────────────────────────────────────────────
+
+case("Kat: tanımlar tutarlı", function()
+	local floors = {}
+	local increasing = true
+	local previousCost, previousRebirths = 0, -1
+
+	for _, def in Config.FloorUnlocks do
+		ok("kat " .. def.floor .. " birden büyük", def.floor >= 2, tostring(def.floor))
+		ok("kat " .. def.floor .. " tavanda", def.floor <= Config.MaxFloors)
+		ok("kat " .. def.floor .. " fiyatı pozitif", def.cost > 0)
+
+		if def.cost <= previousCost or def.rebirths < previousRebirths then
+			increasing = false
+		end
+		previousCost = def.cost
+		previousRebirths = def.rebirths
+
+		floors[def.floor] = true
+	end
+
+	ok("fiyat ve rebirth koşulu birlikte artıyor", increasing)
+
+	-- 1. kat bedava olmalı, satılık listede yer almamalı
+	ok("1. kat satılık değil", floors[1] ~= true)
+
+	-- Her üst kat için bir tanım olmalı, yoksa arada erişilemez kat kalır
+	for floor = 2, Config.MaxFloors do
+		ok("kat " .. floor .. " tanımlı", Config.GetFloorUnlock(floor) ~= nil)
+	end
+
+	ok("olmayan kat nil", Config.GetFloorUnlock(Config.MaxFloors + 1) == nil)
+end)
+
+case("Kat: pahalı olmalı", function()
+	--[[
+		Kullanıcının istediği buydu ve ucuzlarsa oyunun geç kısmı anlamını
+		kaybediyor. Ölçü: her katın fiyatı, onu açan rebirth'e kadar
+		harcanan toplamdan büyük olmalı — yani rebirth'ü biriktirmiş
+		oyuncu katı anında alamamalı.
+	]]
+	for _, def in Config.FloorUnlocks do
+		local spentOnRebirths = 0
+		for level = 0, def.rebirths - 1 do
+			spentOnRebirths += Config.GetRebirthCost(level)
+		end
+
+		ok(string.format("kat %d fiyatı rebirth masrafından büyük", def.floor),
+			def.cost > spentOnRebirths,
+			string.format("%s vs %s",
+				Config.FormatCash(def.cost), Config.FormatCash(spentOnRebirths)))
+	end
+end)
+
+case("Kat: sıra atlanamıyor", function()
+	local first = Config.GetNextFloor(0)
+	ok("hiç kat yokken 2. kat sıradaki", first ~= nil and first.floor == 2,
+		tostring(first and first.floor))
+
+	local second = Config.GetNextFloor(1)
+	ok("2. kat alınınca 3. kat sıradaki", second ~= nil and second.floor == 3,
+		tostring(second and second.floor))
+
+	ok("hepsi alınınca sıradaki yok", Config.GetNextFloor(Config.MaxFloors - 1) == nil)
+end)
+
+case("Kat: açık kat sayısı satın almaya bağlı", function()
+	eq("hiç alınmamışken tek kat", Config.GetUnlockedFloors(0), 1)
+	eq("bir alınmışken iki kat", Config.GetUnlockedFloors(1), 2)
+	eq("tavan aşılmıyor", Config.GetUnlockedFloors(99), Config.MaxFloors)
+end)
+
+case("Kat: profil alanı var ve sınırlı", function(ctx)
+	ok("floorsBought sayı", typeof(ctx.profile.floorsBought) == "number",
+		typeof(ctx.profile.floorsBought))
+	ok("aralıkta", ctx.profile.floorsBought >= 0
+		and ctx.profile.floorsBought <= Config.MaxFloors - 1,
+		tostring(ctx.profile.floorsBought))
+end)
+
+case("Kat: rebirth yetmezse satılmıyor", function(ctx)
+	local def = Config.GetFloorUnlock(2)
+	ok("2. kat tanımlı", def ~= nil)
+	if not def then return end
+
+	ctx.profile.floorsBought = 0
+	ctx.profile.rebirths = 0
+	PlotService.SetUnlockedFloors(ctx.plot, 1)
+	setCash(ctx.player, def.cost * 10)
+
+	ok("rebirth koşulu var", def.rebirths > 0, tostring(def.rebirths))
+	ok("satın alma reddedildi", not FloorService.TryBuy(ctx.player))
+	eq("kat alınmadı", ctx.profile.floorsBought, 0)
+	eq("para harcanmadı", EconomyService.GetCash(ctx.player), def.cost * 10)
+end)
+
+case("Kat: parası yetmezse satılmıyor", function(ctx)
+	local def = Config.GetFloorUnlock(2)
+	if not def then return end
+
+	ctx.profile.floorsBought = 0
+	ctx.profile.rebirths = def.rebirths
+	PlotService.SetUnlockedFloors(ctx.plot, 1)
+	setCash(ctx.player, def.cost - 1)
+
+	ok("satın alma reddedildi", not FloorService.TryBuy(ctx.player))
+	eq("kat alınmadı", ctx.profile.floorsBought, 0)
+	eq("para duruyor", EconomyService.GetCash(ctx.player), def.cost - 1)
+end)
+
+case("Kat: koşullar sağlanınca açılıyor", function(ctx)
+	local def = Config.GetFloorUnlock(2)
+	if not def then return end
+
+	ctx.profile.floorsBought = 0
+	ctx.profile.rebirths = def.rebirths
+	PlotService.SetUnlockedFloors(ctx.plot, 1)
+
+	--[[
+		Fiyatın üstüne biraz koyuyoruz. Tam fiyat verilseydi bakiye sıfıra
+		inerdi ve EconomyService'in kilitlenme koruması devreye girip en
+		ucuz karakterin parasını geri yatırırdı (TryBuy içindeki Save
+		yield ediyor, döngüye sıra geliyor). Koruma doğru çalışıyor; test
+		onun üstüne oturmamalı.
+	]]
+	local spare = Config.GetCheapestUnitPrice() * 10
+	setCash(ctx.player, def.cost + spare)
+
+	eq("başlangıçta tek kat", ctx.plot:GetAttribute("UnlockedFloors"), 1)
+	local beforePodiums = #PlotService.GetUnlockedPodiums(ctx.plot)
+
+	ok("satın alma başarılı", FloorService.TryBuy(ctx.player))
+	eq("kat sayacı arttı", ctx.profile.floorsBought, 1)
+	eq("fiyat kadar para gitti", EconomyService.GetCash(ctx.player), spare)
+	eq("kat açıldı", ctx.plot:GetAttribute("UnlockedFloors"), 2)
+
+	ok("kaide sayısı arttı", #PlotService.GetUnlockedPodiums(ctx.plot) > beforePodiums,
+		string.format("%d -> %d", beforePodiums, #PlotService.GetUnlockedPodiums(ctx.plot)))
+end)
+
+case("Kat: hepsi alınınca duruyor", function(ctx)
+	ctx.profile.floorsBought = Config.MaxFloors - 1
+	ctx.profile.rebirths = 99
+	setCash(ctx.player, 1e15)
+
+	ok("fazlası satılmıyor", not FloorService.TryBuy(ctx.player))
+	eq("sayaç tavanda kaldı", ctx.profile.floorsBought, Config.MaxFloors - 1)
+end)
+
+case("Kat: satın alınan kat rebirth'ten sağ çıkıyor", function(ctx)
+	--[[
+		Kata parasını ödedi. Rebirth kaideleri ve nakdi sıfırlıyor ama
+		katı geri almamalı, yoksa oyuncu aynı katı iki kez satın alırdı.
+	]]
+	ctx.profile.floorsBought = 1
+	ctx.profile.rebirths = 0
+	PlotService.SetUnlockedFloors(ctx.plot, Config.GetUnlockedFloors(1))
+	clearPlot(ctx.plot)
+
+	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
+	PlotService.PlaceUnit(podiums[1], "TheSkeld", nil)
+	setCash(ctx.player, Config.GetRebirthCost(0))
+
+	ok("rebirth başarılı", RebirthService.TryRebirth(ctx.player))
+	eq("kat sayacı korundu", ctx.profile.floorsBought, 1)
+	eq("kat hâlâ açık", ctx.plot:GetAttribute("UnlockedFloors"), 2)
+end)
+
+case("Kat: pedi dünyada kurulu ve promptu var", function(ctx)
+	local pad = ctx.plot:FindFirstChild("FloorPad")
+	ok("ped var", pad ~= nil)
+	if not (pad and pad:IsA("BasePart")) then return end
+
+	local prompt = pad:FindFirstChild("FloorPrompt")
+	ok("prompt var", prompt ~= nil)
+	if prompt and prompt:IsA("ProximityPrompt") then
+		ok("basılı tutma istiyor", prompt.HoldDuration > 0, tostring(prompt.HoldDuration))
+		ok("menzil makul", prompt.MaxActivationDistance <= 20,
+			tostring(prompt.MaxActivationDistance))
+	end
+
+	local gui = pad:FindFirstChild("FloorLabel")
+	ok("etiket var", gui ~= nil)
+
+	-- Ped üssün içinde durmalı, başka üssün üstüne taşmamalı
+	local base = ctx.plot:FindFirstChild("Base")
+	if base and base:IsA("BasePart") then
+		local delta = pad.Position - base.Position
+		ok("ped üs sınırları içinde",
+			math.abs(delta.X) <= Config.PlotSize.X / 2
+			and math.abs(delta.Z) <= Config.PlotSize.Z / 2,
+			string.format("%.1f, %.1f", delta.X, delta.Z))
+	end
+end)
+
+case("Kat: hepsi alınınca ped gizleniyor", function(ctx)
+	ctx.profile.floorsBought = Config.MaxFloors - 1
+	FloorService.Refresh(ctx.plot)
+
+	local pad = ctx.plot:FindFirstChild("FloorPad")
+	if not (pad and pad:IsA("BasePart")) then return end
+
+	local prompt = pad:FindFirstChild("FloorPrompt")
+	ok("ped görünmez", pad.Transparency >= 1, tostring(pad.Transparency))
+	if prompt and prompt:IsA("ProximityPrompt") then
+		ok("prompt kapalı", not prompt.Enabled)
+	end
+
+	-- Alınacak kat varken geri gelmeli
+	ctx.profile.floorsBought = 0
+	FloorService.Refresh(ctx.plot)
+	ok("ped geri geldi", pad.Transparency < 1, tostring(pad.Transparency))
+	if prompt and prompt:IsA("ProximityPrompt") then
+		ok("prompt açık", prompt.Enabled)
+	end
+end)
+
+case("Kat: eski kayıt katlarını kaybetmiyor", function()
+	--[[
+		Katlar eskiden doğrudan rebirth ödülüydü. floorsBought alanı
+		olmayan bir kayıt 0 ile gelir ve rebirth atmış oyuncu katlarını
+		kaybederdi — üstelik üstünde karakteri varken. Göç eski kuralın
+		verdiği kadarını hediye ediyor.
+	]]
+	local migrated = Config.GetUnlockedFloors(math.clamp(2, 0, Config.MaxFloors - 1))
+	eq("2 rebirth'lü eski oyuncu üç kata sahip", migrated, 3)
+
+	local fresh = Config.GetUnlockedFloors(math.clamp(0, 0, Config.MaxFloors - 1))
+	eq("yeni oyuncu tek kat", fresh, 1)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -1753,6 +1990,7 @@ function ServerTests.Run(player: Player?): number
 		activeTitle = profile.activeTitle,
 		quests = profile.quests,
 		potions = table.clone(profile.potions),
+		floorsBought = profile.floorsBought,
 		bought = profile.bought,
 		sold = profile.sold,
 		spins = profile.spins,
@@ -1823,12 +2061,14 @@ function ServerTests.Run(player: Player?): number
 	profile.activeTitle = backup.activeTitle
 	profile.quests = backup.quests
 	profile.potions = backup.potions
+	profile.floorsBought = backup.floorsBought
 	profile.bought = backup.bought
 	profile.sold = backup.sold
 	profile.spins = backup.spins
 	profile.earned = backup.earned
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
+	FloorService.Refresh(plot)
 	clearPlot(plot)
 
 	print("═══════════════════════════════════")

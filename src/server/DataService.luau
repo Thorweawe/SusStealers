@@ -69,6 +69,8 @@ export type Profile = {
 	quests: { [string]: QuestSlot },
 	-- İksir envanteri: iksir kimliği -> adet
 	potions: { [string]: number },
+	-- Satın alınmış üst kat sayısı (1. kat bedava, sayıya dahil değil)
+	floorsBought: number,
 }
 
 export type QuestEntry = {
@@ -128,6 +130,7 @@ local function newProfile(): Profile
 		earned = 0,
 		quests = {},
 		potions = {},
+		floorsBought = 0,
 	}
 end
 
@@ -202,6 +205,20 @@ local function sanitize(raw: any): Profile
 	end
 
 	profile.titleManual = raw.titleManual == true
+
+	--[[
+		Katlar eskiden doğrudan rebirth ödülüydü; şimdi parayla alınıyor.
+
+		Eski kayıtta floorsBought alanı yok ve 0 geliyor. Onu olduğu gibi
+		kabul etmek, rebirth atmış oyuncunun katlarını elinden almak
+		olurdu — üstelik üstünde karakteri varken. Eski kuralın verdiği
+		kadarını hediye ediyoruz.
+	]]
+	if typeof(raw.floorsBought) == "number" and raw.floorsBought >= 0 then
+		profile.floorsBought = math.clamp(math.floor(raw.floorsBought), 0, Config.MaxFloors - 1)
+	else
+		profile.floorsBought = math.clamp(profile.rebirths, 0, Config.MaxFloors - 1)
+	end
 
 	if typeof(raw.potions) == "table" then
 		for id, count in raw.potions do
