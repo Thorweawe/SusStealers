@@ -13,6 +13,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
+local DecorFX = require(script.DecorFX)
 local Leaderboard = require(script.Leaderboard)
 local PromptFilter = require(script.PromptFilter)
 
@@ -328,6 +329,8 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 end)
+
+DecorFX.Start()
 
 local guide = CarryGuide.Create(screen)
 local board = Leaderboard.Create(screen)

@@ -217,6 +217,21 @@ local function buildPlot(index: number): Model
 	plot:SetAttribute("LockUsedAt", 0)
 	plot:SetAttribute("UnlockedFloors", 1)
 
+	--[[
+		Satırlar birbirine baksın. Üs varsayılan olarak -Z yönüne bakıyor
+		(tabela orada). Iki satırlı düzende üst satır bu haliyle koridorun
+		tersine bakıyor, o yüzden 180° çevriliyor. Sonuç: iki sıra üs
+		aradaki koridora bakar, oyuncu ortada durup ikisini birden görür.
+
+		180° eksen hizasını bozmuyor, bu yüzden isInsidePlot gibi dünya
+		eksenine bakan kontroller çalışmaya devam ediyor. Başka bir açı
+		seçilirse oralar da düzeltilmeli.
+	]]
+	local rowCount = math.ceil(Config.PlotCount / columns)
+	if rowCount > 1 and row % 2 == 0 then
+		plot:PivotTo(CFrame.new(origin) * CFrame.Angles(0, math.pi, 0))
+	end
+
 	plot.Parent = plotsFolder
 	return plot
 end

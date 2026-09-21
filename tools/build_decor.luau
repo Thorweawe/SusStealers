@@ -471,7 +471,178 @@ do
 	glow(dome, RED, 34, 2.4)
 end
 
--- ─── 6. Baseplate'i gövdenin altına gizle ───────────────────────────────────
+-- ─── 6. Çatı kirişleri ──────────────────────────────────────────────────────
+-- Üstü tamamen kapatmıyoruz; kafes kirişler kapalı mekân hissi verirken
+-- yıldızlar aradan görünmeye devam ediyor.
+
+do
+	local f = group("Roof")
+	local Y = WALL_H + 3
+	local BEAM = 1.5
+
+	-- Enine ana kirişler
+	for i = 0, COLUMNS do
+		local x = (i - 0.5) * PLOT_SPACING
+		build({ name = "Truss", size = Vector3.new(BEAM, BEAM, halfD * 2),
+			cf = at(x, Y, centerZ), color = TRIM, material = Enum.Material.Metal, parent = f })
+		-- Alt payanda: kirişe derinlik verir
+		build({ name = "TrussLower", size = Vector3.new(BEAM * 0.7, BEAM * 0.7, halfD * 2 - 6),
+			cf = at(x, Y - 2.4, centerZ), color = HULL, material = Enum.Material.Metal, parent = f })
+		-- Zikzak dikmeler
+		local steps = 8
+		for s = 0, steps do
+			local z = centerZ - halfD + (halfD * 2) * (s / steps)
+			build({ name = "TrussWeb", size = Vector3.new(BEAM * 0.5, 2.4, BEAM * 0.5),
+				cf = at(x, Y - 1.2, z), color = HULL, material = Enum.Material.Metal, parent = f })
+		end
+	end
+
+	-- Boyuna bağlantılar
+	for i = 0, ROWS do
+		local z = (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)
+		build({ name = "Purlin", size = Vector3.new(halfW * 2, BEAM * 0.8, BEAM * 0.8),
+			cf = at(centerX, Y, z), color = TRIM, material = Enum.Material.Metal, parent = f })
+	end
+
+	-- Kirişlere asılı aydınlatma
+	for i = 1, COLUMNS do
+		for r = 0, ROWS - 1 do
+			local lamp = build({
+				name = "RoofLamp",
+				size = Vector3.new(PLOT_SIZE.X * 0.5, 0.4, 2),
+				cf = at((i - 1) * PLOT_SPACING, Y - 3.2, r * ROW_SPACING),
+				color = NEON, material = Enum.Material.Neon, parent = f,
+			})
+			glow(lamp, NEON, 40, 1.1)
+		end
+	end
+end
+
+-- ─── 7. Görev konsolları ────────────────────────────────────────────────────
+-- Skeld'deki görev panelleri gibi: çeper duvarların dibinde eğik ekranlı masalar.
+
+do
+	local f = group("Consoles")
+
+	local function console(x: number, z: number, yaw: number)
+		local base = CFrame.new(x, 0, z) * CFrame.Angles(0, math.rad(yaw), 0)
+
+		build({ name = "ConsoleBody", size = Vector3.new(6, 3.4, 2.6),
+			cf = base * CFrame.new(0, 1.7, 0), color = HULL,
+			material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "ConsoleTop", size = Vector3.new(6.4, 0.4, 3),
+			cf = base * CFrame.new(0, 3.5, 0), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+
+		-- Eğik ekran
+		local screen = build({ name = "ConsoleScreen", size = Vector3.new(5.2, 3, 0.3),
+			cf = base * CFrame.new(0, 5, -0.9) * CFrame.Angles(math.rad(-28), 0, 0),
+			color = NEON, material = Enum.Material.Neon, parent = f })
+		screen.Transparency = 0.15
+		glow(screen, NEON, 14, 0.8)
+
+		-- Ekran çerçevesi
+		build({ name = "ScreenFrame", size = Vector3.new(5.8, 3.6, 0.5),
+			cf = base * CFrame.new(0, 5, -0.7) * CFrame.Angles(math.rad(-28), 0, 0),
+			color = HULL_DARK, material = Enum.Material.Metal, parent = f })
+	end
+
+	-- Ön ve arka duvar diplerine, üs sütunlarının arasına
+	local inset = 7
+	for i = 1, COLUMNS do
+		local x = (i - 1) * PLOT_SPACING
+		console(x, centerZ - halfD + inset, 0)
+		console(x, centerZ + halfD - inset, 180)
+	end
+	-- Yan duvarlara
+	for r = 0, ROWS - 1 do
+		local z = r * ROW_SPACING
+		console(centerX - halfW + inset, z, 90)
+		console(centerX + halfW - inset, z, -90)
+	end
+end
+
+-- ─── 8. Üs işaretleri ───────────────────────────────────────────────────────
+-- Her üssün girişine kat numarası: oyuncu kendi üssünü uzaktan bulabilsin.
+
+do
+	local f = group("BayMarkers")
+
+	for index = 1, PLOT_COUNT do
+		local o = plotOrigin(index)
+		local row = math.floor((index - 1) / COLUMNS)
+		-- Üsler koridora bakıyor; işaret de koridor tarafında dursun
+		local side = if row % 2 == 0 then 1 else -1
+		local z = o.Z + side * (halfZ + 9)
+
+		build({ name = "BayPad", size = Vector3.new(14, 0.14, 7),
+			cf = at(o.X, 0.07, z), color = NEON,
+			material = Enum.Material.Neon, transparency = 0.45, parent = f })
+
+		local post = build({ name = "BayPost", size = Vector3.new(1, 1, 1),
+			cf = at(o.X, 6, z), color = HULL,
+			material = Enum.Material.Metal, transparency = 1, parent = f })
+
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "BayLabel"
+		gui.Size = UDim2.fromScale(11, 4)
+		gui.AlwaysOnTop = false
+		gui.MaxDistance = 320
+		gui.Parent = post
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextColor3 = NEON
+		label.TextStrokeTransparency = 0.25
+		label.Text = string.format("BAY %02d", index)
+		label.Parent = gui
+	end
+end
+
+-- ─── 9. Hareketli detaylar (geometri) ───────────────────────────────────────
+-- Dönen radar ve yanıp sönen uyarı lambaları. Animasyonu istemci tarafındaki
+-- DecorFX modülü yapıyor; burada sadece parçalar kuruluyor ve etiketleniyor.
+
+do
+	local f = group("Animated")
+
+	-- Radar: köşede direk + tabak
+	local rx = centerX - halfW + 16
+	local rz = centerZ - halfD + 16
+
+	build({ name = "RadarMast", size = Vector3.new(2, 16, 2),
+		cf = at(rx, WALL_H + 8, rz), color = TRIM,
+		material = Enum.Material.Metal, parent = f })
+
+	local dish = build({ name = "RadarDish", size = Vector3.new(11, 1, 6),
+		cf = at(rx, WALL_H + 16.5, rz), color = HULL,
+		material = Enum.Material.Metal, parent = f })
+	dish:SetAttribute("SpinSpeed", 22)   -- derece/saniye
+
+	build({ name = "RadarPin", size = Vector3.new(0.6, 2.4, 0.6),
+		cf = at(rx, WALL_H + 17.7, rz), color = NEON_WARM,
+		material = Enum.Material.Neon, parent = f })
+
+	-- Uyarı lambaları: çeperin dört köşesinde
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			local lamp = build({
+				name = "WarnLight",
+				size = Vector3.new(2.2, 2.2, 2.2),
+				cf = at(centerX + sx * (halfW - 3), WALL_H + 2.5, centerZ + sz * (halfD - 3)),
+				color = HAZARD, material = Enum.Material.Neon,
+				shape = Enum.PartType.Ball, parent = f,
+			})
+			lamp:SetAttribute("PulsePeriod", 1.6)
+			glow(lamp, HAZARD, 22, 1.6)
+		end
+	end
+end
+
+-- ─── 10. Baseplate'i gövdenin altına gizle ──────────────────────────────────
 --[[
 	Varsayılan 2048x2048 Baseplate, Slate malzemesiyle koyu rengi yıkıyor ve
 	uzaktan devasa açık gri bir düzlem olarak her şeyi bastırıyordu. İstasyon
