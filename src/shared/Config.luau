@@ -37,6 +37,24 @@ Config.CarryTravelTolerance = 0.7
 Config.LockDuration = 25
 Config.LockCooldown = 80
 
+-- ─── Rebirth ve katlar ──────────────────────────────────────────────────────
+-- Tavana ulaşan oyuncunun yapacak bir şeyi kalmıyordu. Rebirth her şeyi
+-- sıfırlıyor ama karşılığında kalıcı gelir çarpanı ve yeni bir kat veriyor.
+Config.MaxFloors = 3           -- 1. kat açık gelir, her rebirth bir kat açar
+Config.FloorHeight = 18        -- katlar arası yükseklik (stud)
+-- 8 kaide Amogus Prime ile 1. kat tavanı ~3.36M/sn. Rebirth'ün o tavanda
+-- birkaç dakikalık oyun kadar tutması gerekiyor; 25M yedi saniyelik
+-- kazançtı, hiçbir şey ifade etmiyordu.
+Config.RebirthBaseCost = 1000000000
+Config.RebirthCostGrowth = 8   -- her seviyede maliyet bu kat artar
+Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%50)
+
+-- ─── Çevrimdışı gelir ───────────────────────────────────────────────────────
+-- Oyuncu çıkınca kazanç tamamen duruyordu, geri gelmek için sebep azdı.
+-- Tam oran vermiyoruz ki oynamak hâlâ daha kârlı olsun.
+Config.OfflineIncomeRate = 0.25
+Config.OfflineIncomeCapHours = 4
+
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
 
@@ -188,6 +206,39 @@ function Config.GetStealHoldTime(unitId: string, mutationId: string?): number
 
 	local t = math.log(price / 100) / math.log(90000)
 	return math.clamp(2 + t * 6, 2, 8)
+end
+
+--[[ Bir sonraki rebirth'ün maliyeti. Seviye 0 -> ilk rebirth'ün fiyatı. ]]
+function Config.GetRebirthCost(rebirths: number): number
+	return math.floor(Config.RebirthBaseCost * Config.RebirthCostGrowth ^ rebirths)
+end
+
+--[[ Rebirth sayısının getirdiği kalıcı gelir çarpanı. 0 -> 1.0 ]]
+function Config.GetIncomeMultiplier(rebirths: number): number
+	return 1 + rebirths * Config.RebirthIncomeBonus
+end
+
+--[[ Kaç kat açık. İlk kat bedava, her rebirth bir kat daha açar. ]]
+function Config.GetUnlockedFloors(rebirths: number): number
+	return math.clamp(1 + rebirths, 1, Config.MaxFloors)
+end
+
+--[[ Açık katlarla birlikte toplam kaç kaide kullanılabilir. ]]
+function Config.GetUnlockedPodiumCount(rebirths: number): number
+	return Config.GetUnlockedFloors(rebirths) * Config.PodiumsPerPlot
+end
+
+--[[
+	Oyuncu yokken biriken kazanç. Tam oran verilmiyor ve tavanı var;
+	yoksa uzun süre girmemek oynamaktan kârlı hale gelir.
+]]
+function Config.GetOfflineEarnings(incomePerSecond: number, secondsAway: number): number
+	if incomePerSecond <= 0 or secondsAway <= 0 then
+		return 0
+	end
+
+	local capped = math.min(secondsAway, Config.OfflineIncomeCapHours * 3600)
+	return math.floor(incomePerSecond * capped * Config.OfflineIncomeRate)
 end
 
 --[[ Konveyör için ağırlıklı rastgele karakter seçer. ]]

@@ -7,12 +7,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 
+local Net = require(Shared.Net)
+
 local PlotService = require(script.Parent.PlotService)
 local DataService = require(script.Parent.DataService)
 
 local EconomyService = {}
 
 local cash: { [Player]: number } = {}
+local notifyRemote: RemoteEvent
 
 -- ─── Nakit ──────────────────────────────────────────────────────────────────
 
@@ -79,7 +82,11 @@ function EconomyService.GetIncome(player: Player): number
 			end
 		end
 	end
-	return total
+
+	-- Rebirth'ün kalıcı çarpanı en sonda uygulanıyor
+	local profile = DataService.Get(player)
+	local rebirths = if profile then profile.rebirths else 0
+	return math.floor(total * Config.GetIncomeMultiplier(rebirths))
 end
 
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────
@@ -110,6 +117,16 @@ local function onPlayerAdded(player: Player)
 	cash[player] = profile.cash
 	stolenValue.Value = profile.stolen
 	refreshStats(player)
+
+	-- Çevrimdışı kazanç profile zaten eklendi; oyuncuya haber ver
+	local earned, seconds = DataService.ConsumeOfflineEarnings(player)
+	if earned > 0 and notifyRemote then
+		notifyRemote:FireClient(player, string.format(
+			"Welcome back! You earned $%s while away (%d min)",
+			Config.FormatCash(earned),
+			math.floor(seconds / 60)
+		), false)
+	end
 end
 
 function EconomyService.AddStealCount(player: Player)
@@ -126,6 +143,8 @@ function EconomyService.AddStealCount(player: Player)
 end
 
 function EconomyService.Start()
+	notifyRemote = Net.Get("Notify")
+
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
 	end
@@ -144,6 +163,12 @@ function EconomyService.Start()
 					EconomyService.AddCash(player, income * Config.IncomeInterval)
 				end
 				player:SetAttribute("Income", income)
+
+				-- Çevrimdışı kazanç bu değerden hesaplanıyor
+				local profile = DataService.Get(player)
+				if profile then
+					profile.incomePerSecond = income
+				end
 			end
 		end
 	end)

@@ -31,7 +31,11 @@ export type Profile = {
 	version: number,
 	cash: number,
 	stolen: number,
+	rebirths: number,
 	units: { StoredUnit },
+	-- Çevrimdışı gelir hesabı için: son görülme ve o andaki kazanç hızı
+	lastSeen: number,
+	incomePerSecond: number,
 }
 
 type Lock = { owner: string, at: number }
@@ -45,6 +49,7 @@ local SESSION_ID = if game.JobId ~= "" then game.JobId else "studio-" .. tostrin
 
 local profiles: { [Player]: Profile } = {}
 local loading: { [Player]: boolean } = {}
+local offlineEarnings: { [Player]: { amount: number, seconds: number } } = {}
 
 -- ─── Varsayılan ─────────────────────────────────────────────────────────────
 
@@ -53,7 +58,10 @@ local function newProfile(): Profile
 		version = 1,
 		cash = Config.StartingCash,
 		stolen = 0,
+		rebirths = 0,
 		units = {},
+		lastSeen = 0,
+		incomePerSecond = 0,
 	}
 end
 
@@ -74,6 +82,18 @@ local function sanitize(raw: any): Profile
 
 	if typeof(raw.stolen) == "number" and raw.stolen >= 0 then
 		profile.stolen = math.floor(raw.stolen)
+	end
+
+	if typeof(raw.rebirths) == "number" and raw.rebirths >= 0 then
+		profile.rebirths = math.floor(raw.rebirths)
+	end
+
+	if typeof(raw.lastSeen) == "number" and raw.lastSeen > 0 then
+		profile.lastSeen = math.floor(raw.lastSeen)
+	end
+
+	if typeof(raw.incomePerSecond) == "number" and raw.incomePerSecond >= 0 then
+		profile.incomePerSecond = raw.incomePerSecond
 	end
 
 	if typeof(raw.units) == "table" then
@@ -173,11 +193,16 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	end
 
 	-- Yazarken profil değişebilir; anlık kopya al
+	profile.lastSeen = os.time()
+
 	local snapshot: Profile = {
 		version = profile.version,
 		cash = profile.cash,
 		stolen = profile.stolen,
+		rebirths = profile.rebirths,
 		units = table.clone(profile.units),
+		lastSeen = profile.lastSeen,
+		incomePerSecond = profile.incomePerSecond,
 	}
 
 	local ok, err = pcall(function()
@@ -250,14 +275,34 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 
+	-- Çevrimdışı kazanç: profil kullanıma açılmadan ÖNCE eklenmeli ki
+	-- EconomyService nakdi okuduğunda birikmiş tutar zaten içinde olsun.
+	local away = if profile.lastSeen > 0 then os.time() - profile.lastSeen else 0
+	local earned = Config.GetOfflineEarnings(profile.incomePerSecond, away)
+	if earned > 0 then
+		profile.cash += earned
+		offlineEarnings[player] = { amount = earned, seconds = away }
+	end
+
 	profiles[player] = profile
 	loading[player] = nil
+end
+
+--[[ Bu oturumda çevrimdışı kazanç verildiyse tutarı döner, sonra unutur. ]]
+function DataService.ConsumeOfflineEarnings(player: Player): (number, number)
+	local entry = offlineEarnings[player]
+	if not entry then
+		return 0, 0
+	end
+	offlineEarnings[player] = nil
+	return entry.amount, entry.seconds
 end
 
 local function onPlayerRemoving(player: Player)
 	saveProfile(player, true)
 	profiles[player] = nil
 	loading[player] = nil
+	offlineEarnings[player] = nil
 end
 
 function DataService.Start()
