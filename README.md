@@ -135,6 +135,29 @@ end
 
 **Yapı ilk kez kuruluyorsa** (place boşsa) önce kapları yarat: `ReplicatedStorage.Shared` (Folder), `ServerScriptService.Server` (Script), `StarterPlayerScripts.Client` (LocalScript), ve Shared altına `Config`/`Net`/`UnitModel`, Server altına `PlotService`/`EconomyService`/`ConveyorService`/`StealService` ModuleScript'leri.
 
+## Kayıt (DataStore)
+
+`src/server/DataService.luau` nakit, kaidedeki karakterler ve çalma
+sayısını kalıcı tutar.
+
+**Studio'da çalışması için açılması gerekiyor:**
+`Game Settings` → `Security` → **Enable Studio Access to API Services**
+
+Kapalıyken oyun çalışmaya devam eder ama hiçbir şey kaydedilmez; Output'ta
+uyarı görürsün. Bu bilinçli — test ederken oyunu kilitlemesin diye.
+
+**Tasarım:** DataService veriyi yorumlamaz. Diğer servisler kendi alanlarını
+profil tablosunda doğrudan günceller (`EconomyService` → `profile.cash`,
+`PlotService` → `profile.units`). DataService yalnızca yükler, kaydeder ve
+oturum kilidini yönetir. Bu yüzden kayıt anında servisler arası çağrı yok.
+
+**Oturum kilidi:** Çalınabilir eşya olan bir oyunda iki sunucunun aynı
+profili yazması kopyalamaya yol açar. Profil `UpdateAsync` ile kilitleniyor;
+kilit başka bir sunucudaysa oyuncu içeri alınmıyor, tekrar girmesi isteniyor.
+
+**Sürüm:** Store adı `PlayerData_v1`. Profil şeması bozucu şekilde
+değişirse adı `_v2` yap — eski kayıtlar bozulmasın.
+
 ## Test etmek
 
 Oyuncu gerektiren testler için MCP'nin `run_script_in_play_mode` aracını `mode = "start_play"` ile kullan — sunucu datamodel'inde çalışır, sonunda otomatik durur. Oyuncusuz birim testleri için `mode = "run_server"` yeterli.

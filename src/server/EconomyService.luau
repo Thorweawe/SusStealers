@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 
 local PlotService = require(script.Parent.PlotService)
+local DataService = require(script.Parent.DataService)
 
 local EconomyService = {}
 
@@ -24,13 +25,25 @@ local function refreshStats(player: Player)
 	player:SetAttribute("Cash", cash[player] or 0)
 end
 
+--[[
+	Nakdi hem arayüze hem profile yazar. Profil DataService'in kaydettiği
+	tablonun ta kendisi, dolayısıyla ayrıca "kaydet" demeye gerek yok.
+]]
+local function commitCash(player: Player)
+	local profile = DataService.Get(player)
+	if profile then
+		profile.cash = cash[player] or 0
+	end
+	refreshStats(player)
+end
+
 function EconomyService.GetCash(player: Player): number
 	return cash[player] or 0
 end
 
 function EconomyService.AddCash(player: Player, amount: number)
 	cash[player] = (cash[player] or 0) + amount
-	refreshStats(player)
+	commitCash(player)
 end
 
 --[[ Parası yeterliyse düşer ve true döner. ]]
@@ -41,7 +54,7 @@ function EconomyService.TrySpend(player: Player, amount: number): boolean
 	end
 
 	cash[player] = current - amount
-	refreshStats(player)
+	commitCash(player)
 	return true
 end
 
@@ -72,14 +85,13 @@ end
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────
 
 local function onPlayerAdded(player: Player)
-	cash[player] = Config.StartingCash
-
+	-- leaderstats hemen kurulsun ki profil gelene kadar tablo boş görünmesin
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
 
 	local cashValue = Instance.new("StringValue")
 	cashValue.Name = "Cash"
-	cashValue.Value = "$" .. Config.FormatCash(Config.StartingCash)
+	cashValue.Value = "$0"
 	cashValue.Parent = stats
 
 	local stolenValue = Instance.new("IntValue")
@@ -88,7 +100,16 @@ local function onPlayerAdded(player: Player)
 	stolenValue.Parent = stats
 
 	stats.Parent = player
-	player:SetAttribute("Cash", Config.StartingCash)
+
+	-- Kayıtlı veri gelene kadar bekle; gelmezse oyuncu zaten atılmış olur
+	local profile = DataService.WaitForProfile(player)
+	if not profile or player.Parent == nil then
+		return
+	end
+
+	cash[player] = profile.cash
+	stolenValue.Value = profile.stolen
+	refreshStats(player)
 end
 
 function EconomyService.AddStealCount(player: Player)
@@ -96,12 +117,17 @@ function EconomyService.AddStealCount(player: Player)
 	local value = stats and stats:FindFirstChild("Stolen")
 	if value and value:IsA("IntValue") then
 		value.Value += 1
+
+		local profile = DataService.Get(player)
+		if profile then
+			profile.stolen = value.Value
+		end
 	end
 end
 
 function EconomyService.Start()
 	for _, player in Players:GetPlayers() do
-		onPlayerAdded(player)
+		task.spawn(onPlayerAdded, player)
 	end
 	Players.PlayerAdded:Connect(onPlayerAdded)
 
