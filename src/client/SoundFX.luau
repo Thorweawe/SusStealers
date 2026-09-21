@@ -164,6 +164,15 @@ function SoundFX.AlarmUntil(shouldContinue: () -> boolean, maxSeconds: number)
 			return
 		end
 
+		--[[
+			Kesik bip ritmi. Kaydı 2 saniyede bir baştan çalmak denendi ama
+			vurucu kısım o kadar sürmediği için bindirme oluyor ve döngü
+			dikişi duyuluyordu. Kısa bir dilim çalıp susmak hem temiz hem de
+			gerçek bir alarma daha çok benziyor.
+		]]
+		local BEEP = 0.85
+		local GAP = 0.75
+
 		local deadline = os.clock() + maxSeconds
 		while os.clock() < deadline do
 			if token ~= pursuitToken then
@@ -174,9 +183,15 @@ function SoundFX.AlarmUntil(shouldContinue: () -> boolean, maxSeconds: number)
 			end
 
 			s:Stop()
-			s.TimePosition = 0.15
+			s.TimePosition = 0.2
 			s:Play()
-			task.wait(2.0)
+			task.wait(BEEP)
+
+			if token ~= pursuitToken then
+				return
+			end
+			s:Stop()
+			task.wait(GAP)
 		end
 
 		if token == pursuitToken and s.IsPlaying then

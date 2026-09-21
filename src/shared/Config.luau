@@ -36,7 +36,9 @@ Config.ConveyorSpeed = 6
 -- ─── Çalma ──────────────────────────────────────────────────────────────────
 Config.StealHoldTime = 4.0     -- prompt kaç saniye basılı tutulur
 Config.StealCooldown = 18      -- bir çalmadan sonra oyuncunun bekleme süresi
-Config.CarryWalkSpeed = 11     -- karakter taşırken hız
+-- Taşırken yavaşlık çalmanın bedeli: hırsız savunmasız ve yakalanabilir
+-- olmalı. 11 fazla hızlıydı, kurban fark ettiğinde yetişemiyordu.
+Config.CarryWalkSpeed = 8      -- karakter taşırken hız
 Config.NormalWalkSpeed = 16
 Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınamaz
 

@@ -21,6 +21,7 @@ local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
 local ScreenFX = require(script.ScreenFX)
 local SoundFX = require(script.SoundFX)
+local ThiefTrail = require(script.ThiefTrail)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -411,6 +412,7 @@ task.spawn(function()
 end)
 
 DecorFX.Start()
+ThiefTrail.Start()
 
 local guide = CarryGuide.Create(screen)
 local board = Leaderboard.Create(screen)

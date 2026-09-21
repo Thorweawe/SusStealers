@@ -12,7 +12,7 @@ local RunService = game:GetService("RunService")
 
 local DecorFX = {}
 
-type Spinner = { part: BasePart, speed: number, base: CFrame }
+type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string }
 type Pulser = { part: BasePart, period: number, phase: number }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 
@@ -37,7 +37,18 @@ function DecorFX.Start(): FX
 		if obj:IsA("BasePart") then
 			local speed = obj:GetAttribute("SpinSpeed")
 			if typeof(speed) == "number" then
-				table.insert(spinners, { part = obj, speed = speed, base = obj.CFrame })
+				--[[
+					Dönüş ekseni niteliğe bağlı. Radar yatay döner (Y), dik
+					duran çark ekrana bakan eksende döner (Z). Varsayılan Y,
+					çünkü çoğu şey yataydır.
+				]]
+				local axis = obj:GetAttribute("SpinAxis")
+				table.insert(spinners, {
+					part = obj,
+					speed = speed,
+					base = obj.CFrame,
+					axis = if typeof(axis) == "string" then axis else "Y",
+				})
 			end
 
 			local period = obj:GetAttribute("PulsePeriod")
@@ -65,7 +76,11 @@ function DecorFX.Start(): FX
 		elapsed += dt
 
 		for _, s in spinners do
-			s.part.CFrame = s.base * CFrame.Angles(0, math.rad(s.speed * elapsed), 0)
+			local a = math.rad(s.speed * elapsed)
+			local rot = if s.axis == "Z" then CFrame.Angles(0, 0, a)
+				elseif s.axis == "X" then CFrame.Angles(a, 0, 0)
+				else CFrame.Angles(0, a, 0)
+			s.part.CFrame = s.base * rot
 		end
 
 		for _, p in pulsers do

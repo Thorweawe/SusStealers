@@ -1091,34 +1091,92 @@ do
 	local x = centerX - LOBBY_W / 2 + 34
 	local z = lobbyZ + 10
 
-	build({ name = "WheelBase", size = Vector3.new(12, 1.2, 12),
-		cf = at(x, 0.6, z), color = TRIM,
-		material = Enum.Material.Metal, collide = true, parent = f })
-	build({ name = "WheelMast", size = Vector3.new(2, 14, 2),
-		cf = at(x, 8, z), color = HULL,
-		material = Enum.Material.Metal, collide = true, parent = f })
+	--[[
+		Çark dik duruyor. Yatay disk üstten bakmadıkça okunmuyordu; dik
+		çark gerçek şans çarkı gibi, dilimleri ve göstergeyi karşıdan
+		görüyorsun. Dönüş ekseni ekrana bakan eksen (Z).
+	]]
+	local R = 13                 -- çark yarıçapı
+	local SLICES = 8
+	local hubY = 18
 
-	local disc = build({ name = "WheelDisc", size = Vector3.new(18, 1.4, 18),
-		cf = at(x, 15, z), color = HULL_DARK,
-		material = Enum.Material.Metal, parent = f })
-	disc:SetAttribute("SpinSpeed", 14)
-
-	-- Dilimler: farklı renklerde kamalar
-	local slice = { NEON, NEON_WARM, Color3.fromRGB(197, 17, 17), Color3.fromRGB(0, 158, 55),
-		Color3.fromRGB(236, 84, 187), Color3.fromRGB(107, 47, 187) }
-	for i, color in slice do
-		local a = (i - 1) * (math.pi * 2 / #slice)
-		build({ name = "WheelSlice", size = Vector3.new(7.5, 0.4, 2.4),
-			cf = CFrame.new(x, 15.9, z) * CFrame.Angles(0, a, 0) * CFrame.new(4.4, 0, 0),
-			color = color, material = Enum.Material.Neon, parent = f })
+	-- Kaide ve gövde
+	build({ name = "WheelBase", size = Vector3.new(16, 1.4, 12),
+		cf = at(x, 0.7, z), color = TRIM,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "WheelPlinth", size = Vector3.new(10, 4, 8),
+		cf = at(x, 3.2, z), color = HULL,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	for _, s in { -1, 1 } do
+		build({ name = "WheelLeg", size = Vector3.new(2, hubY - 5, 2),
+			cf = at(x + s * 5.5, 5.2 + (hubY - 5) / 2, z),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
 	end
 
-	build({ name = "WheelPointer", size = Vector3.new(1.2, 1.2, 3.4),
-		cf = at(x, 17.2, z - 9.5), color = NEON_WARM,
+	-- Arka levha: dilimler boşlukta durmasın
+	build({ name = "WheelBacking", size = Vector3.new(R * 2 + 3, R * 2 + 3, 0.8),
+		cf = at(x, hubY, z + 1.4), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f })
+
+	local disc = build({ name = "WheelDisc", size = Vector3.new(R * 2, R * 2, 0.9),
+		cf = at(x, hubY, z), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f })
+	disc:SetAttribute("SpinSpeed", 26)
+	disc:SetAttribute("SpinAxis", "Z")
+
+	--[[
+		Dilimler diskin çocuğu değil, ayrı parçalar — ama diskle birlikte
+		dönmeleri gerekiyor. Her birine kendi SpinSpeed'ini veriyoruz ki
+		aynı hızda dönsünler; DecorFX her parçayı kendi başlangıç
+		konumundan döndürdüğü için aralarındaki açı korunuyor.
+	]]
+	local palette = {
+		NEON, NEON_WARM,
+		Color3.fromRGB(197, 17, 17), Color3.fromRGB(0, 158, 55),
+		Color3.fromRGB(236, 84, 187), Color3.fromRGB(107, 47, 187),
+		Color3.fromRGB(245, 245, 87), Color3.fromRGB(56, 254, 220),
+	}
+	for i = 1, SLICES do
+		local a = (i - 1) * (math.pi * 2 / SLICES)
+		local slice = build({
+			name = "WheelSlice",
+			size = Vector3.new(R * 0.82, 2.6, 1.1),
+			cf = CFrame.new(x, hubY, z - 0.6) * CFrame.Angles(0, 0, a) * CFrame.new(R * 0.52, 0, 0),
+			color = palette[i],
+			material = Enum.Material.Neon,
+			parent = f,
+		})
+		slice:SetAttribute("SpinSpeed", 26)
+		slice:SetAttribute("SpinAxis", "Z")
+
+		-- Dilim ucundaki ampul
+		local bulb = build({
+			name = "WheelBulb",
+			size = Vector3.new(1.5, 1.5, 1.5),
+			cf = CFrame.new(x, hubY, z - 0.6) * CFrame.Angles(0, 0, a) * CFrame.new(R + 1.4, 0, 0),
+			color = palette[i],
+			material = Enum.Material.Neon,
+			shape = Enum.PartType.Ball,
+			parent = f,
+		})
+		bulb:SetAttribute("SpinSpeed", 26)
+		bulb:SetAttribute("SpinAxis", "Z")
+	end
+
+	-- Göbek
+	local hub = build({ name = "WheelHub", size = Vector3.new(4, 4, 1.6),
+		cf = at(x, hubY, z - 0.8), color = TRIM,
+		material = Enum.Material.Metal, shape = Enum.PartType.Cylinder, parent = f })
+	hub.CFrame = at(x, hubY, z - 0.8) * CFrame.Angles(0, math.rad(90), 0)
+	glow(hub, NEON, 18, 1)
+
+	-- Tepedeki gösterge iğnesi
+	build({ name = "WheelPointer", size = Vector3.new(2, 3.4, 1.4),
+		cf = at(x, hubY + R + 2.2, z - 0.8), color = NEON_WARM,
 		material = Enum.Material.Neon, parent = f })
 
 	local anchor = build({ name = "WheelLabel", size = Vector3.new(1, 1, 1),
-		cf = at(x, 20, z), color = HULL, transparency = 1, parent = f })
+		cf = at(x, hubY + R + 7, z), color = HULL, transparency = 1, parent = f })
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Label"
