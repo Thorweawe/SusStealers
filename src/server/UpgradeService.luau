@@ -130,14 +130,38 @@ local function buildBoard(plot: Model, def: Config.UpgradeDef, index: number, to
 		return nil
 	end
 
-	-- Doğuş pedinin solunda, arka duvar boyunca dizili
-	local spacing = 7
-	local offsetX = (index - (total + 1) / 2) * spacing - 16
+	--[[
+		Tabelalar artık YÜKSELTME KULÜBESİNİN tezgâhına diziliyor.
+
+		Eskiden üssün arka duvarı boyunca dikilmiş çıplak levhalardı; nereye
+		bakacağın belli değildi ve hangi üsse ait oldukları anlaşılmıyordu.
+		PlotService her üsse bir kulübe kuruyor (tezgâh + satıcı + tente);
+		burada onu adıyla bulup tabelaları tezgâhın üstüne koyuyoruz.
+
+		Kulübe bulunamazsa (eski bir place, ya da PlotService değişirse) eski
+		davranışa düşüyoruz — tabelalar kaybolmasın.
+	]]
+	local booth = plot:FindFirstChild("UpgradeBooth")
+	local counter = booth and booth:FindFirstChild("CounterTop")
 
 	local board = Instance.new("Part")
 	board.Name = "Upgrade_" .. def.id
 	board.Size = Vector3.new(5, 4, 0.5)
-	board.CFrame = base.CFrame * CFrame.new(offsetX, Config.PlotSize.Y / 2 + 2, -Config.PlotSize.Z / 2 + 2)
+
+	if counter and counter:IsA("BasePart") then
+		-- Tezgâhın üstünde yan yana, hafif geriye yatık
+		local spacing = 4.4
+		local offsetX = (index - (total + 1) / 2) * spacing
+		board.CFrame = counter.CFrame
+			* CFrame.new(offsetX, 2.6, 1.2)
+			* CFrame.Angles(math.rad(-12), 0, 0)
+		board.Size = Vector3.new(4, 4.4, 0.4)
+	else
+		local spacing = 7
+		local offsetX = (index - (total + 1) / 2) * spacing - 16
+		board.CFrame = base.CFrame * CFrame.new(offsetX, Config.PlotSize.Y / 2 + 2, -Config.PlotSize.Z / 2 + 2)
+	end
+
 	board.Color = Color3.fromRGB(34, 40, 52)
 	board.Material = Enum.Material.SmoothPlastic
 	board.Anchored = true

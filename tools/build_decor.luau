@@ -98,10 +98,10 @@ local ARCH_CLEAR = 19      -- kemer altı boşluk (eski 15: alçak geliyordu)
 -- Üslerin önünde ayrı bir platform: ışınlanma, sıralama panoları, çark.
 -- Oyun alanından ayrı tutuluyor ki çalma koşuşturması ile sakin işler
 -- birbirine karışmasın.
-local LOBBY_GATE_WIDTH = 24
+local LOBBY_GATE_WIDTH = 28
 local LOBBY_BRIDGE = 58      -- köprü uzunluğu
-local LOBBY_W = 180          -- lobi genişliği
-local LOBBY_D = 120          -- lobi derinliği
+local LOBBY_W = 230          -- lobi genişliği
+local LOBBY_D = 156          -- lobi derinliği
 --[[
 	Lobi duvarı 30'du ve üstü açıktı — "transit bölgesinin üstü açık"
 	şikâyeti buydu. Tavan kapatılınca çark (tepesindeki tabelayla birlikte
@@ -600,14 +600,29 @@ do
 
 	--[[ Bir kenar boyunca panel-pencere-panel dizisi kurar.
 	     axis "x": duvar x boyunca uzanır (ön/arka). "z": z boyunca (yanlar). ]]
-	local function wall(axis: string, fixed: number, from: number, to: number, facing: number)
+	--[[
+		`anchor` desenin hangi uçtan başlayacağını söyler.
+
+		Kapının iki yanındaki duvarlar aynı uzunlukta ama ikisi de SOL
+		uçtan başlıyordu. Panel-pencere dizisi soldan sağa yürüdüğü için
+		kapıya varıldığında iki tarafta farklı eleman kalıyordu: bir yanda
+		pencere, öbür yanda düz panel. Girişte göze çarpan asimetri buydu.
+
+		anchor = "end" verildiğinde desen sağ uçtan sola yürüyor; böylece
+		kapının iki yanı birbirinin aynadaki görüntüsü oluyor.
+	]]
+	local function wall(axis: string, fixed: number, from: number, to: number, facing: number, anchor: string?)
+		local mirror = anchor == "end"
+
 		local function place(name: string, along: number, width: number, height: number, y: number, thick: number, color: Color3, material: Enum.Material, collide: boolean, trans: number?)
+			-- Ayna modunda konum, aralığın diğer ucuna göre yansıtılıyor
+			local at2 = if mirror then (from + to) - along else along
 			local size = if axis == "x"
 				then Vector3.new(width, height, thick)
 				else Vector3.new(thick, height, width)
 			local cf = if axis == "x"
-				then at(along, y, fixed)
-				else at(fixed, y, along)
+				then at(at2, y, fixed)
+				else at(fixed, y, at2)
 			build({ name = name, size = size, cf = cf, color = color, material = material, collide = collide, transparency = trans, parent = f })
 		end
 
@@ -676,7 +691,8 @@ do
 	local gapHalf = LOBBY_GATE_WIDTH / 2
 
 	wall("x", z0, x0, x1, -1)
-	wall("x", z1, x0, centerX - gapHalf, 1)
+	-- Kapının iki yanı aynadaki gibi: sol parça sondan başlıyor
+	wall("x", z1, x0, centerX - gapHalf, 1, "end")
 	wall("x", z1, centerX + gapHalf, x1, 1)
 	wall("z", x0, z0, z1, -1)
 	wall("z", x1, z0, z1, 1)
@@ -1333,7 +1349,19 @@ do
 	local z0, z1 = centerZ - halfD, centerZ + halfD
 
 	run("x", z0, x0 + 6, x1 - 6, 3.2)
-	run("x", z1, x0 + 6, x1 - 6, -3.2)
+
+	--[[
+		Arka duvardaki hat kapı boşluğunu ATLIYOR.
+
+		Eskiden tek parça olarak bütün genişlik boyunca uzanıyordu; iki boru
+		(alt ve üst hat) tam lobiye açılan kapının önünden geçiyordu.
+		Koridordan bakınca yolun ortasında havada duran iki uzun çubuk
+		görünüyordu — geçişi engellemiyordu ama görüntüyü bozuyordu.
+	]]
+	local gateHalf = LOBBY_GATE_WIDTH / 2 + 4
+	run("x", z1, x0 + 6, centerX - gateHalf, -3.2)
+	run("x", z1, centerX + gateHalf, x1 - 6, -3.2)
+
 	run("z", x0, z0 + 6, z1 - 6, 3.2)
 	run("z", x1, z0 + 6, z1 - 6, -3.2)
 end
@@ -1560,18 +1588,83 @@ do
 	local f = group("Lobby")
 	local halfLW, halfLD = LOBBY_W / 2, LOBBY_D / 2
 
-	-- Köprü
-	build({ name = "Bridge", size = Vector3.new(LOBBY_GATE_WIDTH, 1, LOBBY_BRIDGE + 2),
-		cf = at(centerX, -0.5, centerZ + halfD + LOBBY_BRIDGE / 2),
+	--[[
+		── KÖPRÜ ──────────────────────────────────────────────────────────
+		Önceki hâli 1 stud kalınlığında bir levha ve iki yanında 4 stud
+		korkuluktu. Roblox karakteri yaklaşık 7 stud zıplıyor; yani
+		korkuluğun üstünden atlanıp boşluğa düşülebiliyordu.
+
+		Artık kapalı bir geçiş tüpü: iki yanda belden yukarı camlı duvar,
+		üstte kaburgalı tavan, altta destek ayakları. Hem düşmek imkânsız
+		hem de "istasyondan lobiye geçiyorum" hissi kuruluyor — daha önce
+		sadece havada bir tahta vardı.
+	]]
+	local bridgeZ = centerZ + halfD + LOBBY_BRIDGE / 2
+	local bridgeLen = LOBBY_BRIDGE + 2
+	local WALL_LOW = 4.5       -- dolu alt duvar
+	local WALL_TOP = 11        -- tavan yüksekliği
+
+	build({ name = "Bridge", size = Vector3.new(LOBBY_GATE_WIDTH, 1, bridgeLen),
+		cf = at(centerX, -0.5, bridgeZ),
 		color = HULL_DARK, material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "BridgeUnder", size = Vector3.new(LOBBY_GATE_WIDTH - 4, 2.4, bridgeLen - 6),
+		cf = at(centerX, -2.2, bridgeZ),
+		color = HULL, material = Enum.Material.Metal, parent = f })
 
 	for _, s in { -1, 1 } do
-		build({ name = "BridgeRail", size = Vector3.new(0.8, 4, LOBBY_BRIDGE + 2),
-			cf = at(centerX + s * LOBBY_GATE_WIDTH / 2, 2, centerZ + halfD + LOBBY_BRIDGE / 2),
+		local wx = centerX + s * LOBBY_GATE_WIDTH / 2
+
+		-- Dolu alt duvar: düşmeyi fiziksel olarak imkânsız kılan kısım
+		build({ name = "BridgeWall", size = Vector3.new(1.2, WALL_LOW, bridgeLen),
+			cf = at(wx, WALL_LOW / 2, bridgeZ),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "BridgeRail", size = Vector3.new(1.8, 0.6, bridgeLen),
+			cf = at(wx, WALL_LOW + 0.3, bridgeZ),
 			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
-		build({ name = "BridgeGlow", size = Vector3.new(0.3, 0.2, LOBBY_BRIDGE),
-			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 0.8), 3.9, centerZ + halfD + LOBBY_BRIDGE / 2),
-			color = NEON_DIM, emit = "Paint", parent = f })
+
+		-- Üst kısım cam: dışarısı görünsün ama geçilmesin
+		build({ name = "BridgeGlass", size = Vector3.new(0.5, WALL_TOP - WALL_LOW - 1, bridgeLen),
+			cf = at(wx, (WALL_LOW + WALL_TOP) / 2, bridgeZ),
+			color = GLASS, material = Enum.Material.Glass, collide = true,
+			transparency = 0.9, parent = f })
+
+		-- Zeminde yön şeridi
+		build({ name = "BridgeStripe", size = Vector3.new(0.7, 0.14, bridgeLen - 4),
+			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 3), 0.08, bridgeZ),
+			color = HAZARD, emit = "Paint", parent = f })
+	end
+
+	--[[ Tavan kaburgaları. Aralıklı çerçeveler: tünelin uzunluğu bunlarla
+	     okunuyor, düz bir tavan mesafe hissi vermiyor. ]]
+	local RIBS = 7
+	for i = 0, RIBS do
+		local rz = bridgeZ - bridgeLen / 2 + (bridgeLen / RIBS) * i
+		build({ name = "BridgeRib", size = Vector3.new(LOBBY_GATE_WIDTH + 2.5, 1.4, 1.6),
+			cf = at(centerX, WALL_TOP, rz), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+		for _, s in { -1, 1 } do
+			build({ name = "BridgeRibLeg", size = Vector3.new(1.4, 2.4, 1.6),
+				cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 + 0.5), WALL_TOP - 1.6, rz),
+				color = TRIM, material = Enum.Material.Metal, parent = f })
+		end
+
+		-- Kaburgaların arasına gömme lamba
+		if i < RIBS then
+			local lamp = build({ name = "BridgeLamp", size = Vector3.new(4, 0.3, 3),
+				cf = at(centerX, WALL_TOP - 0.9, rz + bridgeLen / RIBS / 2),
+				color = LAMP, emit = "Fixture", parent = f })
+			glow(lamp, LAMP, 20, 0.7)
+		end
+	end
+
+	-- Köprüyü taşıyan ayaklar
+	for _, t in { 0.3, 0.7 } do
+		local pz = centerZ + halfD + LOBBY_BRIDGE * t
+		for _, s in { -1, 1 } do
+			build({ name = "BridgePylon", size = Vector3.new(2.2, 16, 2.2),
+				cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 2), -11, pz),
+				color = HULL_DARK, material = Enum.Material.Metal, parent = f })
+		end
 	end
 
 	-- Güverte ve gövde
@@ -1789,8 +1882,13 @@ do
 		heykeller ekranların önünü kapatırdı. Sağ duvar boyunca diziliyorlar,
 		hepsi içeri bakıyor. Sol taraf çarkın alanı.
 	]]
+	--[[
+		Galeri ARKA şeritte ve duvardan biraz içeride. Önceki yerleşimde
+		dolapların (lobiZ+4) ve oturakların hemen yanındaydı; üçü aynı
+		duvarda sıkışıyordu. Şimdi aralarında en az 20 stud var.
+	]]
 	for i = 1, 4 do
-		pedestal(centerX + LOBBY_W / 2 - 16, lobbyZ + (i - 3) * 24, 2.4, crewColor(i * 3), 90)
+		pedestal(centerX + LOBBY_W / 2 - 20, lobbyZ + 28 + (i - 1) * 22, 2.4, crewColor(i * 3), 90)
 	end
 
 	--[[
@@ -2025,27 +2123,20 @@ do
 		cf = at(wheelX, PORTAL_H + 1, portalZ), color = HULL,
 		material = Enum.Material.Metal, parent = f })
 
-	local header = build({ name = "PortalSign", size = Vector3.new(PORTAL_W - 2, 3.4, 0.5),
-		cf = at(wheelX, PORTAL_H + 1, portalZ - 1.9), color = SHADOW,
-		material = Enum.Material.SmoothPlastic, parent = f })
+	--[[
+		Portalın alınlığı YAZISIZ. Önce "PRIZE DECK" yazıyordu ama çarkın
+		kendi tabelası zaten "LUCKY SPIN" diyor; üst üste iki başlık hem
+		gereksiz hem de haritayı tabela tarlasına çeviriyordu. Yön bilgisini
+		zemindeki boya ve portalın kendisi veriyor.
 
-	do
-		local surface = Instance.new("SurfaceGui")
-		surface.Name = "Label"
-		surface.Face = Enum.NormalId.Front
-		surface.CanvasSize = Vector2.new(280, 34)
-		surface.LightInfluence = 0
-		surface.Parent = header
-
-		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1, 1)
-		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBold
-		text.TextScaled = true
-		text.TextColor3 = BRASS
-		text.Text = "PRIZE DECK"
-		text.Parent = surface
-	end
+		Yazı yerine şerit: kapının bir geçit olduğunu anlatan yatay bant.
+	]]
+	build({ name = "PortalBand", size = Vector3.new(PORTAL_W - 2, 1.4, 0.5),
+		cf = at(wheelX, PORTAL_H + 1.6, portalZ - 1.9), color = BRASS,
+		emit = "Paint", parent = f })
+	build({ name = "PortalBand", size = Vector3.new(PORTAL_W - 8, 0.8, 0.5),
+		cf = at(wheelX, PORTAL_H - 0.2, portalZ - 1.9), color = BRASS,
+		emit = "Paint", parent = f })
 
 	-- Portalın altını yıkayan iki gömme lamba
 	for _, s in { -1, 1 } do
@@ -2111,13 +2202,21 @@ do
 		end
 	end
 
-	-- Sol duvar (çark tarafı, portalın önünde kalan kısım)
+	--[[
+		Oturaklar giriş bölgesinde, heykel galerisinden UZAKTA.
+
+		İlk yerleşimde hem oturaklar hem dolaplar hem de galeri aynı duvar
+		şeridini paylaşıyordu; heykeller dolapların dibinde, oturaklar
+		heykellerin arkasında kalıyordu ("dekorasyonlar statülerle dip dibe").
+		Artık lobi üç şeride ayrıldı:
+
+		    ön üçte bir   → oturaklar (giriş, bekleme)
+		    orta          → ışınlanma kürsüsü, çark, dolaplar
+		    arka üçte bir → heykel galerisi ve sıralama panoları
+	]]
 	for i = 0, 1 do
-		bench(centerX - halfLW + 10, lobbyZ - 44 + i * 18, -90)
-	end
-	-- Sağ duvar, heykel galerisinin önü boş kalmasın
-	for i = 0, 1 do
-		bench(centerX + halfLW - 10, lobbyZ - 44 + i * 18, 90)
+		bench(centerX - halfLW + 11, lobbyZ - halfLD + 26 + i * 22, -90)
+		bench(centerX + halfLW - 11, lobbyZ - halfLD + 26 + i * 22, 90)
 	end
 
 	--[[
@@ -2149,8 +2248,9 @@ do
 		end
 	end
 
-	lockers(centerX - halfLW + 9, lobbyZ + 22, -90, 4)
-	lockers(centerX + halfLW - 9, lobbyZ + 4, 90, 4)
+	-- Dolaplar orta şeritte, galerinin başladığı yerden önce
+	lockers(centerX - halfLW + 10, lobbyZ + 6, -90, 4)
+	lockers(centerX + halfLW - 10, lobbyZ - 6, 90, 4)
 
 	--[[
 		Girişin iki yanına yön tabelası. Oyuncu kapıdan çıkar çıkmaz
@@ -2183,8 +2283,8 @@ do
 		text.Parent = surface
 	end
 
-	marker(centerX - 15, lobbyZ - 24, "◄  PRIZE DECK", 0)
-	marker(centerX + 15, lobbyZ - 24, "LEADERBOARDS  ►", 0)
+	marker(centerX - 17, lobbyZ - 30, "◄  LUCKY SPIN", 0)
+	marker(centerX + 17, lobbyZ - 30, "LEADERBOARDS  ►", 0)
 end
 
 -- ─── 14. Işınlanma kürsüsü ──────────────────────────────────────────────────

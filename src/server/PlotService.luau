@@ -56,31 +56,101 @@ local function newAnchoredPart(name: string, size: Vector3, cframe: CFrame, colo
 end
 
 --[[
+	═══ ÜS YERLEŞİMİ ════════════════════════════════════════════════════════
+
+	Bütün üs tek bir koordinat sözleşmesine göre kuruluyor. Buradaki sayılar
+	hem zemini hem üst katları hem de kaideleri bağlar; tek yerde durmaları
+	bilinçli, yoksa biri değişince diğeri kayıyor.
+
+	x ekseni (üs genişliği 72, yani ±36):
+	    -36 .. -25   merdiven kuyusu (STAIR_W = 11)
+	    -25 .. +36   güverte
+	    kaideler ortada, ±11.25 ve ±3.75
+	    bonus kaideler ±18.75
+	    yükseltme kulübesi +27 civarı
+
+	z ekseni (üs derinliği 52, yani ±26):
+	    -25   tabela
+	    -18   doğuş pedi
+	     -9   ön kaide sırası
+	      0   bonus kaide sırası
+	     +9   arka kaide sırası
+	    +21   konveyör
+
+	KAİDE DAĞILIMI — "5'e 3 olmuş, 4'e 4 olmalı" şikâyetinin sebebi:
+	eskiden 10 kaide sırayla ikiye bölünüyordu (1-5 ön, 6-10 arka) ve bonus
+	olanlar 9-10'du. Yani ön sırada 5 kullanılabilir, arka sırada 3 kalıyordu.
+	Artık 8 temel kaide 4+4 ortada, 2 bonus kaide de yanlarda ayrı duruyor.
+	Bonus alınmasa bile temel diziliş simetrik.
+]]
+local LAYOUT = {
+	STAIR_W = 11,
+	ROW_Z = 9,           -- ön/arka kaide sırasının merkezden uzaklığı
+	BONUS_X = 2.5,       -- bonus kaidenin kaç "PodiumSpacing" kadar yanda olduğu
+	DECK_INSET = 6,      -- güvertenin ön/arka kenarının üs kenarından içeride kalması
+}
+
+--[[
+	Bir kaidenin üs merkezine göre konumu. Hem zemin hem üst katlar bunu
+	kullanıyor, böylece katlar birbirinin tam üstüne oturuyor.
+
+	index 1..PodiumsPerPlot  → temel kaideler, 4+4 ortada
+	index sonrası            → bonus kaideler, yanlarda simetrik
+]]
+local function podiumOffset(index: number): Vector3
+	local base = Config.PodiumsPerPlot
+	local spacing = Config.PodiumSpacing
+
+	if index <= base then
+		local perRow = math.ceil(base / 2)
+		local front = index <= perRow
+		local column = if front then index - 1 else index - perRow - 1
+		return Vector3.new(
+			(column - (perRow - 1) / 2) * spacing,
+			0,
+			if front then -LAYOUT.ROW_Z else LAYOUT.ROW_Z
+		)
+	end
+
+	-- Bonus: merkezin iki yanında, sıraların arasındaki boş şeritte
+	local n = index - base
+	local side = if n % 2 == 1 then -1 else 1
+	local rank = math.floor((n - 1) / 2)
+	return Vector3.new(side * (LAYOUT.BONUS_X + rank) * spacing, 0, 0)
+end
+
+--[[
 	═══ ÜST KAT ═════════════════════════════════════════════════════════════
 
-	Eskiden üst kat tek bir levha + SAĞ kenarda tek bir rampaydı. İki sorun:
+	İki merdiven vardı, teke indi — ikisi birden hem gereksizdi hem de
+	güvertenin iki ucunu da yiyordu. Tek merdiven SOL uçta; sağ uç tamamen
+	güverte olarak kalıyor.
 
-	  1. Simetrik değildi. Üssün sağ yarısı rampayla kapalı, sol yarısı boş;
-	     karşıdan bakınca yapı bir tarafa devrilmiş gibi duruyordu.
-	  2. Kenarları çıplaktı. Korkuluk, kolon, süpürgelik yok — 18 stud
-	     yükseklikte havada duran bir levha.
+	Önceki sürümün üç somut hatası vardı, üçü de burada düzeltildi:
 
-	Şimdi: ortada kaidelerin durduğu ana güverte, iki UCUNDA simetrik birer
-	merdiven, köşelerde alt kata inen kolonlar, çevresinde korkuluk.
-
-	Merdivenler uçlarda çünkü kaideler ortada duruyor (x ekseninde ±13
-	civarı). Uçlarda 10'ar studluk boş şerit zaten vardı; merdiven oraya
-	oturunca ne kaide kaybediyoruz ne de ortayı daraltıyoruz.
+	  1. Merdivenin ÖNÜNDE duvar vardı. "StairWall" kuyunun girişine
+	     konuyordu ve basamaklara ulaşılamıyordu. Artık duvarlar merdivenin
+	     YANLARINDA, giriş açık.
+	  2. Sahanlık ana güverteyle üst üste biniyordu ("bloklar iç içe
+	     girmiş"). Artık güverte merdiven şeridinin bittiği yerden başlıyor,
+	     ikisi hiç kesişmiyor.
+	  3. Korkuluk basamakların dışına taşıyordu ("demir çıkıntısı"). Korkuluk
+	     artık basamak dizisiyle aynı uzunlukta ve aynı merkezde.
 ]]
 local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number)
 	local halfX = Config.PlotSize.X / 2
 	local halfZ = Config.PlotSize.Z / 2
-	local deckZ = Config.PlotSize.Z - 12          -- ana güverte derinliği
 	local rise = Config.FloorHeight
 
-	-- Merdiven şeridinin genişliği ve ana güvertenin yarı genişliği
-	local STAIR_W = 11
-	local deckHalfX = halfX - STAIR_W
+	local stairW = LAYOUT.STAIR_W
+	local deckZ = Config.PlotSize.Z - LAYOUT.DECK_INSET * 2
+
+	-- Merdiven şeridi solda: x ∈ [-halfX, -halfX + stairW]
+	local stairX = -halfX + stairW / 2
+	-- Güverte onun sağında başlıyor, üssün sağ kenarına kadar
+	local deckX0 = -halfX + stairW
+	local deckW = halfX - deckX0
+	local deckCX = deckX0 + deckW / 2
 
 	local DECK_COLOR = Color3.fromRGB(64, 76, 82)
 	local TRIM_COLOR = Color3.fromRGB(126, 140, 144)
@@ -93,134 +163,148 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	end
 
 	-- ── Ana güverte ────────────────────────────────────────────────────────
-	slab("Deck", Vector3.new(deckHalfX * 2, 1, deckZ), Vector3.new(0, deckTop - 0.5, 0), DECK_COLOR)
+	slab("Deck", Vector3.new(deckW, 1, deckZ), Vector3.new(deckCX, deckTop - 0.5, 0), DECK_COLOR)
 
-	-- Güverte kenarına süpürgelik: levha kalınlığı okunsun
+	-- Kenar süpürgeliği: levhanın kalınlığı okunsun
 	for _, sz in { -1, 1 } do
-		slab("DeckEdge", Vector3.new(deckHalfX * 2 + 0.6, 1.4, 0.8),
-			Vector3.new(0, deckTop - 0.7, sz * deckZ / 2), TRIM_COLOR)
+		slab("DeckEdge", Vector3.new(deckW, 1.4, 0.8),
+			Vector3.new(deckCX, deckTop - 0.7, sz * deckZ / 2), TRIM_COLOR)
 	end
+	slab("DeckEdge", Vector3.new(0.8, 1.4, deckZ),
+		Vector3.new(halfX - 0.4, deckTop - 0.7, 0), TRIM_COLOR)
 
 	--[[
-		── Merdivenler ────────────────────────────────────────────────────
-		İki uçta, aynı ölçüde, aynı yönde tırmanıyorlar. Basamak sayısı
-		yükseklikten türetiliyor; FloorHeight değişirse merdiven kendiliğinden
-		uyuyor, elle sayı girilmiyor.
+		── Merdiven ───────────────────────────────────────────────────────
+		Basamak sayısı yükseklikten türetiliyor; FloorHeight değişirse
+		merdiven kendiliğinden uyuyor. Basamak yüksekliği 1.4 civarında
+		tutuluyor çünkü Roblox karakteri zıplamadan ancak 2 studa çıkıyor.
 
-		Basamak yüksekliği 1.4 civarında tutuluyor — Roblox karakteri
-		varsayılan olarak 2 stud tırmanabiliyor, daha yükseği zıplamadan
-		çıkılmıyor.
+		Merdiven z ekseninde tırmanıyor: arkadan (+z) öne (-z) doğru. Üst
+		ucunda sahanlık var, sahanlık güverteye yandan bağlanıyor.
 	]]
 	local STEPS = math.max(6, math.ceil(rise / 1.4))
 	local stepRise = rise / STEPS
-	local stepRun = 2.2
+	local stepRun = 2.4
 	local stairLen = STEPS * stepRun
 
-	for _, sx in { -1, 1 } do
-		local sxCenter = sx * (deckHalfX + STAIR_W / 2)
+	-- Basamak dizisinin z aralığı: [zTop, zTop + stairLen]
+	local zTop = -deckZ / 2 + 2
 
-		-- Merdivenin oturduğu kuyu duvarı: basamaklar boşlukta durmasın
-		slab("StairWall", Vector3.new(STAIR_W, rise, 0.8),
-			Vector3.new(sxCenter, deckTop - rise / 2, -stairLen / 2 - 1.5), TRIM_COLOR)
+	for i = 1, STEPS do
+		local p = newAnchoredPart(
+			"Step",
+			Vector3.new(stairW - 1.2, stepRise, stepRun),
+			CFrame.new(origin + Vector3.new(
+				stairX,
+				deckTop - rise + (i - 0.5) * stepRise,
+				zTop + stairLen - (i - 0.5) * stepRun
+			)),
+			if i % 2 == 0 then DECK_COLOR else TRIM_COLOR,
+			parent
+		)
+		p.Material = Enum.Material.Metal
+		p.CanCollide = true
+	end
 
-		for i = 1, STEPS do
-			local p = newAnchoredPart(
-				"Step",
-				Vector3.new(STAIR_W - 1, stepRise, stepRun),
-				CFrame.new(origin + Vector3.new(
-					sxCenter,
-					deckTop - rise + (i - 0.5) * stepRise,
-					-stairLen / 2 + (i - 0.5) * stepRun
-				)),
-				if i % 2 == 0 then DECK_COLOR else TRIM_COLOR,
-				parent
-			)
-			p.Material = Enum.Material.Metal
-			p.CanCollide = true
-		end
+	-- Üst sahanlık: basamakların bittiği yerden güvertenin ön kenarına
+	local landingLen = zTop + deckZ / 2
+	slab("Landing", Vector3.new(stairW, 1, landingLen),
+		Vector3.new(stairX, deckTop - 0.5, zTop - landingLen / 2), DECK_COLOR)
 
-		-- Merdiven başındaki sahanlık: basamaktan güverteye geçiş
-		slab("Landing", Vector3.new(STAIR_W, 1, deckZ / 2 - stairLen / 2 + 1),
-			Vector3.new(sxCenter, deckTop - 0.5, stairLen / 2 + (deckZ / 2 - stairLen / 2) / 2),
-			DECK_COLOR)
+	--[[
+		SADECE DIŞ duvar. İç tarafta (güverteye bakan yüz) duvar OLMAMALI.
 
-		--[[
-			Merdiven korkuluğu. Eğimli tek parça: uzunluk ve açı basamak
-			ölçülerinden hesaplanıyor, böylece basamaklarla tam örtüşüyor.
-		]]
-		local slope = math.atan2(rise, stairLen)
-		local railLen = math.sqrt(rise * rise + stairLen * stairLen)
-		for _, rs in { -1, 1 } do
-			local rail = newAnchoredPart(
-				"StairRail",
-				Vector3.new(0.4, 0.4, railLen),
-				CFrame.new(origin + Vector3.new(
-					sxCenter + rs * (STAIR_W / 2 - 0.4),
-					deckTop - rise / 2 + 3.4,
-					0
-				)) * CFrame.Angles(-slope, 0, 0),
-				RAIL_COLOR,
-				parent
-			)
-			rail.Material = Enum.Material.Metal
-		end
+		İlk sürümde iki yana da duvar konuyordu ve bu kimsenin merdiveni
+		kullanamamasına yol açıyordu: iç duvar sahanlığı güverteden ayırıyor,
+		oyuncu merdivenin tepesine çıkıp orada kapalı kalıyordu. Üstelik 3.
+		kata çıkmak için oyuncunun 2. katın güvertesinden merdiven kuyusuna
+		YANDAN girmesi gerekiyor — iç duvar o girişi de kapatıyordu.
+
+		Kuyunun güverteye bakan yüzü açık; düşme riski yok çünkü orada zaten
+		bir üst basamak var.
+	]]
+	slab("StairSide", Vector3.new(0.8, rise, stairLen + landingLen),
+		Vector3.new(
+			stairX - (stairW / 2 - 0.4),
+			deckTop - rise / 2,
+			zTop + stairLen / 2 - landingLen / 2
+		),
+		TRIM_COLOR)
+
+	--[[
+		Korkuluk: basamak dizisiyle AYNI uzunlukta ve aynı merkezde. Önceki
+		sürümde uzunluk bağımsız hesaplanıyordu ve uçları basamakların
+		dışına taşıyordu — ekranda havada duran demir çubuk olarak
+		görünüyordu.
+	]]
+	local slope = math.atan2(rise, stairLen)
+	local railLen = math.sqrt(rise * rise + stairLen * stairLen)
+	for _, rs in { -1, 1 } do
+		local rail = newAnchoredPart(
+			"StairRail",
+			Vector3.new(0.4, 0.4, railLen),
+			CFrame.new(origin + Vector3.new(
+				stairX + rs * (stairW / 2 - 1),
+				deckTop - rise / 2 + 3.4,
+				zTop + stairLen / 2
+			)) * CFrame.Angles(slope, 0, 0),
+			RAIL_COLOR,
+			parent
+		)
+		rail.Material = Enum.Material.Metal
+		rail.CanCollide = false
 	end
 
 	--[[
-		── Korkuluk ───────────────────────────────────────────────────────
-		Güvertenin AÇIK kenarlarına. Merdivenlerin geldiği uçlara konmuyor,
-		yoksa geçişi kapatır. Üst çubuk + dikmeler; alt boşluk bilinçli,
-		Skeld'in korkulukları da öyle.
+		── Güverte korkuluğu ──────────────────────────────────────────────
+		Sadece DIŞ kenarlara: sağ uç ve ön/arka kenarların uçları. Kaidelerin
+		önü açık kalıyor, yoksa karakterler korkuluğun arkasında kalıyor.
 	]]
 	local function railing(cx: number, cz: number, length: number, along: string)
 		local size = if along == "x"
 			then Vector3.new(length, 0.35, 0.35)
 			else Vector3.new(0.35, 0.35, length)
 
-		slab("Rail", size, Vector3.new(cx, deckTop + 3.2, cz), RAIL_COLOR)
+		slab("Rail", size, Vector3.new(cx, deckTop + 3.2, cz), RAIL_COLOR).CanCollide = false
 
-		local posts = math.max(2, math.floor(length / 7))
+		local posts = math.max(2, math.floor(length / 8))
 		for i = 0, posts do
 			local t = i / posts
 			slab("RailPost", Vector3.new(0.35, 3.2, 0.35), Vector3.new(
 				if along == "x" then cx - length / 2 + length * t else cx,
 				deckTop + 1.6,
 				if along == "z" then cz - length / 2 + length * t else cz
-			), RAIL_COLOR)
+			), RAIL_COLOR).CanCollide = false
 		end
 	end
 
-	-- Ön ve arka kenar (kaidelerin bakış yönü açık kalıyor: sadece uçlar)
+	railing(halfX - 0.5, 0, deckZ, "z")
 	for _, sz in { -1, 1 } do
-		for _, sx in { -1, 1 } do
-			railing(sx * (deckHalfX - 7), sz * deckZ / 2, 14, "x")
-		end
-	end
-	-- Merdiven sahanlıklarının dış kenarı
-	for _, sx in { -1, 1 } do
-		railing(sx * halfX, deckZ / 4, deckZ / 2, "z")
+		railing(halfX - 10, sz * (deckZ / 2 - 0.5), 18, "x")
 	end
 
 	--[[
 		── Kolonlar ───────────────────────────────────────────────────────
 		Güverteyi alt kata bağlıyorlar. Yapısal olarak gereksiz (her şey
 		anchored) ama görsel olarak şart: kolonsuz üst kat havada asılı
-		duruyor ve yapı inandırıcı olmuyor.
+		duruyor. Kaidelerin arasına denk gelmesinler diye köşelere yakın.
 	]]
-	for _, sx in { -1, 1 } do
+	for _, sx in { 0.06, 0.94 } do
 		for _, sz in { -1, 1 } do
-			slab("Column", Vector3.new(1.8, rise, 1.8),
-				Vector3.new(sx * (deckHalfX - 1), deckTop - rise / 2 - 1, sz * (deckZ / 2 - 1)),
-				TRIM_COLOR)
+			slab("Column", Vector3.new(2, rise, 2), Vector3.new(
+				deckX0 + deckW * sx,
+				deckTop - rise / 2 - 1,
+				sz * (deckZ / 2 - 1.5)
+			), TRIM_COLOR)
 		end
 	end
 
 	-- Güvertenin altına gömme aydınlatma: alt kat karanlıkta kalmasın
-	for _, sx in { -1, 1 } do
+	for _, t in { 0.3, 0.7 } do
 		local lamp = newAnchoredPart(
 			"DeckLamp",
-			Vector3.new(deckHalfX, 0.3, 3),
-			CFrame.new(origin + Vector3.new(sx * deckHalfX / 2, deckTop - 1.2, 0)),
+			Vector3.new(deckW * 0.36, 0.3, 3),
+			CFrame.new(origin + Vector3.new(deckX0 + deckW * t, deckTop - 1.2, 0)),
 			Color3.fromRGB(255, 244, 222),
 			parent
 		)
@@ -233,6 +317,124 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		light.Brightness = 0.7
 		light.Parent = lamp
 	end
+end
+
+--[[
+	═══ YÜKSELTME KULÜBESİ ══════════════════════════════════════════════════
+
+	Yükseltmeler şimdiye kadar üssün kenarına dikilmiş çıplak tabelalardı;
+	nereye bakacağını bilmiyordun ve hangi üsse ait oldukları belli değildi.
+
+	Artık her üste ait bir kulübe var: tezgâh, arkasında satıcı mürettebat,
+	üstünde tente ve tabela. Yükseltme tabelaları bu kulübenin tezgâhına
+	diziliyor (UpgradeService kulübeyi adıyla bulup kendi panolarını oraya
+	koyuyor), yani "yükseltme burada yapılır" bilgisi mimariden okunuyor.
+
+	Satıcı figürü kasten EŞSİZ: hiçbir kaidede çıkmayan bir renk ve şapka.
+	Oyuncu onu görünce "bu satın alınabilir bir karakter değil, bu bir
+	görevli" diyor.
+]]
+local function buildUpgradeBooth(parent: Instance, origin: Vector3)
+	local halfX = Config.PlotSize.X / 2
+	local halfZ = Config.PlotSize.Z / 2
+	local topY = Config.PlotSize.Y / 2
+
+	-- Sağ ön köşe: doğuş pedi (orta) ve konveyör (arka) ile çakışmıyor
+	local bx = halfX - 9
+	local bz = -halfZ + 12
+
+	local booth = Instance.new("Model")
+	booth.Name = "UpgradeBooth"
+	booth.Parent = parent
+
+	local WOOD = Color3.fromRGB(96, 108, 114)
+	local TRIM = Color3.fromRGB(168, 181, 184)
+	local ACCENT = Color3.fromRGB(206, 172, 72)
+
+	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
+		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(bx, topY, bz) + offset), color, booth)
+		p.Material = Enum.Material.Metal
+		p.CanCollide = collide ~= false
+		return p
+	end
+
+	-- Tezgâh
+	part("Counter", Vector3.new(14, 4, 3), Vector3.new(0, 2, -3), WOOD)
+	part("CounterTop", Vector3.new(15, 0.5, 4.4), Vector3.new(0, 4.25, -3.2), TRIM)
+	part("CounterStripe", Vector3.new(14.2, 0.4, 0.3), Vector3.new(0, 3.2, -4.6), ACCENT, false)
+
+	-- Arka pano: tabelaların dayandığı yüzey
+	part("BoothBack", Vector3.new(15, 9, 1), Vector3.new(0, 4.5, 2.5), WOOD)
+
+	-- Yan direkler ve tente
+	for _, s in { -1, 1 } do
+		part("BoothPost", Vector3.new(0.9, 11, 0.9), Vector3.new(s * 7, 5.5, -3), TRIM)
+	end
+	part("BoothRoof", Vector3.new(17, 0.7, 9), Vector3.new(0, 11.2, -0.5), TRIM)
+	-- Tente: öne doğru eğik şerit
+	part("BoothAwning", Vector3.new(17, 0.4, 4.4), Vector3.new(0, 10.4, -4.6), ACCENT, false)
+		.CFrame = CFrame.new(origin + Vector3.new(bx, topY + 10.4, bz - 4.6)) * CFrame.Angles(math.rad(22), 0, 0)
+
+	-- Tabela
+	local sign = part("BoothSign", Vector3.new(13, 2.6, 0.4), Vector3.new(0, 12.6, -0.6), Color3.fromRGB(27, 34, 39), false)
+
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "Label"
+	surface.Face = Enum.NormalId.Front
+	surface.CanvasSize = Vector2.new(260, 52)
+	surface.LightInfluence = 0
+	surface.Parent = sign
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = ACCENT
+	text.Text = "UPGRADES"
+	text.Parent = surface
+
+	-- Tezgâh lambası
+	local lamp = part("BoothLamp", Vector3.new(12, 0.3, 1.6), Vector3.new(0, 9.6, -3), Color3.fromRGB(255, 244, 222), false)
+	lamp.Material = Enum.Material.Neon
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 244, 222)
+	light.Range = 22
+	light.Brightness = 0.8
+	light.Parent = lamp
+
+	--[[
+		Satıcı. Tezgâhın ARKASINDA duruyor ve oyuncuya bakıyor. Renk paleti
+		hiçbir mürettebat tulumunda yok (soluk mor-gri), şapkası da hiçbir
+		nadirlik kademesinde yok (yassı vizör + kulaklık) — bakınca "bu
+		satılık değil" anlaşılıyor.
+	]]
+	local SKIN = Color3.fromRGB(122, 112, 148)
+	local VISOR = Color3.fromRGB(240, 226, 150)
+
+	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?): Part
+		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(bx, topY, bz + 1) + offset), color, booth)
+		p.Material = Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		if shape then
+			p.Shape = shape
+		end
+		return p
+	end
+
+	local body = vendor("VendorBody", Vector3.new(2.2, 2.6, 2.2), Vector3.new(0, 2, 0), SKIN, Enum.PartType.Cylinder)
+	body.CFrame = CFrame.new(origin + Vector3.new(bx, topY + 2, bz + 1)) * CFrame.Angles(0, 0, math.rad(90))
+
+	vendor("VendorHead", Vector3.new(2.2, 2.2, 2.2), Vector3.new(0, 3.3, 0), SKIN, Enum.PartType.Ball)
+	vendor("VendorVisor", Vector3.new(1.5, 0.9, 0.6), Vector3.new(0, 3.35, -0.95), VISOR)
+	vendor("VendorPack", Vector3.new(0.9, 2.1, 1), Vector3.new(0, 2.2, 1.35), SKIN)
+	for _, s in { -1, 1 } do
+		vendor("VendorLeg", Vector3.new(0.8, 1.4, 1.1), Vector3.new(s * 0.6, 0.7, 0), SKIN)
+		-- Kulaklık: satıcıya özel, hiçbir nadirlikte yok
+		vendor("VendorPhone", Vector3.new(0.45, 0.9, 0.9), Vector3.new(s * 1.15, 3.4, 0), TRIM)
+	end
+	vendor("VendorBand", Vector3.new(2.3, 0.35, 2.3), Vector3.new(0, 4.35, 0), TRIM)
+	vendor("VendorCap", Vector3.new(1.9, 0.5, 1.9), Vector3.new(0, 4.65, 0), ACCENT)
 end
 
 local function buildPlot(index: number): Model
@@ -267,7 +469,6 @@ local function buildPlot(index: number): Model
 	floors.Name = "Floors"
 	floors.Parent = plot
 
-	local perRow = math.ceil(Config.PodiumsPerFloorTotal / 2)
 	local groundY = Config.PlotSize.Y / 2   -- 1. katın yürüme yüzeyi
 
 	for floor = 1, Config.MaxFloors do
@@ -281,17 +482,14 @@ local function buildPlot(index: number): Model
 			buildUpperFloor(floorModel, origin, deckTop)
 		end
 
-		-- Son PassExtraPodiumsPerFloor tanesi bonus: her zaman inşa ediliyor
-		-- ama gamepass olmadan kullanılamıyor.
+		--[[
+			Kaide konumu artık podiumOffset'ten geliyor: temel 8 tanesi 4+4
+			ortada, bonus olanlar yanlarda. Eskiden sıra sırayla ikiye
+			bölünüyordu ve bonuslar arka sıranın sonuna düşüyordu; oyuncu
+			ön sırada 5, arka sırada 3 kullanılabilir kaide görüyordu.
+		]]
 		for index = 1, Config.PodiumsPerFloorTotal do
-			local isFrontRow = index <= perRow
-			local column = if isFrontRow then index - 1 else index - perRow - 1
-
-			local offset = Vector3.new(
-				(column - (perRow - 1) / 2) * Config.PodiumSpacing,
-				deckTop + 0.5,
-				if isFrontRow then -8 else 8
-			)
+			local offset = podiumOffset(index) + Vector3.new(0, deckTop + 0.5, 0)
 
 			local podium = newAnchoredPart(
 				"Podium",
@@ -308,6 +506,8 @@ local function buildPlot(index: number): Model
 			podium:SetAttribute("PlacedAt", 0)
 		end
 	end
+
+	buildUpgradeBooth(plot, origin)
 
 	-- Konveyör (görsel şerit)
 	local conveyor = newAnchoredPart(
@@ -388,6 +588,14 @@ local function buildPlot(index: number): Model
 	end
 
 	plot.Parent = plotsFolder
+
+	--[[
+		Kilitli katları HEMEN kapat. Eskiden bu sadece üs bir oyuncuya
+		verilince çalışıyordu; sahipsiz üste 2. ve 3. kat tamamen katı ve
+		görünür duruyordu, hatta kilitli olmasına rağmen merdiveninden
+		çıkılabiliyordu.
+	]]
+	PlotService.SetUnlockedFloors(plot, 1)
 	return plot
 end
 
@@ -474,25 +682,72 @@ function PlotService.SetUnlockedFloors(plot: Model, count: number)
 	local unlocked = math.clamp(count, 1, Config.MaxFloors)
 	plot:SetAttribute("UnlockedFloors", unlocked)
 
-	local floors = plot:FindFirstChild("Floors")
-	if floors then
-		for _, floorModel in floors:GetChildren() do
-			local index = tonumber(string.match(floorModel.Name, "%d+")) or 1
-			local open = index <= unlocked
+	--[[
+		Kilitli kat TAMAMEN yok sayılmalı: görünmez, çarpışmasız, gölgesiz
+		ve ışıksız.
 
-			for _, part in floorModel:GetDescendants() do
-				if part:IsA("BasePart") then
-					part.CanCollide = open
-					part.Transparency = if open then 0 else 0.75
-				end
+		Eski hâli %75 saydam + çarpışma kapalıydı ve iki şikâyete yol
+		açıyordu. Birincisi görsel: satın alınmamış katın merdiveni ve
+		kaideleri havada asılı hayalet bloklar olarak duruyordu. İkincisi
+		daha kötü: bazı parçalar (güverte altı lamba, korkuluk) çarpışması
+		açık kalıyor ve oyuncuyu GÖRÜNMEZ biçimde engelliyordu.
+
+		Artık tek geçişte hepsi kapanıyor. Korkuluk gibi zaten çarpışmasız
+		olması gereken parçalar için `BaseCollide` niteliği var: kat açılınca
+		o parça kendi varsayılanına dönüyor, körü körüne true olmuyor.
+	]]
+	local function setFloorParts(root: Instance, open: boolean)
+		for _, part in root:GetDescendants() do
+			if not part:IsA("BasePart") then
+				continue
+			end
+
+			if part:GetAttribute("BaseCollide") == nil then
+				part:SetAttribute("BaseCollide", part.CanCollide)
+			end
+
+			part.CanCollide = open and part:GetAttribute("BaseCollide") == true
+			part.Transparency = if open then 0 else 1
+			part.CastShadow = open
+
+			local light = part:FindFirstChildOfClass("PointLight")
+			if light then
+				light.Enabled = open
 			end
 		end
 	end
 
+	local floors = plot:FindFirstChild("Floors")
+	if floors then
+		for _, floorModel in floors:GetChildren() do
+			local index = tonumber(string.match(floorModel.Name, "%d+")) or 1
+			setFloorParts(floorModel, index <= unlocked)
+		end
+	end
+
+	--[[
+		Kaideler Floors'un altında değil, ayrı bir klasörde. Kat kilitliyse
+		o kata ait kaideler de tamamen gizleniyor.
+
+		Bonus (gamepass) kaideler farklı: katları açıksa görünür kalıyorlar
+		ama yarı saydam ve çarpışmasız — "burada bir yer var ama senin
+		değil" mesajı. Onları da gizlersek satın alınacak bir şey olduğu
+		hiç belli olmaz.
+	]]
 	for _, podium in PlotService.GetPodiums(plot) do
+		local floor = podium:GetAttribute("Floor")
+		local floorOpen = typeof(floor) ~= "number" or floor <= unlocked
 		local open = PlotService.IsPodiumUnlocked(podium)
-		podium.Transparency = if open then 0 else 0.75
-		podium.CanCollide = open
+
+		if not floorOpen then
+			podium.Transparency = 1
+			podium.CanCollide = false
+			podium.CastShadow = false
+		else
+			podium.Transparency = if open then 0 else 0.6
+			podium.CanCollide = open
+			podium.CastShadow = true
+		end
 	end
 end
 

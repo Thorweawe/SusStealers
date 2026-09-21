@@ -6,8 +6,15 @@ local Config = {}
 -- ─── Dünya ──────────────────────────────────────────────────────────────────
 Config.PlotCount = 8
 Config.PodiumsPerPlot = 8
-Config.PlotSize = Vector3.new(60, 2, 44)
-Config.PodiumSpacing = 6.5
+
+--[[
+	Üs ölçüsü 60x44'ten 72x52'ye büyüdü. Sebep: üssün üstünde artık
+	kaidelerin yanı sıra merdiven, yükseltme kulübesi ve bonus kaideler de
+	var; eski ölçüde her şey birbirinin dibindeydi. Kaideler arası boşluk da
+	6.5'ten 7.5'e çıktı — komşu karakterlerin şapkaları birbirine giriyordu.
+]]
+Config.PlotSize = Vector3.new(72, 2, 52)
+Config.PodiumSpacing = 7.5
 
 --[[
 	Üsler ızgara halinde diziliyor: soldan sağa PlotColumns tane, sonra alt
@@ -21,8 +28,8 @@ Config.PodiumSpacing = 6.5
 	PlotSpacing - PlotSize.X = yanal boşluk, PlotRowSpacing - PlotSize.Z = dikey.
 ]]
 Config.PlotColumns = 4
-Config.PlotSpacing = 100       -- yanal boşluk 40 stud (eski 92 / 32)
-Config.PlotRowSpacing = 96     -- dikey boşluk 52 stud (eski 84 / 40)
+Config.PlotSpacing = 120       -- yanal boşluk 48 stud (üs 72 geniş)
+Config.PlotRowSpacing = 116    -- dikey boşluk 64 stud (üs 52 derin)
 
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250

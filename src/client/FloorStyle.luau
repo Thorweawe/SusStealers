@@ -42,26 +42,22 @@ function FloorStyle.Create(): Style
 
 		Çarpışmaya dokunmuyoruz; sunucu onu zaten kapatmış.
 	]]
-	local function styleLocked(floorModel: Model)
-		for _, part in floorModel:GetDescendants() do
-			if not part:IsA("BasePart") then
-				continue
-			end
-			part.Transparency = 1
-			part.CastShadow = false
-		end
-	end
+	--[[
+		ARTIK GÖRÜNÜRLÜĞE DOKUNMUYORUZ.
 
-	local function styleOpen(floorModel: Model)
-		for _, part in floorModel:GetDescendants() do
-			if not part:IsA("BasePart") then
-				continue
-			end
-			part.Material = Enum.Material.SmoothPlastic
-			part.Transparency = 0
-			part.CastShadow = true
-		end
-	end
+		Sunucu (PlotService.SetUnlockedFloors) kilitli katı zaten tamamen
+		kapatıyor: saydamlık 1, çarpışma kapalı, gölge ve ışık kapalı. Bu
+		modül de aynı şeyi yapmaya çalışınca iki sorun çıkıyordu:
+
+		  • styleOpen bütün parçalara SmoothPlastic yazıyordu. Merdiven
+		    basamaklarının metali ve güverte altı lambanın neonu siliniyor,
+		    kat açılınca yapı plastik bir maket gibi görünüyordu.
+		  • İki taraf aynı özelliği farklı zamanlarda yazdığı için kat
+		    açılırken bir kare boyunca titriyordu.
+
+		Geriye tek iş kaldı: eski sürümlerden kalmış "FLOOR 2 · LOCKED"
+		etiketlerini temizlemek.
+	]]
 
 	--[[
 		Eski "FLOOR 2 · LOCKED" etiketini temizler. Etiket fikri iyiydi ama
@@ -102,20 +98,14 @@ function FloorStyle.Create(): Style
 				end
 
 				local index = tonumber(string.match(floorModel.Name, "%d+")) or 1
-				local locked = index > unlocked
+				local state = if index > unlocked then 0 else 1
 
 				-- Durum değişmediyse dokunma
-				local state = if locked then 0 else 1
 				if applied[floorModel] == state then
 					continue
 				end
 				applied[floorModel] = state
 
-				if locked then
-					styleLocked(floorModel)
-				else
-					styleOpen(floorModel)
-				end
 				clearLabel(floorModel)
 			end
 		end
