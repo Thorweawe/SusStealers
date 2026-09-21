@@ -12,6 +12,7 @@ local Net = require(Shared.Net)
 local PlotService = require(script.Parent.PlotService)
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
+local BadgeService = require(script.Parent.BadgeService)
 
 local EconomyService = {}
 
@@ -39,6 +40,7 @@ local function commitCash(player: Player)
 		profile.cash = cash[player] or 0
 	end
 	refreshStats(player)
+	BadgeService.CheckCash(player, cash[player] or 0)
 end
 
 function EconomyService.GetCash(player: Player): number

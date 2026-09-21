@@ -11,6 +11,7 @@ local UnitModel = require(Shared.UnitModel)
 
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
+local BadgeService = require(script.Parent.BadgeService)
 
 local PlotService = {}
 
@@ -405,6 +406,31 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 	podium:SetAttribute("PlacedAt", os.clock())
 
 	syncProfile(podium)
+
+	--[[
+		Rozetler. Yerleştirme burada tek noktadan geçtiği için kontrol de
+		burada: satın alma, çalma ve çark ödülü aynı yoldan geliyor.
+	]]
+	local plot = PlotService.GetPlotFromDescendant(podium)
+	local owner = plot and ownerByPlot[plot]
+	if owner then
+		local def = Config.GetUnit(unitId)
+		if def and def.rarity == "Secret" then
+			BadgeService.Award(owner, "SecretFind")
+		end
+
+		local unlocked = PlotService.GetUnlockedPodiums(plot)
+		local occupied = 0
+		for _, other in unlocked do
+			if PlotService.IsOccupied(other) then
+				occupied += 1
+			end
+		end
+		if occupied == #unlocked and #unlocked > 0 then
+			BadgeService.Award(owner, "FullHouse")
+		end
+	end
+
 	return true
 end
 

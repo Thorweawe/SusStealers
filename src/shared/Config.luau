@@ -76,6 +76,99 @@ function Config.GetStreakBonus(streak: number): number
 	return math.min(streak, Config.StealStreakMax) * Config.StealStreakStep
 end
 
+-- ─── Hırsızı yakalama ───────────────────────────────────────────────────────
+--[[
+	Kurban, karakterini taşıyan hırsızın yanına gidip onu durdurabiliyor.
+	Çalmanın karşı hamlesi bu: eskiden kurban çalındığını görüyor ama
+	yapabileceği bir şey yoktu, sadece kilidi kalıyordu.
+
+	Engel süresini 3 dakika seçtim. Çalma beklemesi 18 saniye, yani
+	yakalanan hırsız senden on tur boyunca çalamıyor — caydırıcı ama
+	oyundan kopartmıyor. Başkalarından çalmaya devam edebiliyor, ceza
+	yalnızca yakalayan kurbana özel.
+]]
+Config.CatchHoldTime = 1.5         -- yakalama promptu kaç sn basılı tutulur
+Config.CatchRange = 14             -- kaç studdan yakalanabilir
+Config.CatchBlockDuration = 180    -- yakalanan hırsız kurbandan kaç sn çalamaz
+
+-- ─── Şans çarkı ─────────────────────────────────────────────────────────────
+--[[
+	Günde bir bedava çevirme, fazlası Robux ile. Ödüller sabit tutar değil,
+	oyuncunun kendi gelirinin katı: sabit olsaydı geç oyunda anlamsızlaşır,
+	erken oyunda dengeyi bozardı. Taban değerler yeni oyuncu için.
+
+	Her dilimde bir şey çıkıyor, boş dilim yok.
+]]
+Config.SpinCooldownHours = 24
+Config.SpinDuration = 4            -- çark kaç saniye hızlı döner
+
+export type SpinReward = {
+	id: string,
+	name: string,
+	weight: number,
+	kind: string,            -- cash | spawn | mutation | unit
+	incomeSeconds: number?,  -- cash: kaç saniyelik gelir
+	minimum: number?,        -- cash: taban tutar
+}
+
+Config.SpinRewards = {
+	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  60, minimum =   1000 },
+	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 300, minimum =  10000 },
+	{ id = "Spawn",      name = "Instant Spawn",     weight = 15, kind = "spawn" },
+	{ id = "Mutation",   name = "Guaranteed Mutation", weight = 12, kind = "mutation" },
+	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 900, minimum = 100000 },
+	{ id = "FreeUnit",   name = "Free Unit",         weight =  2, kind = "unit" },
+} :: { SpinReward }
+
+--[[ Çarkta ağırlıklı ödül seçer. ]]
+function Config.RollSpinReward(rng: Random): SpinReward
+	local total = 0
+	for _, reward in Config.SpinRewards do
+		total += reward.weight
+	end
+
+	local roll = rng:NextNumber(0, total)
+	for _, reward in Config.SpinRewards do
+		roll -= reward.weight
+		if roll <= 0 then
+			return reward
+		end
+	end
+	return Config.SpinRewards[1]
+end
+
+--[[ Nakit ödülünün tutarı. Gelir düşükse taban değer geçerli. ]]
+function Config.GetSpinCash(reward: SpinReward, incomePerSecond: number): number
+	local scaled = incomePerSecond * (reward.incomeSeconds or 0)
+	return math.floor(math.max(reward.minimum or 0, scaled))
+end
+
+-- ─── Rozetler ───────────────────────────────────────────────────────────────
+-- ID'ler Creator Dashboard > Badges altında oluşturulunca buraya yazılacak.
+-- id = 0 olan rozet verilmiyor; oyun onu yokmuş gibi çalışıyor.
+
+export type BadgeDef = {
+	id: number,
+	name: string,
+}
+
+Config.Badges = {
+	FirstSteal   = { id = 0, name = "First Heist" },
+	FirstRebirth = { id = 0, name = "Reborn" },
+	Millionaire  = { id = 0, name = "Millionaire" },
+	Billionaire  = { id = 0, name = "Billionaire" },
+	ThiefCatcher = { id = 0, name = "Caught Red-Handed" },
+	Victim       = { id = 0, name = "Robbed" },
+	FullHouse    = { id = 0, name = "Full House" },
+	SecretFind   = { id = 0, name = "Secret Collector" },
+	StreakMaster = { id = 0, name = "Streak Master" },
+	FirstSpin    = { id = 0, name = "Lucky Spinner" },
+} :: { [string]: BadgeDef }
+
+-- Rozet eşikleri
+Config.BadgeMillionaire = 1000000
+Config.BadgeBillionaire = 1000000000
+
 -- ─── Kilit (savunma) ────────────────────────────────────────────────────────
 Config.LockDuration = 25
 Config.LockCooldown = 80
@@ -135,7 +228,7 @@ Config.PassStrongLockCooldown = 50
 export type ProductDef = {
 	id: number,
 	name: string,
-	kind: string,       -- cash | conveyor | lucky | rebirth
+	kind: string,       -- cash | conveyor | lucky | rebirth | spin
 	amount: number?,
 }
 
@@ -146,6 +239,7 @@ Config.Products = {
 	SkipConveyor   = { id = 0, name = "Instant Spawn",   kind = "conveyor" },
 	LuckyRoll      = { id = 0, name = "Guaranteed Mutation", kind = "lucky" },
 	InstantRebirth = { id = 0, name = "Instant Rebirth", kind = "rebirth" },
+	ExtraSpin      = { id = 0, name = "Extra Spin",      kind = "spin" },
 } :: { [string]: ProductDef }
 
 -- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez

@@ -43,6 +43,8 @@ export type Profile = {
 	receipts: { string },
 	-- Üs yükseltmeleri: id -> seviye
 	upgrades: { [string]: number },
+	-- Son bedava çark çevirme anı (os.time)
+	lastSpinAt: number,
 }
 
 type Lock = { owner: string, at: number }
@@ -71,6 +73,7 @@ local function newProfile(): Profile
 		incomePerSecond = 0,
 		receipts = {},
 		upgrades = {},
+		lastSpinAt = 0,
 	}
 end
 
@@ -111,6 +114,10 @@ local function sanitize(raw: any): Profile
 				table.insert(profile.receipts, id)
 			end
 		end
+	end
+
+	if typeof(raw.lastSpinAt) == "number" and raw.lastSpinAt > 0 then
+		profile.lastSpinAt = math.floor(raw.lastSpinAt)
 	end
 
 	if typeof(raw.upgrades) == "table" then
@@ -231,6 +238,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 		incomePerSecond = profile.incomePerSecond,
 		receipts = table.clone(profile.receipts),
 		upgrades = table.clone(profile.upgrades),
+		lastSpinAt = profile.lastSpinAt,
 	}
 
 	local ok, err = pcall(function()

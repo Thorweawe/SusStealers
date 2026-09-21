@@ -34,6 +34,8 @@ local MonetizationService = require(Server.MonetizationService)
 local ConveyorService = require(Server.ConveyorService)
 local PromptGuard = require(Server.PromptGuard)
 local DataService = require(Server.DataService)
+local BadgeService = require(Server.BadgeService)
+local SpinService = require(Server.SpinService)
 
 local ServerTests = {}
 
@@ -560,7 +562,7 @@ case("Monetization: id=0 olan ürünler devre dışı", function(ctx)
 end)
 
 case("Monetization: ürün tanımları tutarlı", function()
-	local kinds = { cash = true, conveyor = true, lucky = true, rebirth = true }
+	local kinds = { cash = true, conveyor = true, lucky = true, rebirth = true, spin = true }
 
 	for key, def in Config.Products do
 		ok(key .. " tipi tanınıyor", kinds[def.kind] == true, def.kind)
@@ -670,6 +672,157 @@ case("Kayıt: çevrimdışı gelir tavanlı", function()
 	ok("oran tam değil", capped < rate * Config.OfflineIncomeCapHours * 3600)
 end)
 
+-- ─── K. Rozetler ────────────────────────────────────────────────────────────
+
+case("Rozet: tanımlar tutarlı", function()
+	local count = 0
+	for key, def in Config.Badges do
+		count += 1
+		ok(key .. " adı dolu", typeof(def.name) == "string" and #def.name > 0)
+		ok(key .. " id sayı", typeof(def.id) == "number")
+	end
+	ok("en az 8 rozet tanımlı", count >= 8, tostring(count))
+end)
+
+case("Rozet: id=0 olanlar sessizce atlanıyor", function(ctx)
+	-- Çağrı patlamamalı; id yoksa hiçbir şey yapmadan dönmeli
+	local success = pcall(function()
+		BadgeService.Award(ctx.player, "FirstSteal")
+		BadgeService.Award(ctx.player, "BoyleBirRozetYok")
+		BadgeService.CheckCash(ctx.player, Config.BadgeBillionaire)
+	end)
+	ok("hata vermeden çalıştı", success)
+end)
+
+case("Rozet: nakit eşikleri sıralı", function()
+	ok("milyoner eşiği pozitif", Config.BadgeMillionaire > 0)
+	ok("milyarder eşiği daha yüksek", Config.BadgeBillionaire > Config.BadgeMillionaire)
+end)
+
+-- ─── L. Şans çarkı ──────────────────────────────────────────────────────────
+
+case("Çark: ödül tablosu geçerli", function()
+	local kinds = { cash = true, spawn = true, mutation = true, unit = true }
+	local total = 0
+
+	for _, reward in Config.SpinRewards do
+		total += reward.weight
+		ok(reward.id .. " ağırlığı pozitif", reward.weight > 0)
+		ok(reward.id .. " tipi tanınıyor", kinds[reward.kind] == true, reward.kind)
+
+		if reward.kind == "cash" then
+			ok(reward.id .. " taban tutarı pozitif", (reward.minimum or 0) > 0)
+			ok(reward.id .. " gelir süresi pozitif", (reward.incomeSeconds or 0) > 0)
+		end
+	end
+
+	ok("toplam ağırlık pozitif", total > 0)
+	ok("boş dilim yok", #Config.SpinRewards >= 4, tostring(#Config.SpinRewards))
+end)
+
+case("Çark: rulet tüm ödülleri üretebiliyor", function()
+	local rng = Random.new(12345)
+	local seen = {}
+	local distinct = 0
+
+	for _ = 1, 20000 do
+		local reward = Config.RollSpinReward(rng)
+		if not seen[reward.id] then
+			seen[reward.id] = true
+			distinct += 1
+		end
+	end
+
+	eq("her ödül en az bir kez çıktı", distinct, #Config.SpinRewards)
+end)
+
+case("Çark: nakit ödülü gelirle ölçekleniyor", function()
+	local reward
+	for _, entry in Config.SpinRewards do
+		if entry.kind == "cash" then
+			reward = entry
+			break
+		end
+	end
+
+	if not reward then
+		ok("nakit ödülü var", false)
+		return
+	end
+
+	eq("sıfır gelirde taban değer", Config.GetSpinCash(reward, 0), reward.minimum)
+
+	local high = Config.GetSpinCash(reward, 1000000)
+	ok("yüksek gelirde ölçekleniyor", high > reward.minimum, Config.FormatCash(high))
+	eq("beklenen tutar", high, math.floor(1000000 * reward.incomeSeconds))
+end)
+
+case("Çark: bedava hak bekleme süresi", function(ctx)
+	ctx.profile.lastSpinAt = 0
+	near("hiç çevirmemişken hak hazır", SpinService.GetCooldown(ctx.player), 0, 0.001)
+
+	ctx.profile.lastSpinAt = os.time()
+	local remaining = SpinService.GetCooldown(ctx.player)
+	near("çevirdikten sonra tam süre", remaining, Config.SpinCooldownHours * 3600, 5)
+
+	ctx.profile.lastSpinAt = os.time() - Config.SpinCooldownHours * 3600
+	near("süre dolunca hak geri geliyor", SpinService.GetCooldown(ctx.player), 0, 5)
+
+	ctx.profile.lastSpinAt = 0
+end)
+
+case("Çark: dünyada kurulu ve promptu var", function()
+	local decor = workspace:FindFirstChild("Decor")
+	local wheel = decor and decor:FindFirstChild("Wheel")
+	ok("workspace.Decor.Wheel var", wheel ~= nil)
+
+	if wheel then
+		local anchor = wheel:FindFirstChild("WheelHub") or wheel:FindFirstChild("WheelPlinth")
+		ok("çark gövdesi bulundu", anchor ~= nil)
+		if anchor then
+			ok("SpinPrompt kurulu", anchor:FindFirstChild("SpinPrompt") ~= nil)
+		end
+	end
+end)
+
+case("Çark: bedava çevirme hakkı harcıyor", function(ctx)
+	ctx.profile.lastSpinAt = 0
+	setCash(ctx.player, 0)
+
+	local spun = SpinService.Spin(ctx.player, true)
+	ok("çevirme başarılı", spun)
+
+	if spun then
+		ok("hak harcandı", SpinService.GetCooldown(ctx.player) > 0)
+		eq("ikinci çevirme reddedildi", SpinService.Spin(ctx.player, true), false)
+	end
+
+	ctx.profile.lastSpinAt = 0
+end)
+
+-- ─── M. Hırsızı yakalama ────────────────────────────────────────────────────
+
+case("Yakalama: ayarlar makul", function()
+	ok("basılı tutma süresi pozitif", Config.CatchHoldTime > 0)
+	ok("menzil kaide menzilinden geniş", Config.CatchRange >= 10, tostring(Config.CatchRange))
+
+	-- Engel süresi çalma beklemesinden uzun olmalı, yoksa caydırıcılığı yok
+	ok("engel süresi çalma beklemesinden uzun",
+		Config.CatchBlockDuration > Config.StealCooldown,
+		string.format("%d vs %d", Config.CatchBlockDuration, Config.StealCooldown))
+
+	-- Ama oyundan kopartacak kadar uzun da olmamalı
+	ok("engel süresi 10 dakikayı aşmıyor", Config.CatchBlockDuration <= 600,
+		tostring(Config.CatchBlockDuration))
+end)
+
+case("Yakalama: kurban sınırı ayarları", function()
+	ok("kurban başına çalma sınırı pozitif", Config.StealsPerVictim > 0)
+	ok("kurban beklemesi yakalama engelinden uzun",
+		Config.VictimCooldown >= Config.CatchBlockDuration,
+		string.format("%d vs %d", Config.VictimCooldown, Config.CatchBlockDuration))
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -699,6 +852,7 @@ function ServerTests.Run(player: Player?): number
 		cash = profile.cash,
 		rebirths = profile.rebirths,
 		upgrades = table.clone(profile.upgrades),
+		lastSpinAt = profile.lastSpinAt,
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
 
@@ -739,6 +893,7 @@ function ServerTests.Run(player: Player?): number
 	profile.cash = backup.cash
 	profile.rebirths = backup.rebirths
 	profile.upgrades = backup.upgrades
+	profile.lastSpinAt = backup.lastSpinAt
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	clearPlot(plot)

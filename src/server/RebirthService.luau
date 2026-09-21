@@ -16,6 +16,7 @@ local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
+local BadgeService = require(script.Parent.BadgeService)
 
 local RebirthService = {}
 
@@ -83,6 +84,8 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 		"REBIRTH %d! Income x%.1f, floor %d unlocked",
 		profile.rebirths, multiplier, floors
 	), false)
+
+	BadgeService.Award(player, "FirstRebirth")
 
 	-- Rebirth pahalı ve geri alınamaz; bir sonraki autosave'i beklemeyelim
 	DataService.Save(player)

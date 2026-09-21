@@ -15,6 +15,7 @@ local PromptGuard = require(script.Parent.PromptGuard)
 local MonetizationService = require(script.Parent.MonetizationService)
 local UpgradeService = require(script.Parent.UpgradeService)
 local EconomyService = require(script.Parent.EconomyService)
+local BadgeService = require(script.Parent.BadgeService)
 
 local StealService = {}
 
@@ -168,6 +169,80 @@ local function returnToVictim(player: Player)
 	stopCarrying(player)
 end
 
+-- ─── Yakalama ───────────────────────────────────────────────────────────────
+
+--[[ Hırsızı bu kurbandan belirli bir süre engeller. ]]
+local function blockFrom(thief: Player, victim: Player, seconds: number)
+	local blocked = victimBlockedUntil[thief]
+	if not blocked then
+		blocked = {}
+		victimBlockedUntil[thief] = blocked
+	end
+	blocked[victim] = os.clock() + seconds
+end
+
+--[[
+	Kurban, karakterini taşıyan hırsızı durdurur.
+
+	Çalmanın karşı hamlesi bu: eskiden kurban çalındığını görüyordu ama
+	yapabileceği tek şey kilitti, o da olay olduktan sonra işe yaramıyordu.
+	Artık peşine düşüp geri alabiliyor.
+
+	Prompt taşınan karakterin üstünde duruyor, yani yalnızca hırsız gerçekten
+	bir şey taşırken görünüyor. Tetikleyen kişi kurban değilse reddediliyor.
+]]
+local function setupCatchPrompt(thief: Player, model: Model)
+	local primary = model.PrimaryPart
+	if not primary then
+		return
+	end
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "CatchPrompt"
+	prompt.ActionText = "Stop Thief"
+	prompt.ObjectText = thief.DisplayName
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = Config.CatchHoldTime
+	prompt.MaxActivationDistance = Config.CatchRange
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = primary
+
+	PromptGuard.Connect(prompt, function(catcher)
+		local carry = carrying[thief]
+		if not carry then
+			return
+		end
+
+		-- Yalnızca soyulan kişi durdurabilir; başkası karışamaz
+		if carry.victim ~= catcher then
+			notify(catcher, "Only the owner can stop this thief", true)
+			return
+		end
+
+		local unitId, mutationId = carry.unitId, carry.mutationId
+		local def = Config.GetUnit(unitId)
+		local unitName = if def then def.name else unitId
+
+		-- returnToVictim karakteri geri koyuyor, kaide doluysa parasını veriyor
+		returnToVictim(thief)
+		blockFrom(thief, catcher, Config.CatchBlockDuration)
+
+		-- Yakalanan hırsızın serisi de kırılıyor: seri risk ödülüydü,
+		-- yakalanmak riskin gerçekleşmesi demek
+		streak[thief] = nil
+		thief:SetAttribute("StealStreak", 0)
+
+		notify(catcher, string.format("You stopped %s and got %s back!", thief.DisplayName, unitName), false)
+		notify(thief, string.format(
+			"Caught! You cannot steal from %s for %d min",
+			catcher.DisplayName,
+			math.floor(Config.CatchBlockDuration / 60)
+		), true)
+
+		BadgeService.Award(catcher, "ThiefCatcher")
+	end)
+end
+
 -- ─── Bırakma ────────────────────────────────────────────────────────────────
 
 local function isInsidePlot(position: Vector3, plot: Model): boolean
@@ -262,6 +337,11 @@ local function tryDeposit(player: Player)
 	end
 
 	player:SetAttribute("StealStreak", streak[player])
+
+	BadgeService.Award(player, "FirstSteal")
+	if streak[player] >= Config.StealStreakMax then
+		BadgeService.Award(player, "StreakMaster")
+	end
 
 	stopCarrying(player)
 end
@@ -385,9 +465,14 @@ local function onStealPrompt(podium: Part, thief: Player)
 	local def = Config.GetUnit(unitId)
 	local unitName = if def then def.name else unitId
 
+	setupCatchPrompt(thief, model)
+
 	notify(thief, string.format("Stole %s! Run to your base", unitName), false)
 	if victim then
 		alertRemote:FireClient(victim, thief.DisplayName, unitName)
+		notify(victim, string.format("%s is carrying your %s - chase and press E to stop them",
+			thief.DisplayName, unitName), true)
+		BadgeService.Award(victim, "Victim")
 	end
 end
 
