@@ -13,8 +13,13 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
+local DecorFX = require(script.DecorFX)
 local Leaderboard = require(script.Leaderboard)
+local Minimap = require(script.Minimap)
+local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
+local ScreenFX = require(script.ScreenFX)
+local SoundFX = require(script.SoundFX)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -185,12 +190,73 @@ local function showToast(text: string, color: Color3)
 	end)
 end
 
+-- ─── Efektler ───────────────────────────────────────────────────────────────
+-- Ses ve ekran geri bildirimi bildirimlere bağlanıyor: sunucu zaten ne olduğunu
+-- söylüyor, ayrı bir olay akışına gerek yok.
+
+local effects = ScreenFX.Create(screen)
+SoundFX.Preload()
+SoundFX.StartAmbient()
+
+--[[
+	Harita ve üs bilgisi aşağıda kuruluyor ama bildirim işleyicileri burada
+	tanımlanıyor. Önden bildirip sonra dolduruyoruz; işleyici tetiklendiğinde
+	ikisi de hazır olmuş oluyor.
+]]
+local minimapRef: Minimap.Map? = nil
+local currentPlot: Model? = nil
+
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
 	showToast(text, if isError then BAD else GOOD)
+	if isError then
+		SoundFX.Deny()
+	else
+		SoundFX.Success()
+	end
 end)
 
 Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName: string)
 	showToast(string.format("%s stole your %s!", thiefName, unitName), Color3.fromRGB(255, 70, 110))
+
+	-- Çalınmak bedensel hissedilmeli: köşedeki yazıyı kaçırmak kolay,
+	-- kırmızı parlama ve sarsıntı kaçırılmıyor.
+	SoundFX.Alarm()
+	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
+	effects.Shake(1.6, 0.6)
+
+	-- Haritada soyulan üssü yak ve hırsızı işaretle: peşinden gidebilesin
+	if minimapRef then
+		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
+		minimapRef.Alert(bay, thiefName)
+	end
+
+	print(string.format("[SusStealers] Calinma bildirimi geldi: %s -> %s", thiefName, unitName))
+end)
+
+--[[
+	TEŞHİS TUŞU (K): çalınma efektlerini yerel olarak tetikler.
+
+	Çalınma efektleri test sırasında hiç görünmedi ve sebebi iki yerden biri
+	olabilir: ya sunucu bildirimi ulaşmıyor ya da efektlerin kendisi bozuk.
+	Bu tuş efektleri olaydan bağımsız çalıştırıyor, böylece hangisi olduğu
+	kesinleşiyor. Sebep bulununca kaldırılacak.
+]]
+game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+	if processed or input.KeyCode ~= Enum.KeyCode.K then
+		return
+	end
+
+	showToast("TEST: efekt denemesi", Color3.fromRGB(255, 70, 110))
+	SoundFX.Alarm()
+	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
+	effects.Shake(1.6, 0.6)
+
+	if minimapRef then
+		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
+		-- Kendimizi hırsız gösteriyoruz ki nokta işaretlemesi de denensin
+		minimapRef.Alert(bay, player.DisplayName)
+	end
+	print("[SusStealers] K: efektler yerel olarak tetiklendi")
 end)
 
 -- ─── Nakit / gelir ──────────────────────────────────────────────────────────
@@ -329,18 +395,48 @@ task.spawn(function()
 	end
 end)
 
+DecorFX.Start()
+
 local guide = CarryGuide.Create(screen)
 local board = Leaderboard.Create(screen)
 local prompts = PromptFilter.Create()
+local colors = OwnerColors.Create()
+local minimap = Minimap.Create(screen)
+minimapRef = minimap
 
--- Hangi üssün bizim olduğu saniyede birkaç kez değişebilecek bir şey değil,
--- o yüzden yavaş döngüde bulunup burada saklanıyor. Ok her karede bunu okur.
-local currentPlot: Model? = nil
+--[[
+	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca
+	kuruluyor, o yüzden bir kez değil kurulana kadar deneniyor. Ses parçaya
+	bağlı olduğu için yaklaştıkça yükseliyor.
+]]
+task.spawn(function()
+	for _ = 1, 40 do
+		local decor = workspace:FindFirstChild("Decor")
+		local plots = decor and decor:FindFirstChild("Plots")
+		if plots then
+			local attached = 0
+			for _, pf in plots:GetChildren() do
+				for _, part in pf:GetChildren() do
+					if part:IsA("BasePart") and part.Name == "DispenserHead" then
+						SoundFX.AttachMachineHum(part)
+						attached += 1
+					end
+				end
+			end
+			if attached > 0 then
+				return
+			end
+		end
+		task.wait(0.5)
+	end
+end)
 
 -- Ok kameraya göre döndüğü için her kare güncellenmeli; 0.2 sn'de bir
 -- güncellense kamerayı çevirdiğinde takılarak döner.
 RunService.RenderStepped:Connect(function()
 	guide.Update(currentPlot)
+	-- Harita işaretleri de her karede: yavaş döngüde dönerken takılıyordu
+	minimap.Markers(colors.ColorOf, currentPlot)
 end)
 
 task.spawn(function()
@@ -367,5 +463,7 @@ task.spawn(function()
 		setRow(carryValue, describeCarry())
 		board.Update()
 		prompts.Update(plot)
+		colors.Update()
+		minimap.Update(colors.ColorOf)
 	end
 end)

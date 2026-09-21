@@ -30,8 +30,15 @@ type Row = {
 	rank: TextLabel,
 	name: TextLabel,
 	stolen: TextLabel,
+	income: TextLabel,
 	cash: TextLabel,
 }
+
+--[[ Saniyelik gelir. Nitelik olarak istemciye replike oluyor. ]]
+local function incomeOf(p: Player): number
+	local value = p:GetAttribute("Income")
+	return if typeof(value) == "number" then value else 0
+end
 
 local function cashOf(p: Player): number
 	local value = p:GetAttribute("Cash")
@@ -52,7 +59,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	local holder = Instance.new("Frame")
 	holder.Name = "Leaderboard"
 	holder.Position = UDim2.new(0, 24, 0, 104)
-	holder.Size = UDim2.new(0, 290, 0, 42 + MAX_ROWS * ROW_HEIGHT + 10)
+	holder.Size = UDim2.new(0, 360, 0, 42 + MAX_ROWS * ROW_HEIGHT + 10)
 	holder.BackgroundColor3 = PANEL
 	holder.BackgroundTransparency = 0.2
 	holder.BorderSizePixel = 0
@@ -98,7 +105,8 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		return label
 	end
 
-	newHeader("STOLEN", 92, 44)
+	newHeader("STOLEN", 170, 44)
+	newHeader("INCOME", 92, 72)
 	newHeader("CASH", 0, 88)
 
 	local rows: { Row } = {}
@@ -122,7 +130,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 		local name = Instance.new("TextLabel")
 		name.Position = UDim2.new(0, 20, 0, 0)
-		name.Size = UDim2.new(1, -156, 1, 0)
+		name.Size = UDim2.new(1, -226, 1, 0)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.GothamMedium
 		name.TextSize = 13
@@ -133,7 +141,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 		local stolen = Instance.new("TextLabel")
 		stolen.AnchorPoint = Vector2.new(1, 0)
-		stolen.Position = UDim2.new(1, -92, 0, 0)
+		stolen.Position = UDim2.new(1, -170, 0, 0)
 		stolen.Size = UDim2.new(0, 44, 1, 0)
 		stolen.BackgroundTransparency = 1
 		stolen.Font = Enum.Font.GothamMedium
@@ -141,6 +149,17 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		stolen.TextXAlignment = Enum.TextXAlignment.Right
 		stolen.TextColor3 = MUTED
 		stolen.Parent = frame
+
+		local income = Instance.new("TextLabel")
+		income.AnchorPoint = Vector2.new(1, 0)
+		income.Position = UDim2.new(1, -92, 0, 0)
+		income.Size = UDim2.new(0, 72, 1, 0)
+		income.BackgroundTransparency = 1
+		income.Font = Enum.Font.GothamMedium
+		income.TextSize = 13
+		income.TextXAlignment = Enum.TextXAlignment.Right
+		income.TextColor3 = MUTED
+		income.Parent = frame
 
 		local cash = Instance.new("TextLabel")
 		cash.AnchorPoint = Vector2.new(1, 0)
@@ -153,7 +172,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		cash.TextColor3 = GOOD
 		cash.Parent = frame
 
-		table.insert(rows, { frame = frame, rank = rank, name = name, stolen = stolen, cash = cash })
+		table.insert(rows, { frame = frame, rank = rank, name = name, stolen = stolen, income = income, cash = cash })
 	end
 
 	local function update()
@@ -177,13 +196,15 @@ function Leaderboard.Create(screen: ScreenGui): Board
 			row.name.TextColor3 = if isMine then MINE else INK
 			row.stolen.Text = tostring(stolenOf(entry))
 			row.stolen.TextColor3 = if isMine then MINE else MUTED
+			row.income.Text = "+$" .. Config.FormatCash(incomeOf(entry)) .. "/s"
+			row.income.TextColor3 = if isMine then MINE else MUTED
 			row.cash.Text = "$" .. Config.FormatCash(cashOf(entry))
 			row.cash.TextColor3 = if isMine then MINE else GOOD
 		end
 
 		-- Oyuncu sayısı azaldıysa panel de kısalsın
 		local shown = math.min(#list, MAX_ROWS)
-		holder.Size = UDim2.new(0, 290, 0, 42 + math.max(shown, 1) * ROW_HEIGHT + 10)
+		holder.Size = UDim2.new(0, 360, 0, 42 + math.max(shown, 1) * ROW_HEIGHT + 10)
 	end
 
 	return { Update = update }

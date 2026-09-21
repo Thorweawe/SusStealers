@@ -58,7 +58,17 @@ local function buildPlot(index: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = string.format("Plot%d", index)
 
-	local origin = Vector3.new((index - 1) * Config.PlotSpacing, 0, 0)
+	-- Izgara yerleşimi: soldan sağa PlotColumns tane, sonra alt satır.
+	-- Tek sıra isteniyorsa Config.PlotColumns = Config.PlotCount yapılır.
+	local columns = Config.PlotColumns or Config.PlotCount
+	local column = (index - 1) % columns
+	local row = math.floor((index - 1) / columns)
+
+	local origin = Vector3.new(
+		column * Config.PlotSpacing,
+		0,
+		row * (Config.PlotRowSpacing or 0)
+	)
 
 	-- Zemin
 	local base = newAnchoredPart("Base", Config.PlotSize, CFrame.new(origin), Color3.fromRGB(58, 64, 76), plot)
@@ -206,6 +216,21 @@ local function buildPlot(index: number): Model
 	plot:SetAttribute("Locked", false)
 	plot:SetAttribute("LockUsedAt", 0)
 	plot:SetAttribute("UnlockedFloors", 1)
+
+	--[[
+		Satırlar birbirine baksın. Üs varsayılan olarak -Z yönüne bakıyor
+		(tabela orada). Iki satırlı düzende üst satır bu haliyle koridorun
+		tersine bakıyor, o yüzden 180° çevriliyor. Sonuç: iki sıra üs
+		aradaki koridora bakar, oyuncu ortada durup ikisini birden görür.
+
+		180° eksen hizasını bozmuyor, bu yüzden isInsidePlot gibi dünya
+		eksenine bakan kontroller çalışmaya devam ediyor. Başka bir açı
+		seçilirse oralar da düzeltilmeli.
+	]]
+	local rowCount = math.ceil(Config.PlotCount / columns)
+	if rowCount > 1 and row % 2 == 0 then
+		plot:PivotTo(CFrame.new(origin) * CFrame.Angles(0, math.pi, 0))
+	end
 
 	plot.Parent = plotsFolder
 	return plot

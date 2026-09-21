@@ -7,8 +7,22 @@ local Config = {}
 Config.PlotCount = 8
 Config.PodiumsPerPlot = 8
 Config.PlotSize = Vector3.new(60, 2, 44)
-Config.PlotSpacing = 76
 Config.PodiumSpacing = 6.5
+
+--[[
+	Üsler ızgara halinde diziliyor: soldan sağa PlotColumns tane, sonra alt
+	satıra geçiliyor. Tek sıra istersen PlotColumns'u PlotCount'a eşitle.
+
+	Tek sıra (8x1) harita 644x108 stud'luk bir şerit yapıyordu; 25:1 oranında
+	her şey yassı görünüyor, duvar ve pencere gibi detaylar kayboluyordu.
+	4x2 ızgarada harita derinleşiyor ve istasyon gibi duruyor.
+
+	Boşluklar üs ölçüsünden büyük olmalı, yoksa üsler bitişik görünür:
+	PlotSpacing - PlotSize.X = yanal boşluk, PlotRowSpacing - PlotSize.Z = dikey.
+]]
+Config.PlotColumns = 4
+Config.PlotSpacing = 92        -- yanal boşluk 32 stud
+Config.PlotRowSpacing = 84     -- dikey boşluk 40 stud
 
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
