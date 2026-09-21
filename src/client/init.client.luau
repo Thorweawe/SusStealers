@@ -26,6 +26,15 @@ local ScreenFX = require(script.ScreenFX)
 local SoundFX = require(script.SoundFX)
 local ThiefTrail = require(script.ThiefTrail)
 
+-- Sunucu tarafi hazir olan paneller. Bunlari sunucu sehridi yazdi ama
+-- gorunumleri bu sehride: yerlesim, renk ve animasyonu degistirmek
+-- serbest, sunucu yalnizca veri gonderiyor.
+local ChatTitles = require(script.ChatTitles)
+local TutorialUI = require(script.TutorialUI)
+local QuestPanel = require(script.QuestPanel)
+local Menus = require(script.Menus)
+local HudToggle = require(script.HudToggle)
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -295,13 +304,27 @@ refreshCash()
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
 
 --[[
-	Sunucu hangi üssün bizim olduğunu bildirmiyor (Net.PlotAssigned tanımlı ama
-	kullanılmıyor). O yüzden tabeladaki isimden buluyoruz.
+	Sunucu üssümüzü "Plot" niteliğine yazıyor (PlotService.grantPlot).
+
+	Eskiden tabeladaki yazıyı adımızla karşılaştırıyorduk; tabelaya rebirth
+	rozeti eklenince ("ATCIKM  [R1]") eşleşme bozuldu ve rebirth atan
+	herkeste panel "no base" diyordu. Tabela artık serbest.
+
+	Eski yöntem yedek olarak duruyor: nitelik henüz gelmemişse (oyuncu
+	girer girmez) ya da sunucu eski sürümdeyse panel boş kalmasın.
 ]]
 local function findOwnPlot(): Model?
 	local plots = workspace:FindFirstChild("Plots")
 	if not plots then
 		return nil
+	end
+
+	local assigned = player:GetAttribute("Plot")
+	if typeof(assigned) == "string" and assigned ~= "" then
+		local plot = plots:FindFirstChild(assigned)
+		if plot and plot:IsA("Model") then
+			return plot
+		end
 	end
 
 	local wanted = string.upper(player.DisplayName)
@@ -310,7 +333,10 @@ local function findOwnPlot(): Model?
 			local sign = plot:FindFirstChild("Sign")
 			local gui = sign and sign:FindFirstChild("OwnerLabel")
 			local label = gui and gui:FindFirstChild("Text")
-			if label and label:IsA("TextLabel") and label.Text == wanted then
+			-- Rebirth rozeti yüzünden tam eşitlik yerine "ile başlıyor"
+			if label and label:IsA("TextLabel")
+				and string.sub(label.Text, 1, #wanted) == wanted
+			then
 				return plot
 			end
 		end
@@ -427,6 +453,21 @@ local floorStyle = FloorStyle.Create()
 local rarityFX = RarityFX.Create()
 local catalog = Index.Create(screen)
 minimapRef = minimap
+
+-- Sohbet unvanlari: TextChatService.OnIncomingMessage yalnizca istemcide
+-- calisiyor, o yuzden burada. Varsa onceki isleyiciyi eziyor degil,
+-- cagirip sonucunu koruyor.
+ChatTitles.Start()
+
+local tutorial = TutorialUI.Create(screen)
+local questPanel = QuestPanel.Create(screen)
+local menus = Menus.Create(screen)
+
+--[[
+	HudToggle EN SONDA: gizleyecegi panelleri ADIYLA bulup kapatiyor,
+	daha once calissaydi henuz yaratilmamis olanlari goremezdi.
+]]
+local hudToggle = HudToggle.Create(screen)
 
 --[[
 	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca

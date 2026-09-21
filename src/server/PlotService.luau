@@ -532,6 +532,18 @@ local function grantPlot(player: Player, plot: Model)
 	ownerByPlot[plot] = player
 	plotByOwner[player] = plot
 	setSignText(plot, string.upper(player.DisplayName))
+
+	--[[
+		İstemci kendi üssünü bundan buluyor.
+
+		Eskiden tabeladaki yazıyı oyuncunun adıyla karşılaştırıyordu ve
+		rebirth rozeti eklenince ("ATCIKM  [R1]") eşleşme bozuldu: rebirth
+		atan herkeste üs paneli "no base" diyordu, kilit göstergesi ve
+		taşıma oku da çalışmıyordu. Nitelik replike olduğu için remote
+		gerekmiyor ve tabelanın yazısı serbest kalıyor.
+	]]
+	player:SetAttribute("Plot", plot.Name)
+
 	PlotService.TeleportToPlot(player)
 
 	-- Profil hâlâ yükleniyor olabilir
@@ -627,6 +639,7 @@ local function releasePlot(player: Player)
 
 	ownerByPlot[plot] = nil
 	plotByOwner[player] = nil
+	player:SetAttribute("Plot", nil)
 
 	grantToNextInLine(plot)
 end

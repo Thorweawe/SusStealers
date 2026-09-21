@@ -6,9 +6,14 @@
 	burada sadece çiziliyor. İlerleme sunucuda hesaplanıyor, istemci onu
 	değiştiremiyor.
 
-	Yer: sol kenar, nakit/gelir satırlarının altı. Sohbet de sol üstte
-	durduğu için panel onun hemen altına düşüyor — oyuncunun gözü zaten
-	oraya alışkın. Sağ üst üs paneline, alt orta bildirimlere ayrılmış.
+	Yer: sol kenar, sıralama tablosunun altı. Sol üst şerit sırayla nakit
+	(y=20), gelir (y=62) ve TOP PLAYERS (y=104, 172 yüksek) ile dolu, yani
+	ilk boş nokta y=288. Sağ üst üs paneline, alt orta bildirimlere,
+	sağ alt haritaya ayrılmış.
+
+	Yükseklik ekrana göre sınırlanıyor ve sığmazsa gövde kayıyor: küçük
+	ekranda (özellikle telefonda) panel alt soldaki öğretici kutusunun
+	üstüne biniyordu. Sağ üst üs paneline, alt orta bildirimlere ayrılmış.
 
 	Geri sayım istemcide dönüyor: sunucu bitiş anını gönderiyor, saniyede
 	bir paket yollamıyor.
@@ -39,6 +44,11 @@ local PANEL = Color3.fromRGB(18, 20, 28)
 local TRACK = Color3.fromRGB(44, 50, 62)
 
 local WIDTH = 300
+-- Sıralama tablosu y=104'te başlayıp 172 yükseliyor; ilk boş nokta burası
+local TOP = 288
+-- Alt soldaki öğretici kutusu ve kenar boşluğu için ayrılan yer
+local BOTTOM_RESERVE = 170
+local MIN_BODY = 90
 
 export type Panel = {
 	Destroy: () -> (),
@@ -64,7 +74,7 @@ type Tier = {
 function QuestPanel.Create(screen: ScreenGui): Panel
 	local root = Instance.new("Frame")
 	root.Name = "Quests"
-	root.Position = UDim2.new(0, 24, 0, 104)
+	root.Position = UDim2.new(0, 24, 0, TOP)
 	root.Size = UDim2.new(0, WIDTH, 0, 40)
 	root.BackgroundColor3 = PANEL
 	root.BackgroundTransparency = 0.15
@@ -105,11 +115,16 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 
 	-- ─── Gövde ──────────────────────────────────────────────────────────────
 
-	local body = Instance.new("Frame")
+	local body = Instance.new("ScrollingFrame")
 	body.Name = "Body"
 	body.Position = UDim2.new(0, 0, 0, 34)
 	body.Size = UDim2.new(1, 0, 0, 0)
 	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.ScrollBarThickness = 3
+	body.ScrollBarImageColor3 = MUTED
+	body.CanvasSize = UDim2.new()
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	body.Parent = root
 
 	local layout = Instance.new("UIListLayout")
@@ -215,23 +230,34 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 		table.insert(section.rows, { frame = frame, label = label, fill = fill, track = track })
 	end
 
-	--[[ Panelin toplam yüksekliği içeriğe göre. ]]
+	--[[
+		Panelin yüksekliği içeriğe göre ama ekrana sığdığı kadar.
+
+		Sınırsız büyüseydi üç vade × iki görev, küçük ekranda alt soldaki
+		öğretici kutusunun üstüne binerdi. Sığmayan kısım kaydırılıyor.
+	]]
 	local function resize()
 		if not expanded then
 			root.Size = UDim2.new(0, WIDTH, 0, 34)
 			return
 		end
 
-		local height = 12
+		local wanted = 12
 		for _, section in sections do
 			if section.frame.Visible then
-				height += section.frame.AbsoluteSize.Y + 8
+				wanted += section.frame.AbsoluteSize.Y + 8
 			end
 		end
+
+		local available = screen.AbsoluteSize.Y - TOP - BOTTOM_RESERVE
+		local height = math.max(MIN_BODY, math.min(wanted, available))
 
 		body.Size = UDim2.new(1, 0, 0, height)
 		root.Size = UDim2.new(0, WIDTH, 0, 34 + height)
 	end
+
+	-- Ekran döndüğünde ya da pencere boyutlandığında yeniden ölç
+	local resizeConnection = screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 
 	local function apply(payload: { Tier })
 		local doneCount, totalCount = 0, 0
@@ -350,6 +376,7 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 		Destroy = function()
 			connection:Disconnect()
 			tick:Disconnect()
+			resizeConnection:Disconnect()
 			root:Destroy()
 		end,
 	}
