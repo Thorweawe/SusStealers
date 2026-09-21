@@ -28,16 +28,25 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 
 İkimizin de Claude'u aynı Team Create place'ine bağlanıyor. Çakışmamak için:
 
-### 1. Dosya sahipliği
-Bir dosyayı aynı anda iki kişi düzenlemez. Kim neyi aldıysa yazsın:
+### 1. Dosya sahipliği — BU KURAL BAĞLAYICI
 
 ```
-Batur  : src/server/*        (plot, ekonomi, konveyör, çalma)
-Arkadaş: src/client/*        (HUD, efektler, ses, kamera)
-Ortak  : src/shared/Config   -> değişiklik önce konuşulur
+Batur   : src/server/*       (plot, ekonomi, konveyör, çalma)
+Diğeri  : src/client/*       (HUD, efektler, ses, kamera)
+Ortak   : src/shared/*       -> dokunmadan önce haber ver
 ```
 
-`Config.luau` ortak kullanılan tek dosya. Yeni karakter/mutasyon eklemek isteyen önce haber versin.
+**Kendi şeridin dışına, karşı tarafa haber vermeden yazma.** Görev ne
+olursa olsun. "Oyunu İngilizce yap" gibi her dosyaya dokunan işler
+şeridi geçersiz kılmaz — böyle bir iş çıkarsa önce haber ver, ya da
+sadece kendi şeridindeki dosyaları çevir.
+
+> Bu kural bir kez gevşetildi ("ikimiz aynı anda yazmıyoruz zaten") ve
+> hemen ardından HUD iki kez üst üste ezildi. Gevşetmeyin.
+
+### Dil kuralı
+Oyuncunun gördüğü her metin **İngilizce** (karakter isimleri, promptlar,
+bildirimler, leaderstats, HUD). Kod içi yorumlar **Türkçe**.
 
 ### 2. `PlotService.Start()` dünyayı sıfırlar
 `Start()` içinde `workspace.Plots` varsa **siliniyor ve yeniden kuruluyor**. Team Create'te karşı taraf haritada elle bir şey yaptıysa o da gider.
@@ -54,15 +63,34 @@ Aynı anda iki kişi `run_code` ile aynı şeyi kurmaya çalışırsa ikinci sef
 
 ---
 
-## Dosyaları Studio'ya basmak (sync)
+## Sync — dosya ↔ Studio
 
-Rojo kurmaya gerek yok. Proje klasöründe küçük bir HTTP sunucusu aç:
+Rojo kurmaya gerek yok. Proje kökünde köprüyü başlat:
 
 ```bash
-python -m http.server 8787 --bind 127.0.0.1
+python tools/sync_server.py
 ```
 
-Sonra Studio'da MCP'nin `run_code` aracıyla şunu çalıştır — 9 dosyanın hepsini tek seferde çeker:
+`http://127.0.0.1:8788/` üzerinden çalışır: `GET` dosyayı Studio'ya verir,
+`POST` Studio'daki kaynağı dosyaya geri yazar.
+
+### ÖNCE ÇEK, SONRA BAS
+
+> Tek yönlü sync bu projede bir kez veri kaybettirdi. Dosya → Studio
+> yönünde 9 dosyayı birden basmak, karşı tarafın Team Create'te yaptığı
+> işi sessizce siler.
+
+Kural: **Studio'ya basmadan önce Studio'dakini dosyaya çek ve git ile
+karşılaştır.** Beklemediğin bir fark varsa karşı taraf çalışmış demektir —
+basma, önce konuş.
+
+`POST` yönü (Studio → dosya), README sonundaki örneğin aynısıdır; sadece
+`GetAsync` yerine `PostAsync` kullanır ve `inst.Source`'u gövde olarak yollar.
+
+### Dosya → Studio
+
+Sadece **kendi şeridindeki** dosyaları listeye koy. Aşağıdaki liste
+hepsini içerir; kullanmadan önce kendine ait olmayanları sil:
 
 ```lua
 local HttpService = game:GetService("HttpService")
@@ -71,7 +99,7 @@ local SSS = game:GetService("ServerScriptService")
 local SPS = game:GetService("StarterPlayer").StarterPlayerScripts
 
 local shared, server, client = RS.Shared, SSS.Server, SPS.Client
-local BASE = "http://127.0.0.1:8787/"
+local BASE = "http://127.0.0.1:8788/"
 
 local mapping = {
 	{ "src/shared/Config.luau",          shared.Config },
