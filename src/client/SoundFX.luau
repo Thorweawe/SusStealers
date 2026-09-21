@@ -83,47 +83,84 @@ end
 -- ─── Efektler ───────────────────────────────────────────────────────────────
 
 --[[
-	Tek seferlik ses. Her çağrıda yeni bir örnek yaratılıyor ki üst üste
-	binebilsinler: art arda iki satış yapınca ikincisi birincisini kesmesin.
+	Efekt sesleri kalıcı örnekler olarak bir kez yaratılıyor ve tekrar tekrar
+	çalınıyor.
+
+	Önceki hali her çağrıda yeni bir Sound yaratıp hemen Play() diyordu. Ses
+	dosyası henüz akışla gelmediyse o çağrı sessizce kayboluyordu — ilk
+	satın alma, ilk çalma hiç ses çıkarmıyordu. Kalıcı örnek bir kez yüklenip
+	hazır bekliyor, sonraki çalmalar anında.
+
+	Bedeli: art arda çok hızlı iki tetikleme olursa ikincisi birincisini
+	baştan başlatıyor. Kısa arayüz seslerinde bu fark edilmiyor.
 ]]
-local function playOnce(id: string, volume: number, startAt: number?)
-	local s = newSound(id, SoundService, effectGroup, volume, false)
-	if startAt then
-		s.TimePosition = startAt
+local effects: { [string]: Sound } = {}
+
+local function effect(key: string, id: string, volume: number): Sound
+	local existing = effects[key]
+	if existing then
+		return existing
 	end
+
+	local s = newSound(id, SoundService, effectGroup, volume, false)
+	s.Name = key
+	effects[key] = s
+	return s
+end
+
+local function fire(key: string, startAt: number?, stopAfter: number?)
+	local s = effects[key]
+	if not s then
+		return
+	end
+
+	s:Stop()
+	s.TimePosition = startAt or 0
 	s:Play()
-	s.Ended:Once(function()
-		s:Destroy()
-	end)
-	-- Ended gelmezse (ses yüklenemezse) sızıntı olmasın
-	task.delay(12, function()
-		if s.Parent then
-			s:Destroy()
-		end
-	end)
+
+	if stopAfter then
+		task.delay(stopAfter, function()
+			if s.IsPlaying then
+				s:Stop()
+			end
+		end)
+	end
 end
 
 function SoundFX.Success()
-	playOnce(ID.Success, 0.7)
+	fire("Success")
 end
 
 function SoundFX.Deny()
-	playOnce(ID.Deny, 0.5)
+	fire("Deny")
 end
 
 --[[
-	Alarm kaydı 33 saniye ve başı sessiz sayılabilecek kadar yumuşak.
-	Vurucu kısımdan başlatıp kısa süre sonra kesiyoruz: çalınma anında
-	tepki anlık olmalı, 33 saniye alarm dinletmek işkence olur.
+	Alarm kaydı 33 saniye. Çalınma anında tepki anlık olmalı; vurucu kısımdan
+	başlatıp kısa sürede kesiyoruz, 33 saniye alarm dinletmek işkence olur.
 ]]
 function SoundFX.Alarm()
-	local s = newSound(ID.Alarm, SoundService, effectGroup, 0.75, false)
-	s.TimePosition = 0.15
-	s:Play()
-	task.delay(2.2, function()
-		if s.Parent then
-			s:Destroy()
+	fire("Alarm", 0.15, 2.2)
+end
+
+--[[
+	Sesleri önden yükler. Oyuna girer girmez çağrılmalı: ilk tetiklemeden
+	önce hazır olsunlar diye.
+]]
+function SoundFX.Preload()
+	effect("Success", ID.Success, 0.75)
+	effect("Deny", ID.Deny, 0.55)
+	effect("Alarm", ID.Alarm, 0.8)
+
+	task.spawn(function()
+		local ContentProvider = game:GetService("ContentProvider")
+		local list = {}
+		for _, s in effects do
+			table.insert(list, s)
 		end
+		pcall(function()
+			ContentProvider:PreloadAsync(list)
+		end)
 	end)
 end
 

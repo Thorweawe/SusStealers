@@ -238,7 +238,7 @@ end
 
 do
 	local f = group("Hull")
-	local SEG, WINDOW = 26, 13
+	local SEG, WINDOW = 24, 18
 
 	--[[ Bir kenar boyunca panel-pencere-panel dizisi kurar.
 	     axis "x": duvar x boyunca uzanır (ön/arka). "z": z boyunca (yanlar). ]]
@@ -267,12 +267,34 @@ do
 			cursor += w
 			if cursor >= to then break end
 
+			--[[
+				Pencere. Önceki hali sadece 0.75 saydam koyu bir levhaydı;
+				dışarısı zaten siyah olduğu için duvardan ayırt edilmiyordu.
+				Şimdi gerçek bir açıklık: cam neredeyse tamamen şeffaf,
+				etrafında metal çerçeve ve altında neon hat var. Çerçeve
+				olmadan göz "burada pencere var" diyemiyor.
+			]]
 			local g = math.min(WINDOW, to - cursor)
-			-- Pencere camı
-			place("Glass", cursor + g / 2, g, WALL_H - 13, 3.5 + (WALL_H - 3.5) / 2, 0.7, GLASS, Enum.Material.Glass, false, 0.75)
-			-- Üst kapak ve alt denizlik
-			place("GlassTop", cursor + g / 2, g, 4, WALL_H - 2, 2.4, HULL, Enum.Material.Metal, true)
-			place("Sill", cursor + g / 2, g, 0.5, 3.5 + 3, 2.8, NEON_MID, Enum.Material.Neon, false)
+			local center = cursor + g / 2
+			local openBottom = 9
+			local openTop = WALL_H - 5
+			local openH = openTop - openBottom
+			local openMid = (openBottom + openTop) / 2
+
+			place("Glass", center, g, openH, openMid, 0.5, GLASS, Enum.Material.Glass, false, 0.93)
+
+			place("WinBelow", center, g, openBottom - 3.5, 3.5 + (openBottom - 3.5) / 2, 2.4, HULL, Enum.Material.Metal, true)
+			place("WinAbove", center, g, WALL_H - openTop, openTop + (WALL_H - openTop) / 2, 2.4, HULL, Enum.Material.Metal, true)
+
+			place("WinRail", center, g + 1.6, 1, openBottom, 3, TRIM, Enum.Material.Metal, false)
+			place("WinRail", center, g + 1.6, 1, openTop, 3, TRIM, Enum.Material.Metal, false)
+
+			for _, s in { -1, 1 } do
+				place("WinMullion", center + s * (g / 2), 1.4, openH + 2, openMid, 3, TRIM, Enum.Material.Metal, false)
+			end
+
+			place("WinGlow", center, g - 0.8, 0.22, openBottom + 0.8, 2.6, NEON_MID, Enum.Material.Neon, false)
+
 			cursor += g
 		end
 
@@ -770,7 +792,8 @@ do
 			cf = at(o.X, H, z), color = TRIM,
 			material = Enum.Material.Metal, parent = f })
 
-		build({ name = "DoorGlow", size = Vector3.new(W - 1, 0.3, 0.4),
+		-- İsimde numara: istemci bunu üs sahibinin rengine boyuyor
+		build({ name = "DoorGlow" .. index, size = Vector3.new(W - 1, 0.3, 0.4),
 			cf = at(o.X, H - 1.2, z), color = NEON_MID,
 			material = Enum.Material.Neon, parent = f })
 	end
@@ -815,10 +838,19 @@ do
 		model:SetAttribute("DriftRange", halfW * 2 + 260)
 	end
 
-	-- Farklı yükseklik, boyut ve hızda: aynı anda geçmesinler
-	drifter(centerX - halfW - 70, 22, centerZ - halfD - 55, 1.0, 9)
-	drifter(centerX - halfW - 140, 40, centerZ + halfD + 70, 1.7, 5.5)
-	drifter(centerX - halfW - 30, 12, centerZ + halfD + 42, 0.7, 13)
+	--[[
+		Yükseklikler pencere açıklığının içinde kalmalı (y 9..29). İlk denemede
+		biri y=40'taydı ve içeriden hiç görünmüyordu. Mesafe de önemli: çok
+		uzaktakiler siyah fonda kayboluyor, bu yüzden çepere yakın tutuluyorlar.
+	]]
+	local near = halfD + 34
+	local far = halfD + 62
+
+	drifter(centerX - halfW - 90,  15, centerZ - near, 1.6, 8)
+	drifter(centerX - halfW - 230, 24, centerZ - far,  2.6, 5)
+	drifter(centerX - halfW - 40,  20, centerZ + near, 1.3, 12)
+	drifter(centerX - halfW - 300, 13, centerZ + far,  2.2, 6.5)
+	drifter(centerX - halfW - 160, 26, centerZ + near + 26, 1.8, 9.5)
 end
 
 -- ─── 13. Baseplate'i gövdenin altına gizle ──────────────────────────────────

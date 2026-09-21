@@ -195,6 +195,7 @@ end
 -- söylüyor, ayrı bir olay akışına gerek yok.
 
 local effects = ScreenFX.Create(screen)
+SoundFX.Preload()
 SoundFX.StartAmbient()
 
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)

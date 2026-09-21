@@ -84,8 +84,19 @@ function OwnerColors.Create(): Colors
 				-- bir blok gibi görünüyor.
 				if part.Name == "FrameX" or part.Name == "FrameZ" or part.Name == "PillarBand" then
 					part.Color = color
+				elseif part.Name == "PodiumRing" then
+					-- Halkalar zeminde geniş yer kapladığı için koyultuluyor
+					part.Color = color:Lerp(Color3.new(0, 0, 0), 0.55)
 				end
 			end
+		end
+
+		-- Kapı eşiğinin neon hattı da sahibin renginde: koridordan bakınca
+		-- hangi kapıdan gireceğin renkten okunuyor
+		local doors = decor:FindFirstChild("Doorways")
+		local glow = doors and doors:FindFirstChild("DoorGlow" .. index)
+		if glow and glow:IsA("BasePart") then
+			glow.Color = color
 		end
 
 		local markers = decor:FindFirstChild("BayMarkers")

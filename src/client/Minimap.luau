@@ -26,6 +26,8 @@ export type Map = {
 type Cell = {
 	frame: Frame,
 	fill: Frame,
+	label: TextLabel,
+	lock: Frame,
 	index: number,
 }
 
@@ -66,19 +68,67 @@ function Minimap.Create(screen: ScreenGui): Map
 
 	local cells: { [number]: Cell } = {}
 
-	-- Oyuncu noktası
+	--[[
+		Oyuncu işareti: nokta konumu, ondan çıkan ince çubuk baktığın yönü
+		gösteriyor. Sadece nokta olunca haritada nereye döndüğünü anlamak
+		için ekranı kontrol etmen gerekiyordu.
+	]]
+	local you = Instance.new("Frame")
+	you.Name = "You"
+	you.AnchorPoint = Vector2.new(0.5, 0.5)
+	you.Size = UDim2.fromOffset(14, 14)
+	you.BackgroundTransparency = 1
+	you.ZIndex = 6
+	you.Parent = canvas
+
+	local heading = Instance.new("Frame")
+	heading.Name = "Heading"
+	heading.AnchorPoint = Vector2.new(0.5, 1)
+	heading.Position = UDim2.fromScale(0.5, 0.5)
+	heading.Size = UDim2.fromOffset(2, 9)
+	heading.BackgroundColor3 = INK
+	heading.BorderSizePixel = 0
+	heading.ZIndex = 6
+	heading.Parent = you
+
 	local dot = Instance.new("Frame")
-	dot.Name = "You"
+	dot.Name = "Dot"
 	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.fromScale(0.5, 0.5)
 	dot.Size = UDim2.fromOffset(7, 7)
 	dot.BackgroundColor3 = INK
 	dot.BorderSizePixel = 0
-	dot.ZIndex = 5
-	dot.Parent = canvas
+	dot.ZIndex = 7
+	dot.Parent = you
 
 	local dotCorner = Instance.new("UICorner")
 	dotCorner.CornerRadius = UDim.new(1, 0)
 	dotCorner.Parent = dot
+
+	-- Diğer oyuncular: gerektikçe yaratılıyor
+	local others: { [Player]: Frame } = {}
+
+	local function otherDot(p: Player): Frame
+		local existing = others[p]
+		if existing then
+			return existing
+		end
+
+		local d = Instance.new("Frame")
+		d.Name = "P_" .. p.Name
+		d.AnchorPoint = Vector2.new(0.5, 0.5)
+		d.Size = UDim2.fromOffset(6, 6)
+		d.BorderSizePixel = 0
+		d.ZIndex = 5
+		d.Parent = canvas
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = d
+
+		others[p] = d
+		return d
+	end
 
 	--[[
 		Sahanın dünya sınırlarını üslerden hesaplıyoruz. Config'e bağlanmak
@@ -174,7 +224,31 @@ function Minimap.Create(screen: ScreenGui): Map
 				fill.BorderSizePixel = 0
 				fill.Parent = frame
 
-				cell = { frame = frame, fill = fill, index = index }
+				-- Üs numarası: haritadaki kutuyla sahadaki BAY yazısı eşleşsin
+				local label = Instance.new("TextLabel")
+				label.Size = UDim2.fromScale(1, 1)
+				label.BackgroundTransparency = 1
+				label.Font = Enum.Font.GothamBold
+				label.TextSize = 9
+				label.TextColor3 = Color3.new(1, 1, 1)
+				label.TextStrokeTransparency = 0.5
+				label.ZIndex = 3
+				label.Text = tostring(index)
+				label.Parent = frame
+
+				--[[ Kilit göstergesi: kilitli üsten çalamazsın, haritada
+				     görmek boşuna koşmanı engelliyor. ]]
+				local lock = Instance.new("Frame")
+				lock.AnchorPoint = Vector2.new(1, 0)
+				lock.Position = UDim2.fromScale(1, 0)
+				lock.Size = UDim2.fromOffset(5, 5)
+				lock.BackgroundColor3 = Color3.fromRGB(255, 176, 40)
+				lock.BorderSizePixel = 0
+				lock.ZIndex = 4
+				lock.Visible = false
+				lock.Parent = frame
+
+				cell = { frame = frame, fill = fill, label = label, lock = lock, index = index }
 				cells[index] = cell
 			end
 
@@ -222,20 +296,53 @@ function Minimap.Create(screen: ScreenGui): Map
 				end
 				cell.fill.Size = UDim2.fromScale(1, if total > 0 then filled / total else 0)
 			end
+
+			cell.lock.Visible = plot:GetAttribute("Locked") == true
 		end
 
-		-- Oyuncu noktası
+		-- Oyuncu işareti ve bakış yönü
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and root:IsA("BasePart") then
 			local px, py = toCanvas(root.Position.X, root.Position.Z)
-			dot.Visible = true
-			dot.Position = UDim2.fromOffset(
-				math.clamp(px, 0, w),
-				math.clamp(py, 0, h)
-			)
+			you.Visible = true
+			you.Position = UDim2.fromOffset(math.clamp(px, 0, w), math.clamp(py, 0, h))
+
+			--[[
+				Harita üstten bakıyor: dünya +X sağa, +Z aşağı. Karakterin
+				baktığı yön de aynı düzleme indirilip açıya çevriliyor.
+			]]
+			local look = root.CFrame.LookVector
+			you.Rotation = math.deg(math.atan2(look.X, -look.Z))
 		else
-			dot.Visible = false
+			you.Visible = false
+		end
+
+		-- Diğer oyuncular
+		local seen: { [Player]: boolean } = {}
+		for _, p in Players:GetPlayers() do
+			if p == player then
+				continue
+			end
+
+			local char = p.Character
+			local r = char and char:FindFirstChild("HumanoidRootPart")
+			if r and r:IsA("BasePart") then
+				seen[p] = true
+				local d = otherDot(p)
+				local ox, oy = toCanvas(r.Position.X, r.Position.Z)
+				d.Visible = true
+				d.BackgroundColor3 = ownerColor(p)
+				d.Position = UDim2.fromOffset(math.clamp(ox, 0, w), math.clamp(oy, 0, h))
+			end
+		end
+
+		-- Ayrılan oyuncuların noktalarını temizle
+		for p, d in others do
+			if not seen[p] then
+				d:Destroy()
+				others[p] = nil
+			end
 		end
 	end
 
