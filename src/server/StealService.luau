@@ -16,6 +16,7 @@ local MonetizationService = require(script.Parent.MonetizationService)
 local UpgradeService = require(script.Parent.UpgradeService)
 local EconomyService = require(script.Parent.EconomyService)
 local BadgeService = require(script.Parent.BadgeService)
+local TitleService = require(script.Parent.TitleService)
 
 local StealService = {}
 
@@ -240,6 +241,7 @@ local function setupCatchPrompt(thief: Player, model: Model)
 		), true)
 
 		BadgeService.Award(catcher, "ThiefCatcher")
+		TitleService.AddCaught(catcher)
 	end)
 end
 
@@ -339,6 +341,8 @@ local function tryDeposit(player: Player)
 	player:SetAttribute("StealStreak", streak[player])
 
 	BadgeService.Award(player, "FirstSteal")
+	TitleService.ReportStreak(player, streak[player])
+	TitleService.Check(player)
 	if streak[player] >= Config.StealStreakMax then
 		BadgeService.Award(player, "StreakMaster")
 	end
@@ -473,6 +477,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 		notify(victim, string.format("%s is carrying your %s - chase and press E to stop them",
 			thief.DisplayName, unitName), true)
 		BadgeService.Award(victim, "Victim")
+		TitleService.AddRobbed(victim)
 	end
 end
 

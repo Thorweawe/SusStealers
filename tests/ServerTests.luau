@@ -36,6 +36,7 @@ local PromptGuard = require(Server.PromptGuard)
 local DataService = require(Server.DataService)
 local BadgeService = require(Server.BadgeService)
 local SpinService = require(Server.SpinService)
+local TitleService = require(Server.TitleService)
 
 local ServerTests = {}
 
@@ -823,6 +824,134 @@ case("Yakalama: kurban sınırı ayarları", function()
 		string.format("%d vs %d", Config.VictimCooldown, Config.CatchBlockDuration))
 end)
 
+-- ─── N. Unvanlar ────────────────────────────────────────────────────────────
+
+case("Unvan: tanımlar tutarlı", function()
+	local stats = {
+		steals = true, robbed = true, caught = true, maxStreak = true,
+		secrets = true, rebirths = true, maxedUpgrades = true,
+	}
+
+	local ids, orders = {}, {}
+	local uniqueIds, uniqueOrders = true, true
+
+	for _, def in Config.Titles do
+		if ids[def.id] then uniqueIds = false end
+		ids[def.id] = true
+
+		if orders[def.order] then uniqueOrders = false end
+		orders[def.order] = true
+
+		ok(def.id .. " sayacı tanınıyor", stats[def.stat] == true, def.stat)
+		ok(def.id .. " eşiği negatif değil", def.threshold >= 0)
+		ok(def.id .. " sırası pozitif", def.order > 0)
+	end
+
+	ok("id'ler benzersiz", uniqueIds)
+	ok("sıralar benzersiz", uniqueOrders)
+	ok("en az 8 unvan", #Config.Titles >= 8, tostring(#Config.Titles))
+end)
+
+case("Unvan: ödüller sırayla büyüyor", function()
+	-- Üst unvan alt unvandan az ödül verirse ilerleme ters hissettirir
+	local sorted = table.clone(Config.Titles)
+	table.sort(sorted, function(a, b) return a.order < b.order end)
+
+	local previous = -1
+	local monotonic = true
+	for _, def in sorted do
+		local reward = Config.GetTitleReward(def, 0)
+		if reward < previous then
+			monotonic = false
+		end
+		previous = reward
+	end
+	ok("taban ödüller azalmıyor", monotonic)
+end)
+
+case("Unvan: başlangıç unvanı herkeste açık", function()
+	local zeroThreshold = 0
+	for _, def in Config.Titles do
+		if def.threshold == 0 then
+			zeroThreshold += 1
+		end
+	end
+	ok("eşiği sıfır olan en az bir unvan var", zeroThreshold >= 1, tostring(zeroThreshold))
+end)
+
+case("Unvan: profil alanları var", function(ctx)
+	local p = ctx.profile
+	ok("titles tablo", typeof(p.titles) == "table")
+	ok("activeTitle metin", typeof(p.activeTitle) == "string")
+
+	for _, field in { "robbed", "caught", "maxStreak" } do
+		ok(field .. " sayı", typeof((p :: any)[field]) == "number")
+	end
+end)
+
+case("Unvan: koşul sağlanınca açılıyor ve ödül veriyor", function(ctx)
+	ctx.profile.titles = {}
+	ctx.profile.caught = 0
+	setCash(ctx.player, 0)
+
+	TitleService.Check(ctx.player)
+	ok("eşiksiz unvan hemen açıldı", ctx.profile.titles.Crewmate == true)
+
+	-- Security unvanı 5 yakalama istiyor
+	local def = Config.GetTitle("Security")
+	ok("Security tanımlı", def ~= nil)
+	if not def then return end
+
+	ok("eşik altında açılmadı", ctx.profile.titles.Security ~= true)
+
+	local before = EconomyService.GetCash(ctx.player)
+	for _ = 1, def.threshold do
+		TitleService.AddCaught(ctx.player)
+	end
+
+	ok("eşiğe ulaşınca açıldı", ctx.profile.titles.Security == true)
+	ok("ödül verildi", EconomyService.GetCash(ctx.player) > before,
+		Config.FormatCash(EconomyService.GetCash(ctx.player) - before))
+
+	-- İkinci kez ödül vermemeli
+	local after = EconomyService.GetCash(ctx.player)
+	TitleService.Check(ctx.player)
+	eq("tekrar ödül yok", EconomyService.GetCash(ctx.player), after)
+end)
+
+case("Unvan: en yüksek olan takılıyor", function(ctx)
+	ctx.profile.titles = { Crewmate = true, Security = true }
+	ctx.profile.caught = 999
+	TitleService.Check(ctx.player)
+
+	local shown = TitleService.GetTitle(ctx.player)
+	ok("bir unvan takılı", shown ~= "", shown)
+
+	-- Takılı unvan açık olanların en yüksek sıralısı olmalı
+	local best
+	for _, def in Config.Titles do
+		if ctx.profile.titles[def.id] and (not best or def.order > best.order) then
+			best = def
+		end
+	end
+	if best then
+		eq("en yüksek sıralı takılı", shown, best.name)
+	end
+end)
+
+case("Unvan: seri rekoru sadece yükselince yazılıyor", function(ctx)
+	ctx.profile.maxStreak = 0
+
+	TitleService.ReportStreak(ctx.player, 3)
+	eq("ilk rapor yazıldı", ctx.profile.maxStreak, 3)
+
+	TitleService.ReportStreak(ctx.player, 1)
+	eq("düşük rapor yok sayıldı", ctx.profile.maxStreak, 3)
+
+	TitleService.ReportStreak(ctx.player, 7)
+	eq("yüksek rapor yazıldı", ctx.profile.maxStreak, 7)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -853,6 +982,10 @@ function ServerTests.Run(player: Player?): number
 		rebirths = profile.rebirths,
 		upgrades = table.clone(profile.upgrades),
 		lastSpinAt = profile.lastSpinAt,
+		titles = table.clone(profile.titles),
+		robbed = profile.robbed,
+		caught = profile.caught,
+		maxStreak = profile.maxStreak,
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
 
@@ -894,6 +1027,10 @@ function ServerTests.Run(player: Player?): number
 	profile.rebirths = backup.rebirths
 	profile.upgrades = backup.upgrades
 	profile.lastSpinAt = backup.lastSpinAt
+	profile.titles = backup.titles
+	profile.robbed = backup.robbed
+	profile.caught = backup.caught
+	profile.maxStreak = backup.maxStreak
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	clearPlot(plot)

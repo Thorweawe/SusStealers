@@ -18,6 +18,7 @@ local SellService = require(script.SellService)
 local RebirthService = require(script.RebirthService)
 local UpgradeService = require(script.UpgradeService)
 local SpinService = require(script.SpinService)
+local TitleService = require(script.TitleService)
 
 local started = os.clock()
 
@@ -34,5 +35,6 @@ SellService.Start()
 RebirthService.Start()
 UpgradeService.Start()
 SpinService.Start()
+TitleService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

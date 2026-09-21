@@ -143,6 +143,58 @@ function Config.GetSpinCash(reward: SpinReward, incomePerSecond: number): number
 	return math.floor(math.max(reward.minimum or 0, scaled))
 end
 
+-- ─── Unvanlar ───────────────────────────────────────────────────────────────
+--[[
+	Sohbette adının yanında görünen unvan. Rozetlerden farkı: rozet Roblox
+	tarafında kalıcı bir nişan, unvan oyun içi bir gösterge ve açılınca
+	para ödülü veriyor.
+
+	Koşullar profildeki sayaçlara bakıyor, yani her unvan için ayrı kod
+	yazmak gerekmiyor — yeni unvan eklemek bu tabloya bir satır.
+
+	Ödüller gelirle ölçekli: sabit tutar olsaydı geç oyunda açılan unvanlar
+	anlamsız kalırdı. Taban değer yeni oyuncu için.
+
+	order: aynı anda birden fazla unvan açıksa en yükseği takılıyor.
+]]
+
+export type TitleDef = {
+	id: string,
+	name: string,
+	stat: string,          -- profildeki sayaç
+	threshold: number,
+	order: number,
+	incomeSeconds: number, -- ödül: kaç saniyelik gelir
+	minimum: number,       -- ödül tabanı
+}
+
+Config.Titles = {
+	{ id = "Crewmate",    name = "Crewmate",     stat = "steals",   threshold =  0, order =  1, incomeSeconds =   0, minimum =      0 },
+	{ id = "Sus",         name = "Sus",          stat = "steals",   threshold =  1, order =  2, incomeSeconds =  60, minimum =   2500 },
+	{ id = "VentCrawler", name = "Vent Crawler", stat = "steals",   threshold = 10, order =  4, incomeSeconds = 180, minimum =  25000 },
+	{ id = "Impostor",    name = "Impostor",     stat = "steals",   threshold = 50, order =  8, incomeSeconds = 600, minimum = 250000 },
+	{ id = "Shapeshifter",name = "Shapeshifter", stat = "maxStreak",threshold =  5, order =  7, incomeSeconds = 420, minimum = 150000 },
+	{ id = "Security",    name = "Security",     stat = "caught",   threshold =  5, order =  5, incomeSeconds = 240, minimum =  50000 },
+	{ id = "Ejected",     name = "Ejected",      stat = "robbed",   threshold = 25, order =  3, incomeSeconds = 120, minimum =  10000 },
+	{ id = "Engineer",    name = "Engineer",     stat = "maxedUpgrades", threshold = 1, order = 6, incomeSeconds = 300, minimum = 100000 },
+	{ id = "Captain",     name = "Captain",      stat = "rebirths", threshold =  1, order =  9, incomeSeconds = 900, minimum = 500000 },
+	{ id = "AmogusPrime", name = "Amogus Prime", stat = "secrets",  threshold =  1, order = 10, incomeSeconds =1800, minimum =1000000 },
+} :: { TitleDef }
+
+local titlesById: { [string]: TitleDef } = {}
+for _, def in Config.Titles do
+	titlesById[def.id] = def
+end
+
+function Config.GetTitle(id: string): TitleDef?
+	return titlesById[id]
+end
+
+--[[ Unvan ödülünün tutarı. Gelir düşükse taban değer geçerli. ]]
+function Config.GetTitleReward(def: TitleDef, incomePerSecond: number): number
+	return math.floor(math.max(def.minimum, incomePerSecond * def.incomeSeconds))
+end
+
 -- ─── Rozetler ───────────────────────────────────────────────────────────────
 -- ID'ler Creator Dashboard > Badges altında oluşturulunca buraya yazılacak.
 -- id = 0 olan rozet verilmiyor; oyun onu yokmuş gibi çalışıyor.

@@ -23,6 +23,9 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/RebirthService.luau` | Sunucu | Rebirth, kat açma |
 | `src/server/UpgradeService.luau` | Sunucu | Oyun içi parayla üs yükseltmeleri |
 | `src/server/MonetizationService.luau` | Sunucu | Gamepass, developer product, makbuz işleme |
+| `src/server/BadgeService.luau` | Sunucu | Roblox rozetleri |
+| `src/server/TitleService.luau` | Sunucu | Unvanlar, koşullar, ödüller |
+| `src/server/SpinService.luau` | Sunucu | Şans çarkı, günlük hak |
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
@@ -188,7 +191,7 @@ kat başına kaide 8 -> 10 olduğu için geçildi, slot numaralandırması deği
 
 ## Regresyon testleri
 
-`tests/ServerTests.luau` — 38 test, 200+ kontrol, ~1.3 saniye.
+`tests/ServerTests.luau` — 56 test, 300+ kontrol, ~2.3 saniye.
 
 **Neden var:** bir kez basılı tutma doğrulaması yüzünden çalma ve satma
 tamamen kırıldı ve ancak elle oynanarak fark edildi. İki kişi aynı sunucu

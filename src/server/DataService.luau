@@ -45,6 +45,13 @@ export type Profile = {
 	upgrades: { [string]: number },
 	-- Son bedava çark çevirme anı (os.time)
 	lastSpinAt: number,
+	-- Unvanlar: açılanların kümesi ve takılı olanın id'si
+	titles: { [string]: boolean },
+	activeTitle: string,
+	-- Unvan koşullarının baktığı sayaçlar
+	robbed: number,
+	caught: number,
+	maxStreak: number,
 }
 
 type Lock = { owner: string, at: number }
@@ -60,6 +67,11 @@ local profiles: { [Player]: Profile } = {}
 local loading: { [Player]: boolean } = {}
 local offlineEarnings: { [Player]: { amount: number, seconds: number } } = {}
 
+-- Aynı anahtara çok sık yazmak DataStore kuyruğunu dolduruyor
+local SAVE_MIN_INTERVAL = 7
+local lastSaveAt: { [Player]: number } = {}
+local pendingSave: { [Player]: boolean } = {}
+
 -- ─── Varsayılan ─────────────────────────────────────────────────────────────
 
 local function newProfile(): Profile
@@ -74,6 +86,11 @@ local function newProfile(): Profile
 		receipts = {},
 		upgrades = {},
 		lastSpinAt = 0,
+		titles = {},
+		activeTitle = "",
+		robbed = 0,
+		caught = 0,
+		maxStreak = 0,
 	}
 end
 
@@ -118,6 +135,26 @@ local function sanitize(raw: any): Profile
 
 	if typeof(raw.lastSpinAt) == "number" and raw.lastSpinAt > 0 then
 		profile.lastSpinAt = math.floor(raw.lastSpinAt)
+	end
+
+	for _, field in { "robbed", "caught", "maxStreak" } do
+		local value = (raw :: any)[field]
+		if typeof(value) == "number" and value >= 0 then
+			(profile :: any)[field] = math.floor(value)
+		end
+	end
+
+	if typeof(raw.titles) == "table" then
+		for id, unlocked in raw.titles do
+			-- Config'ten kalkmış bir unvan kayıtta durabilir
+			if typeof(id) == "string" and unlocked == true and Config.GetTitle(id) then
+				profile.titles[id] = true
+			end
+		end
+	end
+
+	if typeof(raw.activeTitle) == "string" and Config.GetTitle(raw.activeTitle) then
+		profile.activeTitle = raw.activeTitle
 	end
 
 	if typeof(raw.upgrades) == "table" then
@@ -239,6 +276,11 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 		receipts = table.clone(profile.receipts),
 		upgrades = table.clone(profile.upgrades),
 		lastSpinAt = profile.lastSpinAt,
+		titles = table.clone(profile.titles),
+		activeTitle = profile.activeTitle,
+		robbed = profile.robbed,
+		caught = profile.caught,
+		maxStreak = profile.maxStreak,
 	}
 
 	local ok, err = pcall(function()
@@ -286,6 +328,42 @@ end
 
 function DataService.Save(player: Player): boolean
 	return saveProfile(player, false)
+end
+
+--[[
+	Kaydı ister ama arka arkaya gelen istekleri birleştirir.
+
+	Roblox anahtar başına yaklaşık 6 saniyede bir yazmaya izin veriyor;
+	daha sık yazmak kuyruğa giriyor ve kuyruk dolunca istekler düşüyor.
+	Unvan açılması gibi olaylar kümelenebildiği için (girişte birden
+	fazla unvan birden açılabiliyor) her biri ayrı yazma isteyemez.
+
+	Son yazmadan bu yana yeterli süre geçtiyse hemen yazar, geçmediyse
+	tek bir gecikmeli yazma planlar. Veri kaybolmuyor, sadece saniyeler
+	içinde diske iniyor.
+]]
+function DataService.RequestSave(player: Player)
+	local now = os.clock()
+	local last = lastSaveAt[player] or 0
+
+	if now - last >= SAVE_MIN_INTERVAL then
+		lastSaveAt[player] = now
+		saveProfile(player, false)
+		return
+	end
+
+	if pendingSave[player] then
+		return
+	end
+	pendingSave[player] = true
+
+	task.delay(SAVE_MIN_INTERVAL - (now - last), function()
+		pendingSave[player] = nil
+		if profiles[player] then
+			lastSaveAt[player] = os.clock()
+			saveProfile(player, false)
+		end
+	end)
 end
 
 --[[ DataStore kullanılabiliyor mu. Studio'da API Services kapalıysa false. ]]
@@ -339,6 +417,8 @@ local function onPlayerRemoving(player: Player)
 	profiles[player] = nil
 	loading[player] = nil
 	offlineEarnings[player] = nil
+	lastSaveAt[player] = nil
+	pendingSave[player] = nil
 end
 
 function DataService.Start()
