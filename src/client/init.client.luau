@@ -4,11 +4,18 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+
+local Atmosphere = require(script.Atmosphere)
+local CarryGuide = require(script.CarryGuide)
+local Leaderboard = require(script.Leaderboard)
+local PromptFilter = require(script.PromptFilter)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -303,11 +310,49 @@ local function setRow(value: TextLabel, text: string, color: Color3)
 	value.TextColor3 = color
 end
 
+-- ─── Döngüler ───────────────────────────────────────────────────────────────
+
+Atmosphere.Start()
+
+--[[
+	Roblox'un hazır oyuncu listesi sağ üstte duruyor ve üs paneliyle üst üste
+	biniyordu. Yerine kendi tablomuz var (çalma sayısı dahil), o yüzden
+	kapatıyoruz. Oturumun ilk anında çağrı başarısız olabiliyor, o yüzden
+	tutana kadar deniyoruz.
+]]
+task.spawn(function()
+	for _ = 1, 10 do
+		local ok = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+		end)
+		if ok then
+			return
+		end
+		task.wait(0.5)
+	end
+end)
+
+local guide = CarryGuide.Create(screen)
+local board = Leaderboard.Create(screen)
+local prompts = PromptFilter.Create()
+
+-- Hangi üssün bizim olduğu saniyede birkaç kez değişebilecek bir şey değil,
+-- o yüzden yavaş döngüde bulunup burada saklanıyor. Ok her karede bunu okur.
+local currentPlot: Model? = nil
+
+-- Ok kameraya göre döndüğü için her kare güncellenmeli; 0.2 sn'de bir
+-- güncellense kamerayı çevirdiğinde takılarak döner.
+RunService.RenderStepped:Connect(function()
+	guide.Update(currentPlot)
+end)
+
 task.spawn(function()
 	while true do
 		task.wait(0.2)
 
 		local plot = findOwnPlot()
+		currentPlot = plot
+
 		if plot then
 			local filled, total = countPodiums(plot)
 			local ratio = if total > 0 then filled / total else 0
@@ -323,5 +368,7 @@ task.spawn(function()
 		end
 
 		setRow(carryValue, describeCarry())
+		board.Update()
+		prompts.Update(plot)
 	end
 end)
