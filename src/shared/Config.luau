@@ -26,6 +26,13 @@ Config.CarryWalkSpeed = 11     -- karakter taşırken hız
 Config.NormalWalkSpeed = 16
 Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınamaz
 
+-- Çalınan karakter, çalındığı yerden üsse taşınırken en az bu oranda
+-- yürüme süresi geçmiş olmalı. Karakterin konumu istemcinin elinde
+-- olduğu için ışınlanan biri yürüyüşü tamamen atlayabiliyordu; çalmanın
+-- bütün riski o yürüyüşte. 1.0 = tam yürüme süresi (çok sıkı, eğim ve
+-- kestirme yüzünden meşru oyuncu takılır), 0 = kontrol kapalı.
+Config.CarryTravelTolerance = 0.7
+
 -- ─── Kilit (savunma) ────────────────────────────────────────────────────────
 Config.LockDuration = 25
 Config.LockCooldown = 80

@@ -24,6 +24,9 @@ type Carry = {
 	unitId: string,
 	mutationId: string?,
 	victim: Player?,
+	-- Işınlanarak taşımayı atlamayı engellemek için: nereden, ne zaman
+	origin: Vector3,
+	startedAt: number,
 }
 
 local carrying: { [Player]: Carry } = {}
@@ -161,6 +164,16 @@ local function tryDeposit(player: Player)
 		return
 	end
 
+	-- Bu mesafe bu sürede yürünebilir miydi? Karakterin konumu istemcinin
+	-- elinde olduğu için ışınlanan biri üsse anında varabiliyor. Reddetmek
+	-- yerine bekletiyoruz: süre dolduğunda bırakma kendiliğinden olur.
+	-- Böylece exploit hiçbir şey kazandırmaz ama meşru oyuncu da takılmaz.
+	local travelled = (root.Position - carry.origin).Magnitude
+	local minimumTime = travelled / Config.CarryWalkSpeed * Config.CarryTravelTolerance
+	if os.clock() - carry.startedAt < minimumTime then
+		return
+	end
+
 	local podium = PlotService.FindEmptyPodium(plot)
 	if not podium then
 		return -- yer açılana kadar taşımaya devam eder
@@ -238,7 +251,14 @@ local function onStealPrompt(podium: Part, thief: Player)
 	end
 
 	local victim = PlotService.GetOwner(victimPlot)
-	carrying[thief] = { model = model, unitId = unitId, mutationId = mutationId, victim = victim }
+	carrying[thief] = {
+		model = model,
+		unitId = unitId,
+		mutationId = mutationId,
+		victim = victim,
+		origin = podium.Position,
+		startedAt = os.clock(),
+	}
 	lastStealAt[thief] = os.clock()
 
 	local def = Config.GetUnit(unitId)
