@@ -29,6 +29,7 @@ type Row = {
 	frame: Frame,
 	rank: TextLabel,
 	name: TextLabel,
+	stolen: TextLabel,
 	cash: TextLabel,
 }
 
@@ -37,11 +38,21 @@ local function cashOf(p: Player): number
 	return if typeof(value) == "number" then value else 0
 end
 
+--[[ Çalma sayısı leaderstats'ta tutuluyor; profil yüklenene kadar yok olabilir. ]]
+local function stolenOf(p: Player): number
+	local stats = p:FindFirstChild("leaderstats")
+	local value = stats and stats:FindFirstChild("Stolen")
+	if value and value:IsA("IntValue") then
+		return value.Value
+	end
+	return 0
+end
+
 function Leaderboard.Create(screen: ScreenGui): Board
 	local holder = Instance.new("Frame")
 	holder.Name = "Leaderboard"
 	holder.Position = UDim2.new(0, 24, 0, 104)
-	holder.Size = UDim2.new(0, 260, 0, 26 + MAX_ROWS * ROW_HEIGHT + 12)
+	holder.Size = UDim2.new(0, 290, 0, 26 + MAX_ROWS * ROW_HEIGHT + 12)
 	holder.BackgroundColor3 = PANEL
 	holder.BackgroundTransparency = 0.2
 	holder.BorderSizePixel = 0
@@ -89,7 +100,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 		local name = Instance.new("TextLabel")
 		name.Position = UDim2.new(0, 20, 0, 0)
-		name.Size = UDim2.new(1, -110, 1, 0)
+		name.Size = UDim2.new(1, -156, 1, 0)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.GothamMedium
 		name.TextSize = 13
@@ -97,6 +108,17 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		name.TextColor3 = INK
 		name.Parent = frame
+
+		local stolen = Instance.new("TextLabel")
+		stolen.AnchorPoint = Vector2.new(1, 0)
+		stolen.Position = UDim2.new(1, -92, 0, 0)
+		stolen.Size = UDim2.new(0, 44, 1, 0)
+		stolen.BackgroundTransparency = 1
+		stolen.Font = Enum.Font.GothamMedium
+		stolen.TextSize = 13
+		stolen.TextXAlignment = Enum.TextXAlignment.Right
+		stolen.TextColor3 = MUTED
+		stolen.Parent = frame
 
 		local cash = Instance.new("TextLabel")
 		cash.AnchorPoint = Vector2.new(1, 0)
@@ -109,7 +131,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		cash.TextColor3 = GOOD
 		cash.Parent = frame
 
-		table.insert(rows, { frame = frame, rank = rank, name = name, cash = cash })
+		table.insert(rows, { frame = frame, rank = rank, name = name, stolen = stolen, cash = cash })
 	end
 
 	local function update()
@@ -131,13 +153,15 @@ function Leaderboard.Create(screen: ScreenGui): Board
 			row.rank.TextColor3 = if isMine then MINE else MUTED
 			row.name.Text = entry.DisplayName
 			row.name.TextColor3 = if isMine then MINE else INK
+			row.stolen.Text = "↯" .. stolenOf(entry)
+			row.stolen.TextColor3 = if isMine then MINE else MUTED
 			row.cash.Text = "$" .. Config.FormatCash(cashOf(entry))
 			row.cash.TextColor3 = if isMine then MINE else GOOD
 		end
 
 		-- Oyuncu sayısı azaldıysa panel de kısalsın
 		local shown = math.min(#list, MAX_ROWS)
-		holder.Size = UDim2.new(0, 260, 0, 26 + math.max(shown, 1) * ROW_HEIGHT + 12)
+		holder.Size = UDim2.new(0, 290, 0, 26 + math.max(shown, 1) * ROW_HEIGHT + 12)
 	end
 
 	return { Update = update }
