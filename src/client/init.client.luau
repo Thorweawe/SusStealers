@@ -15,6 +15,7 @@ local Net = require(Shared.Net)
 local CarryGuide = require(script.CarryGuide)
 local DecorFX = require(script.DecorFX)
 local Leaderboard = require(script.Leaderboard)
+local Lobby = require(script.Lobby)
 local Minimap = require(script.Minimap)
 local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
@@ -220,9 +221,23 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 
 	-- Çalınmak bedensel hissedilmeli: köşedeki yazıyı kaçırmak kolay,
 	-- kırmızı parlama ve sarsıntı kaçırılmıyor.
-	SoundFX.Alarm()
 	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
 	effects.Shake(1.6, 0.6)
+
+	--[[
+		Alarm hırsız karakteri bırakana kadar sürüyor. Karakterin sırtındaki
+		CarriedUnit istemciye replike olduğu için bunu sunucuya sormadan
+		izleyebiliyoruz: model kaybolduğu an teslim etmiş demektir.
+	]]
+	SoundFX.AlarmUntil(function()
+		for _, p in Players:GetPlayers() do
+			if p.DisplayName == thiefName then
+				local char = p.Character
+				return char ~= nil and char:FindFirstChild("CarriedUnit") ~= nil
+			end
+		end
+		return false -- hırsız oyundan çıktı
+	end, 45)
 
 	-- Haritada soyulan üssü yak ve hırsızı işaretle: peşinden gidebilesin
 	if minimapRef then
@@ -402,6 +417,7 @@ local board = Leaderboard.Create(screen)
 local prompts = PromptFilter.Create()
 local colors = OwnerColors.Create()
 local minimap = Minimap.Create(screen)
+local lobby = Lobby.Create(screen)
 minimapRef = minimap
 
 --[[
@@ -465,5 +481,6 @@ task.spawn(function()
 		prompts.Update(plot)
 		colors.Update()
 		minimap.Update(colors.ColorOf)
+		lobby.Update()
 	end
 end)

@@ -77,6 +77,16 @@ local WALL_H = 34          -- çeper duvar yüksekliği
 local HULL_DEPTH = 24      -- güverte altı gövde derinliği
 local ARCH_CLEAR = 15      -- kemer altı boşluk
 
+-- ─── Lobi ölçüleri ──────────────────────────────────────────────────────────
+-- Üslerin önünde ayrı bir platform: ışınlanma, sıralama panoları, çark.
+-- Oyun alanından ayrı tutuluyor ki çalma koşuşturması ile sakin işler
+-- birbirine karışmasın.
+local LOBBY_GATE_WIDTH = 24
+local LOBBY_BRIDGE = 58      -- köprü uzunluğu
+local LOBBY_W = 180          -- lobi genişliği
+local LOBBY_D = 120          -- lobi derinliği
+local LOBBY_WALL_H = 30
+
 --[[
 	Yüzeye yatırılan ince parçaların (dikiş, halka, şerit, ped) alt yüzeyi
 	dayandığı zeminle tam aynı hizada olmamalı. Çakışık yüzeylerde Roblox
@@ -310,10 +320,31 @@ do
 	local x0, x1 = centerX - halfW, centerX + halfW
 	local z0, z1 = centerZ - halfD, centerZ + halfD
 
+	--[[
+		Ön duvarda lobiye açılan kapı boşluğu. Duvarı tek parça kurmak yerine
+		boşluğun iki yanına ayrı ayrı kuruyoruz — fonksiyona "burayı atla"
+		mantığı eklemekten basit ve okunaklı.
+	]]
+	local gapHalf = LOBBY_GATE_WIDTH / 2
+
 	wall("x", z0, x0, x1, -1)
-	wall("x", z1, x0, x1, 1)
+	wall("x", z1, x0, centerX - gapHalf, 1)
+	wall("x", z1, centerX + gapHalf, x1, 1)
 	wall("z", x0, z0, z1, -1)
 	wall("z", x1, z0, z1, 1)
+
+	-- Kapı boşluğunun kenar dikmeleri ve üst kirişi
+	for _, s in { -1, 1 } do
+		build({ name = "GateJamb", size = Vector3.new(2.6, WALL_H, 3.4),
+			cf = at(centerX + s * gapHalf, WALL_H / 2, z1),
+			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
+	end
+	build({ name = "GateLintel", size = Vector3.new(LOBBY_GATE_WIDTH + 5, 3, 3.4),
+		cf = at(centerX, WALL_H - 1.5, z1), color = HULL,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "GateGlow", size = Vector3.new(LOBBY_GATE_WIDTH + 2, 0.3, 0.5),
+		cf = at(centerX, WALL_H - 3.4, z1 - 1.6), color = NEON,
+		material = Enum.Material.Neon, parent = f })
 
 	-- ─── Gövde altı: kalınlık hissi ─────────────────────────────────────────
 	-- Kademeli daralan üç katman: yandan bakınca gemi gövdesi gibi
@@ -858,7 +889,255 @@ do
 	drifter(centerX - halfW - 160, 26, centerZ + near + 26, 1.8, 9.5)
 end
 
--- ─── 13. Baseplate'i gövdenin altına gizle ──────────────────────────────────
+-- ─── 13. Lobi ───────────────────────────────────────────────────────────────
+--[[
+	Üslerin önünde ayrı bir platform. Oyun alanından ayrı olması bilinçli:
+	çalma koşuşturmasıyla sıralama okumak, çark çevirmek gibi sakin işler
+	birbirine karışmasın. Köprüyle bağlı, kapıdan geçilip gidiliyor.
+
+	İçinde: ışınlanma kürsüsü (arayüz buradan açılıyor), sıralama panoları,
+	çark. Çarkın ödül vermesi sunucu işi; burada sadece geometrisi var.
+]]
+
+local lobbyZ = centerZ + halfD + LOBBY_BRIDGE + LOBBY_D / 2
+
+do
+	local f = group("Lobby")
+	local halfLW, halfLD = LOBBY_W / 2, LOBBY_D / 2
+
+	-- Köprü
+	build({ name = "Bridge", size = Vector3.new(LOBBY_GATE_WIDTH, 1, LOBBY_BRIDGE + 2),
+		cf = at(centerX, -0.5, centerZ + halfD + LOBBY_BRIDGE / 2),
+		color = HULL_DARK, material = Enum.Material.Metal, collide = true, parent = f })
+
+	for _, s in { -1, 1 } do
+		build({ name = "BridgeRail", size = Vector3.new(0.8, 4, LOBBY_BRIDGE + 2),
+			cf = at(centerX + s * LOBBY_GATE_WIDTH / 2, 2, centerZ + halfD + LOBBY_BRIDGE / 2),
+			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "BridgeGlow", size = Vector3.new(0.3, 0.2, LOBBY_BRIDGE),
+			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 0.8), 3.9, centerZ + halfD + LOBBY_BRIDGE / 2),
+			color = NEON_DIM, material = Enum.Material.Neon, parent = f })
+	end
+
+	-- Güverte ve gövde
+	build({ name = "LobbyDeck", size = Vector3.new(LOBBY_W, 1, LOBBY_D),
+		cf = at(centerX, -0.5, lobbyZ), color = HULL_DARK,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "LobbyHull", size = Vector3.new(LOBBY_W - 8, 14, LOBBY_D - 8),
+		cf = at(centerX, -8, lobbyZ), color = HULL,
+		material = Enum.Material.Metal, parent = f })
+	build({ name = "LobbyKeel", size = Vector3.new(LOBBY_W - 50, 6, LOBBY_D - 50),
+		cf = at(centerX, -17, lobbyZ), color = TRIM,
+		material = Enum.Material.Metal, parent = f })
+
+	-- Çeper duvarlar: köprünün geldiği kenar açık
+	local edges = {
+		{ x = centerX, z = lobbyZ + halfLD, sx = LOBBY_W, sz = 2 },          -- arka
+		{ x = centerX - halfLW, z = lobbyZ, sx = 2, sz = LOBBY_D },          -- sol
+		{ x = centerX + halfLW, z = lobbyZ, sx = 2, sz = LOBBY_D },          -- sağ
+	}
+	for _, e in edges do
+		build({ name = "LobbyWall", size = Vector3.new(e.sx, LOBBY_WALL_H, e.sz),
+			cf = at(e.x, LOBBY_WALL_H / 2, e.z), color = HULL,
+			material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "LobbyCornice", size = Vector3.new(e.sx + 3, 1.4, e.sz + 3),
+			cf = at(e.x, LOBBY_WALL_H + 0.7, e.z), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+	end
+
+	-- Ön kenarın köprü dışında kalan kısımları
+	local sideW = (LOBBY_W - LOBBY_GATE_WIDTH) / 2
+	for _, s in { -1, 1 } do
+		build({ name = "LobbyWall", size = Vector3.new(sideW, LOBBY_WALL_H, 2),
+			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 + sideW / 2), LOBBY_WALL_H / 2, lobbyZ - halfLD),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+	end
+
+	-- Zemin deseni: merkeze doğru halkalar, göz ortadaki kürsüye gider
+	for i = 1, 3 do
+		local r = 22 + i * 16
+		build({ name = "LobbyRing", size = Vector3.new(r * 2, 0.12, 0.7),
+			cf = at(centerX, 0.06 + LIFT, lobbyZ - r), color = NEON_DIM,
+			material = Enum.Material.Neon, parent = f })
+		build({ name = "LobbyRing", size = Vector3.new(r * 2, 0.12, 0.7),
+			cf = at(centerX, 0.06 + LIFT, lobbyZ + r), color = NEON_DIM,
+			material = Enum.Material.Neon, parent = f })
+	end
+
+	-- Tavan kirişleri ve lambalar
+	for i = -2, 2 do
+		build({ name = "LobbyTruss", size = Vector3.new(1.4, 1.4, LOBBY_D),
+			cf = at(centerX + i * 34, LOBBY_WALL_H + 2, lobbyZ),
+			color = TRIM, material = Enum.Material.Metal, parent = f })
+		local lamp = build({ name = "LobbyLamp", size = Vector3.new(0.8, 0.35, LOBBY_D - 20),
+			cf = at(centerX + i * 34, LOBBY_WALL_H - 0.5, lobbyZ),
+			color = LAMP, material = Enum.Material.Neon, parent = f })
+		glow(lamp, LAMP, 46, 1.1)
+	end
+end
+
+-- ─── 14. Işınlanma kürsüsü ──────────────────────────────────────────────────
+-- Ped yerine kürsü: üstüne basınca değil, yanına gelince arayüz açılıyor.
+-- Yanlışlıkla basıp ışınlanmak sinir bozucu olurdu.
+
+do
+	local f = group("TeleportPad")
+	local z = lobbyZ
+
+	build({ name = "PadBase", size = Vector3.new(16, 1.2, 16),
+		cf = at(centerX, 0.6, z), color = TRIM,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "PadRing", size = Vector3.new(13, 0.2, 13),
+		cf = at(centerX, 1.3, z), color = NEON,
+		material = Enum.Material.Neon, transparency = 0.25, parent = f })
+
+	local column = build({ name = "PadColumn", size = Vector3.new(4, 7, 4),
+		cf = at(centerX, 4.7, z), color = HULL,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	column:SetAttribute("TeleportHub", true)
+
+	build({ name = "PadTop", size = Vector3.new(6.5, 1, 6.5),
+		cf = at(centerX, 8.7, z), color = TRIM,
+		material = Enum.Material.Metal, parent = f })
+
+	local beacon = build({ name = "PadBeacon", size = Vector3.new(3, 3, 3),
+		cf = at(centerX, 10, z), color = NEON,
+		material = Enum.Material.Neon, shape = Enum.PartType.Ball, parent = f })
+	glow(beacon, NEON, 34, 2)
+	beacon:SetAttribute("PulsePeriod", 2.4)
+
+	-- Başlık
+	local anchor = build({ name = "PadLabel", size = Vector3.new(1, 1, 1),
+		cf = at(centerX, 14, z), color = HULL, transparency = 1, parent = f })
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Label"
+	gui.Size = UDim2.fromScale(12, 3)
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 220
+	gui.Parent = anchor
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = NEON
+	text.TextStrokeTransparency = 0.25
+	text.Text = "TRANSIT"
+	text.Parent = gui
+end
+
+-- ─── 15. Sıralama panoları ──────────────────────────────────────────────────
+-- Arka duvarda üç büyük ekran. İçeriklerini istemci dolduruyor.
+
+do
+	local f = group("Boards")
+	local z = lobbyZ + LOBBY_D / 2 - 2.6
+	local titles = { "RICHEST", "MOST STOLEN", "TOP INCOME" }
+
+	for i, title in titles do
+		local x = centerX + (i - 2) * 52
+
+		build({ name = "BoardFrame", size = Vector3.new(46, 26, 1.2),
+			cf = at(x, 17, z), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+
+		local screen = build({ name = "BoardScreen" .. i, size = Vector3.new(43, 23, 0.6),
+			cf = at(x, 17, z - 0.8), color = Color3.fromRGB(10, 14, 22),
+			material = Enum.Material.SmoothPlastic, parent = f })
+
+		local surface = Instance.new("SurfaceGui")
+		surface.Name = "Display"
+		surface.Face = Enum.NormalId.Front
+		surface.CanvasSize = Vector2.new(430, 230)
+		surface.LightInfluence = 0
+		surface.Parent = screen
+
+		local header = Instance.new("TextLabel")
+		header.Name = "Header"
+		header.Size = UDim2.new(1, 0, 0, 40)
+		header.BackgroundTransparency = 1
+		header.Font = Enum.Font.GothamBold
+		header.TextSize = 26
+		header.TextColor3 = NEON
+		header.Text = title
+		header.Parent = surface
+
+		local body = Instance.new("TextLabel")
+		body.Name = "Body"
+		body.Position = UDim2.fromOffset(0, 44)
+		body.Size = UDim2.new(1, 0, 1, -50)
+		body.BackgroundTransparency = 1
+		body.Font = Enum.Font.GothamMedium
+		body.TextSize = 20
+		body.TextYAlignment = Enum.TextYAlignment.Top
+		body.TextColor3 = Color3.fromRGB(235, 240, 250)
+		body.Text = "..."
+		body.Parent = surface
+
+		build({ name = "BoardGlow", size = Vector3.new(44, 0.3, 0.4),
+			cf = at(x, 4.4, z - 0.9), color = NEON_MID,
+			material = Enum.Material.Neon, parent = f })
+	end
+end
+
+-- ─── 16. Çark (şimdilik dekor) ──────────────────────────────────────────────
+-- Ödül verme kısmı sunucu işi. Burada geometri ve dönüş var; bağlanınca
+-- DecorFX'in SpinSpeed niteliği zaten döndürüyor.
+
+do
+	local f = group("Wheel")
+	local x = centerX - LOBBY_W / 2 + 34
+	local z = lobbyZ + 10
+
+	build({ name = "WheelBase", size = Vector3.new(12, 1.2, 12),
+		cf = at(x, 0.6, z), color = TRIM,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "WheelMast", size = Vector3.new(2, 14, 2),
+		cf = at(x, 8, z), color = HULL,
+		material = Enum.Material.Metal, collide = true, parent = f })
+
+	local disc = build({ name = "WheelDisc", size = Vector3.new(18, 1.4, 18),
+		cf = at(x, 15, z), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f })
+	disc:SetAttribute("SpinSpeed", 14)
+
+	-- Dilimler: farklı renklerde kamalar
+	local slice = { NEON, NEON_WARM, Color3.fromRGB(197, 17, 17), Color3.fromRGB(0, 158, 55),
+		Color3.fromRGB(236, 84, 187), Color3.fromRGB(107, 47, 187) }
+	for i, color in slice do
+		local a = (i - 1) * (math.pi * 2 / #slice)
+		build({ name = "WheelSlice", size = Vector3.new(7.5, 0.4, 2.4),
+			cf = CFrame.new(x, 15.9, z) * CFrame.Angles(0, a, 0) * CFrame.new(4.4, 0, 0),
+			color = color, material = Enum.Material.Neon, parent = f })
+	end
+
+	build({ name = "WheelPointer", size = Vector3.new(1.2, 1.2, 3.4),
+		cf = at(x, 17.2, z - 9.5), color = NEON_WARM,
+		material = Enum.Material.Neon, parent = f })
+
+	local anchor = build({ name = "WheelLabel", size = Vector3.new(1, 1, 1),
+		cf = at(x, 20, z), color = HULL, transparency = 1, parent = f })
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Label"
+	gui.Size = UDim2.fromScale(11, 3)
+	gui.MaxDistance = 200
+	gui.Parent = anchor
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = NEON_WARM
+	text.TextStrokeTransparency = 0.25
+	text.Text = "LUCKY SPIN"
+	text.Parent = gui
+end
+
+-- ─── 17. Baseplate'i gövdenin altına gizle ──────────────────────────────────
 --[[
 	Varsayılan 2048x2048 Baseplate, Slate malzemesiyle koyu rengi yıkıyor ve
 	uzaktan devasa açık gri bir düzlem olarak her şeyi bastırıyordu. İstasyon

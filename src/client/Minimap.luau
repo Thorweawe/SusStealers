@@ -30,7 +30,12 @@ export type Map = {
 	Alert: (bayIndex: number?, thiefName: string) -> (),
 }
 
-local ALERT_SECONDS = 6      -- çalınma işaretinin ekranda kalma süresi
+--[[
+	Çalınma işareti hırsız karakteri bırakana kadar sürüyor; bu üst sınır
+	sadece bir şey ters giderse işaret sonsuza kadar kalmasın diye.
+]]
+local ALERT_SECONDS = 45
+local GRACE_SECONDS = 3   -- taşınan model replike olana kadar bırakma kontrolü yapma
 local COMPACT = 176
 local EXPANDED = 420
 
@@ -165,6 +170,7 @@ function Minimap.Create(screen: ScreenGui): Map
 		kılıyor, peşinden gidip geri çalabiliyorsun.
 	]]
 	local alertUntil = 0
+	local alertStarted = 0
 	local alertBay: number? = nil
 	local alertThief = ""
 
@@ -403,6 +409,31 @@ function Minimap.Create(screen: ScreenGui): Map
 
 		local now = os.clock()
 		local alerting = now < alertUntil
+
+		--[[
+			Hırsız karakteri bıraktığı an işaret sönüyor. Sırtındaki model
+			istemciye replike olduğu için sunucuya sormadan anlayabiliyoruz;
+			zaman aşımını beklemek "hâlâ kaçıyor" yanılgısı yaratırdı.
+
+			İlk saniyelerde kontrol yapılmıyor: bildirim geldiğinde taşınan
+			model henüz kurbanın istemcisine ulaşmamış olabiliyor ve işaret
+			daha görünmeden sönerdi.
+		]]
+		if alerting and now - alertStarted > GRACE_SECONDS then
+			local stillCarrying = false
+			for _, p in Players:GetPlayers() do
+				if p.DisplayName == alertThief then
+					local char = p.Character
+					stillCarrying = char ~= nil and char:FindFirstChild("CarriedUnit") ~= nil
+					break
+				end
+			end
+			if not stillCarrying then
+				alertUntil = 0
+				alerting = false
+			end
+		end
+
 		-- Saniyede ~3 kez: göz yakalayacak kadar hızlı, rahatsız etmeyecek kadar yavaş
 		local blink = (math.floor(now * 3) % 2) == 0
 
@@ -499,7 +530,8 @@ function Minimap.Create(screen: ScreenGui): Map
 	local function alert(bayIndex: number?, thiefName: string)
 		alertBay = bayIndex
 		alertThief = thiefName
-		alertUntil = os.clock() + ALERT_SECONDS
+		alertStarted = os.clock()
+		alertUntil = alertStarted + ALERT_SECONDS
 	end
 
 	return { Update = update, Markers = markers, Alert = alert }

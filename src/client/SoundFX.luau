@@ -144,6 +144,57 @@ function SoundFX.Alarm()
 end
 
 --[[
+	Takip alarmı: hırsız karakteri kendi üssüne bırakana kadar çalmaya devam
+	eder. Tek seferlik bip "bir şey oldu" diyor; süren alarm "hâlâ oluyor,
+	yetişebilirsin" diyor. Kovalamacanın gerilimi buradan geliyor.
+
+	shouldContinue her turda soruluyor — hırsız bıraktığı, öldüğü ya da
+	oyundan çıktığı anda susuyor. maxSeconds güvenlik sınırı: bir şey ters
+	giderse alarm sonsuza kadar çalmasın.
+]]
+local pursuitToken = 0
+
+function SoundFX.AlarmUntil(shouldContinue: () -> boolean, maxSeconds: number)
+	pursuitToken += 1
+	local token = pursuitToken
+
+	task.spawn(function()
+		local s = effects["Alarm"]
+		if not s then
+			return
+		end
+
+		local deadline = os.clock() + maxSeconds
+		while os.clock() < deadline do
+			if token ~= pursuitToken then
+				return -- yeni bir takip başladı
+			end
+			if not shouldContinue() then
+				break
+			end
+
+			s:Stop()
+			s.TimePosition = 0.15
+			s:Play()
+			task.wait(2.0)
+		end
+
+		if token == pursuitToken and s.IsPlaying then
+			s:Stop()
+		end
+	end)
+end
+
+--[[ Takibi erken bitirir (karakteri geri aldığında). ]]
+function SoundFX.StopAlarm()
+	pursuitToken += 1
+	local s = effects["Alarm"]
+	if s and s.IsPlaying then
+		s:Stop()
+	end
+end
+
+--[[
 	Sesleri önden yükler. Oyuna girer girmez çağrılmalı: ilk tetiklemeden
 	önce hazır olsunlar diye.
 ]]
