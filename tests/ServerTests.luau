@@ -23,6 +23,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+local Net = require(ReplicatedStorage.Shared.Net)
 
 local Server = script.Parent
 local PlotService = require(Server.PlotService)
@@ -38,6 +39,8 @@ local BadgeService = require(Server.BadgeService)
 local SpinService = require(Server.SpinService)
 local TitleService = require(Server.TitleService)
 local TutorialService = require(Server.TutorialService)
+local QuestService = require(Server.QuestService)
+local PotionService = require(Server.PotionService)
 
 local ServerTests = {}
 
@@ -620,16 +623,6 @@ case("Güvenlik: uzaktan tetikleme reddediliyor", function(ctx)
 	task.wait(0.2)
 end)
 
-case("Güvenlik: istemciden sunucuya dinlenen remote yok", function()
-	-- Tek giriş noktası promptlar olmalı; dinlenen her remote yeni bir yüzey
-	local net = ReplicatedStorage:FindFirstChild("Net")
-	ok("Net klasörü var", net ~= nil)
-
-	if net then
-		ok("remote sayısı az", #net:GetChildren() <= 4, tostring(#net:GetChildren()))
-	end
-end)
-
 -- ─── J. Kayıt ───────────────────────────────────────────────────────────────
 
 case("Kayıt: profil alanları eksiksiz", function(ctx)
@@ -1078,6 +1071,9 @@ case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
 	]]
 	clearPlot(ctx.plot)
 	ctx.profile.tutorialStep = 0
+	-- Çalma sayacı sıfırlanmazsa 3. adım (birinden çal) da aynı turda
+	-- tamamlanıyor ve beklenen ödül tutmuyor
+	ctx.profile.stolen = 0
 	setCash(ctx.player, 0)
 
 	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
@@ -1225,6 +1221,498 @@ case("Öğretici: durum niteliği istemciye yansıyor", function(ctx)
 	eq("profil ile aynı", value, ctx.profile.tutorialStep)
 end)
 
+-- ─── P. Unvan kuşanma ───────────────────────────────────────────────────────
+
+case("Unvan: açık olanı kuşanabiliyoruz", function(ctx)
+	ctx.profile.titles = { Crewmate = true, Security = true }
+	ctx.profile.titleManual = false
+	ctx.profile.activeTitle = ""
+
+	ok("açık unvan takıldı", TitleService.Equip(ctx.player, "Security"))
+	eq("profile yazıldı", ctx.profile.activeTitle, "Security")
+	eq("nitelik yazıldı", ctx.player:GetAttribute("Title"), "Security")
+	ok("elle seçim işaretlendi", ctx.profile.titleManual)
+end)
+
+case("Unvan: açılmamış olan reddediliyor", function(ctx)
+	ctx.profile.titles = { Crewmate = true }
+	ctx.profile.titleManual = false
+	ctx.profile.activeTitle = "Crewmate"
+
+	ok("kilitli unvan reddedildi", not TitleService.Equip(ctx.player, "Captain"))
+	eq("takılı unvan değişmedi", ctx.profile.activeTitle, "Crewmate")
+
+	ok("uydurma kimlik reddedildi", not TitleService.Equip(ctx.player, "YokBoyleBirSey"))
+	eq("yine değişmedi", ctx.profile.activeTitle, "Crewmate")
+end)
+
+case("Unvan: elle seçim yeni açılanla ezilmiyor", function(ctx)
+	--[[
+		Oyuncu düşük bir unvanı beğenip taktıysa, sonradan daha yükseği
+		açılınca üstüne yazmamalı. Otomatik seçimin tek işi menüyü hiç
+		açmayan oyuncuyu ilerletmek.
+	]]
+	ctx.profile.titles = { Crewmate = true, Sus = true }
+	ctx.profile.caught = 0
+	TitleService.Equip(ctx.player, "Sus")
+	eq("seçim yapıldı", ctx.profile.activeTitle, "Sus")
+
+	-- Daha yüksek sıralı bir unvan aç
+	for _ = 1, 5 do
+		TitleService.AddCaught(ctx.player)
+	end
+
+	ok("yeni unvan gerçekten açıldı", ctx.profile.titles.Security == true)
+	eq("seçim korundu", ctx.profile.activeTitle, "Sus")
+	eq("nitelik de korundu", ctx.player:GetAttribute("Title"), "Sus")
+end)
+
+case("Unvan: otomatiğe dönülebiliyor", function(ctx)
+	ctx.profile.titles = { Crewmate = true, Security = true }
+	ctx.profile.caught = 999
+	TitleService.Equip(ctx.player, "Crewmate")
+	eq("düşük unvan takılı", ctx.profile.activeTitle, "Crewmate")
+
+	ok("boş kimlik kabul edildi", TitleService.Equip(ctx.player, ""))
+	ok("elle seçim kalktı", not ctx.profile.titleManual)
+	eq("en yükseğe döndü", ctx.profile.activeTitle, "Security")
+end)
+
+-- ─── R. Görevler ────────────────────────────────────────────────────────────
+
+case("Görev: tanımlar tutarlı", function()
+	local stats = {
+		stolen = true, bought = true, sold = true, earned = true,
+		caught = true, spins = true, rebirths = true, upgrades = true,
+	}
+
+	local ids = {}
+	local uniqueIds = true
+
+	for _, def in Config.Quests do
+		if ids[def.id] then uniqueIds = false end
+		ids[def.id] = true
+
+		ok(def.id .. " sayacı tanınıyor", stats[def.stat] == true, def.stat)
+		ok(def.id .. " metni %s içeriyor", string.find(def.text, "%%s") ~= nil, def.text)
+		ok(def.id .. " vadesi geçerli",
+			def.fromTier >= 1 and def.fromTier <= #Config.QuestTiers,
+			tostring(def.fromTier))
+
+		if def.incomeSeconds then
+			ok(def.id .. " nakit tabanı var", (def.minimum or 0) > 0)
+		else
+			ok(def.id .. " tabanı pozitif", def.base > 0)
+			ok(def.id .. " tavanı tabandan küçük değil", def.maxGoal >= def.base)
+		end
+	end
+
+	ok("id'ler benzersiz", uniqueIds)
+	ok("en az 6 görev", #Config.Quests >= 6, tostring(#Config.Quests))
+end)
+
+case("Görev: vadeler sırayla büyüyor", function()
+	local previousSeconds, previousMul, previousReward = 0, 0, 0
+	local increasing = true
+
+	for _, tier in Config.QuestTiers do
+		if tier.seconds <= previousSeconds
+			or tier.goalMul < previousMul
+			or tier.rewardMinimum <= previousReward
+		then
+			increasing = false
+		end
+		previousSeconds = tier.seconds
+		previousMul = tier.goalMul
+		previousReward = tier.rewardMinimum
+
+		ok(tier.id .. " slot sayısı pozitif", tier.slots > 0)
+	end
+
+	ok("süre, hedef ve ödül birlikte büyüyor", increasing)
+	eq("üç vade var", #Config.QuestTiers, 3)
+	eq("ilki 30 dakika", Config.QuestTiers[1].seconds, 1800)
+	eq("ikincisi 3 saat", Config.QuestTiers[2].seconds, 10800)
+	eq("üçüncüsü günlük", Config.QuestTiers[3].seconds, 86400)
+end)
+
+case("Görev: çekim aynı görevi iki kez vermiyor", function()
+	local rng = Random.new(12345)
+
+	for _, tier in Config.QuestTiers do
+		local tierIndex = Config.GetQuestTierIndex(tier.id)
+
+		for _ = 1, 40 do
+			local picked = Config.RollQuests(rng, tier)
+			local seen = {}
+			local unique, allowed = true, true
+
+			for _, def in picked do
+				if seen[def.id] then unique = false end
+				seen[def.id] = true
+				if def.fromTier > tierIndex then allowed = false end
+			end
+
+			if not unique then
+				ok(tier.id .. " tekrar yok", false)
+				break
+			end
+			if not allowed then
+				ok(tier.id .. " erken vade görevi yok", false)
+				break
+			end
+		end
+
+		ok(tier.id .. " çekimi geçerli", true)
+	end
+end)
+
+case("Görev: hedefler vadeye göre ölçekleniyor", function()
+	local steal = Config.GetQuest("Steal")
+	ok("Steal tanımlı", steal ~= nil)
+	if not steal then return end
+
+	local short = Config.GetQuestTier("short")
+	local daily = Config.GetQuestTier("daily")
+	if not (short and daily) then return end
+
+	local shortGoal = Config.GetQuestGoal(steal, short, 0)
+	local dailyGoal = Config.GetQuestGoal(steal, daily, 0)
+
+	ok("günlük hedef daha büyük", dailyGoal > shortGoal,
+		string.format("%d vs %d", dailyGoal, shortGoal))
+	ok("tavan aşılmıyor", dailyGoal <= steal.maxGoal, tostring(dailyGoal))
+
+	-- Başkasına bağlı görevin tavanı düşük olmalı
+	local catch = Config.GetQuest("Catch")
+	if catch then
+		ok("yakalama tavanı düşük", catch.maxGoal <= 5, tostring(catch.maxGoal))
+	end
+end)
+
+case("Görev: nakit hedefi gelirle ölçekleniyor", function()
+	local earn = Config.GetQuest("Earn")
+	local short = Config.GetQuestTier("short")
+	ok("Earn tanımlı", earn ~= nil)
+	if not (earn and short) then return end
+
+	local poor = Config.GetQuestGoal(earn, short, 0)
+	local rich = Config.GetQuestGoal(earn, short, 100000)
+
+	ok("gelirsiz oyuncuda taban geçerli", poor > 0, tostring(poor))
+	ok("zengin oyuncuda hedef büyüyor", rich > poor,
+		string.format("%d vs %d", rich, poor))
+end)
+
+case("Görev: ödül gelirle ölçekleniyor ve tabanı var", function()
+	for _, tier in Config.QuestTiers do
+		local poor = Config.GetQuestReward(tier, 0)
+		local rich = Config.GetQuestReward(tier, 100000)
+
+		eq(tier.id .. " tabanı", poor, tier.rewardMinimum)
+		ok(tier.id .. " gelirle büyüyor", rich > poor)
+	end
+end)
+
+case("Görev: profil alanları var", function(ctx)
+	local p = ctx.profile
+	ok("quests tablo", typeof(p.quests) == "table")
+	ok("potions tablo", typeof(p.potions) == "table")
+
+	for _, field in { "bought", "sold", "spins", "earned" } do
+		ok(field .. " sayı", typeof((p :: any)[field]) == "number", typeof((p :: any)[field]))
+	end
+end)
+
+case("Görev: çekiliyor ve ilerliyor", function(ctx)
+	ctx.profile.quests = {}
+	ctx.profile.stolen = 0
+	QuestService.Check(ctx.player)
+
+	local slot = ctx.profile.quests.short
+	ok("kısa vade çekildi", slot ~= nil)
+	if not slot then return end
+
+	ok("görev var", #slot.entries > 0, tostring(#slot.entries))
+	ok("pencere ileride", slot.expiresAt > os.time())
+
+	-- Steal görevini zorla yerleştir ki ilerlemeyi ölçebilelim
+	slot.entries = { { id = "Steal", goal = 2, baseline = ctx.profile.stolen, done = false } }
+
+	QuestService.Check(ctx.player)
+	ok("eşik altında tamamlanmadı", not slot.entries[1].done)
+
+	local before = EconomyService.GetCash(ctx.player)
+	ctx.profile.stolen += 2
+	QuestService.Check(ctx.player)
+
+	ok("eşiğe ulaşınca tamamlandı", slot.entries[1].done)
+	ok("ödül verildi", EconomyService.GetCash(ctx.player) > before,
+		Config.FormatCash(EconomyService.GetCash(ctx.player) - before))
+
+	-- İkinci kez ödül vermemeli
+	local after = EconomyService.GetCash(ctx.player)
+	QuestService.Check(ctx.player)
+	eq("tekrar ödül yok", EconomyService.GetCash(ctx.player), after)
+end)
+
+case("Görev: ilerleme tabana göre, mutlak değere göre değil", function(ctx)
+	--[[
+		Zaten 500 kez çalmış oyuncuya "3 kez çal" görevi verildiğinde görev
+		anında tamamlanmamalı. Taban kaydı tam olarak bunun için var.
+	]]
+	ctx.profile.quests = {}
+	ctx.profile.stolen = 500
+
+	QuestService.RollTier(ctx.player, "short")
+	local slot = ctx.profile.quests.short
+	ok("vade çekildi", slot ~= nil)
+	if not slot then return end
+
+	slot.entries = { { id = "Steal", goal = 3, baseline = ctx.profile.stolen, done = false } }
+	QuestService.Check(ctx.player)
+	ok("geçmiş sayılmadı", not slot.entries[1].done, tostring(ctx.profile.stolen))
+
+	ctx.profile.stolen += 3
+	QuestService.Check(ctx.player)
+	ok("yeni ilerleme sayıldı", slot.entries[1].done)
+end)
+
+case("Görev: süresi dolan vade yeniden çekiliyor", function(ctx)
+	ctx.profile.quests = {}
+	QuestService.Check(ctx.player)
+
+	local slot = ctx.profile.quests.short
+	ok("vade var", slot ~= nil)
+	if not slot then return end
+
+	slot.expiresAt = os.time() - 1
+	for _, entry in slot.entries do
+		entry.done = true
+	end
+
+	QuestService.Check(ctx.player)
+	local fresh = ctx.profile.quests.short
+	ok("pencere yenilendi", fresh.expiresAt > os.time())
+
+	local anyOpen = false
+	for _, entry in fresh.entries do
+		if not entry.done then
+			anyOpen = true
+		end
+	end
+	ok("yeni görevler açık geldi", anyOpen)
+end)
+
+-- ─── S. İksirler ────────────────────────────────────────────────────────────
+
+case("İksir: tanımlar tutarlı", function()
+	local kinds = { income = true, steal = true, lock = true }
+	local ids = {}
+	local uniqueIds = true
+
+	for _, def in Config.Potions do
+		if ids[def.id] then uniqueIds = false end
+		ids[def.id] = true
+
+		ok(def.id .. " türü tanınıyor", kinds[def.kind] == true, def.kind)
+		ok(def.id .. " süreli", def.seconds > 0, tostring(def.seconds))
+		ok(def.id .. " ağırlığı pozitif", def.weight > 0)
+		ok(def.id .. " açıklaması dolu", def.description ~= "")
+
+		if def.kind == "income" then
+			ok(def.id .. " çarpanı var", (def.multiplier or 0) > 1)
+		end
+	end
+
+	ok("id'ler benzersiz", uniqueIds)
+	ok("stok sınırı makul", Config.PotionStackLimit >= 1 and Config.PotionStackLimit <= 20,
+		tostring(Config.PotionStackLimit))
+end)
+
+case("İksir: hiçbiri kalıcı değil", function()
+	--[[
+		Bu ödüller Robux pass'lerinin karşılığı. Süresiz bir tanesi bile
+		pass satışını öldürür; test o yüzden var.
+	]]
+	local allTimed = true
+	for _, def in Config.Potions do
+		if def.seconds <= 0 or def.seconds > 3600 then
+			allTimed = false
+		end
+	end
+	ok("hepsi süreli ve en fazla bir saat", allTimed)
+end)
+
+case("İksir: rulet tüm iksirleri üretebiliyor", function()
+	local rng = Random.new(777)
+	local seen = {}
+
+	for _ = 1, 2000 do
+		seen[Config.RollPotion(rng).id] = true
+	end
+
+	for _, def in Config.Potions do
+		ok(def.id .. " çıkabiliyor", seen[def.id] == true)
+	end
+end)
+
+case("İksir: envantere giriyor ve stok sınırı var", function(ctx)
+	ctx.profile.potions = {}
+
+	ok("verildi", PotionService.Grant(ctx.player, "Income2x"))
+	eq("adet bir", PotionService.GetCount(ctx.player, "Income2x"), 1)
+
+	for _ = 1, Config.PotionStackLimit + 5 do
+		PotionService.Grant(ctx.player, "Income2x")
+	end
+	eq("stok sınırında durdu",
+		PotionService.GetCount(ctx.player, "Income2x"), Config.PotionStackLimit)
+
+	ok("dolu stoka ekleme reddedildi", not PotionService.Grant(ctx.player, "Income2x"))
+	ok("uydurma iksir reddedildi", not PotionService.Grant(ctx.player, "YokBoyleBirSey"))
+end)
+
+case("İksir: içmek envanterden düşüyor ve takviye başlatıyor", function(ctx)
+	ctx.profile.potions = { Income2x = 2 }
+
+	local before = MonetizationService.GetIncomeMultiplier(ctx.player)
+
+	ok("içildi", PotionService.Use(ctx.player, "Income2x"))
+	eq("envanterden düştü", PotionService.GetCount(ctx.player, "Income2x"), 1)
+
+	ok("takviye aktif", MonetizationService.GetBoostRemaining(ctx.player, "income") > 0,
+		tostring(MonetizationService.GetBoostRemaining(ctx.player, "income")))
+	ok("gelir çarpanı arttı", MonetizationService.GetIncomeMultiplier(ctx.player) > before,
+		string.format("%.1f -> %.1f", before, MonetizationService.GetIncomeMultiplier(ctx.player)))
+end)
+
+case("İksir: olmayan iksir içilemiyor", function(ctx)
+	ctx.profile.potions = {}
+
+	ok("envanterde yokken reddedildi", not PotionService.Use(ctx.player, "Income2x"))
+	ok("uydurma kimlik reddedildi", not PotionService.Use(ctx.player, "YokBoyleBirSey"))
+	eq("envanter bozulmadı", PotionService.GetCount(ctx.player, "Income2x"), 0)
+end)
+
+case("İksir: gelir takviyesi geliri gerçekten çarpıyor", function(ctx)
+	-- Önceki test bir takviye açık bırakmış olabilir; "temel gelir"
+	-- ölçümünün boostsuz olması şart
+	MonetizationService.ClearBoosts(ctx.player)
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	ok("boş kaide var", podium ~= nil)
+	if not podium then return end
+
+	PlotService.PlaceUnit(podium, Config.Units[1].id, nil)
+	local base = EconomyService.GetIncome(ctx.player)
+	ok("temel gelir pozitif", base > 0, tostring(base))
+
+	ctx.profile.potions = { Income2x = 1 }
+	PotionService.Use(ctx.player, "Income2x")
+
+	local boosted = EconomyService.GetIncome(ctx.player)
+	ok("gelir arttı", boosted > base, string.format("%d -> %d", base, boosted))
+
+	clearPlot(ctx.plot)
+end)
+
+case("İksir: süre dolunca etki bitiyor", function(ctx)
+	--[[
+		Kalan süreyi doğrudan sınayamıyoruz (os.time saniyelik). Bunun
+		yerine hiç takviye verilmemiş bir türü kontrol ediyoruz: sıfır
+		dönmeli, yani "aktif" varsayılanı yok.
+	]]
+	MonetizationService.ClearBoosts(ctx.player)
+	eq("verilmemiş takviye sıfır",
+		MonetizationService.GetBoostRemaining(ctx.player, "lock"), 0)
+
+	ctx.profile.potions = { StrongLock = 1 }
+	PotionService.Use(ctx.player, "StrongLock")
+
+	local remaining = MonetizationService.GetBoostRemaining(ctx.player, "lock")
+	local def = Config.GetPotion("StrongLock")
+	ok("süre tanımdaki kadar", def ~= nil and remaining <= def.seconds and remaining > 0,
+		tostring(remaining))
+end)
+
+case("İksir: pass'in üstüne binmiyor", function(ctx)
+	--[[
+		Parasını verip kalıcı 2x alan oyuncu, bedava iksirle 4x kazanmamalı.
+		MonetizationService ikisinin büyüğünü alıyor.
+	]]
+	MonetizationService.ClearBoosts(ctx.player)
+	ctx.profile.potions = { Income2x = 1 }
+	PotionService.Use(ctx.player, "Income2x")
+
+	local withBoost = MonetizationService.GetIncomeMultiplier(ctx.player)
+	ok("çarpan pass değerini aşmıyor", withBoost <= Config.PassDoubleIncomeMultiplier,
+		string.format("%.1f > %.1f", withBoost, Config.PassDoubleIncomeMultiplier))
+end)
+
+case("Görev: günlük vadeyi bitirmek iksir veriyor", function(ctx)
+	ctx.profile.potions = {}
+	ctx.profile.quests = {}
+	QuestService.Check(ctx.player)
+
+	local slot = ctx.profile.quests.daily
+	ok("günlük vade var", slot ~= nil)
+	if not slot then return end
+
+	-- Tamamlanmış say ama "yeni tamamlandı" anını yakalayabilmek için
+	-- son görevi açık bırak
+	for index, entry in slot.entries do
+		entry.done = index < #slot.entries
+	end
+
+	local last = slot.entries[#slot.entries]
+	local def = Config.GetQuest(last.id)
+	ok("son görev tanımlı", def ~= nil)
+	if not def then return end
+
+	-- Son görevin koşulunu sağla
+	last.goal = 1
+	last.baseline = -1
+
+	QuestService.Check(ctx.player)
+
+	local total = 0
+	for _, count in ctx.profile.potions do
+		total += count
+	end
+	ok("iksir verildi", total > 0, tostring(total))
+
+	-- İkinci taramada tekrar vermemeli
+	QuestService.Check(ctx.player)
+	local after = 0
+	for _, count in ctx.profile.potions do
+		after += count
+	end
+	eq("tekrar iksir yok", after, total)
+end)
+
+case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", function()
+	--[[
+		Eski hali toplam remote sayısına bakıyordu; server -> client yönü
+		büyüdükçe o sayı anlamsız şişiyordu. Asıl önemli olan İSTEMCİNİN
+		tetikleyebildiği remote'lar — saldırı yüzeyi orası.
+	]]
+	local listened = Net.GetClientToServer()
+
+	ok("liste küçük", #listened <= 4, tostring(#listened))
+
+	for _, name in listened do
+		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
+		ok(name .. " yön haritasında", Net.IsClientToServer(name))
+	end
+
+	-- Yön haritasında olmayan hiçbir remote dinlenmemeli
+	ok("Notify dinlenmiyor", not Net.IsClientToServer("Notify"))
+	ok("Quests dinlenmiyor", not Net.IsClientToServer("Quests"))
+	ok("Titles dinlenmiyor", not Net.IsClientToServer("Titles"))
+	ok("Potions dinlenmiyor", not Net.IsClientToServer("Potions"))
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -1261,6 +1749,14 @@ function ServerTests.Run(player: Player?): number
 		maxStreak = profile.maxStreak,
 		tutorialStep = profile.tutorialStep,
 		stolen = profile.stolen,
+		titleManual = profile.titleManual,
+		activeTitle = profile.activeTitle,
+		quests = profile.quests,
+		potions = table.clone(profile.potions),
+		bought = profile.bought,
+		sold = profile.sold,
+		spins = profile.spins,
+		earned = profile.earned,
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
 
@@ -1273,6 +1769,7 @@ function ServerTests.Run(player: Player?): number
 	]]
 	TitleService.SetPaused(true)
 	TutorialService.SetPaused(true)
+	QuestService.SetPaused(true)
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -1308,6 +1805,9 @@ function ServerTests.Run(player: Player?): number
 	-- Ortamı geri yükle
 	TitleService.SetPaused(false)
 	TutorialService.SetPaused(false)
+	QuestService.SetPaused(false)
+	-- Testler iksir içiyor; kalan takviyeyi canlı oturuma bırakma
+	MonetizationService.ClearBoosts(player)
 
 	profile.cash = backup.cash
 	profile.rebirths = backup.rebirths
@@ -1319,6 +1819,14 @@ function ServerTests.Run(player: Player?): number
 	profile.maxStreak = backup.maxStreak
 	profile.tutorialStep = backup.tutorialStep
 	profile.stolen = backup.stolen
+	profile.titleManual = backup.titleManual
+	profile.activeTitle = backup.activeTitle
+	profile.quests = backup.quests
+	profile.potions = backup.potions
+	profile.bought = backup.bought
+	profile.sold = backup.sold
+	profile.spins = backup.spins
+	profile.earned = backup.earned
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	clearPlot(plot)

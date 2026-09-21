@@ -55,6 +55,32 @@ export type Profile = {
 	-- Öğreticide tamamlanan adım sayısı. #Config.Tutorial ise bitmiş,
 	-- -1 ise oyuncu atlamış. Sayı olarak tutuluyor çünkü adımlar sıralı.
 	tutorialStep: number,
+	-- Oyuncu unvanı kendi eliyle seçtiyse true. O andan sonra yeni unvan
+	-- açılsa bile üstüne yazmıyoruz; seçim oyuncunun.
+	titleManual: boolean,
+	-- Görev sayaçları. Hepsi yalnızca ARTIYOR: görev ilerlemesi, görev
+	-- verilirken alınan tabanla bugünkü değerin farkından hesaplanıyor.
+	-- Azalan bir sayaç ilerlemeyi geri götürür.
+	bought: number,
+	sold: number,
+	spins: number,
+	earned: number,
+	-- Vade -> o vadedeki görevler ve pencerenin bitiş anı (os.time)
+	quests: { [string]: QuestSlot },
+	-- İksir envanteri: iksir kimliği -> adet
+	potions: { [string]: number },
+}
+
+export type QuestEntry = {
+	id: string,
+	goal: number,
+	baseline: number,
+	done: boolean,
+}
+
+export type QuestSlot = {
+	expiresAt: number,
+	entries: { QuestEntry },
 }
 
 type Lock = { owner: string, at: number }
@@ -95,6 +121,13 @@ local function newProfile(): Profile
 		caught = 0,
 		maxStreak = 0,
 		tutorialStep = 0,
+		titleManual = false,
+		bought = 0,
+		sold = 0,
+		spins = 0,
+		earned = 0,
+		quests = {},
+		potions = {},
 	}
 end
 
@@ -141,7 +174,7 @@ local function sanitize(raw: any): Profile
 		profile.lastSpinAt = math.floor(raw.lastSpinAt)
 	end
 
-	for _, field in { "robbed", "caught", "maxStreak" } do
+	for _, field in { "robbed", "caught", "maxStreak", "bought", "sold", "spins", "earned" } do
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)
@@ -166,6 +199,61 @@ local function sanitize(raw: any): Profile
 	-- saymaktan daha doğru, çünkü kalan adımlar hâlâ öğretilmeli.
 	if typeof(raw.tutorialStep) == "number" and raw.tutorialStep == raw.tutorialStep then
 		profile.tutorialStep = math.clamp(math.floor(raw.tutorialStep), -1, #Config.Tutorial)
+	end
+
+	profile.titleManual = raw.titleManual == true
+
+	if typeof(raw.potions) == "table" then
+		for id, count in raw.potions do
+			-- Config'ten kalkmış iksir kayıtta durabilir
+			if typeof(id) == "string" and Config.GetPotion(id)
+				and typeof(count) == "number" and count > 0
+			then
+				profile.potions[id] = math.clamp(math.floor(count), 0, Config.PotionStackLimit)
+			end
+		end
+	end
+
+	--[[
+		Görevler: Config'ten kalkmış görev ya da vade kayıtta durabilir.
+		Tanınmayanı atıyoruz; QuestService boş vadeyi yeniden çekiyor, yani
+		oyuncu görevsiz kalmıyor.
+	]]
+	if typeof(raw.quests) == "table" then
+		for tierId, slot in raw.quests do
+			if typeof(tierId) ~= "string"
+				or not Config.GetQuestTier(tierId)
+				or typeof(slot) ~= "table"
+				or typeof(slot.expiresAt) ~= "number"
+				or typeof(slot.entries) ~= "table"
+			then
+				continue
+			end
+
+			local entries: { QuestEntry } = {}
+			for _, entry in slot.entries do
+				if typeof(entry) == "table"
+					and typeof(entry.id) == "string"
+					and Config.GetQuest(entry.id)
+					and typeof(entry.goal) == "number"
+					and typeof(entry.baseline) == "number"
+				then
+					table.insert(entries, {
+						id = entry.id,
+						goal = math.max(1, math.floor(entry.goal)),
+						baseline = math.max(0, math.floor(entry.baseline)),
+						done = entry.done == true,
+					})
+				end
+			end
+
+			if #entries > 0 then
+				profile.quests[tierId] = {
+					expiresAt = math.floor(slot.expiresAt),
+					entries = entries,
+				}
+			end
+		end
 	end
 
 	if typeof(raw.upgrades) == "table" then
@@ -335,6 +423,26 @@ function DataService.WaitForProfile(player: Player, timeout: number?): Profile?
 	end
 
 	return profiles[player]
+end
+
+--[[
+	Profildeki sayısal bir sayacı artırır.
+
+	Servislerin her biri "profili al, alan var mı bak, artır" kalıbını
+	tekrarlıyordu. Sayaç görev ilerlemesinin tabanı olduğu için yanlış
+	yazılan bir alan adı sessizce hiçbir şey yapardı; burada assert var.
+]]
+function DataService.Bump(player: Player, field: string, amount: number?)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+
+	local any = profile :: any
+	local current = any[field]
+	assert(typeof(current) == "number", "DataService.Bump: sayısal olmayan alan " .. field)
+
+	any[field] = current + (amount or 1)
 end
 
 function DataService.Save(player: Player): boolean

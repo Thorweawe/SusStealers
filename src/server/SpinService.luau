@@ -170,6 +170,7 @@ function SpinService.Spin(player: Player, free: boolean): boolean
 	end
 
 	-- Ödül verildikten sonra hakkı harca: veremezsek hak da gitmesin
+	DataService.Bump(player, "spins")
 	if free then
 		profile.lastSpinAt = os.time()
 		DataService.Save(player)

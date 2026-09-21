@@ -17,7 +17,29 @@ local EVENTS = {
 	"Notify",       -- server -> client (text, isError)
 	"StealAlert",   -- server -> client (thiefName, unitName)
 	"Tutorial",     -- server -> client (payload, target)
+	"Titles",       -- server -> client (açık unvanlar, takılı olan)
+	"Quests",       -- server -> client (vade -> görev listesi)
+	"Potions",      -- server -> client (envanter + aktif takviye)
 	"TutorialSkip", -- client -> server (argümansız)
+	"TitleEquip",   -- client -> server (titleId: string)
+	"PotionUse",    -- client -> server (potionId: string)
+}
+
+--[[
+	İstemciden sunucuya DİNLENEN remote'lar. Buraya bir isim eklemek yeni
+	bir saldırı yüzeyi açmak demek: istemci onu istediği argümanla,
+	istediği sıklıkta tetikleyebiliyor.
+
+	Kural: buradaki her remote sunucuda doğrulanıyor ve sınırlanıyor.
+	Üçünün ortak yanı, hiçbirinin bir şey VERMEMESİ — biri öğreticiyi
+	kapatıyor (kalan ödülleri yakarak), biri zaten açılmış bir unvanı
+	takıyor, biri envanterdeki bir iksiri harcıyor. İstismarı oyuncunun
+	kendi zararına kalıyor.
+]]
+local CLIENT_TO_SERVER = {
+	TutorialSkip = true,
+	TitleEquip = true,
+	PotionUse = true,
 }
 
 local Net = {}
@@ -40,6 +62,21 @@ if IS_SERVER then
 	end
 else
 	folder = ReplicatedStorage:WaitForChild("Net") :: Folder
+end
+
+--[[ Bu remote istemciden sunucuya mı dinleniyor. Testler buna bakıyor. ]]
+function Net.IsClientToServer(name: string): boolean
+	return CLIENT_TO_SERVER[name] == true
+end
+
+--[[ İstemciden sunucuya dinlenen remote adları. ]]
+function Net.GetClientToServer(): { string }
+	local names = {}
+	for name in CLIENT_TO_SERVER do
+		table.insert(names, name)
+	end
+	table.sort(names)
+	return names
 end
 
 --[[ İsimle remote verir. İstemcide hazır olana kadar bekler. ]]

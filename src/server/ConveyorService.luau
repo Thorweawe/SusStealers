@@ -15,6 +15,7 @@ local PromptGuard = require(script.Parent.PromptGuard)
 local MonetizationService = require(script.Parent.MonetizationService)
 local UpgradeService = require(script.Parent.UpgradeService)
 local EconomyService = require(script.Parent.EconomyService)
+local DataService = require(script.Parent.DataService)
 
 local ConveyorService = {}
 
@@ -151,6 +152,7 @@ function ConveyorService.TryBuy(player: Player, item: ConveyorItem, prompt: Prox
 
 	prompt.Enabled = false
 	PlotService.PlaceUnit(podium, item.unitId, item.mutationId)
+	DataService.Bump(player, "bought")
 
 	local def = Config.GetUnit(item.unitId)
 	notify(player, string.format("%s purchased", if def then def.name else item.unitId), false)

@@ -16,6 +16,7 @@ local Net = require(Shared.Net)
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
+local DataService = require(script.Parent.DataService)
 
 local SellService = {}
 
@@ -74,6 +75,7 @@ function SellService.Sell(player: Player, podium: Part): boolean
 	end
 
 	EconomyService.AddCash(player, payout)
+	DataService.Bump(player, "sold")
 
 	local def = Config.GetUnit(unitId)
 	notify(player, string.format(

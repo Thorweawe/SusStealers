@@ -27,6 +27,8 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/TitleService.luau` | Sunucu | Unvanlar, koşullar, ödüller |
 | `src/server/SpinService.luau` | Sunucu | Şans çarkı, günlük hak |
 | `src/server/TutorialService.luau` | Sunucu | Öğretici adımları, koşullar, ödüller |
+| `src/server/QuestService.luau` | Sunucu | 30dk/3sa/günlük görevler, ilerleme, ödüller |
+| `src/server/PotionService.luau` | Sunucu | İksir envanteri, içme, süreli takviyeler |
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
@@ -132,6 +134,9 @@ local mapping = {
 	{ "src/client/SoundFX.luau",                client.SoundFX },
 	{ "src/client/ThiefTrail.luau",             client.ThiefTrail },
 	{ "src/client/TutorialUI.luau",             client.TutorialUI },
+	{ "src/client/QuestPanel.luau",             client.QuestPanel },
+	{ "src/client/Menus.luau",                  client.Menus },
+	{ "src/client/HudToggle.luau",              client.HudToggle },
 	{ "src/client/init.client.luau",            client },
 	{ "src/server/ConveyorService.luau",        server.ConveyorService },
 	{ "src/server/DataService.luau",            server.DataService },
@@ -143,6 +148,8 @@ local mapping = {
 	{ "src/server/SellService.luau",            server.SellService },
 	{ "src/server/StealService.luau",           server.StealService },
 	{ "src/server/TutorialService.luau",        server.TutorialService },
+	{ "src/server/QuestService.luau",           server.QuestService },
+	{ "src/server/PotionService.luau",          server.PotionService },
 	{ "src/server/UpgradeService.luau",         server.UpgradeService },
 	{ "src/server/init.server.luau",            server },
 	{ "src/shared/Config.luau",                 shared.Config },
@@ -222,14 +229,14 @@ require(game.ServerScriptService.Server.Tests).Run(player)
 
 **Kapsam:** Config bütünlüğü · üs ve kaide yapısı · ekonomi · satın alma
 ve satma · çalma kuralları · yükseltmeler · rebirth · para kazanma ·
-prompt güvenliği · kayıt · unvanlar · öğretici.
+prompt güvenliği · kayıt · unvanlar · öğretici · görevler · iksirler.
 
 Testler oyuncunun profilini geçici olarak değiştiriyor ama `Run` sonunda
 başlangıç hali geri yükleniyor.
 
 **Periyodik tarama yapan bir servis eklersen `SetPaused` de ekle ve
-`Run`'da duraklat.** `TitleService` ve `TutorialService` saniyede bir
-profili tarayıp koşul sağlanmışsa ödül veriyor. Testler profili doğrudan
+`Run`'da duraklat.** `TitleService`, `TutorialService` ve `QuestService`
+saniyede bir profili tarayıp koşul sağlanmışsa ödül veriyor. Testler profili doğrudan
 kurcaladığı için tarama araya girerse kazanılmamış ödül dağıtılıyor ve
 nakit sayan testler tutmuyor — rebirth testi tam olarak böyle kaldı. `init.server` bu modülü require etmiyor,
 yayına çıkan kodda hiçbir etkisi yok.
@@ -270,12 +277,96 @@ dünyada bulunamazsa hedef gösterilmiyor — testler bunu kontrol ediyor.
 
 **Arayüz:** `src/client/TutorialUI.luau` hazır ama `init.client.luau`'ya
 bağlı değil (istemci şeridi). Bağlanana kadar adımlar bildirim olarak
-geliyor, yani öğretici tek başına çalışıyor. Bağlamak için:
+geliyor, yani öğretici tek başına çalışıyor.
+
+Panel üç şey gösteriyor: yazılı adım, hedefin üstünde duran dünya oku ve
+hedef görüş alanının dışındaysa ekranda dönen pusula oku + mesafe. Sadece
+yazı yeterli değildi — oyuncu "konveyör" kelimesini okuyup hangi parçanın
+konveyör olduğunu bilmiyor.
+
+---
+
+## Görevler
+
+Üç vade: **30 dakika**, **3 saat**, **günlük**. Her vadede 2 görev, pencere
+dolunca yeniden çekiliyor. `Config.Quests` havuzu, `Config.QuestTiers`
+vadeler, koşullar `QuestService`'te.
+
+- **İlerleme tabandan hesaplanıyor.** Görev verilirken sayacın o anki
+  değeri kaydediliyor; ilerleme bugünkü değerle farkı. Bu yüzden görev
+  sayaçlarının hepsi yalnızca ARTMALI — azalan bir sayaç tamamlanmış
+  görevi tamamlanmamışa çevirir.
+- **Hedefler çekim anında donuyor.** Canlı hesaplansaydı oyuncu
+  zenginleştikçe hedef büyür, görev hiç bitmezdi.
+- **Ödüller ödeme anındaki gelire göre.** Çekimde hesaplansaydı üç saatte
+  büyüyen oyuncu üç saat önceki gelirine göre ödüllenirdi.
+- **`fromTier` ve `maxGoal` var.** Yeni oyuncu 30 dakikada rebirth
+  atamıyor; başkasının çalmasını bekleyen "hırsız yakala" görevinin
+  tavanı düşük.
+
+Yeni görev eklemek `Config.Quests`'e bir satır ve gerekiyorsa
+`QuestService.statValue` içine artan bir sayaç.
+
+---
+
+## İksirler
+
+Günlük vadenin **tamamını** bitiren bir iksir kazanıyor. Envantere
+giriyor, anında uygulanmıyor — oyuncu ne zaman işine geliyorsa o zaman
+içiyor.
+
+**Hepsi süreli, kalıcı hiçbir şey verilmiyor.** Bunlar Robux pass'lerinin
+karşılığı; süresiz bir tanesi bile pass satışını öldürür. Süreli olanı
+tersine çalışıyor: on dakika iki kat kazanan oyuncu pass'in ne işe
+yaradığını öğreniyor. Bir test bunu kontrol ediyor.
+
+Pass'i olan oyuncuya iksir **üstüne binmiyor** — `MonetizationService`
+ikisinin büyüğünü alıyor, yoksa parasını veren oyuncu bedava ödülle daha
+da öne geçerdi.
+
+Etki `MonetizationService`'te, pass'lerle aynı yerden okunuyor; böylece
+"pass mi iksir mi" ayrımını her servis ayrı ayrı yapmıyor.
+
+---
+
+## Unvan kuşanma
+
+Oyuncu açtığı unvanlardan istediğini takabiliyor. Elle seçim yaptıysa
+(`titleManual`) sonradan daha yüksek bir unvan açılsa bile üstüne
+yazılmıyor. Seçim yapmayan oyuncu en yükseğini otomatik takıyor — menüyü
+hiç açmayan da ilerlemesini sohbette görsün diye.
+
+Boş kimlik göndermek otomatiğe dönüyor.
+
+---
+
+## İstemci panelleri
+
+Hepsi `Create(screen)` kalıbında, `init.client.luau`'ya bağlanmayı
+bekliyor (istemci şeridi):
 
 ```lua
 local TutorialUI = require(script.TutorialUI)
+local QuestPanel = require(script.QuestPanel)
+local Menus      = require(script.Menus)
+local HudToggle  = require(script.HudToggle)
+
 local tutorial = TutorialUI.Create(screen)
+local quests   = QuestPanel.Create(screen)
+local menus    = Menus.Create(screen)
+local hud      = HudToggle.Create(screen)  -- EN SONA: diğerlerini bulması gerekiyor
 ```
+
+| Modül | Yer | İş |
+|---|---|---|
+| `TutorialUI` | Sol alt + dünya oku | Öğretici adımı ve hedef |
+| `QuestPanel` | Sol, nakit satırının altı | Üç vadeli görev listesi, katlanabilir |
+| `Menus` | Sağ, üs panelinin altı | Unvan seçimi ve iksir envanteri (sekmeli) |
+| `HudToggle` | Sağ üst | Kalabalık yapanları gizle (`H` tuşu) |
+
+`HudToggle` arayüz öğelerini **adıyla** buluyor, kimsenin koduna
+dokunmuyor. Listesinde olmayan bir panel gizlenmiyor; yeni panel eklerken
+adını `CLUTTER` listesine yaz.
 
 ---
 

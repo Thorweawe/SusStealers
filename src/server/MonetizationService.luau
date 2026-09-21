@@ -79,10 +79,87 @@ end
 
 -- ─── Etki noktaları ─────────────────────────────────────────────────────────
 
+--[[
+	Süreli takviyeler — iksir mantığı.
+
+	Görev ödülü olarak veriliyor ve HEPSİ süreli. Kalıcı pass'i bedava
+	dağıtmak satışı öldürürdü; süreli olanı öldürmüyor, tersine ne
+	kaçırdığını gösteriyor.
+
+	Pass'i olan oyuncuya ÜSTÜNE binmiyor (max alınıyor), yoksa parasını
+	veren oyuncu bedava ödülle daha da öne geçerdi.
+
+	Süre os.time ile tutuluyor, os.clock ile değil: istemci kalan süreyi
+	kendi saatinden hesaplayabilsin diye.
+]]
+type Boost = { until_: number, multiplier: number, name: string }
+
+local boosts: { [Player]: { [string]: Boost } } = {}
+
+local function boostOf(player: Player, kind: string): Boost?
+	local own = boosts[player]
+	local boost = own and own[kind]
+	if boost and boost.until_ > os.time() then
+		return boost
+	end
+	return nil
+end
+
+--[[
+	Takviye verir. Aynı tür zaten aktifse süre ÜSTÜNE ekleniyor; oyuncu
+	aktifken ikinci kez kazanırsa ödül boşa gitmesin.
+]]
+function MonetizationService.GrantBoost(player: Player, kind: string, seconds: number, multiplier: number?, name: string?)
+	local own = boosts[player]
+	if not own then
+		own = {}
+		boosts[player] = own
+	end
+
+	local now = os.time()
+	local existing = own[kind]
+	local base = if existing and existing.until_ > now then existing.until_ else now
+
+	own[kind] = {
+		until_ = base + seconds,
+		multiplier = math.max(if existing and existing.until_ > now then existing.multiplier else 1, multiplier or 1),
+		name = name or kind,
+	}
+
+	-- İstemci kalan süreyi göstersin diye nitelik olarak da yayınlıyoruz
+	player:SetAttribute("BoostName", own[kind].name)
+	player:SetAttribute("BoostUntil", own[kind].until_)
+end
+
+--[[
+	Oyuncunun bütün takviyelerini siler.
+
+	Testler için: her test kendi ortamını kurmalı ve bir önceki testin
+	açtığı on dakikalık takviye ölçümü bozmamalı. Koşu sonunda da
+	çağrılıyor ki test, canlı oturuma takviye sızdırmasın.
+]]
+function MonetizationService.ClearBoosts(player: Player)
+	boosts[player] = nil
+	player:SetAttribute("BoostName", nil)
+	player:SetAttribute("BoostUntil", nil)
+end
+
+--[[ Takviyeden kalan saniye. Yoksa 0. ]]
+function MonetizationService.GetBoostRemaining(player: Player, kind: string): number
+	local boost = boostOf(player, kind)
+	return if boost then boost.until_ - os.time() else 0
+end
+
 function MonetizationService.GetIncomeMultiplier(player: Player): number
-	return if MonetizationService.HasPass(player, "DoubleIncome")
+	local fromPass = if MonetizationService.HasPass(player, "DoubleIncome")
 		then Config.PassDoubleIncomeMultiplier
 		else 1
+
+	local boost = boostOf(player, "income")
+	local fromBoost = if boost then boost.multiplier else 1
+
+	-- Çarpmıyor, büyüğünü alıyor: ikisi üst üste binmemeli
+	return math.max(fromPass, fromBoost)
 end
 
 function MonetizationService.GetExtraPodiumsPerFloor(player: Player): number
@@ -92,14 +169,19 @@ function MonetizationService.GetExtraPodiumsPerFloor(player: Player): number
 end
 
 function MonetizationService.GetStealHoldMultiplier(player: Player): number
-	return if MonetizationService.HasPass(player, "FastSteal")
-		then Config.PassFastStealMultiplier
-		else 1
+	if MonetizationService.HasPass(player, "FastSteal")
+		or boostOf(player, "steal")
+	then
+		return Config.PassFastStealMultiplier
+	end
+	return 1
 end
 
 --[[ Kilit süresi ve bekleme süresi. ]]
 function MonetizationService.GetLockValues(player: Player): (number, number)
-	if MonetizationService.HasPass(player, "StrongLock") then
+	if MonetizationService.HasPass(player, "StrongLock")
+		or boostOf(player, "lock")
+	then
 		return Config.PassStrongLockDuration, Config.PassStrongLockCooldown
 	end
 	return Config.LockDuration, Config.LockCooldown
@@ -226,6 +308,10 @@ function MonetizationService.PromptProduct(player: Player, key: string)
 end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
+
+Players.PlayerRemoving:Connect(function(player)
+	boosts[player] = nil
+end)
 
 function MonetizationService.Start()
 	notifyRemote = Net.Get("Notify")

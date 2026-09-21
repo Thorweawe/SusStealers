@@ -195,6 +195,235 @@ function Config.GetTitleReward(def: TitleDef, incomePerSecond: number): number
 	return math.floor(math.max(def.minimum, incomePerSecond * def.incomeSeconds))
 end
 
+-- ─── Görevler ───────────────────────────────────────────────────────────────
+--[[
+	Üç vadeli görevler: 30 dakika, 3 saat, günlük.
+
+	Neden var: gelir üretmek pasif bir döngü. Oyuncuya "şimdi ne yapayım"
+	sorusunun cevabını veren bir şey yoksa oyun açık bırakılan bir sekmeye
+	dönüşüyor. Görevler o boşluğu dolduruyor ve oyuncuyu çalmaya,
+	yükseltmeye, çark çevirmeye itiyor.
+
+	Vade penceresi dolunca görevler yeniden çekiliyor. Tamamlananlar
+	pencere dolana kadar tamamlanmış duruyor — "hepsini bitirdim" hissi
+	olmadan hemen yenisi gelirse hiç bitmeyen bir liste oluyor.
+
+	İlerleme mutlak sayaçların farkından hesaplanıyor: görev verilirken
+	sayacın o anki değeri taban alınıyor. Bu yüzden her sayaç yalnızca
+	artmalı; azalan bir sayaç ilerlemeyi geri götürür.
+]]
+
+export type QuestTier = {
+	id: string,
+	name: string,
+	seconds: number,       -- pencere uzunluğu
+	slots: number,         -- aynı anda kaç görev
+	goalMul: number,       -- hedefler kısa vadeye göre bu kat
+	rewardSeconds: number, -- ödül: kaç saniyelik gelir
+	rewardMinimum: number, -- ödül tabanı
+}
+
+--[[
+	goalMul zamanla orantılı değil bilerek: 30 dakikadan 3 saate geçerken
+	süre 6 katına çıkıyor ama kimse 3 saat kesintisiz oynamıyor. 4 kat,
+	iki oturumda bitirilebilir bir hedef bırakıyor.
+]]
+Config.QuestTiers = {
+	{ id = "short",  name = "30 Minutes", seconds =  1800, slots = 2, goalMul =  1, rewardSeconds =  120, rewardMinimum =   5000 },
+	{ id = "medium", name = "3 Hours",    seconds = 10800, slots = 2, goalMul =  4, rewardSeconds =  900, rewardMinimum =  50000 },
+	{ id = "daily",  name = "Daily",      seconds = 86400, slots = 2, goalMul = 12, rewardSeconds = 3600, rewardMinimum = 250000 },
+} :: { QuestTier }
+
+export type QuestDef = {
+	id: string,
+	text: string,           -- string.format kalıbı; %s hedefin yazılı hali
+	stat: string,           -- QuestService'in tanıdığı sayaç
+	base: number,           -- kısa vade hedefi
+	maxGoal: number,        -- uzun vadede bile bunu aşmıyor
+	fromTier: number,       -- bu sıradan önceki vadelerde çıkmıyor
+	incomeSeconds: number?, -- hedef nakitse: kaç saniyelik gelir
+	minimum: number?,       -- nakit hedefi tabanı
+}
+
+--[[
+	maxGoal neden var: "hırsız yakala" görevi günlük vadede 12 katına
+	çıksaydı, oyuncunun kontrolü dışında bir şey isterdi — birinin gelip
+	ondan çalmasını beklemek. Başkasına bağlı görevlerin tavanı düşük.
+
+	fromTier neden var: yeni oyuncu 30 dakikada yükseltme alamıyor, rebirth
+	hiç atamıyor. O görevler kısa vadede çıkarsa görev paneli baştan
+	imkânsız görünüyor.
+]]
+Config.Quests = {
+	{ id = "Steal",   stat = "stolen",   base = 3, maxGoal = 30, fromTier = 1, text = "Steal %s crewmates" },
+	{ id = "Buy",     stat = "bought",   base = 5, maxGoal = 50, fromTier = 1, text = "Buy %s crewmates off the conveyor" },
+	{ id = "Sell",    stat = "sold",     base = 3, maxGoal = 25, fromTier = 1, text = "Sell %s crewmates" },
+	{ id = "Earn",    stat = "earned",   base = 0, maxGoal = 0,  fromTier = 1, text = "Earn $%s", incomeSeconds = 300, minimum = 20000 },
+	{ id = "Catch",   stat = "caught",   base = 1, maxGoal =  3, fromTier = 2, text = "Catch %s thieves red-handed" },
+	{ id = "Upgrade", stat = "upgrades", base = 1, maxGoal =  4, fromTier = 2, text = "Buy %s base upgrades" },
+	{ id = "Spin",    stat = "spins",    base = 1, maxGoal =  1, fromTier = 3, text = "Spin the wheel %s time" },
+	{ id = "Rebirth", stat = "rebirths", base = 1, maxGoal =  1, fromTier = 3, text = "Rebirth %s time" },
+} :: { QuestDef }
+
+--[[
+	İksirler — süreli takviyeler.
+
+	Görev ödülü olarak envantere giriyor, ANINDA uygulanmıyor. Sebep:
+	çalışırken kazanılan bir takviye boşa gidiyor. Envanterde durursa
+	oyuncu ne zaman işine geliyorsa o zaman içiyor.
+
+	Hepsi SÜRELİ. Kalıcı hiçbir şey verilmiyor: kalıcı pass'i bedava
+	dağıtmak satışı öldürür, süreli olanı tersine çalışır — on dakika iki
+	kat kazanan oyuncu pass'in ne işe yaradığını öğrenmiş oluyor.
+
+	kind, MonetizationService'in tanıdığı takviye türü. Aynı türden iki
+	iksir üst üste binmiyor, süreleri ekleniyor.
+]]
+
+export type PotionDef = {
+	id: string,
+	name: string,
+	description: string,
+	kind: string,
+	seconds: number,
+	weight: number,
+	multiplier: number?,
+}
+
+--[[
+	3x gelir pass'in (2x) üstünde ama yalnızca beş dakika ve en nadiri;
+	kalıcı 2x ile yarışmıyor, sadece ödülü heyecanlı kılıyor.
+]]
+Config.Potions = {
+	{ id = "Income2x",   name = "Double Income", kind = "income", seconds = 600, multiplier = 2, weight = 35,
+	  description = "2x cash from every podium" },
+	{ id = "FastSteal",  name = "Fast Hands",    kind = "steal",  seconds = 900, weight = 25,
+	  description = "Steal prompts finish faster" },
+	{ id = "StrongLock", name = "Reinforced Lock", kind = "lock", seconds = 900, weight = 25,
+	  description = "Longer lock, shorter cooldown" },
+	{ id = "Income3x",   name = "Triple Income", kind = "income", seconds = 300, multiplier = 3, weight = 15,
+	  description = "3x cash from every podium" },
+} :: { PotionDef }
+
+-- Aynı iksirden envanterde en fazla bu kadar durabiliyor. Sınırsız olsaydı
+-- oyuncu aylarca biriktirip tek seferde dökerdi.
+Config.PotionStackLimit = 5
+
+local potionsById: { [string]: PotionDef } = {}
+for _, def in Config.Potions do
+	potionsById[def.id] = def
+end
+
+function Config.GetPotion(id: string): PotionDef?
+	return potionsById[id]
+end
+
+function Config.RollPotion(rng: Random): PotionDef
+	local total = 0
+	for _, def in Config.Potions do
+		total += def.weight
+	end
+
+	local roll = rng:NextNumber() * total
+	for _, def in Config.Potions do
+		roll -= def.weight
+		if roll <= 0 then
+			return def
+		end
+	end
+
+	return Config.Potions[1]
+end
+
+--[[ Süreyi okunur yazar. Panel ve bildirimler bunu kullanıyor. ]]
+function Config.FormatDuration(seconds: number): string
+	local total = math.max(0, math.floor(seconds))
+	if total >= 3600 then
+		return string.format("%dh %dm", total // 3600, (total % 3600) // 60)
+	end
+	return string.format("%d:%02d", total // 60, total % 60)
+end
+
+local questsById: { [string]: QuestDef } = {}
+for _, def in Config.Quests do
+	questsById[def.id] = def
+end
+
+function Config.GetQuest(id: string): QuestDef?
+	return questsById[id]
+end
+
+function Config.GetQuestTier(id: string): QuestTier?
+	for _, tier in Config.QuestTiers do
+		if tier.id == id then
+			return tier
+		end
+	end
+	return nil
+end
+
+--[[ Vadenin sırası (1'den başlar). Bilinmiyorsa 0. ]]
+function Config.GetQuestTierIndex(id: string): number
+	for index, tier in Config.QuestTiers do
+		if tier.id == id then
+			return index
+		end
+	end
+	return 0
+end
+
+--[[
+	Görevin o vadedeki hedefi. Nakit hedefleri gelirle ölçekleniyor, çünkü
+	sabit bir tutar geç oyunda bir saniyede doluyor, erken oyunda hiç
+	dolmuyor.
+]]
+function Config.GetQuestGoal(def: QuestDef, tier: QuestTier, incomePerSecond: number): number
+	if def.incomeSeconds then
+		local scaled = incomePerSecond * def.incomeSeconds * tier.goalMul
+		return math.floor(math.max((def.minimum or 0) * tier.goalMul, scaled))
+	end
+
+	return math.floor(math.min(def.maxGoal, math.max(1, def.base * tier.goalMul)))
+end
+
+--[[ Görev metnindeki hedefin okunur hali. Nakit hedefleri kısaltılıyor. ]]
+function Config.FormatQuestGoal(def: QuestDef, goal: number): string
+	if def.incomeSeconds then
+		return Config.FormatCash(goal)
+	end
+	return tostring(goal)
+end
+
+--[[ Vade ödülü. Unvan ödülleriyle aynı mantık: gelirle ölçekli, tabanlı. ]]
+function Config.GetQuestReward(tier: QuestTier, incomePerSecond: number): number
+	return math.floor(math.max(tier.rewardMinimum, incomePerSecond * tier.rewardSeconds))
+end
+
+--[[
+	Bir vade için görev seçer. Aynı görev iki kez çıkmıyor; uygun görev
+	sayısı slot sayısından azsa daha az görev dönüyor (boş satır, aynı
+	görevin iki kez görünmesinden iyi).
+]]
+function Config.RollQuests(rng: Random, tier: QuestTier): { QuestDef }
+	local tierIndex = Config.GetQuestTierIndex(tier.id)
+
+	local pool = {}
+	for _, def in Config.Quests do
+		if def.fromTier <= tierIndex then
+			table.insert(pool, def)
+		end
+	end
+
+	local picked = {}
+	for _ = 1, math.min(tier.slots, #pool) do
+		local index = rng:NextInteger(1, #pool)
+		table.insert(picked, pool[index])
+		table.remove(pool, index)
+	end
+
+	return picked
+end
+
 -- ─── Öğretici ───────────────────────────────────────────────────────────────
 --[[
 	Yeni oyuncunun ilk oturumunda izlediği sıralı adımlar.

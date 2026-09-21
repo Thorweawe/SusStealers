@@ -22,7 +22,9 @@
 	Döngüde güncellenmesi gerekmiyor, olay güdümlü.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -30,6 +32,8 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local TutorialUI = {}
+
+local player = Players.LocalPlayer
 
 local INK = Color3.fromRGB(235, 240, 250)
 local MUTED = Color3.fromRGB(150, 163, 184)
@@ -53,6 +57,51 @@ type Payload = {
 	value: number?,
 	goal: number?,
 }
+
+--[[
+	Kameranın baktığı yön ile hedefin yönü arasındaki işaretli açı.
+	0 = tam karşıda, +90 = sağda, -90 = solda. CarryGuide ile aynı hesap;
+	taşıma oku orada zaten işe yarıyor.
+]]
+local function bearingTo(target: Vector3, from: Vector3): number
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return 0
+	end
+
+	local delta = target - from
+	local flat = Vector3.new(delta.X, 0, delta.Z)
+	if flat.Magnitude < 0.01 then
+		return 0
+	end
+
+	local look = camera.CFrame.LookVector
+	local camFlat = Vector3.new(look.X, 0, look.Z)
+	if camFlat.Magnitude < 0.001 then
+		camFlat = Vector3.new(0, 0, -1)
+	end
+
+	local dir = flat.Unit
+	camFlat = camFlat.Unit
+
+	-- GUI'de pozitif dönüş saat yönünde, o yüzden sonucu ters çeviriyoruz
+	return -math.deg(math.atan2(camFlat:Cross(dir).Y, camFlat:Dot(dir)))
+end
+
+--[[ Nesnenin dünya konumu. Model de parça da olabiliyor. ]]
+local function positionOf(target: Instance): Vector3?
+	if target:IsA("BasePart") then
+		return target.Position
+	elseif target:IsA("Model") then
+		local ok, pivot = pcall(function()
+			return target:GetPivot()
+		end)
+		if ok then
+			return pivot.Position
+		end
+	end
+	return nil
+end
 
 function TutorialUI.Create(screen: ScreenGui): Panel
 	-- Sol alt: sol üstte nakit, sağ üstte üs paneli, alt ortada bildirimler
@@ -184,15 +233,127 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	highlight.Enabled = false
 	highlight.Parent = screen
 
+	--[[
+		Hedefin üstünde duran dünya oku.
+
+		Sadece yazı yeterli değil: oyuncu "konveyör" kelimesini okuyup hangi
+		parçanın konveyör olduğunu bilmiyor. Ok nesnenin üstünde durduğu için
+		bakması yeterli.
+	]]
+	local marker = Instance.new("BillboardGui")
+	marker.Name = "TutorialMarker"
+	marker.Size = UDim2.fromScale(4, 4)
+	marker.StudsOffsetWorldSpace = Vector3.new(0, 6, 0)
+	marker.AlwaysOnTop = true
+	marker.MaxDistance = 400
+	marker.Enabled = false
+	marker.Parent = screen
+
+	local markerArrow = Instance.new("TextLabel")
+	markerArrow.Size = UDim2.fromScale(1, 1)
+	markerArrow.BackgroundTransparency = 1
+	markerArrow.Font = Enum.Font.GothamBold
+	markerArrow.Text = "▼"
+	markerArrow.TextScaled = true
+	markerArrow.TextColor3 = ACCENT
+	markerArrow.TextStrokeTransparency = 0.35
+	markerArrow.Parent = marker
+
+	--[[
+		Ekran oku: hedef görüş alanının dışındaysa dünya oku görünmüyor.
+		Bu ok kameraya göre dönüyor ve mesafeyi yazıyor, yani oyuncu nereye
+		döneceğini biliyor.
+	]]
+	local compass = Instance.new("Frame")
+	compass.Name = "TutorialCompass"
+	compass.AnchorPoint = Vector2.new(0.5, 0.5)
+	compass.Position = UDim2.new(0.5, 0, 0.30, 0)
+	compass.Size = UDim2.new(0, 160, 0, 112)
+	compass.BackgroundTransparency = 1
+	compass.Visible = false
+	compass.Parent = screen
+
+	local compassArrow = Instance.new("TextLabel")
+	compassArrow.Name = "Arrow"
+	compassArrow.AnchorPoint = Vector2.new(0.5, 0)
+	compassArrow.Position = UDim2.new(0.5, 0, 0, 0)
+	compassArrow.Size = UDim2.new(0, 76, 0, 76)
+	compassArrow.BackgroundTransparency = 1
+	compassArrow.Font = Enum.Font.GothamBold
+	compassArrow.Text = "▲"
+	compassArrow.TextSize = 60
+	compassArrow.TextColor3 = ACCENT
+	compassArrow.TextStrokeTransparency = 0.3
+	compassArrow.Parent = compass
+
+	local compassText = Instance.new("TextLabel")
+	compassText.Name = "Distance"
+	compassText.AnchorPoint = Vector2.new(0.5, 0)
+	compassText.Position = UDim2.new(0.5, 0, 0, 74)
+	compassText.Size = UDim2.new(1, 0, 0, 26)
+	compassText.BackgroundTransparency = 1
+	compassText.Font = Enum.Font.GothamBold
+	compassText.TextSize = 20
+	compassText.TextColor3 = ACCENT
+	compassText.TextStrokeTransparency = 0.3
+	compassText.Text = ""
+	compassText.Parent = compass
+
+	local currentTarget: Instance? = nil
+
 	local function setTarget(target: Instance?)
+		currentTarget = target
+
 		if target and (target:IsA("Model") or target:IsA("BasePart")) then
 			highlight.Adornee = target
 			highlight.Enabled = true
+			marker.Adornee = target
+			marker.Enabled = true
 		else
 			highlight.Adornee = nil
 			highlight.Enabled = false
+			marker.Adornee = nil
+			marker.Enabled = false
+			compass.Visible = false
 		end
 	end
+
+	--[[
+		Ok kameraya göre döndüğü için her karede güncellenmeli; yavaş bir
+		döngüde kamerayı çevirirken takılarak dönüyor.
+
+		Hedefe yaklaşınca ekran oku kayboluyor: zaten önünde duruyor,
+		ekranın ortasında kocaman bir ok sadece görüşü kapatır.
+	]]
+	local NEAR_STUDS = 24
+
+	local renderConnection = RunService.RenderStepped:Connect(function()
+		if not (currentTarget and currentTarget.Parent and frame.Visible) then
+			compass.Visible = false
+			return
+		end
+
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local targetPosition = positionOf(currentTarget)
+
+		if not (root and root:IsA("BasePart") and targetPosition) then
+			compass.Visible = false
+			return
+		end
+
+		local delta = targetPosition - root.Position
+		local studs = Vector3.new(delta.X, 0, delta.Z).Magnitude
+
+		if studs <= NEAR_STUDS then
+			compass.Visible = false
+			return
+		end
+
+		compass.Visible = true
+		compassArrow.Rotation = bearingTo(targetPosition, root.Position)
+		compassText.Text = string.format("%d studs", math.floor(studs + 0.5))
+	end)
 
 	--[[
 		Hedef dikkat çeksin diye nefes alıyor. Sabit bir çerçeve dünyanın
@@ -295,7 +456,10 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	return {
 		Destroy = function()
 			connection:Disconnect()
+			renderConnection:Disconnect()
 			highlight:Destroy()
+			marker:Destroy()
+			compass:Destroy()
 			frame:Destroy()
 		end,
 	}

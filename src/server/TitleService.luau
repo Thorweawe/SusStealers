@@ -26,6 +26,7 @@ local UpgradeService = require(script.Parent.UpgradeService)
 local TitleService = {}
 
 local notifyRemote: RemoteEvent
+local titlesRemote: RemoteEvent
 local paused = false
 
 local function notify(player: Player, text: string, isError: boolean)
@@ -89,11 +90,11 @@ end
 -- ─── Takılı unvan ───────────────────────────────────────────────────────────
 
 --[[
-	Açık unvanlar arasından en yükseğini takar.
+	Takılı unvanı oyuncunun niteliğine ve istemciye yazar.
 
-	Seçim arayüzü istemci işi; o gelene kadar en iyisini otomatik takmak
-	hem mantıklı hem de oyuncunun hiçbir şey yapmadan ilerlemesini
-	görmesini sağlıyor.
+	Seçimi oyuncu kendi yaptıysa (titleManual) dokunmuyoruz. Yapmadıysa
+	en yükseği takıyoruz: menüyü hiç açmayan oyuncu da ilerlemesini
+	sohbette görüyor.
 ]]
 local function refreshEquipped(player: Player)
 	local profile = DataService.Get(player)
@@ -101,15 +102,86 @@ local function refreshEquipped(player: Player)
 		return
 	end
 
-	local best: Config.TitleDef? = nil
-	for _, def in Config.Titles do
-		if profile.titles[def.id] and (not best or def.order > best.order) then
-			best = def
+	-- Elle seçilen unvan hâlâ geçerli mi: Config'ten kaldırılmış ya da
+	-- (olmaması gereken bir durumda) kilitli kalmışsa otomatiğe dönüyoruz
+	local manual = profile.titleManual
+		and profile.activeTitle ~= ""
+		and profile.titles[profile.activeTitle] == true
+		and Config.GetTitle(profile.activeTitle) ~= nil
+
+	if not manual then
+		local best: Config.TitleDef? = nil
+		for _, def in Config.Titles do
+			if profile.titles[def.id] and (not best or def.order > best.order) then
+				best = def
+			end
 		end
+
+		profile.titleManual = false
+		profile.activeTitle = if best then best.id else ""
 	end
 
-	profile.activeTitle = if best then best.id else ""
-	player:SetAttribute("Title", if best then best.name else "")
+	local def = Config.GetTitle(profile.activeTitle)
+	player:SetAttribute("Title", if def then def.name else "")
+
+	TitleService.Publish(player)
+end
+
+--[[
+	Açık unvanların listesini ve takılı olanı istemciye gönderir.
+	Menü bunu çiziyor; kilitli unvanlar da gönderiliyor ki oyuncu neyi
+	neden kazanacağını görsün.
+]]
+function TitleService.Publish(player: Player)
+	local profile = DataService.Get(player)
+	if not (profile and titlesRemote) then
+		return
+	end
+
+	local list = {}
+	for _, def in Config.Titles do
+		table.insert(list, {
+			id = def.id,
+			name = def.name,
+			order = def.order,
+			stat = def.stat,
+			threshold = def.threshold,
+			unlocked = profile.titles[def.id] == true,
+			value = statValue(player, def.stat),
+		})
+	end
+
+	titlesRemote:FireClient(player, list, profile.activeTitle)
+end
+
+--[[
+	Oyuncunun seçtiği unvanı takar. Açılmamış unvan reddediliyor.
+
+	Boş metin otomatik seçime dönüyor: oyuncu "en iyisini sen seç" diyebilsin.
+]]
+function TitleService.Equip(player: Player, titleId: string): boolean
+	local profile = DataService.Get(player)
+	if not profile then
+		return false
+	end
+
+	if titleId == "" then
+		profile.titleManual = false
+		refreshEquipped(player)
+		DataService.RequestSave(player)
+		return true
+	end
+
+	if not Config.GetTitle(titleId) or profile.titles[titleId] ~= true then
+		notify(player, "You have not unlocked that title", true)
+		return false
+	end
+
+	profile.titleManual = true
+	profile.activeTitle = titleId
+	refreshEquipped(player)
+	DataService.RequestSave(player)
+	return true
 end
 
 --[[ Oyuncunun takılı unvanının görünen adı. ]]
@@ -203,6 +275,32 @@ end
 
 function TitleService.Start()
 	notifyRemote = Net.Get("Notify")
+	titlesRemote = Net.Get("Titles")
+
+	--[[
+		Kuşanma isteği. İstemciden gelen tek şey bir unvan kimliği; açılmamış
+		unvan Equip içinde reddediliyor. Sel basmasın diye bekletme var.
+	]]
+	local equipRemote = Net.Get("TitleEquip")
+	local lastEquipAt: { [Player]: number } = {}
+
+	equipRemote.OnServerEvent:Connect(function(player, titleId)
+		if typeof(titleId) ~= "string" or #titleId > 64 then
+			return
+		end
+
+		local now = os.clock()
+		if now - (lastEquipAt[player] or 0) < 0.5 then
+			return
+		end
+		lastEquipAt[player] = now
+
+		TitleService.Equip(player, titleId)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastEquipAt[player] = nil
+	end)
 
 	local function onPlayerAdded(player: Player)
 		task.spawn(function()

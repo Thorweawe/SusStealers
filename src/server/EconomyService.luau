@@ -50,6 +50,13 @@ end
 function EconomyService.AddCash(player: Player, amount: number)
 	cash[player] = (cash[player] or 0) + amount
 	commitCash(player)
+
+	-- Görevler "şu kadar kazan" diyebiliyor. Harcama bu sayacı düşürmüyor;
+	-- düşürseydi para biriktirmek görev ilerlemesi sayılırdı, oysa istenen
+	-- kazanmak. Negatif çağrı (ceza) da sayaca yazılmıyor.
+	if amount > 0 then
+		DataService.Bump(player, "earned", amount)
+	end
 end
 
 --[[ Parası yeterliyse düşer ve true döner. ]]
