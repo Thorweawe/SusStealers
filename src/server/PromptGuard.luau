@@ -21,34 +21,67 @@ local PromptGuard = {}
 -- Ağ gecikmesi ve karakter hareketi için pay. Çok dar tutarsak yüksek
 -- ping'li normal oyuncular reddedilir.
 local DISTANCE_TOLERANCE = 6
-local HOLD_TOLERANCE = 0.25
+local HOLD_TOLERANCE = 0.4
 
--- prompt -> oyuncu -> tuşa basmaya başladığı an
-local holdStart: { [ProximityPrompt]: { [Player]: number } } = {}
+-- Basılı tutma tamamlandıktan sonra tetikleme bu süre içinde gelmeli.
+-- Kayıt silinmeden bırakıldığı için (aşağıya bak) eski bir basışın
+-- sonradan yeniden kullanılmasını bu engelliyor.
+local HOLD_FRESHNESS = 3
+
+-- Tanı için: true yapılırsa her olay Output'a yazılır.
+PromptGuard.Debug = false
+
+type HoldRecord = { began: number, ended: number? }
+
+-- prompt -> oyuncu -> basış kaydı
+local holds: { [ProximityPrompt]: { [Player]: HoldRecord } } = {}
+
+-- Motor bu olayları sunucuya hiç göndermiyorsa basılı tutma kontrolünü
+-- zorlayamayız; zorlarsak kimse çalamaz/satamaz. İlk gerçek basışı
+-- gördüğümüz anda true olur ve kontrol devreye girer. Görmediğimiz
+-- sürece mesafe kontrolüyle yetiniyoruz — oyunu kilitlemek, bir
+-- exploit'i açık bırakmaktan daha kötü.
+local holdEventsSeen = false
+local warnedOnce = false
+
+local function log(...)
+	if PromptGuard.Debug then
+		print("[PromptGuard]", ...)
+	end
+end
 
 --[[
 	Promptu izlemeye alır. Prompt oluşturulduktan hemen sonra çağrılmalı,
 	yoksa basılı tutma bilgisi toplanmaz ve her tetikleme reddedilir.
 ]]
 function PromptGuard.Watch(prompt: ProximityPrompt)
-	holdStart[prompt] = {}
+	holds[prompt] = {}
 
 	prompt.PromptButtonHoldBegan:Connect(function(player)
-		local record = holdStart[prompt]
+		holdEventsSeen = true
+
+		local record = holds[prompt]
 		if record then
-			record[player] = os.clock()
+			record[player] = { began = os.clock() }
+			log("HoldBegan", prompt.Name, player.Name)
 		end
 	end)
 
+	-- Kaydı SİLMİYORUZ, sadece bitiş anını işaretliyoruz.
+	-- Motor basılı tutma tamamlandığında HoldEnded'ı Triggered'dan önce
+	-- gönderiyor; kaydı burada silmek tetiklemeyi dayanaksız bırakıyor
+	-- ve meşru oyuncu da reddediliyordu.
 	prompt.PromptButtonHoldEnded:Connect(function(player)
-		local record = holdStart[prompt]
-		if record then
-			record[player] = nil
+		local record = holds[prompt]
+		local entry = record and record[player]
+		if entry then
+			entry.ended = os.clock()
+			log("HoldEnded", prompt.Name, player.Name, string.format("%.2f sn", entry.ended - entry.began))
 		end
 	end)
 
 	prompt.Destroying:Connect(function()
-		holdStart[prompt] = nil
+		holds[prompt] = nil
 	end)
 end
 
@@ -81,21 +114,42 @@ function PromptGuard.Validate(prompt: ProximityPrompt, player: Player): boolean
 	end
 
 	-- HoldDuration sıfırsa basılı tutma diye bir şey yok
-	if prompt.HoldDuration > 0 then
-		local record = holdStart[prompt]
-		local started = record and record[player]
-		if not started then
-			return false
-		end
-
-		if os.clock() - started < prompt.HoldDuration - HOLD_TOLERANCE then
-			return false
-		end
-
-		-- Aynı basıştan ikinci kez tetikleme çıkmasın
-		record[player] = nil
+	if prompt.HoldDuration <= 0 then
+		return true
 	end
 
+	if not holdEventsSeen then
+		if not warnedOnce then
+			warnedOnce = true
+			warn("[PromptGuard] Basılı tutma olayları sunucuya ulaşmıyor; "
+				.. "sadece mesafe doğrulanıyor.")
+		end
+		return true
+	end
+
+	local record = holds[prompt]
+	local entry = record and record[player]
+	if not entry then
+		log("RED: kayit yok", prompt.Name, player.Name)
+		return false
+	end
+
+	local now = os.clock()
+	local held = (entry.ended or now) - entry.began
+
+	if held < prompt.HoldDuration - HOLD_TOLERANCE then
+		log("RED: kisa basis", string.format("%.2f < %.2f", held, prompt.HoldDuration))
+		return false
+	end
+
+	if now - entry.began > prompt.HoldDuration + HOLD_FRESHNESS then
+		log("RED: bayat kayit", string.format("%.2f sn once", now - entry.began))
+		return false
+	end
+
+	-- Aynı basıştan ikinci tetikleme çıkmasın
+	record[player] = nil
+	log("KABUL", prompt.Name, player.Name, string.format("%.2f sn tutuldu", held))
 	return true
 end
 

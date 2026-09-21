@@ -263,8 +263,25 @@ local function setupPodiumPrompt(podium: Part)
 	prompt.Enabled = false
 	prompt.Parent = podium
 
+	--[[
+		Kaidedeki karakter değiştikçe promptu güncelle. HoldDuration
+		karaktere göre değiştiği için yalnızca yaratılışta ayarlamak
+		yetmiyor: kaideye yeni bir karakter konduğunda öncekinin süresi
+		kalırdı.
+	]]
 	local function refresh()
-		prompt.Enabled = PlotService.IsOccupied(podium)
+		local unitId = podium:GetAttribute("UnitId") :: string
+		if unitId == "" then
+			prompt.Enabled = false
+			return
+		end
+
+		local mutationId = podium:GetAttribute("MutationId") :: string
+		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId)
+
+		prompt.HoldDuration = hold
+		prompt.ObjectText = string.format("%.1fs", hold)
+		prompt.Enabled = true
 	end
 
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)

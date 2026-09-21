@@ -164,6 +164,25 @@ function Config.GetSellPrice(unitId: string, mutationId: string?): number
 	return math.floor(Config.GetPrice(unitId, mutationId) * Config.SellRefundFactor)
 end
 
+--[[
+	Karakteri çalmak için promptun kaç saniye basılı tutulacağı.
+	Değerle birlikte artar: ucuz karakter çabuk gider, pahalı karakter
+	hırsızı uzun süre açıkta bırakır. Ölçek logaritmik, çünkü fiyatlar
+	100 ile 9.000.000 arasında; doğrusal olsaydı ilk beş karakter hariç
+	hepsi tavan değere yapışırdı.
+
+	100 -> 2 sn, 9.000.000 -> 8 sn.
+]]
+function Config.GetStealHoldTime(unitId: string, mutationId: string?): number
+	local price = Config.GetPrice(unitId, mutationId)
+	if price <= 0 then
+		return Config.StealHoldTime
+	end
+
+	local t = math.log(price / 100) / math.log(90000)
+	return math.clamp(2 + t * 6, 2, 8)
+end
+
 --[[ Konveyör için ağırlıklı rastgele karakter seçer. ]]
 function Config.RollUnit(rng: Random): UnitDef
 	local total = 0
