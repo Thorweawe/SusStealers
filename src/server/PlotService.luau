@@ -58,7 +58,17 @@ local function buildPlot(index: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = string.format("Plot%d", index)
 
-	local origin = Vector3.new((index - 1) * Config.PlotSpacing, 0, 0)
+	-- Izgara yerleşimi: soldan sağa PlotColumns tane, sonra alt satır.
+	-- Tek sıra isteniyorsa Config.PlotColumns = Config.PlotCount yapılır.
+	local columns = Config.PlotColumns or Config.PlotCount
+	local column = (index - 1) % columns
+	local row = math.floor((index - 1) / columns)
+
+	local origin = Vector3.new(
+		column * Config.PlotSpacing,
+		0,
+		row * (Config.PlotRowSpacing or 0)
+	)
 
 	-- Zemin
 	local base = newAnchoredPart("Base", Config.PlotSize, CFrame.new(origin), Color3.fromRGB(58, 64, 76), plot)

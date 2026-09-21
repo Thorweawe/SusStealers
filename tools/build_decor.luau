@@ -8,26 +8,39 @@
 
 	Tasarım: Among Us / Skeld estetiği — sade geometri, temiz paneller,
 	camgöbeği neon, uzaya bakan pencereler. Karakterler koddan üretilmiş
-	basit silindirler olduğu için dekor da aynı sadelikte; gerçekçi mesh
-	koyarsak karakterler oyuncak gibi kalıyor.
+	basit silindirler; gerçekçi mesh koyarsak onlar oyuncak gibi kalıyor.
+
+	IZGARA DESTEĞİ: PlotService tek sıra kuruyorsa COLUMNS = PlotCount olur
+	ve her şey eskisi gibi çalışır. Config'e PlotColumns / PlotRowSpacing
+	eklenirse dekor kendiliğinden ızgaraya uyar, burada değişiklik gerekmez.
 
 	Her şey workspace.Decor altına gider. PlotService.Start() sadece
 	workspace.Plots'u siliyor, dekor sunucu yeniden başlayınca kalır.
 
-	Tekrar çalıştırılabilir: eski Decor'u silip sıfırdan kurar.
-
 	OYUNU ENGELLEMEME KURALI: üsler arası geçiş açık kalmalı. Çalmanın
-	bütün riski rakip üsse koşmakta. Kapalı duvar, alçak kemer, yola
-	taşan sütun konmaz. Duvarlar sadece dış çeperde (ön ve arka).
+	bütün riski rakip üsse koşmakta. Kapalı duvar, alçak kemer, yola taşan
+	sütun konmaz. Duvarlar sadece dış çeperde.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Config bozuksa da çalışsın diye değerler yedekli okunuyor
+-- ─── Ölçüler ────────────────────────────────────────────────────────────────
+
 local PLOT_COUNT, PLOT_SPACING, PLOT_SIZE, PODIUMS, PODIUM_GAP = 8, 76, Vector3.new(60, 2, 44), 8, 6.5
+local COLUMNS, ROW_SPACING = PLOT_COUNT, 0
+
 do
+	--[[
+		Klon üzerinden okuyoruz. Studio'da bir modül bir kez hatalı yüklenirse
+		Luau o hatayı önbelleğe alıyor; kaynak düzeltilse bile require aynı
+		hatayı döndürmeye devam ediyor. Klon yeni bir örnek olduğu için
+		önbelleğe takılmadan güncel kaynağı çalıştırır.
+	]]
 	local ok, cfg = pcall(function()
-		return require(ReplicatedStorage.Shared.Config)
+		local copy = ReplicatedStorage.Shared.Config:Clone()
+		local result = require(copy)
+		copy:Destroy()
+		return result
 	end)
 	if ok and typeof(cfg) == "table" then
 		PLOT_COUNT = cfg.PlotCount or PLOT_COUNT
@@ -35,32 +48,54 @@ do
 		PLOT_SIZE = cfg.PlotSize or PLOT_SIZE
 		PODIUMS = cfg.PodiumsPerPlot or PODIUMS
 		PODIUM_GAP = cfg.PodiumSpacing or PODIUM_GAP
+		COLUMNS = cfg.PlotColumns or PLOT_COUNT
+		ROW_SPACING = cfg.PlotRowSpacing or 0
 	else
 		warn("build_decor: Config okunamadi, varsayilan olculer kullaniliyor")
 	end
 end
 
--- ─── Palet ──────────────────────────────────────────────────────────────────
-
-local HULL = Color3.fromRGB(38, 44, 58)        -- gövde paneli
-local HULL_DARK = Color3.fromRGB(26, 31, 42)   -- derin gölge
-local TRIM = Color3.fromRGB(72, 82, 100)       -- kenar metali
-local NEON = Color3.fromRGB(80, 220, 255)      -- ana neon
-local NEON_WARM = Color3.fromRGB(255, 190, 90) -- uyarı neonu
-local HAZARD = Color3.fromRGB(255, 176, 40)    -- tehlike şeridi
-local GLASS = Color3.fromRGB(150, 210, 255)
-local RED = Color3.fromRGB(197, 17, 17)        -- acil durum düğmesi
-
--- ─── Ölçüler ────────────────────────────────────────────────────────────────
+local ROWS = math.ceil(PLOT_COUNT / COLUMNS)
+if ROWS > 1 and ROW_SPACING <= 0 then
+	ROW_SPACING = PLOT_SIZE.Z + 32
+end
 
 local halfX = PLOT_SIZE.X / 2
 local halfZ = PLOT_SIZE.Z / 2
-local topY = PLOT_SIZE.Y / 2          -- üs tabanının üst yüzeyi (y=1)
-local span = (PLOT_COUNT - 1) * PLOT_SPACING
-local centerX = span / 2
-local stationHalf = span / 2 + halfX + 26   -- istasyonun x yarı genişliği
+local topY = PLOT_SIZE.Y / 2
 
--- ─── Kurulum ────────────────────────────────────────────────────────────────
+local spanX = (COLUMNS - 1) * PLOT_SPACING
+local spanZ = (ROWS - 1) * ROW_SPACING
+local centerX = spanX / 2
+local centerZ = spanZ / 2
+
+local MARGIN = 34
+local halfW = spanX / 2 + halfX + MARGIN     -- istasyon yarı genişliği
+local halfD = spanZ / 2 + halfZ + MARGIN     -- istasyon yarı derinliği
+
+local WALL_H = 34          -- çeper duvar yüksekliği
+local HULL_DEPTH = 24      -- güverte altı gövde derinliği
+local ARCH_CLEAR = 15      -- kemer altı boşluk
+
+--[[ Üs merkezleri. PlotService ile aynı formül. ]]
+local function plotOrigin(index: number): Vector3
+	local col = (index - 1) % COLUMNS
+	local row = math.floor((index - 1) / COLUMNS)
+	return Vector3.new(col * PLOT_SPACING, 0, row * ROW_SPACING)
+end
+
+-- ─── Palet ──────────────────────────────────────────────────────────────────
+
+local HULL = Color3.fromRGB(38, 44, 58)
+local HULL_DARK = Color3.fromRGB(24, 29, 39)
+local TRIM = Color3.fromRGB(78, 88, 108)
+local NEON = Color3.fromRGB(80, 220, 255)
+local NEON_WARM = Color3.fromRGB(255, 190, 90)
+local HAZARD = Color3.fromRGB(255, 176, 40)
+local GLASS = Color3.fromRGB(150, 210, 255)
+local RED = Color3.fromRGB(197, 17, 17)
+
+-- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
 local old = workspace:FindFirstChild("Decor")
 if old then
@@ -78,7 +113,7 @@ local function group(name: string, parent: Instance?): Folder
 	return f
 end
 
-type PartOpts = {
+type Opts = {
 	size: Vector3,
 	cf: CFrame,
 	color: Color3,
@@ -90,24 +125,24 @@ type PartOpts = {
 	name: string?,
 }
 
-local function build(opts: PartOpts): Part
+local function build(o: Opts): Part
 	local p = Instance.new("Part")
-	p.Name = opts.name or "Deco"
-	p.Size = opts.size
-	p.CFrame = opts.cf
-	p.Color = opts.color
-	p.Material = opts.material or Enum.Material.SmoothPlastic
+	p.Name = o.name or "Deco"
+	p.Size = o.size
+	p.CFrame = o.cf
+	p.Color = o.color
+	p.Material = o.material or Enum.Material.SmoothPlastic
 	p.Anchored = true
-	p.CanCollide = opts.collide == true
+	p.CanCollide = o.collide == true
 	p.CanQuery = false
 	p.CanTouch = false
-	p.Transparency = opts.transparency or 0
+	p.Transparency = o.transparency or 0
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
-	if opts.shape then
-		p.Shape = opts.shape
+	if o.shape then
+		p.Shape = o.shape
 	end
-	p.Parent = opts.parent
+	p.Parent = o.parent
 	return p
 end
 
@@ -115,41 +150,47 @@ local function at(x: number, y: number, z: number): CFrame
 	return CFrame.new(x, y, z)
 end
 
--- ─── 1. Zemin: panel dikişleri ve yürüyüş şeridi ────────────────────────────
--- Büyük döşeme parçaları yerine ince neon dikişler: aynı görüntü, 20 kat az parça.
+local function glow(part: Part, color: Color3, range: number, brightness: number)
+	local l = Instance.new("PointLight")
+	l.Color = color
+	l.Range = range
+	l.Brightness = brightness
+	l.Parent = part
+end
+
+-- ─── 1. Güverte ─────────────────────────────────────────────────────────────
 
 do
 	local f = group("Floor")
 
 	build({
 		name = "Deck",
-		size = Vector3.new(stationHalf * 2, 1, halfZ * 2 + 52),
-		cf = at(centerX, -0.5, 0),
+		size = Vector3.new(halfW * 2, 1, halfD * 2),
+		cf = at(centerX, -0.5, centerZ),
 		color = HULL_DARK,
 		material = Enum.Material.Metal,
 		collide = true,
 		parent = f,
 	})
 
-	-- Üsler arası her boşlukta enine dikiş
-	for i = 0, PLOT_COUNT do
-		local x = (i - 0.5) * PLOT_SPACING
+	-- Sütunlar arası enine dikişler
+	for i = 0, COLUMNS do
 		build({
-			name = "Seam",
-			size = Vector3.new(0.6, 0.12, halfZ * 2 + 50),
-			cf = at(x, 0.06, 0),
+			name = "SeamX",
+			size = Vector3.new(0.6, 0.12, halfD * 2 - 6),
+			cf = at((i - 0.5) * PLOT_SPACING, 0.06, centerZ),
 			color = NEON,
 			material = Enum.Material.Neon,
 			parent = f,
 		})
 	end
 
-	-- Üslerin önünden geçen yürüyüş şeridi: oyuncuya yön verir
-	for _, z in { -halfZ - 6, halfZ + 6 } do
+	-- Satırlar arası boyuna dikişler
+	for i = 0, ROWS do
 		build({
-			name = "Walkway",
-			size = Vector3.new(stationHalf * 2 - 8, 0.12, 1.2),
-			cf = at(centerX, 0.06, z),
+			name = "SeamZ",
+			size = Vector3.new(halfW * 2 - 6, 0.12, 0.6),
+			cf = at(centerX, 0.06, (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)),
 			color = NEON,
 			material = Enum.Material.Neon,
 			parent = f,
@@ -157,473 +198,291 @@ do
 	end
 end
 
--- ─── 2. Dış çeper: pencereli duvar ──────────────────────────────────────────
--- Sadece ön ve arkada. Yanlar açık, oyuncu x ekseninde serbest dolaşır.
+-- ─── 2. Çeper: dört tarafta pencereli duvar ─────────────────────────────────
 
 do
 	local f = group("Hull")
-	local WALL_H = 26
-	local SEG = 26          -- duvar parçası genişliği
-	local WINDOW = 12       -- aradaki pencere boşluğu
+	local SEG, WINDOW = 26, 13
 
-	for _, z in { -halfZ - 30, halfZ + 30 } do
-		local facing = if z < 0 then -1 else 1
+	--[[ Bir kenar boyunca panel-pencere-panel dizisi kurar.
+	     axis "x": duvar x boyunca uzanır (ön/arka). "z": z boyunca (yanlar). ]]
+	local function wall(axis: string, fixed: number, from: number, to: number, facing: number)
+		local function place(name: string, along: number, width: number, height: number, y: number, thick: number, color: Color3, material: Enum.Material, collide: boolean, trans: number?)
+			local size = if axis == "x"
+				then Vector3.new(width, height, thick)
+				else Vector3.new(thick, height, width)
+			local cf = if axis == "x"
+				then at(along, y, fixed)
+				else at(fixed, y, along)
+			build({ name = name, size = size, cf = cf, color = color, material = material, collide = collide, transparency = trans, parent = f })
+		end
 
-		-- Alt bant: kesintisiz, oyuncu dışarı düşmesin
-		build({
-			name = "Kick",
-			size = Vector3.new(stationHalf * 2, 3, 2),
-			cf = at(centerX, 1.5, z),
-			color = TRIM,
-			material = Enum.Material.Metal,
-			collide = true,
-			parent = f,
-		})
+		local length = to - from
+		local mid = (from + to) / 2
 
-		local x = -stationHalf
-		while x < stationHalf do
-			local width = math.min(SEG, stationHalf - x)
-			build({
-				name = "Panel",
-				size = Vector3.new(width, WALL_H - 3, 2),
-				cf = at(x + width / 2, 3 + (WALL_H - 3) / 2, z),
-				color = HULL,
-				material = Enum.Material.Metal,
-				collide = true,
-				parent = f,
-			})
-			-- Panel kenarına dikey neon
-			build({
-				name = "PanelEdge",
-				size = Vector3.new(0.3, WALL_H - 5, 0.3),
-				cf = at(x + width, 3 + (WALL_H - 3) / 2, z - facing * 1.1),
-				color = NEON,
-				material = Enum.Material.Neon,
-				parent = f,
-			})
+		-- Alt bant: kesintisiz
+		place("Kick", mid, length, 3.5, 1.75, 2.4, TRIM, Enum.Material.Metal, true)
 
-			x += width
-			if x >= stationHalf then
-				break
-			end
+		local cursor = from
+		while cursor < to do
+			local w = math.min(SEG, to - cursor)
+			place("Panel", cursor + w / 2, w, WALL_H - 3.5, 3.5 + (WALL_H - 3.5) / 2, 2.4, HULL, Enum.Material.Metal, true)
 
-			-- Pencere: uzaya bakan cam + çerçeve
-			local w = math.min(WINDOW, stationHalf - x)
-			build({
-				name = "Glass",
-				size = Vector3.new(w, WALL_H - 9, 0.6),
-				cf = at(x + w / 2, 3 + (WALL_H - 3) / 2, z),
-				color = GLASS,
-				material = Enum.Material.Glass,
-				transparency = 0.72,
-				parent = f,
-			})
-			build({
-				name = "GlassTop",
-				size = Vector3.new(w, 3, 2),
-				cf = at(x + w / 2, WALL_H - 1.5, z),
-				color = HULL,
-				material = Enum.Material.Metal,
-				collide = true,
-				parent = f,
-			})
-			build({
-				name = "GlassSill",
-				size = Vector3.new(w, 0.4, 2.2),
-				cf = at(x + w / 2, 3 + WALL_H - 9, z),
-				color = NEON,
-				material = Enum.Material.Neon,
-				parent = f,
-			})
-			x += w
+			cursor += w
+			if cursor >= to then break end
+
+			local g = math.min(WINDOW, to - cursor)
+			-- Pencere camı
+			place("Glass", cursor + g / 2, g, WALL_H - 13, 3.5 + (WALL_H - 3.5) / 2, 0.7, GLASS, Enum.Material.Glass, false, 0.75)
+			-- Üst kapak ve alt denizlik
+			place("GlassTop", cursor + g / 2, g, 4, WALL_H - 2, 2.4, HULL, Enum.Material.Metal, true)
+			place("Sill", cursor + g / 2, g, 0.5, 3.5 + 3, 2.8, NEON, Enum.Material.Neon, false)
+			cursor += g
 		end
 
 		-- Üst korniş
-		build({
-			name = "Cornice",
-			size = Vector3.new(stationHalf * 2, 1.4, 3.4),
-			cf = at(centerX, WALL_H + 0.7, z),
-			color = TRIM,
-			material = Enum.Material.Metal,
-			parent = f,
-		})
+		place("Cornice", mid, length, 1.6, WALL_H + 0.8, 4, TRIM, Enum.Material.Metal, false)
 	end
 
-	--[[
-		Uç duvarlar. İstasyon boşlukta yüzdüğü için dört tarafı da kapalı
-		olmalı, yoksa oyuncu kenardan düşüp boşluğa gider. Üsler x ekseninde
-		sıralı ama uçlarda geçilecek bir şey yok, kapatmak oyunu engellemiyor.
-	]]
-	local depth = halfZ * 2 + 62
-	for _, side in { -1, 1 } do
-		local x = centerX + side * stationHalf
+	local x0, x1 = centerX - halfW, centerX + halfW
+	local z0, z1 = centerZ - halfD, centerZ + halfD
 
-		build({
-			name = "EndWall",
-			size = Vector3.new(2, WALL_H, depth),
-			cf = at(x, WALL_H / 2, 0),
-			color = HULL,
-			material = Enum.Material.Metal,
-			collide = true,
-			parent = f,
-		})
-		build({
-			name = "EndGlow",
-			size = Vector3.new(0.4, 0.4, depth - 4),
-			cf = at(x - side * 1.1, WALL_H - 3, 0),
-			color = NEON,
-			material = Enum.Material.Neon,
-			parent = f,
-		})
-		build({
-			name = "EndCornice",
-			size = Vector3.new(3.4, 1.4, depth),
-			cf = at(x, WALL_H + 0.7, 0),
-			color = TRIM,
-			material = Enum.Material.Metal,
-			parent = f,
-		})
-	end
+	wall("x", z0, x0, x1, -1)
+	wall("x", z1, x0, x1, 1)
+	wall("z", x0, z0, z1, -1)
+	wall("z", x1, z0, z1, 1)
 
-	--[[
-		Güverte altı: istasyonun kalınlığı görünsün. Yandan bakınca havada
-		yüzen ince bir levha değil, gövdesi olan bir yapı gibi dursun.
-	]]
+	-- ─── Gövde altı: kalınlık hissi ─────────────────────────────────────────
+	-- Kademeli daralan üç katman: yandan bakınca gemi gövdesi gibi
+
 	build({
-		name = "Underside",
-		size = Vector3.new(stationHalf * 2 - 6, 7, depth - 8),
-		cf = at(centerX, -4.2, 0),
+		name = "HullUpper",
+		size = Vector3.new(halfW * 2 - 4, HULL_DEPTH * 0.45, halfD * 2 - 4),
+		cf = at(centerX, -HULL_DEPTH * 0.225 - 0.5, centerZ),
+		color = HULL,
+		material = Enum.Material.Metal,
+		parent = f,
+	})
+	build({
+		name = "HullMid",
+		size = Vector3.new(halfW * 2 - 26, HULL_DEPTH * 0.35, halfD * 2 - 26),
+		cf = at(centerX, -HULL_DEPTH * 0.63 - 0.5, centerZ),
 		color = HULL_DARK,
 		material = Enum.Material.Metal,
 		parent = f,
 	})
 	build({
 		name = "Keel",
-		size = Vector3.new(stationHalf * 2 - 24, 3, depth - 26),
-		cf = at(centerX, -9, 0),
+		size = Vector3.new(halfW * 2 - 70, HULL_DEPTH * 0.3, halfD * 2 - 70),
+		cf = at(centerX, -HULL_DEPTH * 0.92 - 0.5, centerZ),
 		color = TRIM,
 		material = Enum.Material.Metal,
 		parent = f,
 	})
-	-- Alt kenar boyunca konum ışıkları
-	for i = 0, PLOT_COUNT do
+
+	-- Gövde boyunca yatay kaburga çizgileri: ölçek hissi verir
+	for i = 0, COLUMNS do
+		local x = (i - 0.5) * PLOT_SPACING
+		build({
+			name = "Rib",
+			size = Vector3.new(1.4, HULL_DEPTH * 0.45, halfD * 2 - 2),
+			cf = at(x, -HULL_DEPTH * 0.225 - 0.5, centerZ),
+			color = TRIM,
+			material = Enum.Material.Metal,
+			parent = f,
+		})
+	end
+
+	-- Alt kenarda konum ışıkları
+	for i = 0, COLUMNS do
 		local x = (i - 0.5) * PLOT_SPACING
 		for _, side in { -1, 1 } do
-			build({
+			local lamp = build({
 				name = "MarkerLight",
-				size = Vector3.new(1.2, 1.2, 1.2),
-				cf = at(x, -7.5, side * (depth / 2 - 5)),
+				size = Vector3.new(1.6, 1.6, 1.6),
+				cf = at(x, -HULL_DEPTH * 0.45, centerZ + side * (halfD - 3)),
 				color = NEON_WARM,
 				material = Enum.Material.Neon,
 				shape = Enum.PartType.Ball,
 				parent = f,
 			})
+			glow(lamp, NEON_WARM, 18, 1.2)
 		end
 	end
 end
 
--- ─── 3. Üs başına: çerçeve, sütun, kemer, kaide halkaları ───────────────────
+-- ─── 3. Üs başına detay ─────────────────────────────────────────────────────
 
 do
 	local f = group("Plots")
 	local FRAME_H = 0.25
-	local PILLAR = 2.2
-	local PILLAR_H = 13
-	local ARCH_CLEAR = 15    -- kemer altı boşluk: zıplayan oyuncu takılmasın
+	local PILLAR = 2.4
+	local PILLAR_H = 14
 
 	for index = 1, PLOT_COUNT do
-		local ox = (index - 1) * PLOT_SPACING
+		local o = plotOrigin(index)
+		local ox, oz = o.X, o.Z
 		local pf = group(string.format("Plot%d", index), f)
 
-		-- Taban altlığı: üssü zeminden ayırır, kalınlık hissi verir
 		build({
 			name = "Plinth",
-			size = Vector3.new(PLOT_SIZE.X + 5, 1.4, PLOT_SIZE.Z + 5),
-			cf = at(ox, -0.7, 0),
+			size = Vector3.new(PLOT_SIZE.X + 6, 1.6, PLOT_SIZE.Z + 6),
+			cf = at(ox, -0.8, oz),
 			color = TRIM,
 			material = Enum.Material.Metal,
 			collide = true,
 			parent = pf,
 		})
 
-		-- Neon çerçeve (dört kenar, çarpışmasız)
 		local frameY = topY + FRAME_H / 2
-		for _, side in { -1, 1 } do
+		for _, s in { -1, 1 } do
 			build({
 				name = "FrameX",
 				size = Vector3.new(0.8, FRAME_H, PLOT_SIZE.Z),
-				cf = at(ox + side * halfX, frameY, 0),
-				color = NEON,
-				material = Enum.Material.Neon,
-				parent = pf,
+				cf = at(ox + s * halfX, frameY, oz),
+				color = NEON, material = Enum.Material.Neon, parent = pf,
 			})
 			build({
 				name = "FrameZ",
 				size = Vector3.new(PLOT_SIZE.X, FRAME_H, 0.8),
-				cf = at(ox, frameY, side * halfZ),
-				color = NEON,
-				material = Enum.Material.Neon,
-				parent = pf,
+				cf = at(ox, frameY, oz + s * halfZ),
+				color = NEON, material = Enum.Material.Neon, parent = pf,
 			})
 		end
 
-		-- Köşe sütunları + panel bandı + tepe ışığı
 		for _, sx in { -1, 1 } do
 			for _, sz in { -1, 1 } do
-				local px, pz = ox + sx * halfX, sz * halfZ
+				local px, pz = ox + sx * halfX, oz + sz * halfZ
 
-				build({
-					name = "Pillar",
-					size = Vector3.new(PILLAR, PILLAR_H, PILLAR),
-					cf = at(px, topY + PILLAR_H / 2, pz),
-					color = HULL,
-					material = Enum.Material.Metal,
-					collide = true,
-					parent = pf,
-				})
-				build({
-					name = "PillarBand",
-					size = Vector3.new(PILLAR + 0.5, 0.45, PILLAR + 0.5),
-					cf = at(px, topY + PILLAR_H * 0.62, pz),
-					color = NEON,
-					material = Enum.Material.Neon,
-					parent = pf,
-				})
-				build({
-					name = "PillarCap",
-					size = Vector3.new(PILLAR + 0.9, 0.7, PILLAR + 0.9),
-					cf = at(px, topY + PILLAR_H + 0.35, pz),
-					color = TRIM,
-					material = Enum.Material.Metal,
-					parent = pf,
-				})
+				build({ name = "Pillar", size = Vector3.new(PILLAR, PILLAR_H, PILLAR),
+					cf = at(px, topY + PILLAR_H / 2, pz), color = HULL,
+					material = Enum.Material.Metal, collide = true, parent = pf })
+				build({ name = "PillarBand", size = Vector3.new(PILLAR + 0.5, 0.45, PILLAR + 0.5),
+					cf = at(px, topY + PILLAR_H * 0.62, pz), color = NEON,
+					material = Enum.Material.Neon, parent = pf })
+				build({ name = "PillarCap", size = Vector3.new(PILLAR + 1, 0.7, PILLAR + 1),
+					cf = at(px, topY + PILLAR_H + 0.35, pz), color = TRIM,
+					material = Enum.Material.Metal, parent = pf })
 
-				local lamp = build({
-					name = "CapLamp",
-					size = Vector3.new(PILLAR * 0.6, 0.5, PILLAR * 0.6),
-					cf = at(px, topY + PILLAR_H + 0.9, pz),
-					color = NEON,
-					material = Enum.Material.Neon,
-					parent = pf,
-				})
-				local light = Instance.new("PointLight")
-				light.Color = NEON
-				light.Range = 26
-				light.Brightness = 1.4
-				light.Parent = lamp
+				local lamp = build({ name = "CapLamp", size = Vector3.new(PILLAR * 0.6, 0.5, PILLAR * 0.6),
+					cf = at(px, topY + PILLAR_H + 0.9, pz), color = NEON,
+					material = Enum.Material.Neon, parent = pf })
+				glow(lamp, NEON, 28, 1.5)
 			end
 		end
 
-		-- Kaide halkaları: her kaidenin altına parlayan disk
+		-- Kaide halkaları
 		local perRow = math.ceil(PODIUMS / 2)
 		for slot = 1, PODIUMS do
 			local front = slot <= perRow
 			local col = if front then slot - 1 else slot - perRow - 1
-			local px = ox + (col - (perRow - 1) / 2) * PODIUM_GAP
-			local pz = if front then -8 else 8
-
 			build({
 				name = "PodiumRing",
 				size = Vector3.new(5.6, 0.1, 5.6),
-				cf = at(px, topY + 0.05, pz),
-				color = NEON,
-				material = Enum.Material.Neon,
-				transparency = 0.35,
-				parent = pf,
+				cf = at(ox + (col - (perRow - 1) / 2) * PODIUM_GAP, topY + 0.05, oz + (if front then -8 else 8)),
+				color = NEON, material = Enum.Material.Neon, transparency = 0.35, parent = pf,
 			})
 		end
 
-		-- Konveyör tehlike şeridi (konveyör z = halfZ - 5)
-		local convZ = halfZ - 5
-		for _, edge in { -1, 1 } do
-			build({
-				name = "HazardStrip",
-				size = Vector3.new(PLOT_SIZE.X - 8, 0.12, 0.7),
-				cf = at(ox, topY + 0.06, convZ + edge * 3.2),
-				color = HAZARD,
-				material = Enum.Material.Neon,
-				parent = pf,
-			})
+		-- Konveyör şeridi ve dağıtıcı
+		local convZ = oz + halfZ - 5
+		for _, e in { -1, 1 } do
+			build({ name = "HazardStrip", size = Vector3.new(PLOT_SIZE.X - 8, 0.12, 0.7),
+				cf = at(ox, topY + 0.06, convZ + e * 3.2), color = HAZARD,
+				material = Enum.Material.Neon, parent = pf })
 		end
 
-		-- Konveyörün başında dağıtıcı kemer: karakterler oradan çıkıyor
-		local dispX = ox - (PLOT_SIZE.X - 8) / 2
-		build({
-			name = "DispenserLeg",
-			size = Vector3.new(1.2, 7, 1.2),
-			cf = at(dispX - 3.4, topY + 3.5, convZ),
-			color = TRIM,
-			material = Enum.Material.Metal,
-			parent = pf,
-		})
-		build({
-			name = "DispenserLeg",
-			size = Vector3.new(1.2, 7, 1.2),
-			cf = at(dispX + 3.4, topY + 3.5, convZ),
-			color = TRIM,
-			material = Enum.Material.Metal,
-			parent = pf,
-		})
-		build({
-			name = "DispenserHead",
-			size = Vector3.new(9, 1.6, 6),
-			cf = at(dispX, topY + 7.5, convZ),
-			color = HULL,
-			material = Enum.Material.Metal,
-			parent = pf,
-		})
-		build({
-			name = "DispenserGlow",
-			size = Vector3.new(8, 0.25, 5),
-			cf = at(dispX, topY + 6.6, convZ),
-			color = NEON_WARM,
-			material = Enum.Material.Neon,
-			parent = pf,
-		})
+		local dx = ox - (PLOT_SIZE.X - 8) / 2
+		for _, e in { -1, 1 } do
+			build({ name = "DispenserLeg", size = Vector3.new(1.2, 7, 1.2),
+				cf = at(dx + e * 3.4, topY + 3.5, convZ), color = TRIM,
+				material = Enum.Material.Metal, parent = pf })
+		end
+		build({ name = "DispenserHead", size = Vector3.new(9, 1.6, 6),
+			cf = at(dx, topY + 7.5, convZ), color = HULL,
+			material = Enum.Material.Metal, parent = pf })
+		local dg = build({ name = "DispenserGlow", size = Vector3.new(8, 0.25, 5),
+			cf = at(dx, topY + 6.6, convZ), color = NEON_WARM,
+			material = Enum.Material.Neon, parent = pf })
+		glow(dg, NEON_WARM, 16, 1)
 
-		-- Üsler arası kemer (son üsten sonra yok)
-		if index < PLOT_COUNT then
+		-- Aynı satırdaki komşuya kemer
+		local col = (index - 1) % COLUMNS
+		if col < COLUMNS - 1 and index < PLOT_COUNT then
 			local ax = ox + PLOT_SPACING / 2
 			for _, sz in { -1, 1 } do
-				build({
-					name = "ArchLeg",
-					size = Vector3.new(1.6, ARCH_CLEAR, 1.6),
-					cf = at(ax, ARCH_CLEAR / 2, sz * (halfZ + 3)),
-					color = HULL,
-					material = Enum.Material.Metal,
-					collide = true,
-					parent = pf,
-				})
+				build({ name = "ArchLeg", size = Vector3.new(1.6, ARCH_CLEAR, 1.6),
+					cf = at(ax, ARCH_CLEAR / 2, oz + sz * (halfZ + 3)), color = HULL,
+					material = Enum.Material.Metal, collide = true, parent = pf })
 			end
-			build({
-				name = "ArchBeam",
-				size = Vector3.new(2.2, 1.6, (halfZ + 3) * 2),
-				cf = at(ax, ARCH_CLEAR + 0.8, 0),
-				color = HULL,
-				material = Enum.Material.Metal,
-				parent = pf,
-			})
-			build({
-				name = "ArchGlow",
-				size = Vector3.new(0.5, 0.2, (halfZ + 3) * 2 - 2),
-				cf = at(ax, ARCH_CLEAR - 0.1, 0),
-				color = NEON,
-				material = Enum.Material.Neon,
-				parent = pf,
-			})
+			build({ name = "ArchBeam", size = Vector3.new(2.2, 1.6, (halfZ + 3) * 2),
+				cf = at(ax, ARCH_CLEAR + 0.8, oz), color = HULL,
+				material = Enum.Material.Metal, parent = pf })
+			build({ name = "ArchGlow", size = Vector3.new(0.5, 0.2, (halfZ + 3) * 2 - 2),
+				cf = at(ax, ARCH_CLEAR - 0.1, oz), color = NEON,
+				material = Enum.Material.Neon, parent = pf })
 		end
 	end
 end
 
--- ─── 4. Havalandırma kapakları (Among Us imzası) ────────────────────────────
+-- ─── 4. Havalandırma kapakları ──────────────────────────────────────────────
 
 do
 	local f = group("Vents")
 
-	local function vent(x: number, z: number, yaw: number)
-		local cf = CFrame.new(x, 0.06, z) * CFrame.Angles(0, math.rad(yaw), 0)
-
-		build({
-			name = "VentFrame",
-			size = Vector3.new(6.4, 0.2, 4.4),
-			cf = cf,
-			color = TRIM,
-			material = Enum.Material.Metal,
-			parent = f,
-		})
+	local function vent(x: number, z: number)
+		local cf = at(x, 0.06, z)
+		build({ name = "VentFrame", size = Vector3.new(6.4, 0.2, 4.4), cf = cf,
+			color = TRIM, material = Enum.Material.Metal, parent = f })
 		for i = -1, 1 do
-			build({
-				name = "VentSlat",
-				size = Vector3.new(5.4, 0.26, 0.7),
-				cf = cf * CFrame.new(0, 0.05, i * 1.2),
-				color = HULL_DARK,
-				material = Enum.Material.Metal,
-				parent = f,
-			})
+			build({ name = "VentSlat", size = Vector3.new(5.4, 0.26, 0.7),
+				cf = cf * CFrame.new(0, 0.05, i * 1.2), color = HULL_DARK,
+				material = Enum.Material.Metal, parent = f })
 		end
 	end
 
-	-- Üsler arası boşluklarda, yürüyüş şeridinin üstünde
-	for i = 1, PLOT_COUNT - 1 do
-		local x = (i - 0.5) * PLOT_SPACING
-		vent(x, -halfZ - 6, 0)
-		vent(x, halfZ + 6, 0)
+	for r = 0, ROWS - 1 do
+		local z = r * ROW_SPACING
+		for c = 1, COLUMNS - 1 do
+			vent((c - 0.5) * PLOT_SPACING, z - halfZ - 8)
+			vent((c - 0.5) * PLOT_SPACING, z + halfZ + 8)
+		end
 	end
 end
 
--- ─── 5. Acil toplantı düğmesi (merkez parça) ────────────────────────────────
+-- ─── 5. Acil toplantı düğmesi ───────────────────────────────────────────────
 
 do
 	local f = group("EmergencyButton")
-	local z = halfZ + 18
+	local z = centerZ + halfD - 18
 
-	build({
-		name = "Base",
-		size = Vector3.new(11, 1.2, 11),
-		cf = at(centerX, 0.6, z),
-		color = TRIM,
-		material = Enum.Material.Metal,
-		collide = true,
-		parent = f,
-	})
-	build({
-		name = "Column",
-		size = Vector3.new(6, 4, 6),
-		cf = at(centerX, 3.2, z),
-		color = HULL,
-		material = Enum.Material.Metal,
-		collide = true,
-		parent = f,
-	})
-	build({
-		name = "Ring",
-		size = Vector3.new(9, 0.3, 9),
-		cf = at(centerX, 5.3, z),
-		color = NEON,
-		material = Enum.Material.Neon,
-		parent = f,
-	})
-	build({
-		name = "Top",
-		size = Vector3.new(8, 1, 8),
-		cf = at(centerX, 5.9, z),
-		color = HULL,
-		material = Enum.Material.Metal,
-		collide = true,
-		parent = f,
-	})
+	build({ name = "Base", size = Vector3.new(12, 1.2, 12), cf = at(centerX, 0.6, z),
+		color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "Column", size = Vector3.new(6.5, 4, 6.5), cf = at(centerX, 3.2, z),
+		color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "Ring", size = Vector3.new(9.5, 0.3, 9.5), cf = at(centerX, 5.3, z),
+		color = NEON, material = Enum.Material.Neon, parent = f })
+	build({ name = "Top", size = Vector3.new(8.5, 1, 8.5), cf = at(centerX, 5.9, z),
+		color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
 
-	local dome = build({
-		name = "Button",
-		size = Vector3.new(4.6, 4.6, 4.6),
-		cf = at(centerX, 6.6, z),
-		color = RED,
-		material = Enum.Material.Neon,
-		shape = Enum.PartType.Ball,
-		parent = f,
-	})
-	local glow = Instance.new("PointLight")
-	glow.Color = RED
-	glow.Range = 30
-	glow.Brightness = 2.2
-	glow.Parent = dome
+	local dome = build({ name = "Button", size = Vector3.new(4.8, 4.8, 4.8),
+		cf = at(centerX, 6.7, z), color = RED, material = Enum.Material.Neon,
+		shape = Enum.PartType.Ball, parent = f })
+	glow(dome, RED, 34, 2.4)
 end
 
--- ─── Baseplate: istasyonun altına gizle ─────────────────────────────────────
+-- ─── 6. Baseplate'i gövdenin altına gizle ───────────────────────────────────
 --[[
-	Varsayılan Baseplate 2048x2048 ve Slate malzemesi koyu rengi yıkıyor;
-	uzaktan bakınca devasa açık gri bir düzlem olarak her şeyi bastırıyordu.
-	İstasyon uzayda yüzüyor, altında sonsuz zemin olmamalı.
-
-	Tamamen silmek yerine istasyonun altına, görünmeyecek şekilde küçültüyoruz:
-	bir şey ters giderse (oyuncu bir delikten düşerse) yakalayacak bir taban
-	kalsın, ama kamerada görünmesin.
+	Varsayılan 2048x2048 Baseplate, Slate malzemesiyle koyu rengi yıkıyor ve
+	uzaktan devasa açık gri bir düzlem olarak her şeyi bastırıyordu. İstasyon
+	uzayda yüzüyor, altında sonsuz zemin olmamalı. Silmek yerine gövdenin
+	altına gizliyoruz: bir şey ters giderse yakalayacak taban kalsın.
 ]]
 do
 	local bp = workspace:FindFirstChild("Baseplate")
 	if bp and bp:IsA("BasePart") then
-		bp.Size = Vector3.new(stationHalf * 2 - 10, 4, halfZ * 2 + 50)
-		bp.CFrame = at(centerX, -14, 0)
+		bp.Size = Vector3.new(halfW * 2 - 80, 4, halfD * 2 - 80)
+		bp.CFrame = at(centerX, -HULL_DEPTH - 6, centerZ)
 		bp.Color = HULL_DARK
 		bp.Material = Enum.Material.SmoothPlastic
 		bp.Anchored = true
@@ -641,6 +500,7 @@ for _, d in root:GetDescendants() do
 	end
 end
 
-print(string.format("Decor kuruldu: %d us, %d parca", PLOT_COUNT, parts))
-print(string.format("Istasyon: x %.0f..%.0f, z %.0f..%.0f",
-	centerX - stationHalf, centerX + stationHalf, -halfZ - 32, halfZ + 32))
+print(string.format("Decor: %d us (%d sutun x %d satir), %d parca", PLOT_COUNT, COLUMNS, ROWS, parts))
+print(string.format("Istasyon: %.0f x %.0f stud, duvar %d, govde alti %d",
+	halfW * 2, halfD * 2, WALL_H, HULL_DEPTH))
+print(string.format("Oran: %.1f:1  (dusukse daha derli toplu gorunur)", (halfW * 2) / (halfD * 2)))
