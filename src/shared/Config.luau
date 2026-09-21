@@ -21,8 +21,8 @@ Config.PodiumSpacing = 6.5
 	PlotSpacing - PlotSize.X = yanal boşluk, PlotRowSpacing - PlotSize.Z = dikey.
 ]]
 Config.PlotColumns = 4
-Config.PlotSpacing = 92        -- yanal boşluk 32 stud
-Config.PlotRowSpacing = 84     -- dikey boşluk 40 stud
+Config.PlotSpacing = 100       -- yanal boşluk 40 stud (eski 92 / 32)
+Config.PlotRowSpacing = 96     -- dikey boşluk 52 stud (eski 84 / 40)
 
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
@@ -759,36 +759,77 @@ export type UnitDef = {
 	color: Color3,
 }
 
+--[[
+	═══ DENGE ═══════════════════════════════════════════════════════════════
+
+	Ölçü birimi AMORTİ SÜRESİ: price / income. Karakterin kendi parasını kaç
+	saniyede geri ödediği. Oyunun bütün hızı bu tek sayıda.
+
+	ESKİ DURUM: her karakter kendini 21-33 saniyede ödüyordu, üstelik
+	nadirlik arttıkça süre KISALIYORDU (Amogus Prime 21.4s, Red Crewmate
+	33s). Sonuç: sekiz kaidesi dolu bir oyuncu saniyede yatırdığı paranın
+	~%35'ini geri alıyor, yani sermayesi yarım dakikada katlanıyordu. Birkaç
+	dakikada milyarlara çıkılmasının sebebi buydu — test sırasında 4.65B
+	görüldü.
+
+	YENİ DURUM: amorti süresi nadirlikle UZUYOR.
+
+	    Common  55s → Uncommon 75s → Rare 100s → Epic 135s
+	                → Legendary 175s → Mythic 230s → Secret 320s
+
+	Neden artan? Çünkü yüksek nadirlik zaten kendi başına ödül. Kısa amorti
+	verirsek pahalı karakter hem daha güçlü hem daha verimli olur ve ucuz
+	kaidelerin hiçbir anlamı kalmaz. Uzayan amorti, pahalı karakteri bir
+	YATIRIM yapıyor: toplam kazanç çok daha yüksek ama geri dönüş sabır
+	istiyor. Bu arada çalma da anlam kazanıyor — rakibin Mythic'i hâlâ
+	kendini ödemeden onu çalmak gerçek bir darbe.
+
+	Fiyat merdiveni ~2.1x adımlarla ilerliyor. Her kademede dört karakter
+	var (Mythic üç, Secret iki) — eskiden bazı kademelerde tek karakter
+	vardı ve konveyörde hep aynı şey çıkıyordu.
+
+	Sayılar elle yazıldı, formülle üretilmedi: yuvarlak fiyatlar oyuncuya
+	daha okunaklı geliyor ve tek tek elden geçirilebiliyor.
+]]
 Config.Units = {
-	-- Common
-	{ id = "RedCrew",     name = "Red Crewmate",       rarity = "Common",    price =    100, income =     3, weight = 1000, color = Color3.fromRGB(197,  17,  17) },
-	{ id = "BlueCrew",    name = "Blue Crewmate",      rarity = "Common",    price =    180, income =     6, weight =  900, color = Color3.fromRGB( 19,  46, 210) },
-	{ id = "YellowCrew",  name = "Yellow Crewmate",    rarity = "Common",    price =    320, income =    11, weight =  800, color = Color3.fromRGB(241, 224,  90) },
+	-- Common — amorti ~55s
+	{ id = "RedCrew",     name = "Red Crewmate",       rarity = "Common",    price =        100, income =           2, weight = 1000, color = Color3.fromRGB(197,  17,  17) },
+	{ id = "BlueCrew",    name = "Blue Crewmate",      rarity = "Common",    price =        220, income =           4, weight =  920, color = Color3.fromRGB( 19,  46, 210) },
+	{ id = "YellowCrew",  name = "Yellow Crewmate",    rarity = "Common",    price =        480, income =           9, weight =  840, color = Color3.fromRGB(241, 224,  90) },
+	{ id = "LimeCrew",    name = "Lime Crewmate",      rarity = "Common",    price =       1000, income =          18, weight =  760, color = Color3.fromRGB( 80, 240,  57) },
 
-	-- Uncommon
-	{ id = "Engineer",    name = "Engineer",           rarity = "Uncommon",  price =    750, income =    28, weight =  500, color = Color3.fromRGB( 56, 254, 220) },
-	{ id = "Scientist",   name = "Scientist",          rarity = "Uncommon",  price =   1600, income =    62, weight =  420, color = Color3.fromRGB( 80, 240, 100) },
-	{ id = "Guardian",    name = "Guardian Angel",     rarity = "Uncommon",  price =   3400, income =   135, weight =  340, color = Color3.fromRGB(235, 235, 255) },
+	-- Uncommon — amorti ~75s
+	{ id = "Engineer",    name = "Engineer",           rarity = "Uncommon",  price =       2200, income =          29, weight =  520, color = Color3.fromRGB( 56, 254, 220) },
+	{ id = "Scientist",   name = "Scientist",          rarity = "Uncommon",  price =       4800, income =          64, weight =  450, color = Color3.fromRGB( 80, 240, 100) },
+	{ id = "Janitor",     name = "Janitor",            rarity = "Uncommon",  price =      10500, income =         140, weight =  390, color = Color3.fromRGB(113,  73,  30) },
+	{ id = "Guardian",    name = "Guardian Angel",     rarity = "Uncommon",  price =      23000, income =         307, weight =  330, color = Color3.fromRGB(235, 235, 255) },
 
-	-- Rare
-	{ id = "Shapeshift",  name = "Shapeshifter",       rarity = "Rare",      price =   7500, income =   310, weight =  200, color = Color3.fromRGB(107,  47, 187) },
-	{ id = "VentCrawler", name = "Vent Crawler",       rarity = "Rare",      price =  16000, income =   680, weight =  160, color = Color3.fromRGB( 62,  71,  78) },
-	{ id = "MedbayScan",  name = "Medbay Scanner",     rarity = "Rare",      price =  34000, income =  1450, weight =  120, color = Color3.fromRGB( 90, 200, 255) },
+	-- Rare — amorti ~100s
+	{ id = "Shapeshift",  name = "Shapeshifter",       rarity = "Rare",      price =      50000, income =         500, weight =  195, color = Color3.fromRGB(107,  47, 187) },
+	{ id = "VentCrawler", name = "Vent Crawler",       rarity = "Rare",      price =     110000, income =        1100, weight =  165, color = Color3.fromRGB( 62,  71,  78) },
+	{ id = "MedbayScan",  name = "Medbay Scanner",     rarity = "Rare",      price =     240000, income =        2400, weight =  140, color = Color3.fromRGB( 90, 200, 255) },
+	{ id = "Sheriff",     name = "Sheriff",            rarity = "Rare",      price =     520000, income =        5200, weight =  115, color = Color3.fromRGB(218, 165,  32) },
 
-	-- Epic
-	{ id = "Impostor",    name = "Impostor",           rarity = "Epic",      price =  72000, income =  3100, weight =   70, color = Color3.fromRGB(140,  10,  10) },
-	{ id = "Reactor",     name = "Reactor Meltdown",   rarity = "Epic",      price = 155000, income =  6800, weight =   50, color = Color3.fromRGB(255, 120,  20) },
-	{ id = "Emergency",   name = "Emergency Meeting",  rarity = "Epic",      price = 330000, income = 14500, weight =   36, color = Color3.fromRGB(255,  60,  60) },
+	-- Epic — amorti ~135s
+	{ id = "Impostor",    name = "Impostor",           rarity = "Epic",      price =    1150000, income =        8500, weight =   72, color = Color3.fromRGB(140,  10,  10) },
+	{ id = "Reactor",     name = "Reactor Meltdown",   rarity = "Epic",      price =    2500000, income =       18500, weight =   58, color = Color3.fromRGB(255, 120,  20) },
+	{ id = "O2Sabotage",  name = "O2 Sabotage",        rarity = "Epic",      price =    5400000, income =       40000, weight =   46, color = Color3.fromRGB(120, 220, 255) },
+	{ id = "Emergency",   name = "Emergency Meeting",  rarity = "Epic",      price =   11500000, income =       85000, weight =   36, color = Color3.fromRGB(255,  60,  60) },
 
-	-- Legendary
-	{ id = "Ejected",     name = "Ejected Into Space", rarity = "Legendary", price = 700000, income = 31000, weight =   18, color = Color3.fromRGB( 25,  25,  60) },
-	{ id = "TheSkeld",    name = "The Skeld",          rarity = "Legendary", price =1500000, income = 67000, weight =   12, color = Color3.fromRGB(120, 130, 145) },
+	-- Legendary — amorti ~175s
+	{ id = "Ejected",     name = "Ejected Into Space", rarity = "Legendary", price =   25000000, income =      143000, weight =   20, color = Color3.fromRGB( 25,  25,  60) },
+	{ id = "Polus",       name = "Polus Outpost",      rarity = "Legendary", price =   54000000, income =      309000, weight =   16, color = Color3.fromRGB(190, 210, 225) },
+	{ id = "TheSkeld",    name = "The Skeld",          rarity = "Legendary", price =  115000000, income =      657000, weight =   12, color = Color3.fromRGB(120, 130, 145) },
+	{ id = "Airship",     name = "The Airship",        rarity = "Legendary", price =  250000000, income =     1430000, weight =    9, color = Color3.fromRGB(150, 118,  70) },
 
-	-- Mythic
-	{ id = "DoubleImp",   name = "Double Impostor",    rarity = "Mythic",    price =3200000, income =145000, weight =    5, color = Color3.fromRGB(190,   0,  55) },
+	-- Mythic — amorti ~230s
+	{ id = "DoubleImp",   name = "Double Impostor",    rarity = "Mythic",    price =  540000000, income =     2350000, weight =    5, color = Color3.fromRGB(190,   0,  55) },
+	{ id = "TripleImp",   name = "Triple Impostor",    rarity = "Mythic",    price = 1200000000, income =     5220000, weight =    3, color = Color3.fromRGB(120,   0,  35) },
+	{ id = "Jester",      name = "The Jester",         rarity = "Mythic",    price = 2600000000, income =    11300000, weight =    2, color = Color3.fromRGB(238,  84, 187) },
 
-	-- Secret
-	{ id = "AmogusPrime", name = "Amogus Prime",       rarity = "Secret",    price =9000000, income =420000, weight =    1, color = Color3.fromRGB( 12,  12,  18) },
+	-- Secret — amorti ~320s
+	{ id = "AmogusPrime", name = "Amogus Prime",       rarity = "Secret",    price = 5800000000, income =    18100000, weight =    1, color = Color3.fromRGB( 12,  12,  18) },
+	{ id = "TheCrewmate", name = "The Crewmate",       rarity = "Secret",    price =13000000000, income =    40600000, weight =    1, color = Color3.fromRGB(215, 224, 240) },
 } :: { UnitDef }
 
 -- ─── Mutasyonlar ────────────────────────────────────────────────────────────

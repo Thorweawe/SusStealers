@@ -55,6 +55,186 @@ local function newAnchoredPart(name: string, size: Vector3, cframe: CFrame, colo
 	return part
 end
 
+--[[
+	═══ ÜST KAT ═════════════════════════════════════════════════════════════
+
+	Eskiden üst kat tek bir levha + SAĞ kenarda tek bir rampaydı. İki sorun:
+
+	  1. Simetrik değildi. Üssün sağ yarısı rampayla kapalı, sol yarısı boş;
+	     karşıdan bakınca yapı bir tarafa devrilmiş gibi duruyordu.
+	  2. Kenarları çıplaktı. Korkuluk, kolon, süpürgelik yok — 18 stud
+	     yükseklikte havada duran bir levha.
+
+	Şimdi: ortada kaidelerin durduğu ana güverte, iki UCUNDA simetrik birer
+	merdiven, köşelerde alt kata inen kolonlar, çevresinde korkuluk.
+
+	Merdivenler uçlarda çünkü kaideler ortada duruyor (x ekseninde ±13
+	civarı). Uçlarda 10'ar studluk boş şerit zaten vardı; merdiven oraya
+	oturunca ne kaide kaybediyoruz ne de ortayı daraltıyoruz.
+]]
+local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number)
+	local halfX = Config.PlotSize.X / 2
+	local halfZ = Config.PlotSize.Z / 2
+	local deckZ = Config.PlotSize.Z - 12          -- ana güverte derinliği
+	local rise = Config.FloorHeight
+
+	-- Merdiven şeridinin genişliği ve ana güvertenin yarı genişliği
+	local STAIR_W = 11
+	local deckHalfX = halfX - STAIR_W
+
+	local DECK_COLOR = Color3.fromRGB(64, 76, 82)
+	local TRIM_COLOR = Color3.fromRGB(126, 140, 144)
+	local RAIL_COLOR = Color3.fromRGB(168, 181, 184)
+
+	local function slab(name: string, size: Vector3, offset: Vector3, color: Color3): Part
+		local p = newAnchoredPart(name, size, CFrame.new(origin + offset), color, parent)
+		p.Material = Enum.Material.Metal
+		return p
+	end
+
+	-- ── Ana güverte ────────────────────────────────────────────────────────
+	slab("Deck", Vector3.new(deckHalfX * 2, 1, deckZ), Vector3.new(0, deckTop - 0.5, 0), DECK_COLOR)
+
+	-- Güverte kenarına süpürgelik: levha kalınlığı okunsun
+	for _, sz in { -1, 1 } do
+		slab("DeckEdge", Vector3.new(deckHalfX * 2 + 0.6, 1.4, 0.8),
+			Vector3.new(0, deckTop - 0.7, sz * deckZ / 2), TRIM_COLOR)
+	end
+
+	--[[
+		── Merdivenler ────────────────────────────────────────────────────
+		İki uçta, aynı ölçüde, aynı yönde tırmanıyorlar. Basamak sayısı
+		yükseklikten türetiliyor; FloorHeight değişirse merdiven kendiliğinden
+		uyuyor, elle sayı girilmiyor.
+
+		Basamak yüksekliği 1.4 civarında tutuluyor — Roblox karakteri
+		varsayılan olarak 2 stud tırmanabiliyor, daha yükseği zıplamadan
+		çıkılmıyor.
+	]]
+	local STEPS = math.max(6, math.ceil(rise / 1.4))
+	local stepRise = rise / STEPS
+	local stepRun = 2.2
+	local stairLen = STEPS * stepRun
+
+	for _, sx in { -1, 1 } do
+		local sxCenter = sx * (deckHalfX + STAIR_W / 2)
+
+		-- Merdivenin oturduğu kuyu duvarı: basamaklar boşlukta durmasın
+		slab("StairWall", Vector3.new(STAIR_W, rise, 0.8),
+			Vector3.new(sxCenter, deckTop - rise / 2, -stairLen / 2 - 1.5), TRIM_COLOR)
+
+		for i = 1, STEPS do
+			local p = newAnchoredPart(
+				"Step",
+				Vector3.new(STAIR_W - 1, stepRise, stepRun),
+				CFrame.new(origin + Vector3.new(
+					sxCenter,
+					deckTop - rise + (i - 0.5) * stepRise,
+					-stairLen / 2 + (i - 0.5) * stepRun
+				)),
+				if i % 2 == 0 then DECK_COLOR else TRIM_COLOR,
+				parent
+			)
+			p.Material = Enum.Material.Metal
+			p.CanCollide = true
+		end
+
+		-- Merdiven başındaki sahanlık: basamaktan güverteye geçiş
+		slab("Landing", Vector3.new(STAIR_W, 1, deckZ / 2 - stairLen / 2 + 1),
+			Vector3.new(sxCenter, deckTop - 0.5, stairLen / 2 + (deckZ / 2 - stairLen / 2) / 2),
+			DECK_COLOR)
+
+		--[[
+			Merdiven korkuluğu. Eğimli tek parça: uzunluk ve açı basamak
+			ölçülerinden hesaplanıyor, böylece basamaklarla tam örtüşüyor.
+		]]
+		local slope = math.atan2(rise, stairLen)
+		local railLen = math.sqrt(rise * rise + stairLen * stairLen)
+		for _, rs in { -1, 1 } do
+			local rail = newAnchoredPart(
+				"StairRail",
+				Vector3.new(0.4, 0.4, railLen),
+				CFrame.new(origin + Vector3.new(
+					sxCenter + rs * (STAIR_W / 2 - 0.4),
+					deckTop - rise / 2 + 3.4,
+					0
+				)) * CFrame.Angles(-slope, 0, 0),
+				RAIL_COLOR,
+				parent
+			)
+			rail.Material = Enum.Material.Metal
+		end
+	end
+
+	--[[
+		── Korkuluk ───────────────────────────────────────────────────────
+		Güvertenin AÇIK kenarlarına. Merdivenlerin geldiği uçlara konmuyor,
+		yoksa geçişi kapatır. Üst çubuk + dikmeler; alt boşluk bilinçli,
+		Skeld'in korkulukları da öyle.
+	]]
+	local function railing(cx: number, cz: number, length: number, along: string)
+		local size = if along == "x"
+			then Vector3.new(length, 0.35, 0.35)
+			else Vector3.new(0.35, 0.35, length)
+
+		slab("Rail", size, Vector3.new(cx, deckTop + 3.2, cz), RAIL_COLOR)
+
+		local posts = math.max(2, math.floor(length / 7))
+		for i = 0, posts do
+			local t = i / posts
+			slab("RailPost", Vector3.new(0.35, 3.2, 0.35), Vector3.new(
+				if along == "x" then cx - length / 2 + length * t else cx,
+				deckTop + 1.6,
+				if along == "z" then cz - length / 2 + length * t else cz
+			), RAIL_COLOR)
+		end
+	end
+
+	-- Ön ve arka kenar (kaidelerin bakış yönü açık kalıyor: sadece uçlar)
+	for _, sz in { -1, 1 } do
+		for _, sx in { -1, 1 } do
+			railing(sx * (deckHalfX - 7), sz * deckZ / 2, 14, "x")
+		end
+	end
+	-- Merdiven sahanlıklarının dış kenarı
+	for _, sx in { -1, 1 } do
+		railing(sx * halfX, deckZ / 4, deckZ / 2, "z")
+	end
+
+	--[[
+		── Kolonlar ───────────────────────────────────────────────────────
+		Güverteyi alt kata bağlıyorlar. Yapısal olarak gereksiz (her şey
+		anchored) ama görsel olarak şart: kolonsuz üst kat havada asılı
+		duruyor ve yapı inandırıcı olmuyor.
+	]]
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			slab("Column", Vector3.new(1.8, rise, 1.8),
+				Vector3.new(sx * (deckHalfX - 1), deckTop - rise / 2 - 1, sz * (deckZ / 2 - 1)),
+				TRIM_COLOR)
+		end
+	end
+
+	-- Güvertenin altına gömme aydınlatma: alt kat karanlıkta kalmasın
+	for _, sx in { -1, 1 } do
+		local lamp = newAnchoredPart(
+			"DeckLamp",
+			Vector3.new(deckHalfX, 0.3, 3),
+			CFrame.new(origin + Vector3.new(sx * deckHalfX / 2, deckTop - 1.2, 0)),
+			Color3.fromRGB(255, 244, 222),
+			parent
+		)
+		lamp.Material = Enum.Material.Neon
+		lamp.CanCollide = false
+
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 244, 222)
+		light.Range = 26
+		light.Brightness = 0.7
+		light.Parent = lamp
+	end
+end
+
 local function buildPlot(index: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = string.format("Plot%d", index)
@@ -98,39 +278,7 @@ local function buildPlot(index: number): Model
 		floorModel.Parent = floors
 
 		if floor > 1 then
-			-- Üst katın zemini
-			local deck = newAnchoredPart(
-				"Deck",
-				Vector3.new(Config.PlotSize.X, 1, Config.PlotSize.Z - 12),
-				CFrame.new(origin + Vector3.new(0, deckTop - 0.5, 0)),
-				Color3.fromRGB(48, 54, 66),
-				floorModel
-			)
-			deck.Material = Enum.Material.Metal
-
-			-- Rampa: 24 stud yatay, FloorHeight kadar dikey.
-			-- Uzunluk ve açı bu ikisinden türetiliyor, elle sayı girilmiyor;
-			-- FloorHeight değişirse rampa kendiliğinden uyuyor.
-			local run = 24
-			local rise = Config.FloorHeight
-			local length = math.sqrt(run * run + rise * rise)
-			local angle = math.atan2(rise, run)
-
-			-- Sağ kenarda, arka tarafta: konveyör (ön kenar), tabela ve
-			-- doğuş pedi (orta) ile çakışmasın. Yatay koşu plot içinde
-			-- kalsın diye merkez arka kenardan run/2 kadar içeride.
-			local ramp = newAnchoredPart(
-				"Ramp",
-				Vector3.new(10, 1, length),
-				CFrame.new(origin + Vector3.new(
-					Config.PlotSize.X / 2 - 7,
-					deckTop - rise / 2 - 0.5,
-					-Config.PlotSize.Z / 2 + run / 2
-				)) * CFrame.Angles(-angle, 0, 0),
-				Color3.fromRGB(60, 68, 82),
-				floorModel
-			)
-			ramp.Material = Enum.Material.Metal
+			buildUpperFloor(floorModel, origin, deckTop)
 		end
 
 		-- Son PassExtraPodiumsPerFloor tanesi bonus: her zaman inşa ediliyor

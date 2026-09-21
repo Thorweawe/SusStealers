@@ -4,10 +4,11 @@
 -- Oyunun bütün amacı pahalı karakter toplamak ama Amogus Prime ile Red
 -- Crewmate kaidede aynı görünüyordu. Hedef görünmezse hedef değildir.
 --
--- Etki basamaklı: ucuzlar sade kalıyor, pahalılar sırayla ışık sütunu,
--- dönen halka, ikinci halka ve parçacık kazanıyor. Böylece hem uzaktan
--- "orada değerli bir şey var" okunuyor, hem de kademeler birbirinden
--- ayırt ediliyor.
+-- Etki basamaklı: ucuzlar sade kalıyor, Rare'den itibaren ışık sütunu ve
+-- kademeye ÖZEL bir sergi yapısı geliyor (altıgen çerçeve, cam vitrin,
+-- kanat, mızraklı kafes, obsidyen levha). Böylece hem uzaktan "orada
+-- değerli bir şey var" okunuyor, hem de hangi kademe olduğu şekilden
+-- anlaşılıyor.
 --
 -- Tamamen istemci tarafı. Her oyuncu kendi makinesinde üretiyor, ağda
 -- hiçbir şey taşınmıyor.
@@ -26,19 +27,19 @@ local FX_NAME = "RarityFX"
 	Kademeler. order 1-2 (Common, Uncommon) kasıtlı olarak boş: her kaide
 	ışıldarsa hiçbiri öne çıkmaz. Vurgu ancak zıtlıkla çalışıyor.
 ]]
-local function tierOf(order: number): { beam: number, rings: number, particles: boolean }
+local function tierOf(order: number): { beam: number, particles: boolean }
 	if order <= 2 then
-		return { beam = 0, rings = 0, particles = false }
+		return { beam = 0, particles = false }
 	elseif order == 3 then
-		return { beam = 7, rings = 0, particles = false }      -- Rare
+		return { beam = 7, particles = false }      -- Rare
 	elseif order == 4 then
-		return { beam = 10, rings = 1, particles = false }     -- Epic
+		return { beam = 10, particles = false }     -- Epic
 	elseif order == 5 then
-		return { beam = 14, rings = 1, particles = true }      -- Legendary
+		return { beam = 14, particles = true }      -- Legendary
 	elseif order == 6 then
-		return { beam = 18, rings = 2, particles = true }      -- Mythic
+		return { beam = 18, particles = true }      -- Mythic
 	end
-	return { beam = 24, rings = 3, particles = true }          -- Secret
+	return { beam = 24, particles = true }          -- Secret
 end
 
 --[[
@@ -62,15 +63,23 @@ type Accent = {
 
 local ACCENTS: { [string]: Accent } = {
 	Guardian = { halo = true, tint = Color3.fromRGB(235, 235, 255) },
+	Janitor = { grate = true, tint = Color3.fromRGB(150, 110, 60) },
 	VentCrawler = { grate = true },
 	MedbayScan = { scan = true, tint = Color3.fromRGB(90, 200, 255) },
+	Sheriff = { spikes = 5, tint = Color3.fromRGB(218, 165, 32) },
 	Impostor = { spikes = 4, tint = Color3.fromRGB(190, 20, 20) },
 	Reactor = { smoke = true, tint = Color3.fromRGB(255, 120, 20), pulse = true },
+	O2Sabotage = { scan = true, pulse = true, tint = Color3.fromRGB(120, 220, 255) },
 	Emergency = { pulse = true, tint = Color3.fromRGB(255, 60, 60) },
 	Ejected = { smoke = true, tint = Color3.fromRGB(60, 60, 140) },
+	Polus = { smoke = true, tint = Color3.fromRGB(190, 210, 225) },
 	TheSkeld = { spikes = 2, tint = Color3.fromRGB(150, 165, 185) },
+	Airship = { spikes = 3, smoke = true, tint = Color3.fromRGB(150, 118, 70) },
 	DoubleImp = { spikes = 6, tint = Color3.fromRGB(220, 10, 70) },
+	TripleImp = { spikes = 9, smoke = true, tint = Color3.fromRGB(150, 0, 45) },
+	Jester = { halo = true, spikes = 6, pulse = true, tint = Color3.fromRGB(238, 84, 187) },
 	AmogusPrime = { halo = true, spikes = 8, smoke = true, pulse = true },
+	TheCrewmate = { halo = true, scan = true, smoke = true, pulse = true, tint = Color3.fromRGB(215, 224, 240) },
 }
 
 export type FX = {
@@ -78,10 +87,8 @@ export type FX = {
 	Stop: () -> (),
 }
 
-type Ring = { part: BasePart, speed: number, base: CFrame }
 
 function RarityFX.Create(): FX
-	local rings: { Ring } = {}
 	-- Kayan tarama çizgileri ve nabız atan halkalar. Ayrı listeler, çünkü
 	-- biri dikey kayıyor diğeri boyut/saydamlık değiştiriyor.
 	local scanners: { { part: BasePart, base: number } } = {}
@@ -100,13 +107,6 @@ function RarityFX.Create(): FX
 	local function clear(podium: BasePart)
 		local old = podium:FindFirstChild(FX_NAME)
 		if old then
-			-- Dönen halkalar listesinden de çıkar
-			for i = #rings, 1, -1 do
-				if not rings[i].part:IsDescendantOf(podium) then
-					continue
-				end
-				table.remove(rings, i)
-			end
 			old:Destroy()
 		end
 	end
@@ -183,27 +183,126 @@ function RarityFX.Create(): FX
 		light.Brightness = 0.8 + rarity.order * 0.25
 		light.Parent = base
 
-		-- Dönen halkalar: her biri ters yönde, hızları farklı
-		for i = 1, tier.rings do
-			local ring = Instance.new("Part")
-			ring.Name = "Ring"
-			ring.Size = Vector3.new(7 + i * 1.6, 0.22, 0.6)
-			ring.CFrame = CFrame.new(top + Vector3.new(0, 1.6 + i * 1.9, 0))
-			ring.Color = color
-			ring.Material = Enum.Material.Neon
-			ring.Transparency = 0.15
-			ring.Anchored = true
-			ring.CanCollide = false
-			ring.CanQuery = false
-			ring.CanTouch = false
-			ring.CastShadow = false
-			ring.Parent = holder
+		--[[
+			═══ NADİRLİĞE ÖZEL SERGİ YAPISI ═══════════════════════════════
 
-			table.insert(rings, {
-				part = ring,
-				speed = (if i % 2 == 0 then -1 else 1) * (28 + i * 14),
-				base = ring.CFrame,
-			})
+			Eskiden her üst kademe aynı şeyi alıyordu: kafasının üstünde
+			dönen halka(lar). Sadece SAYI değişiyordu — Epic bir, Mythic
+			iki, Secret üç. Yani kademeler birbirinden ayırt edilmiyordu,
+			sadece "daha çok dönen şey" oluyordu. Dönüş de sürekli hareket
+			ettiği için gözü yoruyor ve kaidedeki asıl nesneden çalıyordu.
+
+			Artık her kademenin kendi SABİT yapısı var — bir müzede farklı
+			değerdeki eserlerin farklı vitrinlerde durması gibi. Hareket yok,
+			siluet var; uzaktan hangi kademe olduğu şekilden okunuyor.
+
+			  Rare      altıgen kaide çerçevesi
+			  Epic      dört köşeli cam vitrin
+			  Legendary iki yandan kanat + önde madalyon
+			  Mythic    altı mızraklı kafes, uçları tepede birleşiyor
+			  Secret    obsidyen levha + sekiz kıymık, ters yönde aşağı
+		]]
+		local function piece(name: string, size: Vector3, cf: CFrame, c: Color3, trans: number, mat: Enum.Material?): Part
+			local p = Instance.new("Part")
+			p.Name = name
+			p.Size = size
+			p.CFrame = cf
+			p.Color = c
+			p.Material = mat or Enum.Material.Neon
+			p.Transparency = trans
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = holder
+			return p
+		end
+
+		local dark = color:Lerp(Color3.new(0, 0, 0), 0.55)
+
+		if rarity.order == 3 then
+			-- Rare: altıgen kaide çerçevesi. Altı kenar parçası + köşe topuzları.
+			for i = 1, 6 do
+				local a = (i - 1) * (math.pi / 3)
+				piece("FrameEdge", Vector3.new(3.1, 0.35, 0.5),
+					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0.3, 2.7),
+					color, 0.2)
+				piece("FrameKnob", Vector3.new(0.6, 1.1, 0.6),
+					CFrame.new(top) * CFrame.Angles(0, a + math.pi / 6, 0) * CFrame.new(0, 0.7, 3.1),
+					dark, 0.1, Enum.Material.Metal)
+			end
+
+		elseif rarity.order == 4 then
+			-- Epic: cam vitrin. Dört dikme + dört cam yüzey + kapak.
+			for _, sx in { -1, 1 } do
+				for _, sz in { -1, 1 } do
+					piece("CasePost", Vector3.new(0.35, 7, 0.35),
+						CFrame.new(top + Vector3.new(sx * 2.9, 3.5, sz * 2.9)),
+						dark, 0, Enum.Material.Metal)
+				end
+			end
+			for i = 0, 3 do
+				local a = i * (math.pi / 2)
+				piece("CaseGlass", Vector3.new(5.8, 7, 0.12),
+					CFrame.new(top + Vector3.new(0, 3.5, 0)) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 2.9),
+					color, 0.9, Enum.Material.Glass)
+			end
+			piece("CaseLid", Vector3.new(6.4, 0.4, 6.4),
+				CFrame.new(top + Vector3.new(0, 7.2, 0)), dark, 0.1, Enum.Material.Metal)
+
+		elseif rarity.order == 5 then
+			--[[ Legendary: iki yanda yukarı açılan kanat. Her kanat üç
+			     dilimden; dıştaki daha uzun ve daha dik — tek parça düz bir
+			     levha gibi duruyordu. ]]
+			for _, s in { -1, 1 } do
+				for i = 1, 3 do
+					piece("Wing", Vector3.new(0.4, 1.4 + i * 1.5, 2.6 - i * 0.5),
+						CFrame.new(top + Vector3.new(s * (2.6 + i * 0.55), 1.4 + i * 0.8, 0))
+							* CFrame.Angles(0, 0, math.rad(-s * (12 + i * 9))),
+						color, 0.18)
+				end
+			end
+			-- Önde madalyon
+			piece("Medal", Vector3.new(2.4, 2.4, 0.3),
+				CFrame.new(top + Vector3.new(0, 1.6, -3.1)), color, 0.1)
+			piece("MedalRim", Vector3.new(3.1, 3.1, 0.18),
+				CFrame.new(top + Vector3.new(0, 1.6, -3.2)), dark, 0, Enum.Material.Metal)
+
+		elseif rarity.order == 6 then
+			--[[ Mythic: altı mızrak. Tabandan çıkıp tepede birleşiyorlar;
+			     kafes gibi kapatıyor ama içerisi görünüyor. ]]
+			for i = 1, 6 do
+				local a = (i - 1) * (math.pi / 3)
+				piece("Spear", Vector3.new(0.45, 9.5, 0.45),
+					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(3.4, 4.6, 0)
+						* CFrame.Angles(math.rad(13), 0, 0),
+					color, 0.15)
+				piece("SpearTip", Vector3.new(0.85, 0.85, 0.85),
+					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(2.3, 9.4, 0),
+					color, 0)
+			end
+			piece("Capstone", Vector3.new(1.8, 1.8, 1.8),
+				CFrame.new(top + Vector3.new(0, 10.2, 0)) * CFrame.Angles(0, math.rad(45), math.rad(45)),
+				color, 0)
+
+		elseif rarity.order >= 7 then
+			--[[ Secret: kural bozuluyor. Işık yukarı değil, kaide AŞAĞI
+			     doğru açılıyor — altında bir boşluk varmış gibi. Sekiz
+			     kıymık dışa doğru saçılmış, hiçbiri simetrik değil. ]]
+			piece("VoidSlab", Vector3.new(7.6, 0.3, 7.6),
+				CFrame.new(top + Vector3.new(0, 0.2, 0)), Color3.fromRGB(8, 8, 12), 0, Enum.Material.Glass)
+			piece("VoidWell", Vector3.new(5.4, 0.2, 5.4),
+				CFrame.new(top + Vector3.new(0, 0.32, 0)), Color3.fromRGB(2, 2, 4), 0, Enum.Material.SmoothPlastic)
+
+			for i = 1, 8 do
+				local a = (i - 1) * (math.pi / 4) + (i % 3) * 0.19
+				local len = 2.6 + (i % 4) * 1.1
+				piece("Shard", Vector3.new(0.3, len, 0.3),
+					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(3.6, len / 2 + 0.2, 0)
+						* CFrame.Angles(0, 0, math.rad(18 + (i % 3) * 11)),
+					Color3.fromRGB(150, 120, 210), 0.25)
+			end
 		end
 
 		if tier.particles then
@@ -246,10 +345,15 @@ function RarityFX.Create(): FX
 		end
 
 		if accent.halo then
-			-- Koruyucu Melek: başın üstünde halka
-			local halo = deco("Halo", Vector3.new(4.2, 0.22, 4.2),
-				CFrame.new(top + Vector3.new(0, 5.4, 0)), tone, 0.1)
-			table.insert(rings, { part = halo, speed = 18, base = halo.CFrame })
+			--[[
+				Koruyucu Melek: başın üstünde halka. Artık DÖNMÜYOR — gerçek
+				bir hale de dönmez, ve dönen her şey kaidedeki asıl nesneden
+				dikkat çalıyordu. Sabit ama hafifçe eğik: düz duran halka
+				tabak gibi görünüyordu.
+			]]
+			deco("Halo", Vector3.new(4.2, 0.22, 4.2),
+				CFrame.new(top + Vector3.new(0, 5.4, 0)) * CFrame.Angles(math.rad(8), 0, math.rad(5)),
+				tone, 0.1)
 		end
 
 		if accent.spikes then
@@ -349,12 +453,6 @@ function RarityFX.Create(): FX
 	local connection = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
 
-		for _, r in rings do
-			if r.part.Parent then
-				r.part.CFrame = r.base * CFrame.Angles(0, math.rad(r.speed * t), 0)
-			end
-		end
-
 		-- Tarama çizgisi: aşağıdan yukarı süzülüp başa dönüyor
 		for _, s in scanners do
 			if s.part.Parent then
@@ -377,9 +475,6 @@ function RarityFX.Create(): FX
 
 		-- Silinmiş efektleri listelerden düşür
 		if math.floor(t * 2) % 8 == 0 then
-			prune(rings, function(r)
-				return r.part
-			end)
 			prune(scanners, function(s)
 				return s.part
 			end)

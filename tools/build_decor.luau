@@ -69,13 +69,30 @@ local spanZ = (ROWS - 1) * ROW_SPACING
 local centerX = spanX / 2
 local centerZ = spanZ / 2
 
-local MARGIN = 34
+local MARGIN = 42
 local halfW = spanX / 2 + halfX + MARGIN     -- istasyon yarı genişliği
 local halfD = spanZ / 2 + halfZ + MARGIN     -- istasyon yarı derinliği
 
-local WALL_H = 34          -- çeper duvar yüksekliği
+--[[
+	DUVAR YÜKSEKLİĞİ — "istasyon çok dar hissettiriyor" şikâyetinin sayısal
+	sebebi buydu.
+
+	Üsler 3 katlı: taban 1 + 2 × FloorHeight(18) = 37 stud. Duvar 34'tü,
+	tavan 38.6'ydı. Yani en üst kattaki kaideler tavana 1.6 stud kalıyor,
+	üstlerindeki karakterler (6 stud) ve isim etiketleri tavanın İÇİNDEN
+	geçiyordu. Koridorda yürürken üstünde ezici bir kapak var gibi
+	duruyordu.
+
+	52'de en üst kat ile tavan arası 19 stud kalıyor: karakter, etiket ve
+	üstünde nefes alacak boşluk sığıyor. Hesap: 1 + 2*18 + 6 (karakter) +
+	7 (etiket) = 44, üstüne pay.
+
+	Kat sayısı veya FloorHeight değişirse buranın da değişmesi gerekir —
+	altta bir kontrol var, delen parça olursa uyarı basıyor.
+]]
+local WALL_H = 52          -- çeper duvar yüksekliği
 local HULL_DEPTH = 24      -- güverte altı gövde derinliği
-local ARCH_CLEAR = 15      -- kemer altı boşluk
+local ARCH_CLEAR = 19      -- kemer altı boşluk (eski 15: alçak geliyordu)
 
 -- ─── Lobi ölçüleri ──────────────────────────────────────────────────────────
 -- Üslerin önünde ayrı bir platform: ışınlanma, sıralama panoları, çark.
@@ -91,7 +108,7 @@ local LOBBY_D = 120          -- lobi derinliği
 	~57 stud) tavanı deliyordu. İkisi birden çözülüyor: duvar 40'a çıktı,
 	tavan 42.6'ya kondu, çark da ölçü olarak küçültüldü.
 ]]
-local LOBBY_WALL_H = 40
+local LOBBY_WALL_H = 46
 local LOBBY_CEIL_Y = LOBBY_WALL_H + 2.6
 
 --[[
@@ -1757,9 +1774,15 @@ do
 		yaw kuralı: figürün vizörü yerel -Z'ye bakar. yaw=90 → -X yönü,
 		yaw=-90 → +X yönü.
 	]]
+	--[[
+		Ölçek 4'ten 2.8'e indi. 4'te kaide 17.6 stud genişliğindeydi; iki
+		tanesi girişin iki yanında birer DUVAR gibi duruyor ve kapıdan çıkan
+		oyuncu dar bir yarıktan geçiyordu ("önünde engeller var"). 2.8'de
+		kaide 12.3 stud, aradaki açıklık 40 stud — geçit değil meydan.
+	]]
 	local gateZ = lobbyZ - LOBBY_D / 2 + 18
-	pedestal(centerX - LOBBY_GATE_WIDTH / 2 - 14, gateZ, 4, CREW[1], -90)
-	pedestal(centerX + LOBBY_GATE_WIDTH / 2 + 14, gateZ, 4, CREW[2], 90)
+	pedestal(centerX - LOBBY_GATE_WIDTH / 2 - 16, gateZ, 2.8, CREW[1], -90)
+	pedestal(centerX + LOBBY_GATE_WIDTH / 2 + 16, gateZ, 2.8, CREW[2], 90)
 
 	--[[
 		Renk galerisi. Arka duvara koyamıyoruz — sıralama panoları orada ve
@@ -1909,6 +1932,261 @@ do
 	end
 end
 
+-- ─── 13c. Lobi mimarisi ─────────────────────────────────────────────────────
+--[[
+	Lobi "üstü kapalı boş bir platform"du. Kapıdan giriyordun, ortada bir
+	kürsü, solda bir çark, arkada üç ekran vardı ama aralarındaki alan
+	tamamen boştu — nereye gideceğini anlatan hiçbir şey yoktu ve çarkın
+	oraya bir yol olduğu belli olmuyordu.
+
+	Eksik olan şey dekor değil YÖNLENDİRMEydi. Gerçek bir terminalde yolu
+	üç şey anlatır:
+
+	  1. Zeminde boyalı güzergâh. Nereye basacağını gözün kendiliğinden
+	     takip ediyor.
+	  2. Üstte kapı/portal. Bir alandan diğerine geçtiğini beden hissediyor.
+	  3. Kenarda oturma/dolap sırası. Boşluğu daraltıyor ve mekânı
+	     "koridor" değil "oda" yapıyor.
+
+	Üçü de burada. Çark artık kendi nişinde: portal altından giriliyor,
+	sıra korkulukları var, üstünde tabelası var. Uzaktan bakınca "orada bir
+	şey var" diyorsun — istenen buydu.
+]]
+
+do
+	local f = group("Concourse")
+	local halfLW, halfLD = LOBBY_W / 2, LOBBY_D / 2
+	local gateFront = lobbyZ - halfLD
+	local wheelX = centerX - LOBBY_W / 2 + 36
+	local wheelZ = lobbyZ + 6
+
+	local PAINT_Y = 0.32
+
+	--[[ Boyalı güzergâh. `along` yönünde uzanan bant + kenarlarında kesikli
+	     uyarı şeridi. İstasyondaki yürüme yolunun aynısı; iki alanın aynı
+	     dilde konuşması bilinçli. ]]
+	local function lane(cx: number, cz: number, length: number, width: number, along: string)
+		local function box(l: number, w: number): Vector3
+			return if along == "x" then Vector3.new(l, 0.1, w) else Vector3.new(w, 0.1, l)
+		end
+
+		build({ name = "LanePaint", size = box(length, width),
+			cf = at(cx, PAINT_Y, cz),
+			color = DECK_ALT:Lerp(Color3.fromRGB(150, 160, 180), 0.3),
+			emit = "Paint", parent = f })
+
+		local step = 6
+		local count = math.floor(length / step)
+		for _, side in { -1, 1 } do
+			for i = 0, count - 1 do
+				local off = -length / 2 + (i + 0.5) * step
+				build({
+					name = "LaneStripe",
+					size = box(step * 0.55, 0.9),
+					cf = at(
+						if along == "x" then cx + off else cx + side * width / 2,
+						PAINT_Y + 0.02,
+						if along == "x" then cz + side * width / 2 else cz + off
+					),
+					color = if i % 2 == 0 then HAZARD else HAZARD_DARK,
+					emit = "Paint", parent = f,
+				})
+			end
+		end
+	end
+
+	-- Ana aks: kapıdan ışınlanma kürsüsüne
+	lane(centerX, (gateFront + lobbyZ) / 2, lobbyZ - gateFront - 10, 18, "z")
+	-- Çark kolu: ana akstan sola
+	lane((centerX + wheelX) / 2, lobbyZ - 22, centerX - wheelX, 12, "x")
+	-- Çarkın önüne inen kol
+	lane(wheelX, lobbyZ - 14, 14, 12, "z")
+	-- Panolara giden arka aks
+	lane(centerX, lobbyZ + 28, 30, 14, "z")
+
+	--[[
+		Portal. Çark nişinin girişinde iki ayak + üstünde kiriş + tabela.
+		Bir kapıdan geçiyor olmak, "burası ayrı bir yer" bilgisini tek
+		başına veriyor; zemin boyası yönü, portal varışı anlatıyor.
+	]]
+	local PORTAL_W, PORTAL_H = 30, 22
+	local portalZ = lobbyZ - 9
+
+	for _, s in { -1, 1 } do
+		build({ name = "PortalLeg", size = Vector3.new(3, PORTAL_H, 3),
+			cf = at(wheelX + s * PORTAL_W / 2, PORTAL_H / 2, portalZ),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "PortalFoot", size = Vector3.new(5, 1, 5),
+			cf = at(wheelX + s * PORTAL_W / 2, 0.5, portalZ),
+			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
+	end
+
+	build({ name = "PortalBeam", size = Vector3.new(PORTAL_W + 5, 4, 3.4),
+		cf = at(wheelX, PORTAL_H + 1, portalZ), color = HULL,
+		material = Enum.Material.Metal, parent = f })
+
+	local header = build({ name = "PortalSign", size = Vector3.new(PORTAL_W - 2, 3.4, 0.5),
+		cf = at(wheelX, PORTAL_H + 1, portalZ - 1.9), color = SHADOW,
+		material = Enum.Material.SmoothPlastic, parent = f })
+
+	do
+		local surface = Instance.new("SurfaceGui")
+		surface.Name = "Label"
+		surface.Face = Enum.NormalId.Front
+		surface.CanvasSize = Vector2.new(280, 34)
+		surface.LightInfluence = 0
+		surface.Parent = header
+
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBold
+		text.TextScaled = true
+		text.TextColor3 = BRASS
+		text.Text = "PRIZE DECK"
+		text.Parent = surface
+	end
+
+	-- Portalın altını yıkayan iki gömme lamba
+	for _, s in { -1, 1 } do
+		local wash = build({ name = "PortalWash", size = Vector3.new(4, 0.4, 1.6),
+			cf = at(wheelX + s * 9, PORTAL_H - 1.6, portalZ - 1.2),
+			color = LAMP, emit = "Fixture", parent = f })
+		glow(wash, LAMP, 16, 0.8)
+	end
+
+	--[[
+		Sıra korkulukları. Çarka giden son on studu daraltıyorlar; oyuncu
+		"burada sıraya giriliyor" hissiyle yaklaşıyor. Direk + iki yatay
+		çubuk; gerçek halat yerine çubuk çünkü halat eğrisi tek parçayla
+		yapılamıyor ve sahte duruyor.
+	]]
+	for _, s in { -1, 1 } do
+		local qx = wheelX + s * 9
+		for i = 0, 3 do
+			local qz = portalZ + 2 + i * 5
+			build({ name = "QueuePost", size = Vector3.new(0.7, 4, 0.7),
+				cf = at(qx, 2, qz), color = TRIM,
+				material = Enum.Material.Metal, parent = f })
+			build({ name = "QueueCap", size = Vector3.new(1.1, 0.5, 1.1),
+				cf = at(qx, 4.2, qz), color = BRASS,
+				emit = "Indicator", parent = f })
+
+			if i < 3 then
+				for _, h in { 2.2, 3.4 } do
+					build({ name = "QueueRail", size = Vector3.new(0.35, 0.35, 5),
+						cf = at(qx, h, qz + 2.5), color = BRASS,
+						emit = "Paint", parent = f })
+				end
+			end
+		end
+	end
+
+	--[[
+		Nakliye gemisi oturakları. Among Us'ın lobi ekranındaki sıra sıra
+		koltuklar: sırtlık duvarda, oturak önde, aralarında kolçak. Lobinin
+		iki yan duvarına diziliyorlar — hem boşluğu dolduruyor hem de
+		referansın en tanınır detayı.
+	]]
+	local function bench(bx: number, bz: number, facing: number)
+		local base = CFrame.new(bx, 0, bz) * CFrame.Angles(0, math.rad(facing), 0)
+
+		build({ name = "BenchBack", size = Vector3.new(14, 6, 1.2),
+			cf = base * CFrame.new(0, 4.2, 1.4), color = TEAL,
+			material = Enum.Material.SmoothPlastic, collide = true, parent = f })
+		build({ name = "BenchSeat", size = Vector3.new(14, 1.2, 4.6),
+			cf = base * CFrame.new(0, 2.6, -0.8), color = TEAL,
+			material = Enum.Material.SmoothPlastic, collide = true, parent = f })
+		build({ name = "BenchApron", size = Vector3.new(14, 2, 1),
+			cf = base * CFrame.new(0, 1.2, -2.6), color = STEEL_DEEP,
+			material = Enum.Material.Metal, parent = f })
+
+		for _, s in { -1, 1 } do
+			build({ name = "BenchArm", size = Vector3.new(0.8, 1.6, 5),
+				cf = base * CFrame.new(s * 7, 3.9, -0.8), color = EDGE,
+				material = Enum.Material.Metal, parent = f })
+			build({ name = "BenchLeg", size = Vector3.new(1, 2, 1),
+				cf = base * CFrame.new(s * 6, 1, -0.8), color = EDGE,
+				material = Enum.Material.Metal, parent = f })
+		end
+	end
+
+	-- Sol duvar (çark tarafı, portalın önünde kalan kısım)
+	for i = 0, 1 do
+		bench(centerX - halfLW + 10, lobbyZ - 44 + i * 18, -90)
+	end
+	-- Sağ duvar, heykel galerisinin önü boş kalmasın
+	for i = 0, 1 do
+		bench(centerX + halfLW - 10, lobbyZ - 44 + i * 18, 90)
+	end
+
+	--[[
+		Duvar dolapları. Oturakların arasındaki boşluğu dolduruyor ve
+		duvarı düz bir levha olmaktan çıkarıyor. Kapak çizgileri ve kulp
+		dışında bir şey yok — Skeld'in dolapları da bu kadar sade.
+	]]
+	local function lockers(lx: number, lz: number, facing: number, count: number)
+		local base = CFrame.new(lx, 0, lz) * CFrame.Angles(0, math.rad(facing), 0)
+
+		build({ name = "LockerBody", size = Vector3.new(count * 5, 12, 3),
+			cf = base * CFrame.new(0, 6, 0), color = STEEL_MID,
+			material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "LockerTop", size = Vector3.new(count * 5 + 1, 0.8, 4),
+			cf = base * CFrame.new(0, 12.4, 0), color = EDGE,
+			material = Enum.Material.Metal, parent = f })
+
+		for i = 1, count do
+			local ox = (i - (count + 1) / 2) * 5
+			build({ name = "LockerDoor", size = Vector3.new(4.2, 10.4, 0.4),
+				cf = base * CFrame.new(ox, 6, -1.6), color = STEEL_DARK,
+				material = Enum.Material.Metal, parent = f })
+			build({ name = "LockerVent", size = Vector3.new(2.6, 0.9, 0.5),
+				cf = base * CFrame.new(ox, 10, -1.8), color = SHADOW,
+				material = Enum.Material.Metal, parent = f })
+			build({ name = "LockerHandle", size = Vector3.new(0.4, 2.2, 0.5),
+				cf = base * CFrame.new(ox + 1.5, 5.6, -1.9), color = EDGE,
+				material = Enum.Material.Metal, parent = f })
+		end
+	end
+
+	lockers(centerX - halfLW + 9, lobbyZ + 22, -90, 4)
+	lockers(centerX + halfLW - 9, lobbyZ + 4, 90, 4)
+
+	--[[
+		Girişin iki yanına yön tabelası. Oyuncu kapıdan çıkar çıkmaz
+		nerede ne olduğunu okuyor; boş platformda kaybolma hissi bununla
+		bitiyor.
+	]]
+	local function marker(mx: number, mz: number, label: string, facing: number)
+		build({ name = "MarkerPost", size = Vector3.new(1, 9, 1),
+			cf = at(mx, 4.5, mz), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+
+		local plate = build({ name = "MarkerPlate", size = Vector3.new(11, 3, 0.5),
+			cf = CFrame.new(mx, 10, mz) * CFrame.Angles(0, math.rad(facing), 0),
+			color = SHADOW, material = Enum.Material.SmoothPlastic, parent = f })
+
+		local surface = Instance.new("SurfaceGui")
+		surface.Name = "Label"
+		surface.Face = Enum.NormalId.Front
+		surface.CanvasSize = Vector2.new(220, 60)
+		surface.LightInfluence = 0
+		surface.Parent = plate
+
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBold
+		text.TextScaled = true
+		text.TextColor3 = Color3.fromRGB(226, 234, 240)
+		text.Text = label
+		text.Parent = surface
+	end
+
+	marker(centerX - 15, lobbyZ - 24, "◄  PRIZE DECK", 0)
+	marker(centerX + 15, lobbyZ - 24, "LEADERBOARDS  ►", 0)
+end
+
 -- ─── 14. Işınlanma kürsüsü ──────────────────────────────────────────────────
 -- Ped yerine kürsü: üstüne basınca değil, yanına gelince arayüz açılıyor.
 -- Yanlışlıkla basıp ışınlanmak sinir bozucu olurdu.
@@ -2042,9 +2320,9 @@ do
 	local x = centerX - LOBBY_W / 2 + 36
 	local z = lobbyZ + 6
 
-	local R = 13                 -- çark yarıçapı
+	local R = 11                 -- çark yarıçapı
 	local SLICES = 12            -- mürettebat rengi sayısı kadar
-	local hubY = 19              -- lobi tavanı 42.6; çark buna göre alçaltıldı
+	local hubY = 16              -- lobi tavanı 42.6; çark buna göre alçaltıldı
 	local SPIN = 26
 
 	-- ── Kaide: iki bacaklı A çerçeve ────────────────────────────────────────
@@ -2211,13 +2489,19 @@ do
 		kesiyor, belli açılardan da yazı panoyla iç içe geçiyordu. SurfaceGui
 		yüzeye boyanmış gibi durur, derinlik sorunu olmaz ve asıl önemlisi:
 		gerçek bir tabela gibi okunur, havada yüzen yazı gibi değil.
-	]]
-	local signY = hubY + R + 4
 
-	local board = build({ name = "SignBoard", size = Vector3.new(34, 8, 1),
+		YÜKSEKLİK: ilk denemede tabela hubY+R+4'teydi, durdurucu dil de
+		hubY+R+4.4'te — ikisi üst üste geliyordu ve dilin gövdesi tam
+		"LUCKY" ile "SPIN" arasına oturuyordu. Tabela +10'a çıktı, çark
+		küçültüldü (R 13→11, göbek 19→16). Artık durdurucunun tepesi 31.2,
+		tabelanın altı 33.0 — arada 1.8 stud boşluk var.
+	]]
+	local signY = hubY + R + 11
+
+	local board = build({ name = "SignBoard", size = Vector3.new(34, 7, 1),
 		cf = at(x, signY, z + 1.6), color = SHADOW,
 		material = Enum.Material.SmoothPlastic, parent = f })
-	build({ name = "SignFrame", size = Vector3.new(36, 9.6, 0.6),
+	build({ name = "SignFrame", size = Vector3.new(36, 8.6, 0.6),
 		cf = at(x, signY, z + 2.1), color = TRIM,
 		material = Enum.Material.Metal, parent = f })
 	for _, s in { -1, 1 } do
