@@ -52,6 +52,9 @@ export type Profile = {
 	robbed: number,
 	caught: number,
 	maxStreak: number,
+	-- Öğreticide tamamlanan adım sayısı. #Config.Tutorial ise bitmiş,
+	-- -1 ise oyuncu atlamış. Sayı olarak tutuluyor çünkü adımlar sıralı.
+	tutorialStep: number,
 }
 
 type Lock = { owner: string, at: number }
@@ -91,6 +94,7 @@ local function newProfile(): Profile
 		robbed = 0,
 		caught = 0,
 		maxStreak = 0,
+		tutorialStep = 0,
 	}
 end
 
@@ -155,6 +159,13 @@ local function sanitize(raw: any): Profile
 
 	if typeof(raw.activeTitle) == "string" and Config.GetTitle(raw.activeTitle) then
 		profile.activeTitle = raw.activeTitle
+	end
+
+	-- -1 (atlandı) ile adım sayısı arasında kalmalı. Config'ten adım
+	-- silinirse eski kayıt aralık dışı kalır; kırpmak öğreticiyi bitmiş
+	-- saymaktan daha doğru, çünkü kalan adımlar hâlâ öğretilmeli.
+	if typeof(raw.tutorialStep) == "number" and raw.tutorialStep == raw.tutorialStep then
+		profile.tutorialStep = math.clamp(math.floor(raw.tutorialStep), -1, #Config.Tutorial)
 	end
 
 	if typeof(raw.upgrades) == "table" then

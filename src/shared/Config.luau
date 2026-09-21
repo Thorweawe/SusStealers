@@ -195,6 +195,90 @@ function Config.GetTitleReward(def: TitleDef, incomePerSecond: number): number
 	return math.floor(math.max(def.minimum, incomePerSecond * def.incomeSeconds))
 end
 
+-- ─── Öğretici ───────────────────────────────────────────────────────────────
+--[[
+	Yeni oyuncunun ilk oturumunda izlediği sıralı adımlar.
+
+	Neden var: oyunun döngüsü (konveyörden al -> kaideye koy -> gelir üret ->
+	başkasından çal -> üssünü kilitle) hiçbir yerde anlatılmıyor. Bu türde
+	oyuncu ilk iki dakikada döngüyü çözemezse çıkıyor.
+
+	Adımlar sıralı: biri bitmeden sonraki gösterilmiyor. Koşul kontrolü
+	TutorialService'te; burada yalnızca veri duruyor çünkü Config istemciden
+	de okunuyor ve sunucu durumuna erişemiyor.
+
+	check:  TutorialService'in tanıdığı sayaç adı
+	goal:   o sayacın ulaşması gereken değer (ilerleme çubuğu bundan çıkıyor)
+	hint:   istemcinin hedef göstereceği nesnenin adı
+	reward: adım bitince verilen nakit
+
+	Ödüller sabit: öğretici tanımı gereği oyunun en başında geçiyor, gelirle
+	ölçeklemek burada hep tabana düşerdi. Toplamı en ucuz yükseltmenin ilk
+	seviyesinden biraz fazla — öğreticiyi bitiren oyuncu oyunun ikinci
+	katmanına dokunabiliyor ama dengeyi bozmuyor.
+]]
+
+export type TutorialStep = {
+	id: string,
+	title: string,
+	text: string,
+	hint: string,
+	check: string,
+	goal: number,
+	reward: number,
+}
+
+Config.Tutorial = {
+	{
+		id = "Buy", title = "Hire a crewmate", hint = "Conveyor",
+		text = "Crewmates ride the conveyor at your base. Hold the prompt on one to buy it.",
+		check = "units", goal = 1, reward = 500,
+	},
+	{
+		id = "Fill", title = "Fill another podium", hint = "Conveyor",
+		text = "Every crewmate on a podium prints cash each second. Buy a second one.",
+		check = "units", goal = 2, reward = 1500,
+	},
+	{
+		id = "Steal", title = "Steal from a rival", hint = "RivalPlot",
+		text = "Walk into another base, hold the prompt on a podium, then carry it home.",
+		check = "steals", goal = 1, reward = 4000,
+	},
+	{
+		id = "Lock", title = "Lock your base", hint = "Sign",
+		text = "Hold the prompt on your base sign. Nobody can steal while the lock holds.",
+		check = "locksUsed", goal = 1, reward = 4000,
+	},
+	{
+		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
+		text = "Upgrade boards stand at the back of your base. They cost cash, not Robux.",
+		check = "upgrades", goal = 1, reward = 15000,
+	},
+	{
+		id = "Spin", title = "Take your free spin", hint = "Wheel",
+		text = "The wheel gives one free spin every day. Go claim today's.",
+		check = "spins", goal = 1, reward = 15000,
+	},
+} :: { TutorialStep }
+
+-- Bitirince verilen ek ödül. Adım ödüllerinden büyük ki son adım yarıda
+-- bırakılmasın.
+Config.TutorialFinishBonus = 25000
+
+--[[ Sıra numarasıyla adım. Aralık dışıysa nil. ]]
+function Config.GetTutorialStep(index: number): TutorialStep?
+	return Config.Tutorial[index]
+end
+
+--[[ Öğreticinin toplam nakit değeri. Denge testleri buna bakıyor. ]]
+function Config.GetTutorialTotalReward(): number
+	local total = Config.TutorialFinishBonus
+	for _, step in Config.Tutorial do
+		total += step.reward
+	end
+	return total
+end
+
 -- ─── Rozetler ───────────────────────────────────────────────────────────────
 -- ID'ler Creator Dashboard > Badges altında oluşturulunca buraya yazılacak.
 -- id = 0 olan rozet verilmiyor; oyun onu yokmuş gibi çalışıyor.

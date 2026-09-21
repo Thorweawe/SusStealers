@@ -37,6 +37,7 @@ local DataService = require(Server.DataService)
 local BadgeService = require(Server.BadgeService)
 local SpinService = require(Server.SpinService)
 local TitleService = require(Server.TitleService)
+local TutorialService = require(Server.TutorialService)
 
 local ServerTests = {}
 
@@ -952,6 +953,278 @@ case("Unvan: seri rekoru sadece yükselince yazılıyor", function(ctx)
 	eq("yüksek rapor yazıldı", ctx.profile.maxStreak, 7)
 end)
 
+-- ─── O. Öğretici ────────────────────────────────────────────────────────────
+
+case("Öğretici: adım tanımları tutarlı", function()
+	local checks = {
+		units = true, steals = true, upgrades = true,
+		spins = true, locksUsed = true,
+	}
+
+	local ids = {}
+	local uniqueIds = true
+
+	for _, step in Config.Tutorial do
+		if ids[step.id] then uniqueIds = false end
+		ids[step.id] = true
+
+		ok(step.id .. " sayacı tanınıyor", checks[step.check] == true, step.check)
+		ok(step.id .. " hedefi pozitif", step.goal > 0, tostring(step.goal))
+		ok(step.id .. " ödülü negatif değil", step.reward >= 0)
+		ok(step.id .. " başlığı dolu", step.title ~= "")
+		ok(step.id .. " metni dolu", step.text ~= "")
+		ok(step.id .. " hedef nesnesi belirtilmiş", step.hint ~= "")
+	end
+
+	ok("id'ler benzersiz", uniqueIds)
+	ok("en az 4 adım", #Config.Tutorial >= 4, tostring(#Config.Tutorial))
+	ok("aralık dışı adım nil", Config.GetTutorialStep(#Config.Tutorial + 1) == nil)
+end)
+
+case("Öğretici: adımlar oynanabilir sırada", function()
+	--[[
+		Aynı sayaca bakan iki adım varsa ikincisinin hedefi büyük olmalı;
+		yoksa ikinci adım birincisiyle aynı anda tamamlanır ve oyuncu ne
+		yaptığını anlamadan iki ödül alır.
+	]]
+	local highest: { [string]: number } = {}
+	local increasing = true
+
+	for _, step in Config.Tutorial do
+		local previous = highest[step.check]
+		if previous and step.goal <= previous then
+			increasing = false
+		end
+		highest[step.check] = step.goal
+	end
+
+	ok("aynı sayaca bakan adımlar artıyor", increasing)
+
+	-- İlk adım oyuncunun başlangıç parasıyla yapılabilmeli
+	local first = Config.Tutorial[1]
+	ok("ilk adım karakter almak", first.check == "units", first.check)
+	ok("başlangıç parası en ucuz karaktere yetiyor",
+		Config.StartingCash >= Config.GetCheapestUnitPrice(),
+		string.format("%d < %d", Config.StartingCash, Config.GetCheapestUnitPrice()))
+end)
+
+case("Öğretici: ödül toplamı dengeyi bozmuyor", function()
+	local total = Config.GetTutorialTotalReward()
+
+	ok("toplam pozitif", total > 0, Config.FormatCash(total))
+
+	-- Öğreticiyi bitiren oyuncu yükseltmelere dokunabilmeli ama hepsini
+	-- birden alamamalı; yoksa oyunun ikinci katmanı bedava geliyor
+	local cheapestUpgrade = math.huge
+	local allFirstLevels = 0
+	for _, def in Config.Upgrades do
+		cheapestUpgrade = math.min(cheapestUpgrade, def.baseCost)
+		allFirstLevels += def.baseCost
+	end
+
+	ok("en ucuz yükseltmeye yetiyor", total >= cheapestUpgrade,
+		string.format("%s < %s", Config.FormatCash(total), Config.FormatCash(cheapestUpgrade)))
+	ok("tüm yükseltmelerin ilk seviyesini birden almıyor", total < allFirstLevels,
+		string.format("%s >= %s", Config.FormatCash(total), Config.FormatCash(allFirstLevels)))
+
+	-- Rebirth maliyeti yanında önemsiz kalmalı
+	ok("rebirth maliyetinin yanında küçük", total < Config.GetRebirthCost(0) / 100,
+		Config.FormatCash(total))
+end)
+
+case("Öğretici: profil alanı var ve sınırlı", function(ctx)
+	ok("tutorialStep sayı", typeof(ctx.profile.tutorialStep) == "number",
+		typeof(ctx.profile.tutorialStep))
+	ok("aralıkta", ctx.profile.tutorialStep >= -1
+		and ctx.profile.tutorialStep <= #Config.Tutorial,
+		tostring(ctx.profile.tutorialStep))
+end)
+
+case("Öğretici: koşul sağlanınca ilerliyor ve ödül veriyor", function(ctx)
+	clearPlot(ctx.plot)
+	ctx.profile.tutorialStep = 0
+	setCash(ctx.player, 0)
+
+	TutorialService.Check(ctx.player)
+	eq("karakter yokken ilk adımda kalıyor", ctx.profile.tutorialStep, 0)
+
+	local step = Config.Tutorial[1]
+	local before = EconomyService.GetCash(ctx.player)
+
+	-- İlk adım: kaideye bir karakter koymak
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	ok("boş kaide var", podium ~= nil)
+	if not podium then return end
+	PlotService.PlaceUnit(podium, Config.Units[1].id, nil)
+
+	TutorialService.Check(ctx.player)
+	eq("adım tamamlandı", ctx.profile.tutorialStep, 1)
+	eq("ödül verildi", EconomyService.GetCash(ctx.player) - before, step.reward)
+
+	-- İkinci kez ödül vermemeli
+	local after = EconomyService.GetCash(ctx.player)
+	TutorialService.Check(ctx.player)
+	eq("tekrar ödül yok", EconomyService.GetCash(ctx.player), after)
+	eq("adım geri gitmedi", ctx.profile.tutorialStep, 1)
+
+	clearPlot(ctx.plot)
+end)
+
+case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
+	--[[
+		Oyuncu arka arkaya iki karakter alırsa iki adım birden tamamlanmalı.
+		Tek adım ilerleyen bir döngü, oyuncuyu bir saniye boyunca bitmiş bir
+		görevle bekletiyordu.
+	]]
+	clearPlot(ctx.plot)
+	ctx.profile.tutorialStep = 0
+	setCash(ctx.player, 0)
+
+	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
+	ok("en az iki kaide açık", #podiums >= 2, tostring(#podiums))
+	if #podiums < 2 then return end
+
+	PlotService.PlaceUnit(podiums[1], Config.Units[1].id, nil)
+	PlotService.PlaceUnit(podiums[2], Config.Units[1].id, nil)
+
+	TutorialService.Check(ctx.player)
+	ok("iki adım birden geçti", ctx.profile.tutorialStep >= 2,
+		tostring(ctx.profile.tutorialStep))
+
+	local expected = Config.Tutorial[1].reward + Config.Tutorial[2].reward
+	eq("iki ödül de verildi", EconomyService.GetCash(ctx.player), expected)
+
+	clearPlot(ctx.plot)
+end)
+
+case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
+	ctx.profile.tutorialStep = #Config.Tutorial - 1
+	setCash(ctx.player, 0)
+
+	-- Son adımın koşulunu sağla
+	local last = Config.Tutorial[#Config.Tutorial]
+	eq("son adım çark", last.check, "spins")
+	ctx.profile.lastSpinAt = os.time()
+
+	TutorialService.Check(ctx.player)
+	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
+	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
+		last.reward + Config.TutorialFinishBonus)
+
+	ok("bitmiş sayılıyor", TutorialService.IsFinished(ctx.player))
+	ok("sıradaki adım yok", TutorialService.GetStep(ctx.player) == nil)
+
+	local after = EconomyService.GetCash(ctx.player)
+	TutorialService.Check(ctx.player)
+	eq("bonus tekrar verilmiyor", EconomyService.GetCash(ctx.player), after)
+end)
+
+case("Öğretici: atlamak ödül vermiyor", function(ctx)
+	ctx.profile.tutorialStep = 0
+	setCash(ctx.player, 0)
+
+	TutorialService.Skip(ctx.player)
+
+	ok("bitmiş sayılıyor", TutorialService.IsFinished(ctx.player))
+	eq("hiç ödül verilmedi", EconomyService.GetCash(ctx.player), 0)
+	ok("sıradaki adım yok", TutorialService.GetStep(ctx.player) == nil)
+
+	-- Atlanmış öğretici geri açılmamalı
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	if podium then
+		PlotService.PlaceUnit(podium, Config.Units[1].id, nil)
+	end
+	TutorialService.Check(ctx.player)
+	eq("koşul sağlansa da geri açılmıyor", EconomyService.GetCash(ctx.player), 0)
+
+	clearPlot(ctx.plot)
+end)
+
+case("Öğretici: eski kayıt öğreticiye sokulmuyor", function(ctx)
+	--[[
+		tutorialStep alanı sonradan eklendi; onsuz kaydedilmiş profiller 0
+		ile geliyor. Oynadığına dair iz varsa öğretici bitmiş sayılmalı,
+		yoksa yıllardır oynayan oyuncuya "ilk karakterini al" deniyor.
+	]]
+	clearPlot(ctx.plot)
+	ctx.profile.tutorialStep = 0
+	ctx.profile.stolen = 12
+	setCash(ctx.player, 0)
+
+	local before = EconomyService.GetCash(ctx.player)
+	local finished = TutorialService.SkipIfVeteran(ctx.player)
+
+	ok("eski oyuncu tespit edildi", finished)
+	ok("öğretici bitmiş sayılıyor", TutorialService.IsFinished(ctx.player))
+	eq("ödül dağıtılmadı", EconomyService.GetCash(ctx.player), before)
+
+	-- Gerçekten yeni oyuncu elenmemeli
+	ctx.profile.tutorialStep = 0
+	ctx.profile.stolen = 0
+	ctx.profile.rebirths = 0
+	ctx.profile.lastSpinAt = 0
+	ctx.profile.upgrades = {}
+	setCash(ctx.player, Config.StartingCash)
+
+	ok("yeni oyuncu öğreticide kalıyor", not TutorialService.SkipIfVeteran(ctx.player))
+	eq("adım sıfırda", ctx.profile.tutorialStep, 0)
+end)
+
+case("Öğretici: hedef nesneler dünyada var", function(ctx)
+	--[[
+		Adımın hint'i karşılığını bulamazsa oyuncuya hedef gösterilmiyor ve
+		"nereye gideceğim" sorusu cevapsız kalıyor. Bu test hint isimleriyle
+		dünyadaki nesne adlarını senkronda tutuyor.
+	]]
+	local resolvable = {
+		Conveyor = function()
+			return ctx.plot:FindFirstChild("Conveyor")
+		end,
+		Sign = function()
+			return ctx.plot:FindFirstChild("Sign")
+		end,
+		Upgrades = function()
+			for _, child in ctx.plot:GetChildren() do
+				if string.sub(child.Name, 1, 8) == "Upgrade_" then
+					return child
+				end
+			end
+			return nil
+		end,
+		Wheel = function()
+			local decor = workspace:FindFirstChild("Decor")
+			return decor and decor:FindFirstChild("Wheel")
+		end,
+		RivalPlot = function()
+			for _, other in PlotService.GetAllPlots() do
+				if other ~= ctx.plot then
+					return other
+				end
+			end
+			return nil
+		end,
+	}
+
+	for _, step in Config.Tutorial do
+		local finder = resolvable[step.hint]
+		ok(step.id .. " hint'i tanınıyor", finder ~= nil, step.hint)
+		if finder then
+			ok(step.hint .. " dünyada bulundu", finder() ~= nil)
+		end
+	end
+end)
+
+case("Öğretici: durum niteliği istemciye yansıyor", function(ctx)
+	clearPlot(ctx.plot)
+	ctx.profile.tutorialStep = 0
+	TutorialService.Check(ctx.player)
+
+	local value = ctx.player:GetAttribute("TutorialStep")
+	ok("TutorialStep niteliği var", typeof(value) == "number", typeof(value))
+	eq("profil ile aynı", value, ctx.profile.tutorialStep)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -986,10 +1259,20 @@ function ServerTests.Run(player: Player?): number
 		robbed = profile.robbed,
 		caught = profile.caught,
 		maxStreak = profile.maxStreak,
+		tutorialStep = profile.tutorialStep,
+		stolen = profile.stolen,
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
 
 	local ctx = { player = player, plot = plot, profile = profile }
+
+	--[[
+		Periyodik taramalar koşu boyunca dursun. Testler profili doğrudan
+		kurcalıyor; tarama araya girerse gerçekten kazanılmamış ödüller
+		dağıtılıyor ve nakit sayan testler tutmuyor.
+	]]
+	TitleService.SetPaused(true)
+	TutorialService.SetPaused(true)
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -1023,6 +1306,9 @@ function ServerTests.Run(player: Player?): number
 	end
 
 	-- Ortamı geri yükle
+	TitleService.SetPaused(false)
+	TutorialService.SetPaused(false)
+
 	profile.cash = backup.cash
 	profile.rebirths = backup.rebirths
 	profile.upgrades = backup.upgrades
@@ -1031,6 +1317,8 @@ function ServerTests.Run(player: Player?): number
 	profile.robbed = backup.robbed
 	profile.caught = backup.caught
 	profile.maxStreak = backup.maxStreak
+	profile.tutorialStep = backup.tutorialStep
+	profile.stolen = backup.stolen
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	clearPlot(plot)

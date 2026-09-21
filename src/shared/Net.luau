@@ -7,11 +7,17 @@ local RunService = game:GetService("RunService")
 local IS_SERVER = RunService:IsServer()
 
 -- Sadece gerçekten kullanılanlar. Boş duran bir RemoteEvent, ileride
--- doğrulamasız bir handler bağlanmasını davet ediyor. Şu an istemciden
--- sunucuya hiçbir remote dinlenmiyor; öyle kalması güvenlik açısından iyi.
+-- doğrulamasız bir handler bağlanmasını davet ediyor.
+--
+-- Yön önemli: server -> client olanlar güvenli, istemci onları tetikleyemez.
+-- İstemciden sunucuya dinlenen tek remote TutorialSkip ve o da hiçbir şey
+-- vermiyor — sadece oyuncunun kendi öğreticisini kapatıyor, kalan ödülleri
+-- yakarak. Yani istismarı oyuncunun kendi zararına.
 local EVENTS = {
-	"Notify",      -- server -> client (text, isError)
-	"StealAlert",  -- server -> client (thiefName, unitName)
+	"Notify",       -- server -> client (text, isError)
+	"StealAlert",   -- server -> client (thiefName, unitName)
+	"Tutorial",     -- server -> client (payload, target)
+	"TutorialSkip", -- client -> server (argümansız)
 }
 
 local Net = {}

@@ -26,6 +26,7 @@ local UpgradeService = require(script.Parent.UpgradeService)
 local TitleService = {}
 
 local notifyRemote: RemoteEvent
+local paused = false
 
 local function notify(player: Player, text: string, isError: boolean)
 	if notifyRemote then
@@ -186,6 +187,20 @@ end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
 
+--[[
+	Arka plan taramasını durdurur.
+
+	Testler profili doğrudan değiştiriyor (rebirth seviyesi ver, yükseltmeyi
+	tavana çek). Tarama o sırada dönerse koşullar gerçekten sağlanmış gibi
+	görünüyor, ödül dağıtılıyor ve testin saydığı nakit tutmuyor. Bir kez
+	böyle oldu: rebirth testi, ilgisiz bir unvan ödülü yüzünden kaldı.
+
+	Yalnızca döngüyü durduruyor; Check doğrudan çağrılınca yine çalışıyor.
+]]
+function TitleService.SetPaused(value: boolean)
+	paused = value
+end
+
 function TitleService.Start()
 	notifyRemote = Net.Get("Notify")
 
@@ -211,6 +226,9 @@ function TitleService.Start()
 	task.spawn(function()
 		while true do
 			task.wait(2)
+			if paused then
+				continue
+			end
 			for _, player in Players:GetPlayers() do
 				TitleService.Check(player)
 			end

@@ -19,6 +19,7 @@ local RebirthService = require(script.RebirthService)
 local UpgradeService = require(script.UpgradeService)
 local SpinService = require(script.SpinService)
 local TitleService = require(script.TitleService)
+local TutorialService = require(script.TutorialService)
 
 local started = os.clock()
 
@@ -36,5 +37,8 @@ RebirthService.Start()
 UpgradeService.Start()
 SpinService.Start()
 TitleService.Start()
+-- En sonda: okuduğu her sayaç (üs, gelir, yükseltme, çark) o ana kadar
+-- kurulmuş oluyor, ilk yayın da doğru durumu gösteriyor.
+TutorialService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

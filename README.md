@@ -26,6 +26,7 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/BadgeService.luau` | Sunucu | Roblox rozetleri |
 | `src/server/TitleService.luau` | Sunucu | Unvanlar, koşullar, ödüller |
 | `src/server/SpinService.luau` | Sunucu | Şans çarkı, günlük hak |
+| `src/server/TutorialService.luau` | Sunucu | Öğretici adımları, koşullar, ödüller |
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
@@ -130,6 +131,7 @@ local mapping = {
 	{ "src/client/ScreenFX.luau",               client.ScreenFX },
 	{ "src/client/SoundFX.luau",                client.SoundFX },
 	{ "src/client/ThiefTrail.luau",             client.ThiefTrail },
+	{ "src/client/TutorialUI.luau",             client.TutorialUI },
 	{ "src/client/init.client.luau",            client },
 	{ "src/server/ConveyorService.luau",        server.ConveyorService },
 	{ "src/server/DataService.luau",            server.DataService },
@@ -140,6 +142,7 @@ local mapping = {
 	{ "src/server/RebirthService.luau",         server.RebirthService },
 	{ "src/server/SellService.luau",            server.SellService },
 	{ "src/server/StealService.luau",           server.StealService },
+	{ "src/server/TutorialService.luau",        server.TutorialService },
 	{ "src/server/UpgradeService.luau",         server.UpgradeService },
 	{ "src/server/init.server.luau",            server },
 	{ "src/shared/Config.luau",                 shared.Config },
@@ -219,10 +222,16 @@ require(game.ServerScriptService.Server.Tests).Run(player)
 
 **Kapsam:** Config bütünlüğü · üs ve kaide yapısı · ekonomi · satın alma
 ve satma · çalma kuralları · yükseltmeler · rebirth · para kazanma ·
-prompt güvenliği · kayıt.
+prompt güvenliği · kayıt · unvanlar · öğretici.
 
 Testler oyuncunun profilini geçici olarak değiştiriyor ama `Run` sonunda
-başlangıç hali geri yükleniyor. `init.server` bu modülü require etmiyor,
+başlangıç hali geri yükleniyor.
+
+**Periyodik tarama yapan bir servis eklersen `SetPaused` de ekle ve
+`Run`'da duraklat.** `TitleService` ve `TutorialService` saniyede bir
+profili tarayıp koşul sağlanmışsa ödül veriyor. Testler profili doğrudan
+kurcaladığı için tarama araya girerse kazanılmamış ödül dağıtılıyor ve
+nakit sayan testler tutmuyor — rebirth testi tam olarak böyle kaldı. `init.server` bu modülü require etmiyor,
 yayına çıkan kodda hiçbir etkisi yok.
 
 **Yeni özellik eklerken testini de ekle.** Dosyanın altındaki `case(...)`
@@ -234,6 +243,39 @@ kuruyor.
 Oyuncu gerektiren testler için MCP'nin `run_script_in_play_mode` aracını `mode = "start_play"` ile kullan — sunucu datamodel'inde çalışır, sonunda otomatik durur. Oyuncusuz birim testleri için `mode = "run_server"` yeterli.
 
 Normal `run_code` **edit datamodel'inde** çalışır; `workspace.Plots` orada yoktur, çünkü üsleri sunucu çalışma anında kuruyor.
+
+---
+
+## Öğretici
+
+Yeni oyuncu altı adımdan geçiyor: karakter al → ikinci kaideyi doldur →
+birinden çal → üssünü kilitle → yükseltme al → çarkı çevir. Adımlar
+`Config.Tutorial`'da veri; koşullar `TutorialService`'te.
+
+Kurallar:
+
+- **İlerleme sunucuda.** Profilde tek sayı: tamamlanan adım. İstemci
+  yalnızca çiziyor, ilerlemeyi değiştiremiyor.
+- **Adımlar var olan duruma bakıyor.** Hiçbir servis `TutorialService`'i
+  çağırmıyor; bağımlılık tek yönlü, öğretici kaldırılsa oyun aynen çalışır.
+- **Eski kayıtlar öğreticiye girmiyor.** Oynadığına dair iz varsa
+  (`stolen`, `rebirths`, kaidede karakter, yükseltme, çark) öğretici ödül
+  dağıtmadan bitmiş sayılıyor.
+- **Atlamak ödül vermiyor.** `TutorialSkip` remote'u istemciden sunucuya
+  dinlenen tek remote; kalan ödülleri yakmaktan başka etkisi yok.
+
+Yeni adım eklemek `Config.Tutorial`'a bir satır ve gerekiyorsa
+`TutorialService.checkValue` içine bir sayaç. `hint` alanının karşılığı
+dünyada bulunamazsa hedef gösterilmiyor — testler bunu kontrol ediyor.
+
+**Arayüz:** `src/client/TutorialUI.luau` hazır ama `init.client.luau`'ya
+bağlı değil (istemci şeridi). Bağlanana kadar adımlar bildirim olarak
+geliyor, yani öğretici tek başına çalışıyor. Bağlamak için:
+
+```lua
+local TutorialUI = require(script.TutorialUI)
+local tutorial = TutorialUI.Create(screen)
+```
 
 ---
 
