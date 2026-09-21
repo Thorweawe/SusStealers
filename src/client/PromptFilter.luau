@@ -3,10 +3,14 @@
 --
 -- Sunucu promptları herkese açık yaratmak zorunda: ProximityPrompt.Enabled
 -- oyuncu bazında ayarlanamıyor, sunucu açtığında herkes görüyor. Sonuç olarak
--- başkasının kaidesinde "Sell", kendi kaidende "Steal" görünüyordu.
+-- başkasının kaidesinde "Sell", kendi kaidende "Steal", ve herkesin üssünde
+-- "Lock" görünüyordu.
 --
 -- Enabled istemcide yerel olarak değiştirilebildiği için burada süzüyoruz.
--- Sunucu bir promptu tekrar açarsa döngü 0.2 sn içinde geri kapatır.
+--
+-- ÖNEMLİ: prompt basılı tutulurken Enabled'a yazmak basışı sıfırlıyor. Bu
+-- yüzden döngüde her seferinde yazmıyoruz; her kaideyi bir kez bağlayıp
+-- yalnızca durumu gerçekten değiştiğinde dokunuyoruz.
 
 local PromptFilter = {}
 
@@ -19,54 +23,71 @@ local function isOccupied(podium: Part): boolean
 	return typeof(unitId) == "string" and unitId ~= ""
 end
 
---[[
-	Değer zaten doğruysa YAZMA. Prompt basılı tutulurken Enabled'a yazmak
-	basışı sıfırlıyor; döngü 0.2 sn'de bir çalıştığı için 0.4 sn'lik satış
-	ve 4 sn'lik çalma basışları sürekli iptal oluyordu.
-]]
-local function setEnabled(prompt: ProximityPrompt, want: boolean)
-	if prompt.Enabled ~= want then
-		prompt.Enabled = want
-	end
-end
-
-local function applyTo(podium: Part, mine: boolean)
-	local occupied = isOccupied(podium)
-
-	local sell = podium:FindFirstChild("SellPrompt")
-	if sell and sell:IsA("ProximityPrompt") then
-		-- Sadece kendi kaideni satabilirsin
-		setEnabled(sell, mine and occupied)
-	end
-
-	local steal = podium:FindFirstChild("StealPrompt")
-	if steal and steal:IsA("ProximityPrompt") then
-		-- Kendi karakterini çalamazsın
-		setEnabled(steal, (not mine) and occupied)
+local function setEnabled(instance: Instance?, want: boolean)
+	if instance and instance:IsA("ProximityPrompt") and instance.Enabled ~= want then
+		instance.Enabled = want
 	end
 end
 
 function PromptFilter.Create(): Filter
-	local function update(myPlot: Model?)
+	local hookedPodiums: { [Part]: boolean } = {}
+	local myPlot: Model? = nil
+
+	local function refreshPodium(podium: Part, plot: Model)
+		local mine = plot == myPlot
+		local occupied = isOccupied(podium)
+
+		-- Sadece kendi kaideni satabilirsin
+		setEnabled(podium:FindFirstChild("SellPrompt"), mine and occupied)
+		-- Kendi karakterini çalamazsın
+		setEnabled(podium:FindFirstChild("StealPrompt"), (not mine) and occupied)
+	end
+
+	local function refreshLock(plot: Model)
+		local sign = plot:FindFirstChild("Sign")
+		if sign then
+			-- Sadece kendi üssünü kilitleyebilirsin
+			setEnabled(sign:FindFirstChild("LockPrompt"), plot == myPlot)
+		end
+	end
+
+	local function update(plot: Model?)
+		local ownerChanged = plot ~= myPlot
+		myPlot = plot
+
 		local plots = workspace:FindFirstChild("Plots")
 		if not plots then
 			return
 		end
 
-		for _, plot in plots:GetChildren() do
-			if not plot:IsA("Model") then
+		for _, candidate in plots:GetChildren() do
+			if not candidate:IsA("Model") then
 				continue
 			end
 
-			local podiums = plot:FindFirstChild("Podiums")
+			if ownerChanged then
+				refreshLock(candidate)
+			end
+
+			local podiums = candidate:FindFirstChild("Podiums")
 			if not podiums then
 				continue
 			end
 
-			local mine = plot == myPlot
 			for _, podium in podiums:GetChildren() do
-				if podium:IsA("Part") then
-					applyTo(podium, mine)
+				if not podium:IsA("Part") then
+					continue
+				end
+
+				if not hookedPodiums[podium] then
+					hookedPodiums[podium] = true
+					-- Karakter konunca/kalkınca promptlar değişmeli
+					podium:GetAttributeChangedSignal("UnitId"):Connect(function()
+						refreshPodium(podium, candidate)
+					end)
+					refreshPodium(podium, candidate)
+				elseif ownerChanged then
+					refreshPodium(podium, candidate)
 				end
 			end
 		end
