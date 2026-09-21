@@ -4,7 +4,7 @@
 local Config = {}
 
 -- ─── Dünya ──────────────────────────────────────────────────────────────────
-Config.PlotCount = 6
+Config.PlotCount = 8
 Config.PodiumsPerPlot = 8
 Config.PlotSize = Vector3.new(60, 2, 44)
 Config.PlotSpacing = 76
@@ -26,9 +26,38 @@ Config.CarryWalkSpeed = 11     -- karakter taşırken hız
 Config.NormalWalkSpeed = 16
 Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınamaz
 
+-- Çalınan karakter, çalındığı yerden üsse taşınırken en az bu oranda
+-- yürüme süresi geçmiş olmalı. Karakterin konumu istemcinin elinde
+-- olduğu için ışınlanan biri yürüyüşü tamamen atlayabiliyordu; çalmanın
+-- bütün riski o yürüyüşte. 1.0 = tam yürüme süresi (çok sıkı, eğim ve
+-- kestirme yüzünden meşru oyuncu takılır), 0 = kontrol kapalı.
+Config.CarryTravelTolerance = 0.7
+
 -- ─── Kilit (savunma) ────────────────────────────────────────────────────────
 Config.LockDuration = 25
 Config.LockCooldown = 80
+
+-- ─── Rebirth ve katlar ──────────────────────────────────────────────────────
+-- Tavana ulaşan oyuncunun yapacak bir şeyi kalmıyordu. Rebirth her şeyi
+-- sıfırlıyor ama karşılığında kalıcı gelir çarpanı ve yeni bir kat veriyor.
+Config.MaxFloors = 3           -- 1. kat açık gelir, her rebirth bir kat açar
+Config.FloorHeight = 18        -- katlar arası yükseklik (stud)
+-- 8 kaide Amogus Prime ile 1. kat tavanı ~3.36M/sn. Rebirth'ün o tavanda
+-- birkaç dakikalık oyun kadar tutması gerekiyor; 25M yedi saniyelik
+-- kazançtı, hiçbir şey ifade etmiyordu.
+Config.RebirthBaseCost = 1000000000
+Config.RebirthCostGrowth = 8   -- her seviyede maliyet bu kat artar
+Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%50)
+
+-- ─── Çevrimdışı gelir ───────────────────────────────────────────────────────
+-- Oyuncu çıkınca kazanç tamamen duruyordu, geri gelmek için sebep azdı.
+-- Ama çevrimdışı oyuncudan çalınamıyor da: çıkmak zaten güvenli, bir de
+-- cömert kazanç verirsek çıkmak oynamaktan kârlı hale gelir.
+--
+-- Bu ayarlarla 3 saat çevrimdışı ≈ 9 dakika aktif oyun. Hoş geldin
+-- hediyesi kadar, strateji olacak kadar değil.
+Config.OfflineIncomeRate = 0.05
+Config.OfflineIncomeCapHours = 3
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
@@ -162,6 +191,58 @@ end
 --[[ Karakteri satınca eline geçen para. ]]
 function Config.GetSellPrice(unitId: string, mutationId: string?): number
 	return math.floor(Config.GetPrice(unitId, mutationId) * Config.SellRefundFactor)
+end
+
+--[[
+	Karakteri çalmak için promptun kaç saniye basılı tutulacağı.
+	Değerle birlikte artar: ucuz karakter çabuk gider, pahalı karakter
+	hırsızı uzun süre açıkta bırakır. Ölçek logaritmik, çünkü fiyatlar
+	100 ile 9.000.000 arasında; doğrusal olsaydı ilk beş karakter hariç
+	hepsi tavan değere yapışırdı.
+
+	100 -> 2 sn, 9.000.000 -> 8 sn.
+]]
+function Config.GetStealHoldTime(unitId: string, mutationId: string?): number
+	local price = Config.GetPrice(unitId, mutationId)
+	if price <= 0 then
+		return Config.StealHoldTime
+	end
+
+	local t = math.log(price / 100) / math.log(90000)
+	return math.clamp(2 + t * 6, 2, 8)
+end
+
+--[[ Bir sonraki rebirth'ün maliyeti. Seviye 0 -> ilk rebirth'ün fiyatı. ]]
+function Config.GetRebirthCost(rebirths: number): number
+	return math.floor(Config.RebirthBaseCost * Config.RebirthCostGrowth ^ rebirths)
+end
+
+--[[ Rebirth sayısının getirdiği kalıcı gelir çarpanı. 0 -> 1.0 ]]
+function Config.GetIncomeMultiplier(rebirths: number): number
+	return 1 + rebirths * Config.RebirthIncomeBonus
+end
+
+--[[ Kaç kat açık. İlk kat bedava, her rebirth bir kat daha açar. ]]
+function Config.GetUnlockedFloors(rebirths: number): number
+	return math.clamp(1 + rebirths, 1, Config.MaxFloors)
+end
+
+--[[ Açık katlarla birlikte toplam kaç kaide kullanılabilir. ]]
+function Config.GetUnlockedPodiumCount(rebirths: number): number
+	return Config.GetUnlockedFloors(rebirths) * Config.PodiumsPerPlot
+end
+
+--[[
+	Oyuncu yokken biriken kazanç. Tam oran verilmiyor ve tavanı var;
+	yoksa uzun süre girmemek oynamaktan kârlı hale gelir.
+]]
+function Config.GetOfflineEarnings(incomePerSecond: number, secondsAway: number): number
+	if incomePerSecond <= 0 or secondsAway <= 0 then
+		return 0
+	end
+
+	local capped = math.min(secondsAway, Config.OfflineIncomeCapHours * 3600)
+	return math.floor(incomePerSecond * capped * Config.OfflineIncomeRate)
 end
 
 --[[ Konveyör için ağırlıklı rastgele karakter seçer. ]]

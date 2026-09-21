@@ -13,6 +13,7 @@ local EconomyService = require(script.EconomyService)
 local ConveyorService = require(script.ConveyorService)
 local StealService = require(script.StealService)
 local SellService = require(script.SellService)
+local RebirthService = require(script.RebirthService)
 
 local started = os.clock()
 
@@ -24,5 +25,6 @@ EconomyService.Start()
 ConveyorService.Start()
 StealService.Start()
 SellService.Start()
+RebirthService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

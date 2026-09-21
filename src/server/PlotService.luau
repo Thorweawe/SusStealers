@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
 
 local DataService = require(script.Parent.DataService)
@@ -24,6 +25,17 @@ local connections: { RBXScriptConnection } = {}
 -- Oyuncu çıkarken üssü boşaltılıyor. O sırada profile yazarsak kayıtlı
 -- karakterleri kaydedilmeden hemen önce sileriz. Bu bayrak onu engelliyor.
 local releasing: { [Player]: boolean } = {}
+
+-- Üs bekleyen oyuncular, giriş sırasına göre
+local waiting: { Player } = {}
+
+local notifyRemote: RemoteEvent
+
+local function notify(player: Player, text: string, isError: boolean)
+	if notifyRemote then
+		notifyRemote:FireClient(player, text, isError)
+	end
+end
 
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
 
@@ -52,33 +64,86 @@ local function buildPlot(index: number): Model
 	base.Material = Enum.Material.Concrete
 	plot.PrimaryPart = base
 
-	-- Kaideler: iki sıra halinde
+	-- Kaideler: her katta iki sıra. 1. kat zeminde ve açık gelir,
+	-- üst katlar rebirth ile açılır. Slot numaraları katlar boyunca
+	-- kesintisiz devam ediyor ki kayıttaki slot -> kaide eşlemesi bozulmasın.
 	local podiums = Instance.new("Folder")
 	podiums.Name = "Podiums"
 	podiums.Parent = plot
 
+	local floors = Instance.new("Folder")
+	floors.Name = "Floors"
+	floors.Parent = plot
+
 	local perRow = math.ceil(Config.PodiumsPerPlot / 2)
-	for slot = 1, Config.PodiumsPerPlot do
-		local isFrontRow = slot <= perRow
-		local column = if isFrontRow then slot - 1 else slot - perRow - 1
+	local groundY = Config.PlotSize.Y / 2   -- 1. katın yürüme yüzeyi
 
-		local offset = Vector3.new(
-			(column - (perRow - 1) / 2) * Config.PodiumSpacing,
-			Config.PlotSize.Y / 2 + 0.5,
-			if isFrontRow then -8 else 8
-		)
+	for floor = 1, Config.MaxFloors do
+		local deckTop = groundY + (floor - 1) * Config.FloorHeight
 
-		local podium = newAnchoredPart(
-			"Podium",
-			Vector3.new(4, 1, 4),
-			CFrame.new(origin + offset),
-			Color3.fromRGB(90, 98, 112),
-			podiums
-		)
-		podium:SetAttribute("SlotIndex", slot)
-		podium:SetAttribute("UnitId", "")
-		podium:SetAttribute("MutationId", "")
-		podium:SetAttribute("PlacedAt", 0)
+		local floorModel = Instance.new("Model")
+		floorModel.Name = string.format("Floor%d", floor)
+		floorModel.Parent = floors
+
+		if floor > 1 then
+			-- Üst katın zemini
+			local deck = newAnchoredPart(
+				"Deck",
+				Vector3.new(Config.PlotSize.X, 1, Config.PlotSize.Z - 12),
+				CFrame.new(origin + Vector3.new(0, deckTop - 0.5, 0)),
+				Color3.fromRGB(48, 54, 66),
+				floorModel
+			)
+			deck.Material = Enum.Material.Metal
+
+			-- Rampa: 24 stud yatay, FloorHeight kadar dikey.
+			-- Uzunluk ve açı bu ikisinden türetiliyor, elle sayı girilmiyor;
+			-- FloorHeight değişirse rampa kendiliğinden uyuyor.
+			local run = 24
+			local rise = Config.FloorHeight
+			local length = math.sqrt(run * run + rise * rise)
+			local angle = math.atan2(rise, run)
+
+			-- Sağ kenarda, arka tarafta: konveyör (ön kenar), tabela ve
+			-- doğuş pedi (orta) ile çakışmasın. Yatay koşu plot içinde
+			-- kalsın diye merkez arka kenardan run/2 kadar içeride.
+			local ramp = newAnchoredPart(
+				"Ramp",
+				Vector3.new(10, 1, length),
+				CFrame.new(origin + Vector3.new(
+					Config.PlotSize.X / 2 - 7,
+					deckTop - rise / 2 - 0.5,
+					-Config.PlotSize.Z / 2 + run / 2
+				)) * CFrame.Angles(-angle, 0, 0),
+				Color3.fromRGB(60, 68, 82),
+				floorModel
+			)
+			ramp.Material = Enum.Material.Metal
+		end
+
+		for index = 1, Config.PodiumsPerPlot do
+			local isFrontRow = index <= perRow
+			local column = if isFrontRow then index - 1 else index - perRow - 1
+
+			local offset = Vector3.new(
+				(column - (perRow - 1) / 2) * Config.PodiumSpacing,
+				deckTop + 0.5,
+				if isFrontRow then -8 else 8
+			)
+
+			local podium = newAnchoredPart(
+				"Podium",
+				Vector3.new(4, 1, 4),
+				CFrame.new(origin + offset),
+				Color3.fromRGB(90, 98, 112),
+				podiums
+			)
+			podium:SetAttribute("SlotIndex", (floor - 1) * Config.PodiumsPerPlot + index)
+			podium:SetAttribute("Floor", floor)
+			podium:SetAttribute("UnitId", "")
+			podium:SetAttribute("MutationId", "")
+			podium:SetAttribute("PlacedAt", 0)
+		end
 	end
 
 	-- Konveyör (görsel şerit)
@@ -136,6 +201,7 @@ local function buildPlot(index: number): Model
 
 	plot:SetAttribute("Locked", false)
 	plot:SetAttribute("LockUsedAt", 0)
+	plot:SetAttribute("UnlockedFloors", 1)
 
 	plot.Parent = plotsFolder
 	return plot
@@ -166,13 +232,71 @@ function PlotService.IsOccupied(podium: Part): boolean
 	return (podium:GetAttribute("UnitId") :: string) ~= ""
 end
 
-function PlotService.FindEmptyPodium(plot: Model): Part?
+--[[ Kaidenin bulunduğu kat açık mı. Kapalı kattaki kaide kullanılamaz. ]]
+function PlotService.IsPodiumUnlocked(podium: Part): boolean
+	local plot = PlotService.GetPlotFromDescendant(podium)
+	if not plot then
+		return false
+	end
+
+	local floor = (podium:GetAttribute("Floor") :: number?) or 1
+	local unlocked = (plot:GetAttribute("UnlockedFloors") :: number?) or 1
+	return floor <= unlocked
+end
+
+--[[ Yalnızca açık katlardaki kaideler. ]]
+function PlotService.GetUnlockedPodiums(plot: Model): { Part }
+	local unlocked = (plot:GetAttribute("UnlockedFloors") :: number?) or 1
+	local result: { Part } = {}
+
 	for _, podium in PlotService.GetPodiums(plot) do
+		local floor = (podium:GetAttribute("Floor") :: number?) or 1
+		if floor <= unlocked then
+			table.insert(result, podium)
+		end
+	end
+	return result
+end
+
+function PlotService.FindEmptyPodium(plot: Model): Part?
+	for _, podium in PlotService.GetUnlockedPodiums(plot) do
 		if not PlotService.IsOccupied(podium) then
 			return podium
 		end
 	end
 	return nil
+end
+
+--[[
+	Açık kat sayısını değiştirir ve kapalı katları hayalete çevirir:
+	görünür ama üstüne çıkılamaz, kaidesi kullanılamaz. Tamamen
+	gizlemek yerine böyle bırakıyoruz ki oyuncu ne kazanacağını görsün.
+]]
+function PlotService.SetUnlockedFloors(plot: Model, count: number)
+	local unlocked = math.clamp(count, 1, Config.MaxFloors)
+	plot:SetAttribute("UnlockedFloors", unlocked)
+
+	local floors = plot:FindFirstChild("Floors")
+	if floors then
+		for _, floorModel in floors:GetChildren() do
+			local index = tonumber(string.match(floorModel.Name, "%d+")) or 1
+			local open = index <= unlocked
+
+			for _, part in floorModel:GetDescendants() do
+				if part:IsA("BasePart") then
+					part.CanCollide = open
+					part.Transparency = if open then 0 else 0.75
+				end
+			end
+		end
+	end
+
+	for _, podium in PlotService.GetPodiums(plot) do
+		local floor = (podium:GetAttribute("Floor") :: number?) or 1
+		local open = floor <= unlocked
+		podium.Transparency = if open then 0 else 0.75
+		podium.CanCollide = open
+	end
 end
 
 --[[
@@ -211,6 +335,11 @@ end
 --[[ Kaideye karakter yerleştirir. Doluysa false döner. ]]
 function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?): boolean
 	if PlotService.IsOccupied(podium) then
+		return false
+	end
+
+	-- Kayıt geri yüklenirken kapalı kata denk gelebilir; sessizce atla
+	if not PlotService.IsPodiumUnlocked(podium) then
 		return false
 	end
 
@@ -311,19 +440,6 @@ function PlotService.TeleportToPlot(player: Player)
 	character:PivotTo(pad.CFrame * CFrame.new(0, 4, 0))
 end
 
-local function assignPlot(player: Player)
-	for _, plot in plots do
-		if ownerByPlot[plot] == nil then
-			ownerByPlot[plot] = player
-			plotByOwner[player] = plot
-			setSignText(plot, string.upper(player.DisplayName))
-			PlotService.TeleportToPlot(player)
-			return
-		end
-	end
-	warn(string.format("PlotService: %s icin bos us kalmadi", player.Name))
-end
-
 --[[ Kayıtlı karakterleri oyuncunun kaidelerine geri koyar. ]]
 local function restoreUnits(player: Player)
 	local plot = plotByOwner[player]
@@ -340,6 +456,79 @@ local function restoreUnits(player: Player)
 		local podium = podiums[entry.slot]
 		if podium and not PlotService.IsOccupied(podium) then
 			PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId)
+		end
+	end
+end
+
+local function grantPlot(player: Player, plot: Model)
+	ownerByPlot[plot] = player
+	plotByOwner[player] = plot
+	setSignText(plot, string.upper(player.DisplayName))
+	PlotService.TeleportToPlot(player)
+
+	-- Profil hâlâ yükleniyor olabilir
+	task.spawn(function()
+		local profile = DataService.WaitForProfile(player)
+		if not profile then
+			return
+		end
+
+		-- Katları karakterleri geri koymadan ÖNCE aç: kayıtlı karakter
+		-- üst kattaysa kapalı kata konamaz ve sessizce kaybolurdu.
+		PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.rebirths))
+		PlotService.RefreshSign(plot)
+		restoreUnits(player)
+	end)
+end
+
+--[[
+	Boş üs varsa verir, yoksa sıraya alır. Üssü olmayan oyuncu hiçbir şey
+	yapamıyor — satın alamıyor, çalamıyor, kazanç üretemiyor. Eskiden bu
+	durumda sadece sunucuya uyarı basılıyordu ve oyuncu ne olduğunu
+	anlamadan boş bir ekrana bakıyordu.
+]]
+--[[ Tabelaya sahibin adını ve rebirth seviyesini yazar. ]]
+function PlotService.RefreshSign(plot: Model)
+	local owner = ownerByPlot[plot]
+	if not owner then
+		setSignText(plot, "EMPTY BASE")
+		return
+	end
+
+	local profile = DataService.Get(owner)
+	local rebirths = if profile then profile.rebirths else 0
+
+	if rebirths > 0 then
+		setSignText(plot, string.format("%s  [R%d]", string.upper(owner.DisplayName), rebirths))
+	else
+		setSignText(plot, string.upper(owner.DisplayName))
+	end
+end
+
+local function assignPlot(player: Player)
+	for _, plot in plots do
+		if ownerByPlot[plot] == nil then
+			grantPlot(player, plot)
+			return
+		end
+	end
+
+	if not table.find(waiting, player) then
+		table.insert(waiting, player)
+	end
+
+	local position = table.find(waiting, player) or #waiting
+	notify(player, string.format("All bases taken - you are #%d in line", position), true)
+end
+
+--[[ Boşalan üssü sıradaki oyuncuya verir. ]]
+local function grantToNextInLine(plot: Model)
+	while #waiting > 0 do
+		local next = table.remove(waiting, 1)
+		if next and next.Parent then
+			grantPlot(next, plot)
+			notify(next, "A base opened up - it is yours", false)
+			return
 		end
 	end
 end
@@ -365,10 +554,13 @@ local function releasePlot(player: Player)
 	end
 
 	plot:SetAttribute("Locked", false)
+	PlotService.SetUnlockedFloors(plot, 1)
 	setSignText(plot, "EMPTY BASE")
 
 	ownerByPlot[plot] = nil
 	plotByOwner[player] = nil
+
+	grantToNextInLine(plot)
 end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
@@ -384,6 +576,9 @@ function PlotService.Start()
 	table.clear(plots)
 	table.clear(ownerByPlot)
 	table.clear(plotByOwner)
+	table.clear(waiting)
+
+	notifyRemote = Net.Get("Notify")
 
 	local existing = workspace:FindFirstChild("Plots")
 	if existing then
@@ -402,14 +597,6 @@ function PlotService.Start()
 	local function onPlayerAdded(player: Player)
 		assignPlot(player)
 
-		-- Kayıtlı karakterleri geri koy. Profil hâlâ yükleniyor olabilir,
-		-- o yüzden ayrı bir iş parçacığında bekliyoruz.
-		task.spawn(function()
-			if DataService.WaitForProfile(player) then
-				restoreUnits(player)
-			end
-		end)
-
 		player.CharacterAdded:Connect(function(character)
 			character:WaitForChild("HumanoidRootPart")
 			task.wait(0.1) -- karakter tam oturmadan ışınlarsak geri kayıyor
@@ -426,7 +613,13 @@ function PlotService.Start()
 	end
 
 	table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
-	table.insert(connections, Players.PlayerRemoving:Connect(releasePlot))
+	table.insert(connections, Players.PlayerRemoving:Connect(function(player)
+		local index = table.find(waiting, player)
+		if index then
+			table.remove(waiting, index)
+		end
+		releasePlot(player)
+	end))
 end
 
 return PlotService
