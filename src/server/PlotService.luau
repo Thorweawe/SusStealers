@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
 
 local DataService = require(script.Parent.DataService)
@@ -24,6 +25,17 @@ local connections: { RBXScriptConnection } = {}
 -- Oyuncu çıkarken üssü boşaltılıyor. O sırada profile yazarsak kayıtlı
 -- karakterleri kaydedilmeden hemen önce sileriz. Bu bayrak onu engelliyor.
 local releasing: { [Player]: boolean } = {}
+
+-- Üs bekleyen oyuncular, giriş sırasına göre
+local waiting: { Player } = {}
+
+local notifyRemote: RemoteEvent
+
+local function notify(player: Player, text: string, isError: boolean)
+	if notifyRemote then
+		notifyRemote:FireClient(player, text, isError)
+	end
+end
 
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
 
@@ -311,19 +323,6 @@ function PlotService.TeleportToPlot(player: Player)
 	character:PivotTo(pad.CFrame * CFrame.new(0, 4, 0))
 end
 
-local function assignPlot(player: Player)
-	for _, plot in plots do
-		if ownerByPlot[plot] == nil then
-			ownerByPlot[plot] = player
-			plotByOwner[player] = plot
-			setSignText(plot, string.upper(player.DisplayName))
-			PlotService.TeleportToPlot(player)
-			return
-		end
-	end
-	warn(string.format("PlotService: %s icin bos us kalmadi", player.Name))
-end
-
 --[[ Kayıtlı karakterleri oyuncunun kaidelerine geri koyar. ]]
 local function restoreUnits(player: Player)
 	local plot = plotByOwner[player]
@@ -340,6 +339,54 @@ local function restoreUnits(player: Player)
 		local podium = podiums[entry.slot]
 		if podium and not PlotService.IsOccupied(podium) then
 			PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId)
+		end
+	end
+end
+
+local function grantPlot(player: Player, plot: Model)
+	ownerByPlot[plot] = player
+	plotByOwner[player] = plot
+	setSignText(plot, string.upper(player.DisplayName))
+	PlotService.TeleportToPlot(player)
+
+	-- Profil hâlâ yükleniyor olabilir
+	task.spawn(function()
+		if DataService.WaitForProfile(player) then
+			restoreUnits(player)
+		end
+	end)
+end
+
+--[[
+	Boş üs varsa verir, yoksa sıraya alır. Üssü olmayan oyuncu hiçbir şey
+	yapamıyor — satın alamıyor, çalamıyor, kazanç üretemiyor. Eskiden bu
+	durumda sadece sunucuya uyarı basılıyordu ve oyuncu ne olduğunu
+	anlamadan boş bir ekrana bakıyordu.
+]]
+local function assignPlot(player: Player)
+	for _, plot in plots do
+		if ownerByPlot[plot] == nil then
+			grantPlot(player, plot)
+			return
+		end
+	end
+
+	if not table.find(waiting, player) then
+		table.insert(waiting, player)
+	end
+
+	local position = table.find(waiting, player) or #waiting
+	notify(player, string.format("All bases taken - you are #%d in line", position), true)
+end
+
+--[[ Boşalan üssü sıradaki oyuncuya verir. ]]
+local function grantToNextInLine(plot: Model)
+	while #waiting > 0 do
+		local next = table.remove(waiting, 1)
+		if next and next.Parent then
+			grantPlot(next, plot)
+			notify(next, "A base opened up - it is yours", false)
+			return
 		end
 	end
 end
@@ -369,6 +416,8 @@ local function releasePlot(player: Player)
 
 	ownerByPlot[plot] = nil
 	plotByOwner[player] = nil
+
+	grantToNextInLine(plot)
 end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
@@ -384,6 +433,9 @@ function PlotService.Start()
 	table.clear(plots)
 	table.clear(ownerByPlot)
 	table.clear(plotByOwner)
+	table.clear(waiting)
+
+	notifyRemote = Net.Get("Notify")
 
 	local existing = workspace:FindFirstChild("Plots")
 	if existing then
@@ -402,14 +454,6 @@ function PlotService.Start()
 	local function onPlayerAdded(player: Player)
 		assignPlot(player)
 
-		-- Kayıtlı karakterleri geri koy. Profil hâlâ yükleniyor olabilir,
-		-- o yüzden ayrı bir iş parçacığında bekliyoruz.
-		task.spawn(function()
-			if DataService.WaitForProfile(player) then
-				restoreUnits(player)
-			end
-		end)
-
 		player.CharacterAdded:Connect(function(character)
 			character:WaitForChild("HumanoidRootPart")
 			task.wait(0.1) -- karakter tam oturmadan ışınlarsak geri kayıyor
@@ -426,7 +470,13 @@ function PlotService.Start()
 	end
 
 	table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
-	table.insert(connections, Players.PlayerRemoving:Connect(releasePlot))
+	table.insert(connections, Players.PlayerRemoving:Connect(function(player)
+		local index = table.find(waiting, player)
+		if index then
+			table.remove(waiting, index)
+		end
+		releasePlot(player)
+	end))
 end
 
 return PlotService

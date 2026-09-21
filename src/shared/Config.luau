@@ -4,7 +4,7 @@
 local Config = {}
 
 -- ─── Dünya ──────────────────────────────────────────────────────────────────
-Config.PlotCount = 6
+Config.PlotCount = 8
 Config.PodiumsPerPlot = 8
 Config.PlotSize = Vector3.new(60, 2, 44)
 Config.PlotSpacing = 76
