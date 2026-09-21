@@ -16,7 +16,9 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local DataService = {}
 
-local STORE_NAME = "PlayerData_v1"
+-- v2: kat başına kaide sayısı 8 -> 10 oldu (bonus slotlar), slot
+-- numaralandırması değişti. v1 kayıtları yanlış kaideye düşerdi.
+local STORE_NAME = "PlayerData_v2"
 local AUTOSAVE_INTERVAL = 120
 local LOCK_TIMEOUT = 180      -- kilit bu kadar saniye tazelenmezse ölü sayılır
 local LOAD_RETRIES = 4
@@ -36,6 +38,11 @@ export type Profile = {
 	-- Çevrimdışı gelir hesabı için: son görülme ve o andaki kazanç hızı
 	lastSeen: number,
 	incomePerSecond: number,
+	-- İşlenmiş satın alma kimlikleri; aynı makbuzun iki kez ödüllenmesini
+	-- engelliyor. Config.ReceiptHistoryLimit kadar tutuluyor.
+	receipts: { string },
+	-- Üs yükseltmeleri: id -> seviye
+	upgrades: { [string]: number },
 }
 
 type Lock = { owner: string, at: number }
@@ -62,6 +69,8 @@ local function newProfile(): Profile
 		units = {},
 		lastSeen = 0,
 		incomePerSecond = 0,
+		receipts = {},
+		upgrades = {},
 	}
 end
 
@@ -94,6 +103,23 @@ local function sanitize(raw: any): Profile
 
 	if typeof(raw.incomePerSecond) == "number" and raw.incomePerSecond >= 0 then
 		profile.incomePerSecond = raw.incomePerSecond
+	end
+
+	if typeof(raw.receipts) == "table" then
+		for _, id in raw.receipts do
+			if typeof(id) == "string" then
+				table.insert(profile.receipts, id)
+			end
+		end
+	end
+
+	if typeof(raw.upgrades) == "table" then
+		for id, level in raw.upgrades do
+			local def = typeof(id) == "string" and Config.GetUpgrade(id)
+			if def and typeof(level) == "number" and level > 0 then
+				profile.upgrades[id] = math.clamp(math.floor(level), 0, def.maxLevel)
+			end
+		end
 	end
 
 	if typeof(raw.units) == "table" then
@@ -203,6 +229,8 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 		units = table.clone(profile.units),
 		lastSeen = profile.lastSeen,
 		incomePerSecond = profile.incomePerSecond,
+		receipts = table.clone(profile.receipts),
+		upgrades = table.clone(profile.upgrades),
 	}
 
 	local ok, err = pcall(function()

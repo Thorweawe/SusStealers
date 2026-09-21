@@ -59,6 +59,118 @@ Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%5
 Config.OfflineIncomeRate = 0.05
 Config.OfflineIncomeCapHours = 3
 
+-- ─── Para kazanma ───────────────────────────────────────────────────────────
+-- ID'ler Creator Dashboard > Monetization altında ürün oluşturulunca buraya
+-- yazılacak. id = 0 olan ürün devre dışıdır: satın alma kontrolü yapılmaz,
+-- oyun da onu yokmuş gibi çalışır. Böylece ID'ler gelmeden test edilebiliyor.
+
+export type GamePassDef = {
+	id: number,
+	name: string,
+}
+
+Config.GamePasses = {
+	DoubleIncome = { id = 0, name = "2x Income" },
+	ExtraPodiums = { id = 0, name = "+2 Podiums Per Floor" },
+	FastSteal    = { id = 0, name = "Fast Steal" },
+	StrongLock   = { id = 0, name = "Strong Lock" },
+} :: { [string]: GamePassDef }
+
+-- Gamepass etkileri. Tek yerde dursun ki denge değiştirmek kolay olsun.
+Config.PassDoubleIncomeMultiplier = 2
+Config.PassExtraPodiumsPerFloor = 2
+
+-- Kat başına fiziksel kaide sayısı: normal + bonus. Bonus kaideler her
+-- zaman inşa ediliyor ama pass olmadan kullanılamıyor. Slot numaraları
+-- bu sabite göre ilerliyor; sonradan değiştirmek kayıtlı slot -> kaide
+-- eşlemesini bozar, o yüzden değişirse DataService sürümü de artmalı.
+Config.PodiumsPerFloorTotal = Config.PodiumsPerPlot + Config.PassExtraPodiumsPerFloor
+Config.PassFastStealMultiplier = 0.7   -- basılı tutma süresi bu oranla çarpılır
+Config.PassStrongLockDuration = 40
+Config.PassStrongLockCooldown = 50
+
+export type ProductDef = {
+	id: number,
+	name: string,
+	kind: string,       -- cash | conveyor | lucky | rebirth
+	amount: number?,
+}
+
+Config.Products = {
+	Cash100K       = { id = 0, name = "$100K",           kind = "cash", amount =   100000 },
+	Cash1M         = { id = 0, name = "$1M",             kind = "cash", amount =  1000000 },
+	Cash10M        = { id = 0, name = "$10M",            kind = "cash", amount = 10000000 },
+	SkipConveyor   = { id = 0, name = "Instant Spawn",   kind = "conveyor" },
+	LuckyRoll      = { id = 0, name = "Guaranteed Mutation", kind = "lucky" },
+	InstantRebirth = { id = 0, name = "Instant Rebirth", kind = "rebirth" },
+} :: { [string]: ProductDef }
+
+-- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez
+-- işlenmesini engellemek için tutuluyor; sınırsız büyümesin diye kırpılıyor.
+Config.ReceiptHistoryLimit = 50
+
+-- ─── Üs yükseltmeleri (oyun içi parayla) ────────────────────────────────────
+-- Nakdin karakter almak dışında harcanacak yeri olsun diye. Robux ürünlerinin
+-- aksine bunlar herkese açık: yeterince oynayan herkes alabiliyor.
+
+export type UpgradeDef = {
+	id: string,
+	name: string,
+	maxLevel: number,
+	baseCost: number,
+	costGrowth: number,
+}
+
+Config.Upgrades = {
+	{ id = "ConveyorSpeed", name = "Conveyor Speed", maxLevel = 5, baseCost =  25000, costGrowth = 6 },
+	{ id = "UnitGuard",     name = "Unit Guard",     maxLevel = 4, baseCost =  60000, costGrowth = 7 },
+	{ id = "CarrySpeed",    name = "Carry Speed",    maxLevel = 4, baseCost =  80000, costGrowth = 7 },
+	{ id = "LockPower",     name = "Lock Power",     maxLevel = 3, baseCost = 150000, costGrowth = 8 },
+} :: { UpgradeDef }
+
+local upgradesById: { [string]: UpgradeDef } = {}
+for _, def in Config.Upgrades do
+	upgradesById[def.id] = def
+end
+
+function Config.GetUpgrade(id: string): UpgradeDef?
+	return upgradesById[id]
+end
+
+--[[ Bir sonraki seviyenin maliyeti. Seviye tavandaysa nil döner. ]]
+function Config.GetUpgradeCost(id: string, currentLevel: number): number?
+	local def = upgradesById[id]
+	if not def or currentLevel >= def.maxLevel then
+		return nil
+	end
+	return math.floor(def.baseCost * def.costGrowth ^ currentLevel)
+end
+
+-- Yükseltme etkileri. Hepsi tek yerde dursun ki denge değiştirmek kolay olsun.
+
+--[[ Konveyörde iki karakter arası süre. ]]
+function Config.GetConveyorInterval(level: number): number
+	return math.max(4, Config.ConveyorInterval - level)
+end
+
+--[[ Yeni konan karakterin dokunulmazlık süresi. ]]
+function Config.GetSafeSeconds(level: number): number
+	return Config.SafeSeconds + level * 3
+end
+
+--[[
+	Karakter taşırken yürüme hızı. Normal hızı geçmemeli, yoksa taşımak
+	avantaj haline gelir ve çalmanın riski kaybolur.
+]]
+function Config.GetCarryWalkSpeed(level: number): number
+	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level)
+end
+
+--[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]
+function Config.GetLockValues(level: number): (number, number)
+	return Config.LockDuration + level * 5, math.max(30, Config.LockCooldown - level * 10)
+end
+
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
 

@@ -12,6 +12,8 @@ local UnitModel = require(Shared.UnitModel)
 
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
+local MonetizationService = require(script.Parent.MonetizationService)
+local UpgradeService = require(script.Parent.UpgradeService)
 local EconomyService = require(script.Parent.EconomyService)
 
 local StealService = {}
@@ -34,6 +36,27 @@ local lastStealAt: { [Player]: number } = {}
 
 local function notify(player: Player, text: string, isError: boolean)
 	notifyRemote:FireClient(player, text, isError)
+end
+
+--[[ Oyuncunun taşıma hızı: yükseltme seviyesine göre. ]]
+local function carrySpeedFor(player: Player): number
+	return Config.GetCarryWalkSpeed(UpgradeService.GetLevel(player, "CarrySpeed"))
+end
+
+--[[
+	Kilit süresi ve bekleme. Yükseltme ve gamepass birbirine eklenmiyor,
+	hangisi daha iyiyse o geçerli — ikisini de alan iki kat avantaj
+	kazanmasın.
+]]
+local function lockValuesFor(player: Player): (number, number)
+	local duration, cooldown = Config.GetLockValues(UpgradeService.GetLevel(player, "LockPower"))
+
+	if MonetizationService.HasPass(player, "StrongLock") then
+		duration = math.max(duration, Config.PassStrongLockDuration)
+		cooldown = math.min(cooldown, Config.PassStrongLockCooldown)
+	end
+
+	return duration, cooldown
 end
 
 -- ─── Taşıma ─────────────────────────────────────────────────────────────────
@@ -74,7 +97,7 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.WalkSpeed = Config.CarryWalkSpeed
+		humanoid.WalkSpeed = carrySpeedFor(player)
 	end
 
 	return model
@@ -168,8 +191,10 @@ local function tryDeposit(player: Player)
 	-- elinde olduğu için ışınlanan biri üsse anında varabiliyor. Reddetmek
 	-- yerine bekletiyoruz: süre dolduğunda bırakma kendiliğinden olur.
 	-- Böylece exploit hiçbir şey kazandırmaz ama meşru oyuncu da takılmaz.
+	-- Hız yükseltmesi olan oyuncu gerçekten daha hızlı gidiyor; taban hızla
+	-- hesaplarsak onu haksız yere bekletiriz.
 	local travelled = (root.Position - carry.origin).Magnitude
-	local minimumTime = travelled / Config.CarryWalkSpeed * Config.CarryTravelTolerance
+	local minimumTime = travelled / carrySpeedFor(player) * Config.CarryTravelTolerance
 	if os.clock() - carry.startedAt < minimumTime then
 		return
 	end
@@ -221,8 +246,13 @@ local function onStealPrompt(podium: Part, thief: Player)
 		return
 	end
 
+	-- Dokunulmazlık süresi kurbanın Unit Guard seviyesine göre
+	local victimOwner = PlotService.GetOwner(victimPlot)
+	local guardLevel = if victimOwner then UpgradeService.GetLevel(victimOwner, "UnitGuard") else 0
+	local safeSeconds = Config.GetSafeSeconds(guardLevel)
+
 	local placedAt = podium:GetAttribute("PlacedAt") :: number
-	if os.clock() - placedAt < Config.SafeSeconds then
+	if os.clock() - placedAt < safeSeconds then
 		notify(thief, "Unit is still protected", true)
 		return
 	end
@@ -250,7 +280,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 		return
 	end
 
-	local victim = PlotService.GetOwner(victimPlot)
+	local victim = victimOwner
 	carrying[thief] = {
 		model = model,
 		unitId = unitId,
@@ -299,6 +329,9 @@ local function setupPodiumPrompt(podium: Part)
 		local mutationId = podium:GetAttribute("MutationId") :: string
 		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId)
 
+		-- Hızlı Çalma pass'i kişiye özel, prompt ise herkese ortak.
+		-- Burada taban süre yazılıyor; kişisel indirim tetiklenme anında
+		-- PromptGuard'ın beklediği süreye yansıyor.
 		prompt.HoldDuration = hold
 		prompt.ObjectText = string.format("%.1fs", hold)
 		prompt.Enabled = true
@@ -309,6 +342,9 @@ local function setupPodiumPrompt(podium: Part)
 
 	PromptGuard.Connect(prompt, function(player)
 		onStealPrompt(podium, player)
+	end, function(player)
+		-- Hızlı Çalma pass'i olan daha kısa tutuyor
+		return prompt.HoldDuration * MonetizationService.GetStealHoldMultiplier(player)
 	end)
 end
 
@@ -333,8 +369,11 @@ local function setupLockPrompt(plot: Model)
 			return
 		end
 
+		-- Güçlü Kilit pass'i süreyi uzatıp beklemeyi kısaltıyor
+		local duration, cooldown = lockValuesFor(player)
+
 		local usedAt = plot:GetAttribute("LockUsedAt") :: number
-		local cooldownLeft = Config.LockCooldown - (os.clock() - usedAt)
+		local cooldownLeft = cooldown - (os.clock() - usedAt)
 		if usedAt > 0 and cooldownLeft > 0 then
 			notify(player, string.format("Lock ready in %d s", math.ceil(cooldownLeft)), true)
 			return
@@ -342,9 +381,9 @@ local function setupLockPrompt(plot: Model)
 
 		plot:SetAttribute("Locked", true)
 		plot:SetAttribute("LockUsedAt", os.clock())
-		notify(player, string.format("Base locked for %d s", Config.LockDuration), false)
+		notify(player, string.format("Base locked for %d s", duration), false)
 
-		task.delay(Config.LockDuration, function()
+		task.delay(duration, function()
 			if plot.Parent then
 				plot:SetAttribute("Locked", false)
 				if PlotService.GetOwner(plot) == player and player.Parent then

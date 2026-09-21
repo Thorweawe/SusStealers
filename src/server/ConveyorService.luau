@@ -12,6 +12,8 @@ local UnitModel = require(Shared.UnitModel)
 
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
+local MonetizationService = require(script.Parent.MonetizationService)
+local UpgradeService = require(script.Parent.UpgradeService)
 local EconomyService = require(script.Parent.EconomyService)
 
 local ConveyorService = {}
@@ -32,6 +34,11 @@ type ConveyorItem = {
 
 local activeItems: { ConveyorItem } = {}
 
+-- "Garantili mutasyon" satin alan oyuncunun ussu. Bir sonraki uretimde
+-- harcaniyor: mutasyon cikmazsa zorla veriliyor, yani para verip bos
+-- cikma ihtimali yok.
+local luckyPlots: { [Model]: boolean } = {}
+
 -- ─── Üretim ─────────────────────────────────────────────────────────────────
 
 local function spawnItem(plot: Model)
@@ -43,6 +50,15 @@ local function spawnItem(plot: Model)
 
 	local def = Config.RollUnit(rng)
 	local mutation = Config.RollMutation(rng)
+
+	-- Garanti satin alindiysa mutasyon cikana kadar cek
+	if luckyPlots[plot] then
+		luckyPlots[plot] = nil
+		while not mutation do
+			mutation = Config.RollMutation(rng)
+		end
+	end
+
 	local mutationId = if mutation then mutation.id else nil
 	local price = Config.GetPrice(def.id, mutationId)
 
@@ -159,18 +175,62 @@ local function stepItems()
 	end
 end
 
+--[[ Oyuncunun konveyorune hemen bir karakter dusurur. ]]
+function ConveyorService.SpawnFor(player: Player): boolean
+	local plot = PlotService.GetPlotOf(player)
+	if not plot then
+		return false
+	end
+	spawnItem(plot)
+	return true
+end
+
+--[[ Sonraki uretimde mutasyonu garanti eder. ]]
+function ConveyorService.GrantLuckyRoll(player: Player): boolean
+	local plot = PlotService.GetPlotOf(player)
+	if not plot then
+		return false
+	end
+	luckyPlots[plot] = true
+	spawnItem(plot)
+	return true
+end
+
 function ConveyorService.Start()
 	notifyRemote = Net.Get("Notify")
 
+	MonetizationService.RegisterGranter("conveyor", function(player)
+		return ConveyorService.SpawnFor(player)
+	end)
+
+	MonetizationService.RegisterGranter("lucky", function(player)
+		return ConveyorService.GrantLuckyRoll(player)
+	end)
+
 	RunService.Heartbeat:Connect(stepItems)
+
+	-- Üretim aralığı artık üs başına: Conveyor Speed yükseltmesi olan
+	-- oyuncunun konveyörü daha sık besleniyor. Tek bir global döngü
+	-- yerine her üssün kendi zamanlayıcısı var.
+	local nextSpawn: { [Model]: number } = {}
 
 	task.spawn(function()
 		while true do
-			task.wait(Config.ConveyorInterval)
+			task.wait(1)
+			local now = os.clock()
+
 			for _, plot in PlotService.GetAllPlots() do
-				-- Sahipsiz üste karakter üretmeye gerek yok
-				if PlotService.GetOwner(plot) then
+				local owner = PlotService.GetOwner(plot)
+				if not owner then
+					-- Sahipsiz üste karakter üretmeye gerek yok
+					nextSpawn[plot] = nil
+					continue
+				end
+
+				if now >= (nextSpawn[plot] or 0) then
 					spawnItem(plot)
+					local level = UpgradeService.GetLevel(owner, "ConveyorSpeed")
+					nextSpawn[plot] = now + Config.GetConveyorInterval(level)
 				end
 			end
 		end

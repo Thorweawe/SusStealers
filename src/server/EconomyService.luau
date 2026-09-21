@@ -11,6 +11,7 @@ local Net = require(Shared.Net)
 
 local PlotService = require(script.Parent.PlotService)
 local DataService = require(script.Parent.DataService)
+local MonetizationService = require(script.Parent.MonetizationService)
 
 local EconomyService = {}
 
@@ -83,10 +84,13 @@ function EconomyService.GetIncome(player: Player): number
 		end
 	end
 
-	-- Rebirth'ün kalıcı çarpanı en sonda uygulanıyor
+	-- Rebirth ve gamepass çarpanları en sonda, birbirleriyle çarpılarak
 	local profile = DataService.Get(player)
 	local rebirths = if profile then profile.rebirths else 0
-	return math.floor(total * Config.GetIncomeMultiplier(rebirths))
+	local multiplier = Config.GetIncomeMultiplier(rebirths)
+		* MonetizationService.GetIncomeMultiplier(player)
+
+	return math.floor(total * multiplier)
 end
 
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────
@@ -144,6 +148,16 @@ end
 
 function EconomyService.Start()
 	notifyRemote = Net.Get("Notify")
+
+	-- Nakit paketleri: satın alınca doğrudan bakiyeye ekleniyor
+	MonetizationService.RegisterGranter("cash", function(player, product)
+		local amount = product.amount
+		if not amount or amount <= 0 then
+			return false
+		end
+		EconomyService.AddCash(player, amount)
+		return true
+	end)
 
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
