@@ -78,7 +78,16 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	glow.Brightness = if mutation then 2.5 else 1.2
 	glow.Parent = body
 
-	model.PrimaryPart = body
+	-- Pivot parçası: ayakların tabanında ve dönüşsüz.
+	-- Gövde silindir olduğu için 90° çevrili duruyor. Onu PrimaryPart yaparsak
+	-- model pivotu da çevrili olur; PivotTo pivotu hedefe birebir oturttuğu için
+	-- o dönüşü sıfırlar ve karakter yan yatıp kaideye gömülür.
+	local root = newPart("Root", Vector3.new(0.2, 0.2, 0.2), bodyColor, Enum.Material.SmoothPlastic)
+	root.CFrame = CFrame.new(0, 0, 0)
+	root.Transparency = 1
+	root.Parent = model
+
+	model.PrimaryPart = root
 
 	-- Meta bilgiler: diğer sistemler modelden okuyabilsin
 	local unitTag = Instance.new("StringValue")
@@ -106,7 +115,9 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "UnitLabel"
 	gui.Size = UDim2.fromScale(7, 2.2)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+	-- Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında.
+	-- Karakterin tepesi ~4 stud, etiket onun biraz üstünde dursun.
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 5.0, 0)
 	gui.AlwaysOnTop = true
 	gui.MaxDistance = 120
 
