@@ -229,6 +229,34 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
 		minimapRef.Alert(bay, thiefName)
 	end
+
+	print(string.format("[SusStealers] Calinma bildirimi geldi: %s -> %s", thiefName, unitName))
+end)
+
+--[[
+	TEŞHİS TUŞU (K): çalınma efektlerini yerel olarak tetikler.
+
+	Çalınma efektleri test sırasında hiç görünmedi ve sebebi iki yerden biri
+	olabilir: ya sunucu bildirimi ulaşmıyor ya da efektlerin kendisi bozuk.
+	Bu tuş efektleri olaydan bağımsız çalıştırıyor, böylece hangisi olduğu
+	kesinleşiyor. Sebep bulununca kaldırılacak.
+]]
+game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+	if processed or input.KeyCode ~= Enum.KeyCode.K then
+		return
+	end
+
+	showToast("TEST: efekt denemesi", Color3.fromRGB(255, 70, 110))
+	SoundFX.Alarm()
+	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
+	effects.Shake(1.6, 0.6)
+
+	if minimapRef then
+		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
+		-- Kendimizi hırsız gösteriyoruz ki nokta işaretlemesi de denensin
+		minimapRef.Alert(bay, player.DisplayName)
+	end
+	print("[SusStealers] K: efektler yerel olarak tetiklendi")
 end)
 
 -- ─── Nakit / gelir ──────────────────────────────────────────────────────────
