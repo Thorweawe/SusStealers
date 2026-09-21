@@ -34,6 +34,22 @@ type Carry = {
 local carrying: { [Player]: Carry } = {}
 local lastStealAt: { [Player]: number } = {}
 
+--[[
+	Çalma serisi. Art arda başarılı çalma bonus veriyor; araya uzun bir
+	boşluk girerse sıfırlanıyor. Bırakma anında sayılıyor, çalma anında
+	değil — yakalanan hırsız bonusu hak etmemeli.
+]]
+local streak: { [Player]: number } = {}
+local streakAt: { [Player]: number } = {}
+
+--[[
+	Aynı kurbandan kaç kez çalındı. Yoksa iki arkadaş birbirinden sonsuz
+	çalıp sıralamayı sahteliyor. Sayaç kurban başına tutuluyor ve sınıra
+	ulaşınca o kurban bir süre kapalı kalıyor.
+]]
+local victimHits: { [Player]: { [Player]: number } } = {}
+local victimBlockedUntil: { [Player]: { [Player]: number } } = {}
+
 local function notify(player: Player, text: string, isError: boolean)
 	notifyRemote:FireClient(player, text, isError)
 end
@@ -208,7 +224,44 @@ local function tryDeposit(player: Player)
 	EconomyService.AddStealCount(player)
 
 	local def = Config.GetUnit(carry.unitId)
-	notify(player, string.format("%s added to your base", if def then def.name else carry.unitId), false)
+
+	--[[
+		Seri bonusu. Art arda çalmak risk almak demek: her çalma yeni bir
+		yürüyüş ve yeni bir yakalanma ihtimali. Bonus peşin para olarak
+		veriliyor, kalıcı çarpan değil — çarpan olsaydı seri kırılana kadar
+		biriken avantaj oyunu bozardı.
+	]]
+	local now = os.clock()
+	local previous = streak[player]
+	if previous and now - (streakAt[player] or 0) <= Config.StealStreakTimeout then
+		streak[player] = previous + 1
+	else
+		streak[player] = 1
+	end
+	streakAt[player] = now
+
+	local level = (streak[player] or 1) - 1
+	local bonusRate = Config.GetStreakBonus(level)
+	local payout = 0
+	if bonusRate > 0 and def then
+		payout = math.floor(Config.GetPrice(carry.unitId, carry.mutationId) * bonusRate)
+		if payout > 0 then
+			EconomyService.AddCash(player, payout)
+		end
+	end
+
+	if payout > 0 then
+		notify(player, string.format(
+			"%s added  ·  streak x%d  +$%s",
+			if def then def.name else carry.unitId,
+			streak[player],
+			Config.FormatCash(payout)
+		), false)
+	else
+		notify(player, string.format("%s added to your base", if def then def.name else carry.unitId), false)
+	end
+
+	player:SetAttribute("StealStreak", streak[player])
 
 	stopCarrying(player)
 end
@@ -268,6 +321,24 @@ local function onStealPrompt(podium: Part, thief: Player)
 		return
 	end
 
+	--[[
+		Aynı kurbandan sınır. Sayaç ve engel burada, çalma anında kontrol
+		ediliyor — bırakma anında olsaydı hırsız taşımaya başlayıp sonra
+		reddedilirdi, bu da kafa karıştırıcı olurdu.
+	]]
+	if victimOwner and victimOwner ~= thief then
+		local blocked = victimBlockedUntil[thief]
+		local until_ = blocked and blocked[victimOwner]
+		if until_ and os.clock() < until_ then
+			notify(thief, string.format(
+				"Too many steals from %s - try someone else (%ds)",
+				victimOwner.DisplayName,
+				math.ceil(until_ - os.clock())
+			), true)
+			return
+		end
+	end
+
 	local unitId, mutationId = PlotService.ClearUnit(podium)
 	if not unitId then
 		return
@@ -290,6 +361,26 @@ local function onStealPrompt(podium: Part, thief: Player)
 		startedAt = os.clock(),
 	}
 	lastStealAt[thief] = os.clock()
+
+	-- Kurban sayacını artır, sınıra ulaşınca o kurbanı bir süre kapat
+	if victimOwner and victimOwner ~= thief then
+		local hits = victimHits[thief]
+		if not hits then
+			hits = {}
+			victimHits[thief] = hits
+		end
+		hits[victimOwner] = (hits[victimOwner] or 0) + 1
+
+		if hits[victimOwner] >= Config.StealsPerVictim then
+			hits[victimOwner] = 0
+			local blocked = victimBlockedUntil[thief]
+			if not blocked then
+				blocked = {}
+				victimBlockedUntil[thief] = blocked
+			end
+			blocked[victimOwner] = os.clock() + Config.VictimCooldown
+		end
+	end
 
 	local def = Config.GetUnit(unitId)
 	local unitName = if def then def.name else unitId
@@ -432,6 +523,18 @@ function StealService.Start()
 		returnToVictim(player)
 		carrying[player] = nil
 		lastStealAt[player] = nil
+		streak[player] = nil
+		streakAt[player] = nil
+		victimHits[player] = nil
+		victimBlockedUntil[player] = nil
+
+		-- Çıkan oyuncu başkalarının sayaçlarında da kurban olarak duruyor
+		for _, hits in victimHits do
+			hits[player] = nil
+		end
+		for _, blocked in victimBlockedUntil do
+			blocked[player] = nil
+		end
 	end)
 end
 

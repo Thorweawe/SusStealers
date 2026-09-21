@@ -49,6 +49,33 @@ Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınam
 -- kestirme yüzünden meşru oyuncu takılır), 0 = kontrol kapalı.
 Config.CarryTravelTolerance = 0.7
 
+-- ─── Çalma serisi ───────────────────────────────────────────────────────────
+--[[
+	Art arda başarılı çalma bonus veriyor. Risk almayı ödüllendiriyor: her
+	çalma yeni bir yürüyüş, yeni bir yakalanma ihtimali. Seri bozulunca
+	sıfırlanıyor, yani biriktirdiğin bonus da gidiyor — devam etmek cazip
+	ama pahalı.
+
+	Bonus bırakma anında peşin para olarak veriliyor, gelire eklenmiyor:
+	kalıcı çarpan olsaydı seri kırılana kadar biriken avantaj oyunu bozardı.
+]]
+Config.StealStreakStep = 0.05      -- seri başına bonus (%5)
+Config.StealStreakMax = 5          -- bundan sonrası bonus artırmıyor
+Config.StealStreakTimeout = 180    -- bu kadar çalmazsan seri sıfırlanır
+
+--[[
+	Aynı kurbandan çalma sınırı. Yoksa iki arkadaş birbirinden sonsuz çalıp
+	sıralamayı sahteliyor; rekabetin anlamı kalmıyor. Sınıra ulaşınca o
+	kurban bir süre kapalı kalıyor, hırsız başka hedef aramak zorunda.
+]]
+Config.StealsPerVictim = 5
+Config.VictimCooldown = 600        -- 10 dakika
+
+--[[ Seri seviyesine göre bonus çarpanı. 0. seride bonus yok. ]]
+function Config.GetStreakBonus(streak: number): number
+	return math.min(streak, Config.StealStreakMax) * Config.StealStreakStep
+end
+
 -- ─── Kilit (savunma) ────────────────────────────────────────────────────────
 Config.LockDuration = 25
 Config.LockCooldown = 80
@@ -401,16 +428,69 @@ function Config.GetOfflineEarnings(incomePerSecond: number, secondsAway: number)
 	return math.floor(incomePerSecond * capped * Config.OfflineIncomeRate)
 end
 
---[[ Konveyör için ağırlıklı rastgele karakter seçer. ]]
-function Config.RollUnit(rng: Random): UnitDef
+--[[
+	Konveyör seviyesinin nadirliğe etkisi.
+
+	Önceden bütün seviyelerde aynı ağırlıklar kullanılıyordu: ilk dakikasında
+	oyuna giren biri Amogus Prime görebiliyordu. Bu iki şeyi birden bozuyor —
+	ilerleme hissi kalmıyor ve ConveyorSpeed upgrade'i sadece "daha sık"
+	anlamına geliyor, "daha iyi" anlamına gelmiyor.
+
+	Artık her nadirlik kademesinin bir açılma seviyesi var. Kilitli kademe
+	hiç çıkmıyor; açık kademelerin ağırlığı seviye yükseldikçe artıyor.
+	Böylece upgrade "daha hızlı kasa" değil "daha iyi kasa" oluyor.
+
+	unlockLevel: bu kademenin çıkmaya başladığı ConveyorSpeed seviyesi
+	bonus:       seviye başına ağırlık çarpanı artışı
+]]
+Config.RarityUnlock = {
+	Common    = { unlockLevel = 0,  bonus = 0.00 },
+	Uncommon  = { unlockLevel = 0,  bonus = 0.06 },
+	Rare      = { unlockLevel = 2,  bonus = 0.14 },
+	Epic      = { unlockLevel = 4,  bonus = 0.22 },
+	Legendary = { unlockLevel = 6,  bonus = 0.30 },
+	Mythic    = { unlockLevel = 8,  bonus = 0.40 },
+	Secret    = { unlockLevel = 10, bonus = 0.50 },
+}
+
+--[[
+	Bir karakterin verilen seviyedeki ağırlığı. Kilitliyse 0.
+	Common'a bonus verilmiyor: seviye yükseldikçe payı kendiliğinden
+	azalsın, yoksa üst kademeler hiç öne çıkamıyor.
+]]
+function Config.GetUnitWeight(unit: UnitDef, conveyorLevel: number): number
+	local gate = Config.RarityUnlock[unit.rarity]
+	if not gate then
+		return unit.weight
+	end
+	if conveyorLevel < gate.unlockLevel then
+		return 0
+	end
+
+	local steps = conveyorLevel - gate.unlockLevel
+	return unit.weight * (1 + gate.bonus * steps)
+end
+
+--[[
+	Konveyör için ağırlıklı rastgele karakter seçer. Seviye verilmezse 0
+	kabul edilir: çağıran taraf seviyeyi geçirmeyi unutursa oyun kırılmaz,
+	sadece başlangıç havuzundan çeker.
+]]
+function Config.RollUnit(rng: Random, conveyorLevel: number?): UnitDef
+	local level = conveyorLevel or 0
+
 	local total = 0
 	for _, unit in Config.Units do
-		total += unit.weight
+		total += Config.GetUnitWeight(unit, level)
+	end
+
+	if total <= 0 then
+		return Config.Units[1]
 	end
 
 	local roll = rng:NextNumber(0, total)
 	for _, unit in Config.Units do
-		roll -= unit.weight
+		roll -= Config.GetUnitWeight(unit, level)
 		if roll <= 0 then
 			return unit
 		end

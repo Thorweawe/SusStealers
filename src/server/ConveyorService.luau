@@ -48,7 +48,16 @@ local function spawnItem(plot: Model)
 		return
 	end
 
-	local def = Config.RollUnit(rng)
+	--[[
+		Nadirlik havuzu konveyör seviyesine bağlı. Yeni oyuncunun ilk
+		dakikasında Amogus Prime görmesi hem ilerleme hissini yok ediyordu
+		hem de ConveyorSpeed upgrade'ini sadece "daha sık" yapıyordu;
+		artık "daha iyi" de oluyor.
+	]]
+	local owner = PlotService.GetOwner(plot)
+	local conveyorLevel = if owner then UpgradeService.GetLevel(owner, "ConveyorSpeed") else 0
+
+	local def = Config.RollUnit(rng, conveyorLevel)
 	local mutation = Config.RollMutation(rng)
 
 	-- Garanti satin alindiysa mutasyon cikana kadar cek
