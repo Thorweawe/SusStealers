@@ -158,6 +158,46 @@ kilit başka bir sunucudaysa oyuncu içeri alınmıyor, tekrar girmesi isteniyor
 **Sürüm:** Store adı `PlayerData_v1`. Profil şeması bozucu şekilde
 değişirse adı `_v2` yap — eski kayıtlar bozulmasın.
 
+## Regresyon testleri
+
+`tests/ServerTests.luau` — 38 test, 200+ kontrol, ~1.3 saniye.
+
+**Neden var:** bir kez basılı tutma doğrulaması yüzünden çalma ve satma
+tamamen kırıldı ve ancak elle oynanarak fark edildi. İki kişi aynı sunucu
+dosyalarına yazarken bu tekrar olacak.
+
+**Her sunucu değişikliğinden sonra koş.** Önce dosyayı Studio'ya
+`ServerScriptService.Server.Tests` olarak senkronize et, sonra MCP'nin
+`run_script_in_play_mode` aracını `mode = "start_play"` ile kullan:
+
+```lua
+local Players = game:GetService("Players")
+
+local player
+for _ = 1, 60 do
+	player = Players:GetPlayers()[1]
+	if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then break end
+	task.wait(0.5)
+end
+task.wait(4)
+
+require(game.ServerScriptService.Server.Tests).Run(player)
+```
+
+`Run` başarısız kontrol sayısını döner; 0 ise temiz.
+
+**Kapsam:** Config bütünlüğü · üs ve kaide yapısı · ekonomi · satın alma
+ve satma · çalma kuralları · yükseltmeler · rebirth · para kazanma ·
+prompt güvenliği · kayıt.
+
+Testler oyuncunun profilini geçici olarak değiştiriyor ama `Run` sonunda
+başlangıç hali geri yükleniyor. `init.server` bu modülü require etmiyor,
+yayına çıkan kodda hiçbir etkisi yok.
+
+**Yeni özellik eklerken testini de ekle.** Dosyanın altındaki `case(...)`
+kalıbı yeterli; testler sırayla koşuyor ve her biri ortamı kendi
+kuruyor.
+
 ## Test etmek
 
 Oyuncu gerektiren testler için MCP'nin `run_script_in_play_mode` aracını `mode = "start_play"` ile kullan — sunucu datamodel'inde çalışır, sonunda otomatik durur. Oyuncusuz birim testleri için `mode = "run_server"` yeterli.
