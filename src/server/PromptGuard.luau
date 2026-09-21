@@ -89,8 +89,12 @@ end
 	Tetiklemenin gerçek olup olmadığını söyler. false dönerse çağıran
 	işlemi sessizce bırakmalı — sahte tetiklemeye geri bildirim vermek
 	exploit'e yardımcı olur.
+
+	requiredHold verilirse prompt.HoldDuration yerine o kullanılır:
+	gamepass'li oyuncunun daha kısa tutması gerekiyor ama prompt nesnesi
+	herkese ortak, kişisel süre ancak burada uygulanabiliyor.
 ]]
-function PromptGuard.Validate(prompt: ProximityPrompt, player: Player): boolean
+function PromptGuard.Validate(prompt: ProximityPrompt, player: Player, requiredHold: number?): boolean
 	local anchor = prompt.Parent
 	if not (anchor and anchor:IsA("BasePart")) then
 		return false
@@ -113,8 +117,10 @@ function PromptGuard.Validate(prompt: ProximityPrompt, player: Player): boolean
 		return false
 	end
 
-	-- HoldDuration sıfırsa basılı tutma diye bir şey yok
-	if prompt.HoldDuration <= 0 then
+	local needed = requiredHold or prompt.HoldDuration
+
+	-- Süre sıfırsa basılı tutma diye bir şey yok
+	if needed <= 0 then
 		return true
 	end
 
@@ -137,12 +143,12 @@ function PromptGuard.Validate(prompt: ProximityPrompt, player: Player): boolean
 	local now = os.clock()
 	local held = (entry.ended or now) - entry.began
 
-	if held < prompt.HoldDuration - HOLD_TOLERANCE then
-		log("RED: kisa basis", string.format("%.2f < %.2f", held, prompt.HoldDuration))
+	if held < needed - HOLD_TOLERANCE then
+		log("RED: kisa basis", string.format("%.2f < %.2f", held, needed))
 		return false
 	end
 
-	if now - entry.began > prompt.HoldDuration + HOLD_FRESHNESS then
+	if now - entry.began > needed + HOLD_FRESHNESS then
 		log("RED: bayat kayit", string.format("%.2f sn once", now - entry.began))
 		return false
 	end
@@ -158,11 +164,16 @@ end
 	çağırır. Watch + Validate'i tek yerde topladığı için çağıran tarafın
 	doğrulamayı atlaması zorlaşıyor.
 ]]
-function PromptGuard.Connect(prompt: ProximityPrompt, handler: (Player) -> ())
+function PromptGuard.Connect(
+	prompt: ProximityPrompt,
+	handler: (Player) -> (),
+	holdFor: ((Player) -> number)?
+)
 	PromptGuard.Watch(prompt)
 
 	prompt.Triggered:Connect(function(player)
-		if PromptGuard.Validate(prompt, player) then
+		local required = if holdFor then holdFor(player) else nil
+		if PromptGuard.Validate(prompt, player, required) then
 			handler(player)
 		end
 	end)

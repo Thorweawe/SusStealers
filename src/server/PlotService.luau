@@ -10,6 +10,7 @@ local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
 
 local DataService = require(script.Parent.DataService)
+local MonetizationService = require(script.Parent.MonetizationService)
 
 local PlotService = {}
 
@@ -75,7 +76,7 @@ local function buildPlot(index: number): Model
 	floors.Name = "Floors"
 	floors.Parent = plot
 
-	local perRow = math.ceil(Config.PodiumsPerPlot / 2)
+	local perRow = math.ceil(Config.PodiumsPerFloorTotal / 2)
 	local groundY = Config.PlotSize.Y / 2   -- 1. katın yürüme yüzeyi
 
 	for floor = 1, Config.MaxFloors do
@@ -121,7 +122,9 @@ local function buildPlot(index: number): Model
 			ramp.Material = Enum.Material.Metal
 		end
 
-		for index = 1, Config.PodiumsPerPlot do
+		-- Son PassExtraPodiumsPerFloor tanesi bonus: her zaman inşa ediliyor
+		-- ama gamepass olmadan kullanılamıyor.
+		for index = 1, Config.PodiumsPerFloorTotal do
 			local isFrontRow = index <= perRow
 			local column = if isFrontRow then index - 1 else index - perRow - 1
 
@@ -138,8 +141,9 @@ local function buildPlot(index: number): Model
 				Color3.fromRGB(90, 98, 112),
 				podiums
 			)
-			podium:SetAttribute("SlotIndex", (floor - 1) * Config.PodiumsPerPlot + index)
+			podium:SetAttribute("SlotIndex", (floor - 1) * Config.PodiumsPerFloorTotal + index)
 			podium:SetAttribute("Floor", floor)
+			podium:SetAttribute("Bonus", index > Config.PodiumsPerPlot)
 			podium:SetAttribute("UnitId", "")
 			podium:SetAttribute("MutationId", "")
 			podium:SetAttribute("PlacedAt", 0)
@@ -232,7 +236,10 @@ function PlotService.IsOccupied(podium: Part): boolean
 	return (podium:GetAttribute("UnitId") :: string) ~= ""
 end
 
---[[ Kaidenin bulunduğu kat açık mı. Kapalı kattaki kaide kullanılamaz. ]]
+--[[
+	Kaide kullanılabilir mi. İki koşul var: katı açık olacak (rebirth) ve
+	bonus kaideyse sahibinin gamepass'i olacak.
+]]
 function PlotService.IsPodiumUnlocked(podium: Part): boolean
 	local plot = PlotService.GetPlotFromDescendant(podium)
 	if not plot then
@@ -241,7 +248,18 @@ function PlotService.IsPodiumUnlocked(podium: Part): boolean
 
 	local floor = (podium:GetAttribute("Floor") :: number?) or 1
 	local unlocked = (plot:GetAttribute("UnlockedFloors") :: number?) or 1
-	return floor <= unlocked
+	if floor > unlocked then
+		return false
+	end
+
+	if podium:GetAttribute("Bonus") then
+		local owner = ownerByPlot[plot]
+		if not owner or MonetizationService.GetExtraPodiumsPerFloor(owner) <= 0 then
+			return false
+		end
+	end
+
+	return true
 end
 
 --[[ Yalnızca açık katlardaki kaideler. ]]
@@ -251,7 +269,7 @@ function PlotService.GetUnlockedPodiums(plot: Model): { Part }
 
 	for _, podium in PlotService.GetPodiums(plot) do
 		local floor = (podium:GetAttribute("Floor") :: number?) or 1
-		if floor <= unlocked then
+		if floor <= unlocked and PlotService.IsPodiumUnlocked(podium) then
 			table.insert(result, podium)
 		end
 	end
@@ -292,8 +310,7 @@ function PlotService.SetUnlockedFloors(plot: Model, count: number)
 	end
 
 	for _, podium in PlotService.GetPodiums(plot) do
-		local floor = (podium:GetAttribute("Floor") :: number?) or 1
-		local open = floor <= unlocked
+		local open = PlotService.IsPodiumUnlocked(podium)
 		podium.Transparency = if open then 0 else 0.75
 		podium.CanCollide = open
 	end

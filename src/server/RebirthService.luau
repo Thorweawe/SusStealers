@@ -15,6 +15,7 @@ local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
+local MonetizationService = require(script.Parent.MonetizationService)
 
 local RebirthService = {}
 
@@ -30,7 +31,7 @@ end
 	Oyuncunun rebirth yapmasını dener. Başarılıysa true döner.
 	Prompt dışından da çağrılabilsin diye dışa açık.
 ]]
-function RebirthService.TryRebirth(player: Player): boolean
+function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 	local plot = PlotService.GetPlotOf(player)
 	if not plot then
 		notify(player, "You need a base first", true)
@@ -48,7 +49,11 @@ function RebirthService.TryRebirth(player: Player): boolean
 	end
 
 	local cost = Config.GetRebirthCost(profile.rebirths)
-	if not EconomyService.TrySpend(player, cost) then
+	if skipCost then
+		-- "Anında Rebirth" ürünü: maliyet aranmıyor ama sıfırlama aynen
+		-- uygulanıyor, yoksa satın alan oyuncu hem parasını hem katı alırdı
+		cost = 0
+	elseif not EconomyService.TrySpend(player, cost) then
 		notify(player, string.format(
 			"Rebirth costs $%s - you have $%s",
 			Config.FormatCash(cost),
@@ -127,6 +132,10 @@ end
 
 function RebirthService.Start()
 	notifyRemote = Net.Get("Notify")
+
+	MonetizationService.RegisterGranter("rebirth", function(player)
+		return RebirthService.TryRebirth(player, true)
+	end)
 
 	for _, plot in PlotService.GetAllPlots() do
 		setupPrompt(plot)
