@@ -31,21 +31,23 @@ function FloorStyle.Create(): Style
 	-- yazmak yerine sadece durum değişince dokunuyoruz.
 	local applied: { [Model]: number } = {}
 
+	--[[
+		Kilitli kat tamamen gizleniyor.
+
+		Önce %75 saydam gri (sunucunun varsayılanı), sonra camgöbeği plan
+		denendi. İkisi de rahatsız ediciydi: havada asılı yarı görünür
+		bloklar gözü sürekli meşgul ediyor ve sahnenin okunurluğunu bozuyor.
+		Olmayan bir katı göstermenin oyuncuya faydası yok — hedefi arayüz
+		zaten anlatıyor.
+
+		Çarpışmaya dokunmuyoruz; sunucu onu zaten kapatmış.
+	]]
 	local function styleLocked(floorModel: Model)
 		for _, part in floorModel:GetDescendants() do
 			if not part:IsA("BasePart") then
 				continue
 			end
-
-			--[[
-				Neon + yüksek saydamlık = ışık projeksiyonu. Düz gri yarı
-				saydamdan farkı: gölge almıyor, kendi rengiyle parlıyor,
-				bu yüzden "katı bir nesnenin hayaleti" değil "bir plan"
-				gibi okunuyor.
-			]]
-			part.Material = Enum.Material.Neon
-			part.Color = if part.Name == "Podium" then PLAN else PLAN_DIM
-			part.Transparency = 0.86
+			part.Transparency = 1
 			part.CastShadow = false
 		end
 	end
@@ -61,51 +63,15 @@ function FloorStyle.Create(): Style
 		end
 	end
 
-	--[[ Kilitli katın ortasında "FLOOR 2 · LOCKED" yazısı. ]]
-	local function ensureLabel(floorModel: Model, index: number, locked: boolean)
-		local anchor = floorModel:FindFirstChild("FloorTag")
-
-		if not locked then
-			if anchor then
-				anchor:Destroy()
-			end
-			return
-		end
-
-		if not anchor then
-			local deck = floorModel:FindFirstChild("Deck") or floorModel:FindFirstChildWhichIsA("BasePart")
-			if not (deck and deck:IsA("BasePart")) then
-				return
-			end
-
-			local tag = Instance.new("Part")
-			tag.Name = "FloorTag"
-			tag.Size = Vector3.new(1, 1, 1)
-			tag.CFrame = deck.CFrame * CFrame.new(0, 8, 0)
-			tag.Anchored = true
-			tag.CanCollide = false
-			tag.CanQuery = false
-			tag.CanTouch = false
-			tag.Transparency = 1
-			tag.Parent = floorModel
-
-			local gui = Instance.new("BillboardGui")
-			gui.Name = "Label"
-			gui.Size = UDim2.fromScale(14, 3)
-			gui.AlwaysOnTop = false
-			gui.MaxDistance = 200
-			gui.Parent = tag
-
-			local text = Instance.new("TextLabel")
-			text.Size = UDim2.fromScale(1, 1)
-			text.BackgroundTransparency = 1
-			text.Font = Enum.Font.GothamBold
-			text.TextScaled = true
-			text.TextColor3 = LOCKED_TEXT
-			text.TextTransparency = 0.15
-			text.TextStrokeTransparency = 0.5
-			text.Text = string.format("FLOOR %d  ·  LOCKED", index)
-			text.Parent = gui
+	--[[
+		Eski "FLOOR 2 · LOCKED" etiketini temizler. Etiket fikri iyiydi ama
+		havada asılı yazı da görüntü kirliliği yapıyordu; kat tamamen
+		gizlendiğine göre anlatacak bir şey de kalmadı.
+	]]
+	local function clearLabel(floorModel: Model)
+		local tag = floorModel:FindFirstChild("FloorTag")
+		if tag then
+			tag:Destroy()
 		end
 	end
 
@@ -150,7 +116,7 @@ function FloorStyle.Create(): Style
 				else
 					styleOpen(floorModel)
 				end
-				ensureLabel(floorModel, index, locked)
+				clearLabel(floorModel)
 			end
 		end
 	end

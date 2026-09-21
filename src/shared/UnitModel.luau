@@ -118,6 +118,15 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
 	-- Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında.
 	-- Karakterin tepesi ~4 stud, etiket onun biraz üstünde dursun.
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 5.0, 0)
+
+	--[[
+		Boyut küçültüldü. Kaideler 6.5 stud arayla dizili; 7 stud genişliğinde
+		etiket komşusununkiyle üst üste biniyor ve yaklaşınca ikisi de
+		okunmaz hale geliyordu. MaxDistance da düştü: uzaktan onlarca etiket
+		birbirine girmesin, yaklaşınca okunsun.
+	]]
+	gui.Size = UDim2.fromScale(4.6, 1.5)
+	gui.MaxDistance = 70
 	gui.AlwaysOnTop = true
 	gui.MaxDistance = 120
 

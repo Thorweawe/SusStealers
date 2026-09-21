@@ -82,11 +82,14 @@ function OwnerColors.Create(): Colors
 				-- Sadece renk taşıyan parçalar: çerçeve ve sütun bandı.
 				-- Metal gövde ve sütunlar nötr kalmalı, yoksa üs tek renk
 				-- bir blok gibi görünüyor.
+				--[[
+					Renk sadece çerçevede ve sütun bandında. Kaide halkalarına
+					da uygulanmıştı ama 8 halka + çerçeve + ped birleşince üs
+					tek renge boğuluyordu; sahibi belli olmak yerine göz
+					yoruluyordu. Vurgu az yerde olursa vurgu oluyor.
+				]]
 				if part.Name == "FrameX" or part.Name == "FrameZ" or part.Name == "PillarBand" then
 					part.Color = color
-				elseif part.Name == "PodiumRing" then
-					-- Halkalar zeminde geniş yer kapladığı için koyultuluyor
-					part.Color = color:Lerp(Color3.new(0, 0, 0), 0.55)
 				end
 			end
 		end
