@@ -138,6 +138,7 @@ local mapping = {
 	{ "src/client/QuestPanel.luau",             client.QuestPanel },
 	{ "src/client/Menus.luau",                  client.Menus },
 	{ "src/client/HudToggle.luau",              client.HudToggle },
+	{ "src/client/UpgradePanel.luau",           client.UpgradePanel },
 	{ "src/client/init.client.luau",            client },
 	{ "src/server/ConveyorService.luau",        server.ConveyorService },
 	{ "src/server/DataService.luau",            server.DataService },

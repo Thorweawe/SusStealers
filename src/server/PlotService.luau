@@ -322,80 +322,97 @@ end
 --[[
 	═══ YÜKSELTME KULÜBESİ ══════════════════════════════════════════════════
 
-	Yükseltmeler şimdiye kadar üssün kenarına dikilmiş çıplak tabelalardı;
-	nereye bakacağını bilmiyordun ve hangi üsse ait oldukları belli değildi.
+	İlk sürüm fazla kalabalıktı: tezgâh, arka pano, iki direk, çatı, eğik
+	tente, tabela, lamba — ve üstüne UpgradeService'in dört fiziksel panosu.
+	Tezgâh 15 stud, panolar 26 stud yer istiyordu; birbirine ve direklere
+	giriyorlardı. Eğik tente de karşıdan bakınca havada duran turuncu bir
+	levha gibi görünüyordu.
 
-	Artık her üste ait bir kulübe var: tezgâh, arkasında satıcı mürettebat,
-	üstünde tente ve tabela. Yükseltme tabelaları bu kulübenin tezgâhına
-	diziliyor (UpgradeService kulübeyi adıyla bulup kendi panolarını oraya
-	koyuyor), yani "yükseltme burada yapılır" bilgisi mimariden okunuyor.
+	Sadeleştirildi. Kalanlar:
+	    tezgâh          — satıcının arkasına geçtiği yüzey
+	    arka pano       — kulübeyi bir "dükkân" yapan düz yüzey
+	    çift yüzlü tabela — iki taraftan da UPGRADES yazıyor
+	    tavan + lamba   — tezgâhı aydınlatan gömme armatür
+	    satıcı          — uzun, eşsiz görünümlü görevli
+	    tetik alanı     — üstüne basınca arayüz açılan görünmez daire
 
-	Satıcı figürü kasten EŞSİZ: hiçbir kaidede çıkmayan bir renk ve şapka.
-	Oyuncu onu görünce "bu satın alınabilir bir karakter değil, bu bir
-	görevli" diyor.
+	Yükseltme listesi artık fiziksel değil: oyuncu tetik alanına girince
+	istemcideki UpgradePanel açılıyor.
 ]]
 local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	local halfX = Config.PlotSize.X / 2
 	local halfZ = Config.PlotSize.Z / 2
 	local topY = Config.PlotSize.Y / 2
 
-	-- Sağ ön köşe: doğuş pedi (orta) ve konveyör (arka) ile çakışmıyor
-	local bx = halfX - 9
-	local bz = -halfZ + 12
+	--[[
+		Sağ kenarda, ön ve arka arasında. Çakışma kontrolü:
+		    doğuş pedi   x ±4,   z -23..-15
+		    kaideler     x ±11.2 (sıralar), ±18.8 (bonus)
+		    konveyör     z +21
+		    merdiven     x -36..-25
+		Kulübe x 22..34, z -10..-2 → hiçbiriyle kesişmiyor.
+	]]
+	local bx = halfX - 8
+	local bz = -6
 
 	local booth = Instance.new("Model")
 	booth.Name = "UpgradeBooth"
 	booth.Parent = parent
 
-	local WOOD = Color3.fromRGB(96, 108, 114)
+	local SHELL = Color3.fromRGB(96, 108, 114)
 	local TRIM = Color3.fromRGB(168, 181, 184)
 	local ACCENT = Color3.fromRGB(206, 172, 72)
+	local DARK = Color3.fromRGB(27, 34, 39)
+
+	local root = Vector3.new(bx, topY, bz)
 
 	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
-		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(bx, topY, bz) + offset), color, booth)
+		local p = newAnchoredPart(name, size, CFrame.new(origin + root + offset), color, booth)
 		p.Material = Enum.Material.Metal
 		p.CanCollide = collide ~= false
 		return p
 	end
 
-	-- Tezgâh
-	part("Counter", Vector3.new(14, 4, 3), Vector3.new(0, 2, -3), WOOD)
-	part("CounterTop", Vector3.new(15, 0.5, 4.4), Vector3.new(0, 4.25, -3.2), TRIM)
-	part("CounterStripe", Vector3.new(14.2, 0.4, 0.3), Vector3.new(0, 3.2, -4.6), ACCENT, false)
+	-- Tezgâh: oyuncunun karşısında, -z tarafında
+	part("Counter", Vector3.new(12, 4, 2.6), Vector3.new(0, 2, -2.6), SHELL)
+	part("CounterTop", Vector3.new(13, 0.6, 4), Vector3.new(0, 4.3, -2.8), TRIM)
+	part("CounterStripe", Vector3.new(12.2, 0.5, 0.3), Vector3.new(0, 3.1, -3.95), ACCENT, false)
 
-	-- Arka pano: tabelaların dayandığı yüzey
-	part("BoothBack", Vector3.new(15, 9, 1), Vector3.new(0, 4.5, 2.5), WOOD)
-
-	-- Yan direkler ve tente
+	-- Arka pano ve yan duvarlar: dükkân hissi
+	part("BoothBack", Vector3.new(13, 10, 1), Vector3.new(0, 5, 2.2))
 	for _, s in { -1, 1 } do
-		part("BoothPost", Vector3.new(0.9, 11, 0.9), Vector3.new(s * 7, 5.5, -3), TRIM)
+		part("BoothSide", Vector3.new(1, 10, 5.4), Vector3.new(s * 6, 5, -0.3), SHELL)
 	end
-	part("BoothRoof", Vector3.new(17, 0.7, 9), Vector3.new(0, 11.2, -0.5), TRIM)
-	-- Tente: öne doğru eğik şerit
-	part("BoothAwning", Vector3.new(17, 0.4, 4.4), Vector3.new(0, 10.4, -4.6), ACCENT, false)
-		.CFrame = CFrame.new(origin + Vector3.new(bx, topY + 10.4, bz - 4.6)) * CFrame.Angles(math.rad(22), 0, 0)
 
-	-- Tabela
-	local sign = part("BoothSign", Vector3.new(13, 2.6, 0.4), Vector3.new(0, 12.6, -0.6), Color3.fromRGB(27, 34, 39), false)
+	-- Tavan: düz, taşkın yok. Eğik tente kaldırıldı.
+	part("BoothRoof", Vector3.new(14.4, 0.8, 7.4), Vector3.new(0, 10.4, -0.4), TRIM)
 
-	local surface = Instance.new("SurfaceGui")
-	surface.Name = "Label"
-	surface.Face = Enum.NormalId.Front
-	surface.CanvasSize = Vector2.new(260, 52)
-	surface.LightInfluence = 0
-	surface.Parent = sign
+	--[[
+		Tabela ÇİFT YÜZLÜ. Üssün iki yanından da gelinebiliyor; tek yüzlü
+		tabela arkadan bakınca boş bir levha oluyordu.
+	]]
+	local sign = part("BoothSign", Vector3.new(12, 2.8, 0.5), Vector3.new(0, 12.2, -0.4), DARK, false)
 
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.fromScale(1, 1)
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.GothamBold
-	text.TextScaled = true
-	text.TextColor3 = ACCENT
-	text.Text = "UPGRADES"
-	text.Parent = surface
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local surface = Instance.new("SurfaceGui")
+		surface.Name = "Label" .. face.Name
+		surface.Face = face
+		surface.CanvasSize = Vector2.new(240, 56)
+		surface.LightInfluence = 0
+		surface.Parent = sign
 
-	-- Tezgâh lambası
-	local lamp = part("BoothLamp", Vector3.new(12, 0.3, 1.6), Vector3.new(0, 9.6, -3), Color3.fromRGB(255, 244, 222), false)
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBold
+		text.TextScaled = true
+		text.TextColor3 = ACCENT
+		text.Text = "UPGRADES"
+		text.Parent = surface
+	end
+
+	-- Tavana gömme lamba
+	local lamp = part("BoothLamp", Vector3.new(10, 0.3, 2), Vector3.new(0, 9.9, -1.4), Color3.fromRGB(255, 244, 222), false)
 	lamp.Material = Enum.Material.Neon
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 244, 222)
@@ -404,16 +421,57 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	light.Parent = lamp
 
 	--[[
-		Satıcı. Tezgâhın ARKASINDA duruyor ve oyuncuya bakıyor. Renk paleti
-		hiçbir mürettebat tulumunda yok (soluk mor-gri), şapkası da hiçbir
-		nadirlik kademesinde yok (yassı vizör + kulaklık) — bakınca "bu
-		satılık değil" anlaşılıyor.
+		═══ TETİK ALANI ═════════════════════════════════════════════════════
+
+		Tezgâhın önünde görünmez bir daire. Oyuncu üstüne basınca istemci
+		yükseltme arayüzünü açıyor, çıkınca kapatıyor.
+
+		ProximityPrompt yerine alan kullanılmasının sebebi: prompt tek bir
+		yükseltme için "basılı tut" istiyor ve dört yükseltme dört prompt
+		demek. Alan tek seferde bütün listeyi açıyor ve oyuncunun hiçbir
+		tuşa basması gerekmiyor — dükkâna girer gibi.
+
+		CanCollide kapalı (içinden geçilebilir), CanQuery açık: istemci
+		oyuncunun mesafesini buna göre ölçüyor.
+	]]
+	local zone = newAnchoredPart(
+		"UpgradeZone",
+		Vector3.new(16, 0.4, 16),
+		CFrame.new(origin + root + Vector3.new(0, 0.2, -9)),
+		ACCENT,
+		booth
+	)
+	zone.Shape = Enum.PartType.Cylinder
+	zone.CFrame = CFrame.new(origin + root + Vector3.new(0, 0.2, -9)) * CFrame.Angles(0, 0, math.rad(90))
+	zone.Transparency = 1
+	zone.CanCollide = false
+	zone.CanTouch = false
+
+	-- Zeminde alanın nerede olduğunu gösteren soluk halka
+	part("ZoneRing", Vector3.new(16, 0.14, 16), Vector3.new(0, 0.07, -9), ACCENT, false).Transparency = 0.72
+	part("ZoneRingInner", Vector3.new(12.4, 0.16, 12.4), Vector3.new(0, 0.08, -9), DARK, false).Transparency = 0.5
+
+	--[[
+		═══ SATICI ══════════════════════════════════════════════════════════
+
+		Uzatıldı: gövde ölçüleri 1.35 kat ve tezgâhın üstünden görünsün diye
+		yükseltildi. Önceki hâlinde tezgâhın arkasında kalıyor, sadece
+		kafasının üstü görünüyordu.
+
+		Kasten EŞSİZ: rengi hiçbir mürettebat tulumunda yok (soluk mor-gri),
+		vizörü sarı (hepsininki mavi), kulaklığı da hiçbir nadirlik
+		kademesinde yok. Bakınca "bu satılık bir karakter değil, görevli"
+		anlaşılıyor.
 	]]
 	local SKIN = Color3.fromRGB(122, 112, 148)
 	local VISOR = Color3.fromRGB(240, 226, 150)
+	local S = 1.35                       -- ölçek
+	local FEET = 0.6                     -- tezgâhın arkasında bir basamak
+
+	local vroot = Vector3.new(bx, topY + FEET, bz + 0.4)
 
 	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?): Part
-		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(bx, topY, bz + 1) + offset), color, booth)
+		local p = newAnchoredPart(name, size * S, CFrame.new(origin + vroot + offset * S), color, booth)
 		p.Material = Enum.Material.SmoothPlastic
 		p.CanCollide = false
 		if shape then
@@ -422,19 +480,24 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 		return p
 	end
 
-	local body = vendor("VendorBody", Vector3.new(2.2, 2.6, 2.2), Vector3.new(0, 2, 0), SKIN, Enum.PartType.Cylinder)
-	body.CFrame = CFrame.new(origin + Vector3.new(bx, topY + 2, bz + 1)) * CFrame.Angles(0, 0, math.rad(90))
+	-- Satıcının üstünde durduğu basamak: tezgâhın üstünden görünsün
+	part("VendorStep", Vector3.new(6, FEET, 3), Vector3.new(0, FEET / 2, 0.4), SHELL)
 
-	vendor("VendorHead", Vector3.new(2.2, 2.2, 2.2), Vector3.new(0, 3.3, 0), SKIN, Enum.PartType.Ball)
-	vendor("VendorVisor", Vector3.new(1.5, 0.9, 0.6), Vector3.new(0, 3.35, -0.95), VISOR)
-	vendor("VendorPack", Vector3.new(0.9, 2.1, 1), Vector3.new(0, 2.2, 1.35), SKIN)
+	-- Gövde silindir; ekseni X olduğu için Z etrafında 90° çevriliyor
+	local body = vendor("VendorBody", Vector3.new(2.2, 2.6, 2.2), Vector3.new(0, 1.9, 0), SKIN, Enum.PartType.Cylinder)
+	body.CFrame = CFrame.new(origin + vroot + Vector3.new(0, 1.9 * S, 0)) * CFrame.Angles(0, 0, math.rad(90))
+
+	vendor("VendorHead", Vector3.new(2.2, 2.2, 2.2), Vector3.new(0, 3.2, 0), SKIN, Enum.PartType.Ball)
+	vendor("VendorVisor", Vector3.new(1.5, 0.95, 0.6), Vector3.new(0, 3.25, -0.95), VISOR)
+	vendor("VendorPack", Vector3.new(0.9, 2.1, 1), Vector3.new(0, 2.1, 1.35), SKIN)
 	for _, s in { -1, 1 } do
 		vendor("VendorLeg", Vector3.new(0.8, 1.4, 1.1), Vector3.new(s * 0.6, 0.7, 0), SKIN)
-		-- Kulaklık: satıcıya özel, hiçbir nadirlikte yok
-		vendor("VendorPhone", Vector3.new(0.45, 0.9, 0.9), Vector3.new(s * 1.15, 3.4, 0), TRIM)
+		vendor("VendorPhone", Vector3.new(0.5, 1, 1), Vector3.new(s * 1.2, 3.3, 0), TRIM)
 	end
-	vendor("VendorBand", Vector3.new(2.3, 0.35, 2.3), Vector3.new(0, 4.35, 0), TRIM)
-	vendor("VendorCap", Vector3.new(1.9, 0.5, 1.9), Vector3.new(0, 4.65, 0), ACCENT)
+	-- Kulaklık köprüsü: iki kulaklığı birleştiren bant
+	vendor("VendorBridge", Vector3.new(2.5, 0.35, 0.9), Vector3.new(0, 4.3, 0), TRIM)
+	vendor("VendorCap", Vector3.new(1.9, 0.55, 1.9), Vector3.new(0, 4.62, 0), ACCENT)
+	vendor("VendorCapTip", Vector3.new(1.5, 0.22, 1.1), Vector3.new(0, 4.4, -1.1), ACCENT)
 end
 
 local function buildPlot(index: number): Model

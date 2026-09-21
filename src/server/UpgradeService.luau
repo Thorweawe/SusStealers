@@ -5,9 +5,11 @@
 -- para birikip anlamsızlaşıyordu. Robux ürünlerinin aksine bunlar herkese
 -- açık, tek şart yeterince oynamış olmak.
 --
--- Her üssün doğuş pedinin yanında yükseltme başına bir pano duruyor.
--- Arayüz gerektirmiyor: seviye ve fiyat panonun üstünde yazıyor.
+-- Her üste bir yükseltme kulübesi var (PlotService kuruyor). Oyuncu
+-- kulübenin önündeki alana basınca istemcideki UpgradePanel açılıyor;
+-- bu servis sadece seviyeleri yayınlıyor ve satın alma isteğini doğruluyor.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -15,16 +17,12 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local PlotService = require(script.Parent.PlotService)
-local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
 
 local UpgradeService = {}
 
 local notifyRemote: RemoteEvent
-
--- plot -> yükseltme id -> pano (sahip değişince tazelemek için)
-local boards: { [Model]: { [string]: BasePart } } = {}
 
 local function notify(player: Player, text: string, isError: boolean)
 	if notifyRemote then
@@ -84,166 +82,86 @@ function UpgradeService.TryUpgrade(player: Player, id: string): boolean
 	end
 
 	profile.upgrades[id] = level + 1
+	UpgradeService.PublishLevels(player)
 	notify(player, string.format("%s upgraded to level %d", def.name, level + 1), false)
 	return true
 end
 
--- ─── Panolar ────────────────────────────────────────────────────────────────
+--[[
+	Seviyeleri oyuncunun niteliklerine yazar.
 
-local function refreshBoard(plot: Model, id: string)
-	local board = boards[plot] and boards[plot][id]
-	if not board then
-		return
-	end
-
-	local def = Config.GetUpgrade(id)
-	local prompt = board:FindFirstChildOfClass("ProximityPrompt")
-	local gui = board:FindFirstChild("Label")
-	local label = gui and gui:FindFirstChild("Text")
-	if not (def and prompt and label and label:IsA("TextLabel")) then
-		return
-	end
-
-	local level = UpgradeService.GetPlotLevel(plot, id)
-	local cost = Config.GetUpgradeCost(id, level)
-
-	label.Text = string.format("%s  %d/%d", def.name, level, def.maxLevel)
-
-	if cost then
-		prompt.ObjectText = "$" .. Config.FormatCash(cost)
-		prompt.Enabled = true
-	else
-		prompt.ObjectText = "MAX"
-		prompt.Enabled = false
-	end
-end
-
-local function refreshAll(plot: Model)
+	Arayüzün seviyeyi bilmesi gerekiyor ama bunun için ayrı bir remote
+	açmaya gerek yok: nitelikler kendiliğinden replike oluyor ve sadece
+	sunucu yazabiliyor. İstemci `player:GetAttribute("Upg_LockPower")`
+	diyerek okuyor, maliyeti de Config'ten kendisi hesaplıyor.
+]]
+function UpgradeService.PublishLevels(player: Player)
 	for _, def in Config.Upgrades do
-		refreshBoard(plot, def.id)
+		player:SetAttribute("Upg_" .. def.id, UpgradeService.GetLevel(player, def.id))
 	end
 end
 
-local function buildBoard(plot: Model, def: Config.UpgradeDef, index: number, total: number): BasePart?
-	local base = plot:FindFirstChild("Base")
-	if not (base and base:IsA("BasePart")) then
-		return nil
-	end
-
-	--[[
-		Tabelalar artık YÜKSELTME KULÜBESİNİN tezgâhına diziliyor.
-
-		Eskiden üssün arka duvarı boyunca dikilmiş çıplak levhalardı; nereye
-		bakacağın belli değildi ve hangi üsse ait oldukları anlaşılmıyordu.
-		PlotService her üsse bir kulübe kuruyor (tezgâh + satıcı + tente);
-		burada onu adıyla bulup tabelaları tezgâhın üstüne koyuyoruz.
-
-		Kulübe bulunamazsa (eski bir place, ya da PlotService değişirse) eski
-		davranışa düşüyoruz — tabelalar kaybolmasın.
-	]]
-	local booth = plot:FindFirstChild("UpgradeBooth")
-	local counter = booth and booth:FindFirstChild("CounterTop")
-
-	local board = Instance.new("Part")
-	board.Name = "Upgrade_" .. def.id
-	board.Size = Vector3.new(5, 4, 0.5)
-
-	if counter and counter:IsA("BasePart") then
-		-- Tezgâhın üstünde yan yana, hafif geriye yatık
-		local spacing = 4.4
-		local offsetX = (index - (total + 1) / 2) * spacing
-		board.CFrame = counter.CFrame
-			* CFrame.new(offsetX, 2.6, 1.2)
-			* CFrame.Angles(math.rad(-12), 0, 0)
-		board.Size = Vector3.new(4, 4.4, 0.4)
-	else
-		local spacing = 7
-		local offsetX = (index - (total + 1) / 2) * spacing - 16
-		board.CFrame = base.CFrame * CFrame.new(offsetX, Config.PlotSize.Y / 2 + 2, -Config.PlotSize.Z / 2 + 2)
-	end
-
-	board.Color = Color3.fromRGB(34, 40, 52)
-	board.Material = Enum.Material.SmoothPlastic
-	board.Anchored = true
-	board.CanCollide = false
-	board.Parent = plot
-
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "Label"
-	gui.Size = UDim2.fromScale(7, 1.6)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0)
-	-- AlwaysOnTop kapatildi: yukseltme tabelalari HUD'un (minimap, siralama
-	-- tablosu) uzerine ciziliyor ve yaklasinca ekrani kapatiyordu.
-	gui.AlwaysOnTop = false
-	gui.MaxDistance = 80
-	gui.Parent = board
-
-	local label = Instance.new("TextLabel")
-	label.Name = "Text"
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(150, 220, 255)
-	label.TextStrokeTransparency = 0.3
-	label.Text = def.name
-	label.Parent = gui
-
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "UpgradePrompt"
-	prompt.ActionText = "Upgrade"
-	prompt.KeyboardKeyCode = Enum.KeyCode.F
-	prompt.GamepadKeyCode = Enum.KeyCode.ButtonB
-	prompt.HoldDuration = 0.5
-	prompt.MaxActivationDistance = 10
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = board
-
-	PromptGuard.Connect(prompt, function(player)
-		if PlotService.GetOwner(plot) ~= player then
-			notify(player, "Not your base", true)
-			return
-		end
-
-		if UpgradeService.TryUpgrade(player, def.id) then
-			refreshBoard(plot, def.id)
-		end
-	end)
-
-	return board
-end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
 
 function UpgradeService.Start()
 	notifyRemote = Net.Get("Notify")
 
-	for _, plot in PlotService.GetAllPlots() do
-		boards[plot] = {}
+	--[[
+		FİZİKSEL PANOLAR KALDIRILDI.
 
-		for index, def in Config.Upgrades do
-			local board = buildBoard(plot, def, index, #Config.Upgrades)
-			if board then
-				boards[plot][def.id] = board
-			end
+		Her üsse dört tabela dikiliyordu; kulübenin tezgâhına taşınınca da
+		altı tabela 15 studluk tezgâha sığmıyor, birbirine ve direklere
+		giriyordu ("bazı üslerde iç içe giriyor"). Üstelik tezgâhın etrafı
+		gereksiz nesneyle doluyordu.
+
+		Yerine kulübenin önündeki alana basınca açılan bir arayüz geçti
+		(istemcideki UpgradePanel). Kulübede artık tek bir çift yüzlü
+		"UPGRADES" tabelası var, gerisi arayüzde.
+	]]
+
+	--[[
+		Satın alma isteği. Doğrulama TryUpgrade'in içinde: üs sahibi mi,
+		seviye tavanda mı, parası yetiyor mu. Buradaki tek ek iş hız sınırı —
+		istemci istediği sıklıkta tetikleyebilir.
+	]]
+	local lastBuy: { [Player]: number } = {}
+
+	Net.Get("UpgradeBuy").OnServerEvent:Connect(function(player, id)
+		if typeof(id) ~= "string" then
+			return
 		end
 
-		-- Sahip değişince panolar yeni sahibin seviyelerini göstersin
-		plot:GetAttributeChangedSignal("UnlockedFloors"):Connect(function()
-			refreshAll(plot)
-		end)
+		local now = os.clock()
+		if now - (lastBuy[player] or 0) < 0.15 then
+			return
+		end
+		lastBuy[player] = now
 
-		refreshAll(plot)
-	end
+		-- Üssü olmayan oyuncu yükseltme alamaz
+		if not PlotService.GetPlotOf(player) then
+			notify(player, "You need a base first", true)
+			return
+		end
 
-	-- Üs sahipliği anında değişiyor ama profil sonra yükleniyor; kısa bir
-	-- döngüyle panoları güncel tutmak, her servise kanca takmaktan basit.
+		UpgradeService.TryUpgrade(player, id)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastBuy[player] = nil
+	end)
+
+	--[[
+		Seviyeler nitelik olarak yayınlanıyor. Profil girişten sonra
+		yükleniyor, o yüzden ilk yayın için kısa bir döngü var; her servise
+		kanca takmaktan basit ve saniyede bir yazmak bedava.
+	]]
 	task.spawn(function()
 		while true do
-			task.wait(3)
-			for _, plot in PlotService.GetAllPlots() do
-				refreshAll(plot)
+			for _, player in Players:GetPlayers() do
+				UpgradeService.PublishLevels(player)
 			end
+			task.wait(2)
 		end
 	end)
 end

@@ -34,6 +34,7 @@ local TutorialUI = require(script.TutorialUI)
 local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
 local HudToggle = require(script.HudToggle)
+local UpgradePanel = require(script.UpgradePanel)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -227,6 +228,10 @@ SoundFX.StartAmbient()
 ]]
 local minimapRef: Minimap.Map? = nil
 local currentPlot: Model? = nil
+
+-- Yukseltme arayuzu en sonda kuruluyor (asagidaki mountPanel); ana dongu
+-- ona buradan ulasiyor. Kurulmadiysa nil kaliyor ve dongu atliyor.
+local upgradePanel: UpgradePanel.Panel? = nil
 
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
 	showToast(text, if isError then BAD else GOOD)
@@ -528,6 +533,9 @@ task.spawn(function()
 		floorStyle.Update()
 		rarityFX.Update()
 		catalog.Update()
+		if upgradePanel then
+			upgradePanel.Update()
+		end
 	end
 end)
 
@@ -575,6 +583,17 @@ end)
 
 mountPanel("Menus", function()
 	Menus.Create(screen)
+end)
+
+--[[
+	Yükseltme arayüzü. Kendi üssündeki kulübenin önüne basınca açılıyor,
+	çıkınca kapanıyor; o yüzden her karede değil, HUD'un kendi döngüsünde
+	güncelleniyor (aşağıda). Panel kurulamazsa Update çağrısı sessizce
+	atlanıyor — çekirdek HUD'u indirmemeli.
+]]
+mountPanel("UpgradePanel", function()
+	local panel = UpgradePanel.Create(screen)
+	upgradePanel = panel
 end)
 
 mountPanel("HudToggle", function()

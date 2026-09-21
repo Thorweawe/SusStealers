@@ -21,7 +21,15 @@ local MUTED = Color3.fromRGB(150, 163, 184)
 local NEON = Color3.fromRGB(80, 220, 255)
 local WARN = Color3.fromRGB(255, 190, 90)
 
-local REACH = 22          -- kürsüye kaç stud yaklaşınca panel açılsın
+--[[
+	Kürsüye kaç stud yaklaşınca panel açılsın.
+
+	22'ydi ve lobi büyüyünce (230x156) çok geniş kalıyordu: oyuncu kapıdan
+	girer girmez "RETURN TO MY BASE" beliriyor, kürsünün yanına gitmesine
+	gerek kalmıyordu. Kürsünün kaidesi 16 stud; 11 onun hemen çevresi
+	demek, yani gerçekten yanına gelmek gerekiyor.
+]]
+local REACH = 11
 local BOARD_ROWS = 6
 
 export type Hub = {

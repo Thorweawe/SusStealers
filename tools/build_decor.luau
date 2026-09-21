@@ -98,7 +98,7 @@ local ARCH_CLEAR = 19      -- kemer altı boşluk (eski 15: alçak geliyordu)
 -- Üslerin önünde ayrı bir platform: ışınlanma, sıralama panoları, çark.
 -- Oyun alanından ayrı tutuluyor ki çalma koşuşturması ile sakin işler
 -- birbirine karışmasın.
-local LOBBY_GATE_WIDTH = 28
+local LOBBY_GATE_WIDTH = 36   -- kopru ayni genislikte; 28'de tunel gibi dardi
 local LOBBY_BRIDGE = 58      -- köprü uzunluğu
 local LOBBY_W = 230          -- lobi genişliği
 local LOBBY_D = 156          -- lobi derinliği
@@ -1601,8 +1601,18 @@ do
 	]]
 	local bridgeZ = centerZ + halfD + LOBBY_BRIDGE / 2
 	local bridgeLen = LOBBY_BRIDGE + 2
-	local WALL_LOW = 4.5       -- dolu alt duvar
-	local WALL_TOP = 11        -- tavan yüksekliği
+
+	--[[
+		Ölçüler büyütüldü: geçit 28 studdu ve iki yanda 1.2'lik duvarlarla
+		birlikte 25 studluk bir koridor kalıyordu; tavan da 11'deydi. İçeride
+		yürürken tünel gibi dar hissettiriyordu. Şimdi 36 geniş, 14 yüksek.
+
+		Kaburgalar duvar üstünden tavana kadar TEK parça; önceki hâlde
+		kaburga tavanda, ayağı aşağıda ayrı duruyordu ve aralarında görünür
+		bir boşluk kalıyordu ("eklediğin şeyler temas etmiyor").
+	]]
+	local WALL_LOW = 5         -- dolu alt duvar
+	local WALL_TOP = 14        -- tavan yüksekliği
 
 	build({ name = "Bridge", size = Vector3.new(LOBBY_GATE_WIDTH, 1, bridgeLen),
 		cf = at(centerX, -0.5, bridgeZ),
@@ -1622,40 +1632,61 @@ do
 			cf = at(wx, WALL_LOW + 0.3, bridgeZ),
 			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
 
-		-- Üst kısım cam: dışarısı görünsün ama geçilmesin
-		build({ name = "BridgeGlass", size = Vector3.new(0.5, WALL_TOP - WALL_LOW - 1, bridgeLen),
-			cf = at(wx, (WALL_LOW + WALL_TOP) / 2, bridgeZ),
+		-- Üst kısım cam: dışarısı görünsün ama geçilmesin.
+		-- Duvarın üstünden tavanın altına kadar, arada boşluk yok.
+		build({ name = "BridgeGlass", size = Vector3.new(0.5, WALL_TOP - WALL_LOW - 0.7, bridgeLen),
+			cf = at(wx, (WALL_LOW + WALL_TOP - 0.7) / 2, bridgeZ),
 			color = GLASS, material = Enum.Material.Glass, collide = true,
 			transparency = 0.9, parent = f })
 
 		-- Zeminde yön şeridi
 		build({ name = "BridgeStripe", size = Vector3.new(0.7, 0.14, bridgeLen - 4),
-			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 3), 0.08, bridgeZ),
+			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 4), 0.08, bridgeZ),
 			color = HAZARD, emit = "Paint", parent = f })
+
+		--[[
+			GÖRÜNMEZ EMNİYET DUVARI.
+
+			Cam 14'e kadar çıkıyor ama Roblox karakteri ~7 stud zıplıyor ve
+			eğimli bir yüzeyden sekerek daha yükseğe çıkabiliyor. Köprünün
+			iki yanına, camın da üstüne uzanan görünmez bir duvar konuyor:
+			artık hiçbir açıdan dışarı çıkılamıyor.
+		]]
+		build({ name = "BridgeSafety", size = Vector3.new(1, 40, bridgeLen),
+			cf = at(wx, 20, bridgeZ), color = GLASS,
+			material = Enum.Material.SmoothPlastic, collide = true,
+			transparency = 1, parent = f })
 	end
 
-	--[[ Tavan kaburgaları. Aralıklı çerçeveler: tünelin uzunluğu bunlarla
-	     okunuyor, düz bir tavan mesafe hissi vermiyor. ]]
+	--[[ Tavan çerçeveleri. Duvar üstünden tavana kadar TEK parça ayak +
+	     üstte kiriş: tünelin uzunluğu bunlarla okunuyor. ]]
 	local RIBS = 7
 	for i = 0, RIBS do
 		local rz = bridgeZ - bridgeLen / 2 + (bridgeLen / RIBS) * i
-		build({ name = "BridgeRib", size = Vector3.new(LOBBY_GATE_WIDTH + 2.5, 1.4, 1.6),
+
+		build({ name = "BridgeRib", size = Vector3.new(LOBBY_GATE_WIDTH + 2.4, 1.4, 1.8),
 			cf = at(centerX, WALL_TOP, rz), color = TRIM,
 			material = Enum.Material.Metal, parent = f })
+
 		for _, s in { -1, 1 } do
-			build({ name = "BridgeRibLeg", size = Vector3.new(1.4, 2.4, 1.6),
-				cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 + 0.5), WALL_TOP - 1.6, rz),
+			build({ name = "BridgeRibLeg", size = Vector3.new(1.6, WALL_TOP - WALL_LOW, 1.8),
+				cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 + 0.2), (WALL_LOW + WALL_TOP) / 2, rz),
 				color = TRIM, material = Enum.Material.Metal, parent = f })
 		end
 
-		-- Kaburgaların arasına gömme lamba
+		-- Çerçevelerin arasına gömme lamba
 		if i < RIBS then
-			local lamp = build({ name = "BridgeLamp", size = Vector3.new(4, 0.3, 3),
-				cf = at(centerX, WALL_TOP - 0.9, rz + bridgeLen / RIBS / 2),
+			local lamp = build({ name = "BridgeLamp", size = Vector3.new(5, 0.3, 3.4),
+				cf = at(centerX, WALL_TOP - 1, rz + bridgeLen / RIBS / 2),
 				color = LAMP, emit = "Fixture", parent = f })
-			glow(lamp, LAMP, 20, 0.7)
+			glow(lamp, LAMP, 22, 0.7)
 		end
 	end
+
+	-- Tavan levhası: kaburgaların arasını kapatıyor
+	build({ name = "BridgeCeil", size = Vector3.new(LOBBY_GATE_WIDTH, 0.8, bridgeLen),
+		cf = at(centerX, WALL_TOP + 0.9, bridgeZ), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f })
 
 	-- Köprüyü taşıyan ayaklar
 	for _, t in { 0.3, 0.7 } do
@@ -2093,14 +2124,42 @@ do
 		end
 	end
 
-	-- Ana aks: kapıdan ışınlanma kürsüsüne
-	lane(centerX, (gateFront + lobbyZ) / 2, lobbyZ - gateFront - 10, 18, "z")
-	-- Çark kolu: ana akstan sola
-	lane((centerX + wheelX) / 2, lobbyZ - 22, centerX - wheelX, 12, "x")
-	-- Çarkın önüne inen kol
-	lane(wheelX, lobbyZ - 14, 14, 12, "z")
-	-- Panolara giden arka aks
-	lane(centerX, lobbyZ + 28, 30, 14, "z")
+	--[[
+		═══ GÜZERGÂH AĞI ═══════════════════════════════════════════════════
+
+		Yollar artık BİRBİRİNE BAĞLI. Önceki hâlde arka tarafta havada
+		duran 30 studluk bir parça vardı; nereden başlayıp nereye gittiği
+		belli değildi ve ana aksa değmiyordu ("transitin arkasındaki yolun
+		amacını anlamadım, birleşik değil").
+
+		Ağın tamamı tek noktadan çıkıyor — ışınlanma kürsüsü:
+
+		    kapı ──► kürsü ──► arka aks ──► panolar önü ──► her panoya kol
+		               └──► çark kolu ──► portal
+
+		Her kol bir öncekiyle üst üste binecek kadar uzun; yürürken boyanın
+		kesildiği bir yer yok.
+	]]
+	local boardZ = lobbyZ + halfLD - 20      -- panoların önündeki enine aks
+
+	-- Kapıdan ışınlanma kürsüsüne
+	lane(centerX, (gateFront + lobbyZ) / 2, lobbyZ - gateFront + 4, 18, "z")
+
+	-- Kürsüden panoların önüne: aradaki bütün mesafeyi kapatıyor
+	lane(centerX, (lobbyZ + boardZ) / 2, boardZ - lobbyZ + 10, 16, "z")
+
+	-- Panoların önünde enine aks
+	lane(centerX, boardZ, LOBBY_W - 60, 14, "x")
+
+	-- Her panoya ayrı kol. Panolar 52 stud arayla; enine akstan duvara
+	-- doğru kısa birer bağlantı.
+	for i = -1, 1 do
+		lane(centerX + i * 52, boardZ + 9, 20, 10, "z")
+	end
+
+	-- Çark kolu: ana akstan sola, portalın önüne kadar
+	lane((centerX + wheelX) / 2, lobbyZ - 22, centerX - wheelX + 12, 12, "x")
+	lane(wheelX, lobbyZ - 15, 18, 12, "z")
 
 	--[[
 		Portal. Çark nişinin girişinde iki ayak + üstünde kiriş + tabela.
@@ -2253,38 +2312,43 @@ do
 	lockers(centerX + halfLW - 10, lobbyZ - 6, 90, 4)
 
 	--[[
-		Girişin iki yanına yön tabelası. Oyuncu kapıdan çıkar çıkmaz
-		nerede ne olduğunu okuyor; boş platformda kaybolma hissi bununla
-		bitiyor.
+		YÖN TABELALARI KALDIRILDI.
+
+		Girişin iki yanında "LUCKY SPIN" ve "LEADERBOARDS" yazan iki direk
+		vardı. Amaçları yönlendirmekti ama ikisi de yolun tam ortasında
+		duruyor ve gereksiz görünüyordu: çarkın kendi tabelası zaten LUCKY
+		SPIN diyor, panolar da başlıklarını taşıyor. Yönü artık sadece
+		zemindeki boyalı güzergâh anlatıyor — okunacak bir şey yok, takip
+		edilecek bir çizgi var.
 	]]
-	local function marker(mx: number, mz: number, label: string, facing: number)
-		build({ name = "MarkerPost", size = Vector3.new(1, 9, 1),
-			cf = at(mx, 4.5, mz), color = TRIM,
-			material = Enum.Material.Metal, parent = f })
 
-		local plate = build({ name = "MarkerPlate", size = Vector3.new(11, 3, 0.5),
-			cf = CFrame.new(mx, 10, mz) * CFrame.Angles(0, math.rad(facing), 0),
-			color = SHADOW, material = Enum.Material.SmoothPlastic, parent = f })
+	--[[
+		GÖRÜNMEZ EMNİYET ÇEPERİ.
 
-		local surface = Instance.new("SurfaceGui")
-		surface.Name = "Label"
-		surface.Face = Enum.NormalId.Front
-		surface.CanvasSize = Vector2.new(220, 60)
-		surface.LightInfluence = 0
-		surface.Parent = plate
-
-		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1, 1)
-		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBold
-		text.TextScaled = true
-		text.TextColor3 = Color3.fromRGB(226, 234, 240)
-		text.Text = label
-		text.Parent = surface
+		Lobi duvarları 46 stud ama köprüyle duvarın buluştuğu köşelerde,
+		eğimli yüzeylerden sekerek dışarı çıkılabiliyordu. Bütün çevreye
+		görünmez bir duvar çekiliyor: beş parça, hiçbir açıdan boşluk yok.
+	]]
+	local safety = {
+		{ centerX, lobbyZ + halfLD + 1, LOBBY_W + 4, 2 },
+		{ centerX - halfLW - 1, lobbyZ, 2, LOBBY_D + 4 },
+		{ centerX + halfLW + 1, lobbyZ, 2, LOBBY_D + 4 },
+	}
+	for _, s in safety do
+		build({ name = "LobbySafety", size = Vector3.new(s[3], 70, s[4]),
+			cf = at(s[1], 35, s[2]), color = GLASS,
+			material = Enum.Material.SmoothPlastic, collide = true,
+			transparency = 1, parent = f })
 	end
 
-	marker(centerX - 17, lobbyZ - 30, "◄  LUCKY SPIN", 0)
-	marker(centerX + 17, lobbyZ - 30, "LEADERBOARDS  ►", 0)
+	-- Ön kenar: kapı boşluğu açık kalacak şekilde iki parça
+	local safeSide = (LOBBY_W - LOBBY_GATE_WIDTH) / 2
+	for _, s in { -1, 1 } do
+		build({ name = "LobbySafety", size = Vector3.new(safeSide, 70, 2),
+			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 + safeSide / 2), 35, lobbyZ - halfLD - 1),
+			color = GLASS, material = Enum.Material.SmoothPlastic, collide = true,
+			transparency = 1, parent = f })
+	end
 end
 
 -- ─── 14. Işınlanma kürsüsü ──────────────────────────────────────────────────

@@ -23,6 +23,7 @@ local EVENTS = {
 	"TutorialSkip", -- client -> server (argümansız)
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
+	"UpgradeBuy",   -- client -> server (upgradeId: string)
 }
 
 --[[
@@ -31,15 +32,21 @@ local EVENTS = {
 	istediği sıklıkta tetikleyebiliyor.
 
 	Kural: buradaki her remote sunucuda doğrulanıyor ve sınırlanıyor.
-	Üçünün ortak yanı, hiçbirinin bir şey VERMEMESİ — biri öğreticiyi
-	kapatıyor (kalan ödülleri yakarak), biri zaten açılmış bir unvanı
-	takıyor, biri envanterdeki bir iksiri harcıyor. İstismarı oyuncunun
-	kendi zararına kalıyor.
+	Hiçbiri oyuncuya bedava bir şey VEREMİYOR — biri öğreticiyi kapatıyor
+	(kalan ödülleri yakarak), biri zaten açılmış bir unvanı takıyor, biri
+	envanterdeki bir iksiri harcıyor, biri de oyuncunun KENDİ parasını
+	kendi üssünde harcıyor.
+
+	UpgradeBuy yeni bir yüzey açmıyor: aynı işlem zaten tezgâhtaki
+	ProximityPrompt ile yapılabiliyordu ve doğrulama aynı yerde
+	(UpgradeService.TryUpgrade) — üs sahibi mi, seviye tavanda mı, parası
+	yetiyor mu. Prompt yerine arayüz geçti, kontrol aynı kaldı.
 ]]
 local CLIENT_TO_SERVER = {
 	TutorialSkip = true,
 	TitleEquip = true,
 	PotionUse = true,
+	UpgradeBuy = true,
 }
 
 local Net = {}
