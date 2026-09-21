@@ -454,20 +454,6 @@ local rarityFX = RarityFX.Create()
 local catalog = Index.Create(screen)
 minimapRef = minimap
 
--- Sohbet unvanlari: TextChatService.OnIncomingMessage yalnizca istemcide
--- calisiyor, o yuzden burada. Varsa onceki isleyiciyi eziyor degil,
--- cagirip sonucunu koruyor.
-ChatTitles.Start()
-
-local tutorial = TutorialUI.Create(screen)
-local questPanel = QuestPanel.Create(screen)
-local menus = Menus.Create(screen)
-
---[[
-	HudToggle EN SONDA: gizleyecegi panelleri ADIYLA bulup kapatiyor,
-	daha once calissaydi henuz yaratilmamis olanlari goremezdi.
-]]
-local hudToggle = HudToggle.Create(screen)
 
 --[[
 	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca
@@ -535,4 +521,54 @@ task.spawn(function()
 		rarityFX.Update()
 		catalog.Update()
 	end
+end)
+
+-- ─── Ek paneller ────────────────────────────────────────────────────────────
+--[[
+	Paneller EN SONDA ve BİRBİRİNDEN YALITILMIŞ kuruluyor.
+
+	Önce dosyanın ortasındaydılar ve bu bütün oyunu bozdu: biri hata
+	verince ya da bir remote'u beklerken takılınca altındaki RenderStepped
+	bağlantısı ve ana HUD döngüsü hiç başlamıyordu. Nakit donuyor, harita
+	ölüyor, promptlar filtrelenmiyor, kaide sayısı gelmiyordu.
+
+	Kural: bu paneller HUD'un çekirdeği değil. Hiçbiri, tek başına bütün
+	arayüzü indirebilecek bir yerde durmamalı.
+
+	task.spawn — biri yield ederse (Net.Get istemcide WaitForChild yapıyor)
+	diğerlerini ve çekirdeği bekletmesin.
+	pcall — biri hata verirse sessizce kaybolmasın, adıyla konsola düşsün.
+
+	Sıra önemsiz: HudToggle gizleyeceği panelleri tıklama anında adıyla
+	arıyor, kurulum anında değil.
+]]
+local function mountPanel(name: string, mount: () -> ())
+	task.spawn(function()
+		local ok, err = pcall(mount)
+		if not ok then
+			warn(string.format("[SusStealers] %s paneli kurulamadi: %s", name, tostring(err)))
+		end
+	end)
+end
+
+-- Sohbet unvanlari: TextChatService.OnIncomingMessage yalnizca istemcide
+-- calisiyor, o yuzden burada.
+mountPanel("ChatTitles", function()
+	ChatTitles.Start()
+end)
+
+mountPanel("TutorialUI", function()
+	TutorialUI.Create(screen)
+end)
+
+mountPanel("QuestPanel", function()
+	QuestPanel.Create(screen)
+end)
+
+mountPanel("Menus", function()
+	Menus.Create(screen)
+end)
+
+mountPanel("HudToggle", function()
+	HudToggle.Create(screen)
 end)

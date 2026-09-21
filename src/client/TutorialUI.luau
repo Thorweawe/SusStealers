@@ -223,6 +223,12 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 
 	-- ─── Dünyadaki hedef ────────────────────────────────────────────────────
 
+	--[[
+		Highlight ve BillboardGui DÜNYAYA bakan nesneler; ScreenGui'nin
+		içine konulduklarında çizilmiyorlar. Adornee hedefi belirliyor,
+		ebeveyn yalnızca ömürlerini tutuyor — o yüzden workspace ve
+		PlayerGui. İkisi de Destroy'da elle siliniyor.
+	]]
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "TutorialTarget"
 	highlight.FillColor = ACCENT
@@ -231,7 +237,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	highlight.OutlineTransparency = 0
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	highlight.Enabled = false
-	highlight.Parent = screen
+	highlight.Parent = workspace
 
 	--[[
 		Hedefin üstünde duran dünya oku.
@@ -247,7 +253,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	marker.AlwaysOnTop = true
 	marker.MaxDistance = 400
 	marker.Enabled = false
-	marker.Parent = screen
+	-- ScreenGui'nin İÇİ değil, PlayerGui'nin kendisi
+	marker.Parent = screen.Parent
 
 	local markerArrow = Instance.new("TextLabel")
 	markerArrow.Size = UDim2.fromScale(1, 1)
