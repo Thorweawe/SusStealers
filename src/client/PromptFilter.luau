@@ -67,6 +67,33 @@ local function podiumHasUnit(prompt: ProximityPrompt): boolean
 	return typeof(unitId) == "string" and unitId ~= ""
 end
 
+--[[
+	Üsteki dolu kaide sayısı. Son karakterin satılmasını engellemek için
+	gerekiyor: tek karakterini satan oyuncunun geliri sıfırlanıyor ve eline
+	geçen para en ucuz karakteri almaya yetmezse oyun kilitleniyor — hiçbir
+	şey yapamadan beklemek zorunda kalıyor.
+
+	Bu yalnızca arayüz koruması; gerçek kontrol sunucuda olmalı. Burada
+	promptu gizlemek sıradan oyuncuyu tuzaktan kurtarıyor.
+]]
+local function filledCount(plot: Model): number
+	local podiums = plot:FindFirstChild("Podiums")
+	if not podiums then
+		return 0
+	end
+
+	local n = 0
+	for _, podium in podiums:GetChildren() do
+		if podium:IsA("BasePart") then
+			local unitId = podium:GetAttribute("UnitId")
+			if typeof(unitId) == "string" and unitId ~= "" then
+				n += 1
+			end
+		end
+	end
+	return n
+end
+
 function PromptFilter.Create(): Filter
 	local function update(myPlot: Model?)
 		local plots = workspace:FindFirstChild("Plots")
@@ -80,6 +107,8 @@ function PromptFilter.Create(): Filter
 			end
 
 			local mine = plot == myPlot
+			-- Son karakterini satmana izin yok (yukarıdaki nota bak)
+			local lastUnit = mine and filledCount(plot) <= 1
 
 			for _, d in plot:GetDescendants() do
 				if not d:IsA("ProximityPrompt") then
@@ -103,6 +132,10 @@ function PromptFilter.Create(): Filter
 
 				if want and NEEDS_UNIT[d.Name] then
 					want = podiumHasUnit(d)
+				end
+
+				if want and d.Name == "SellPrompt" and lastUnit then
+					want = false
 				end
 
 				-- Sadece gerçekten değişiyorsa yaz

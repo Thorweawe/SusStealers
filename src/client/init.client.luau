@@ -198,6 +198,14 @@ local effects = ScreenFX.Create(screen)
 SoundFX.Preload()
 SoundFX.StartAmbient()
 
+--[[
+	Harita ve üs bilgisi aşağıda kuruluyor ama bildirim işleyicileri burada
+	tanımlanıyor. Önden bildirip sonra dolduruyoruz; işleyici tetiklendiğinde
+	ikisi de hazır olmuş oluyor.
+]]
+local minimapRef: Minimap.Map? = nil
+local currentPlot: Model? = nil
+
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
 	showToast(text, if isError then BAD else GOOD)
 	if isError then
@@ -215,6 +223,12 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 	SoundFX.Alarm()
 	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
 	effects.Shake(1.6, 0.6)
+
+	-- Haritada soyulan üssü yak ve hırsızı işaretle: peşinden gidebilesin
+	if minimapRef then
+		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
+		minimapRef.Alert(bay, thiefName)
+	end
 end)
 
 -- ─── Nakit / gelir ──────────────────────────────────────────────────────────
@@ -360,6 +374,7 @@ local board = Leaderboard.Create(screen)
 local prompts = PromptFilter.Create()
 local colors = OwnerColors.Create()
 local minimap = Minimap.Create(screen)
+minimapRef = minimap
 
 --[[
 	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca
@@ -387,10 +402,6 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 end)
-
--- Hangi üssün bizim olduğu saniyede birkaç kez değişebilecek bir şey değil,
--- o yüzden yavaş döngüde bulunup burada saklanıyor. Ok her karede bunu okur.
-local currentPlot: Model? = nil
 
 -- Ok kameraya göre döndüğü için her kare güncellenmeli; 0.2 sn'de bir
 -- güncellense kamerayı çevirdiğinde takılarak döner.

@@ -7,6 +7,8 @@
 -- nerede boşluk var, hangi yoldan gitsen daha kısa.
 
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Minimap = {}
 
@@ -24,7 +26,13 @@ export type Map = {
 	Update: (ownerColor: (Player) -> Color3) -> (),
 	-- Oyuncu işareti ve hedef çizgisi: her kare, yoksa dönerken takılıyor
 	Markers: (ownerColor: (Player) -> Color3, myPlot: Model?) -> (),
+	-- Çalınma anında: üssü kırmızı yak, hırsızın noktasını işaretle
+	Alert: (bayIndex: number?, thiefName: string) -> (),
 }
+
+local ALERT_SECONDS = 6      -- çalınma işaretinin ekranda kalma süresi
+local COMPACT = 176
+local EXPANDED = 420
 
 type Cell = {
 	frame: Frame,
@@ -58,14 +66,38 @@ function Minimap.Create(screen: ScreenGui): Map
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextColor3 = MUTED
 	title.TextTransparency = 0.25
-	title.Text = "STATION MAP"
+	title.Text = "STATION MAP  ·  M"
 	title.Parent = holder
+
+	--[[
+		M ile büyütme. Küçük harita hızlı bakış için, büyük harita "nereye
+		gideyim" diye düşünürken. Köşede kalıyor ki oyuncu nereye bakacağını
+		yeniden öğrenmek zorunda kalmasın.
+	]]
+	local expanded = false
+	local tweenInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	local function applySize()
+		local s = if expanded then EXPANDED else COMPACT
+		TweenService:Create(holder, tweenInfo, {
+			Size = UDim2.fromOffset(s, s + 22),
+		}):Play()
+	end
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or input.KeyCode ~= Enum.KeyCode.M then
+			return
+		end
+		expanded = not expanded
+		applySize()
+	end)
 
 	-- Haritanın çizildiği alan
 	local canvas = Instance.new("Frame")
 	canvas.Name = "Canvas"
 	canvas.Position = UDim2.fromOffset(PAD, 22)
-	canvas.Size = UDim2.fromOffset(SIZE - PAD * 2, SIZE - PAD * 2)
+	-- Orana bağlı: büyütünce içerik de büyüsün
+	canvas.Size = UDim2.new(1, -PAD * 2, 1, -22 - PAD)
 	canvas.BackgroundTransparency = 1
 	canvas.Parent = holder
 
@@ -125,6 +157,19 @@ function Minimap.Create(screen: ScreenGui): Map
 
 	-- Diğer oyuncular: gerektikçe yaratılıyor
 	local others: { [Player]: Frame } = {}
+
+	--[[
+		Çalınma işareti. Soyulan üs kırmızı yanıp sönüyor ve hırsızın noktası
+		büyüyüp beyaz halka kazanıyor. Önceden çalındığını sadece köşedeki
+		yazıdan öğreniyordun ve hırsızı takip edemiyordun; harita onu görünür
+		kılıyor, peşinden gidip geri çalabiliyorsun.
+	]]
+	local alertUntil = 0
+	local alertBay: number? = nil
+	local alertThief = ""
+
+	-- Kendi üssünde alınmamış konveyör karakteri var mı
+	local conveyorPending = false
 
 	local function otherDot(p: Player): Frame
 		local existing = others[p]
@@ -334,8 +379,13 @@ function Minimap.Create(screen: ScreenGui): Map
 			end
 
 			cell.lock.Visible = plot:GetAttribute("Locked") == true
-		end
 
+			-- Kendi üssümüzde alınmamış konveyör karakteri var mı
+			if owner == player then
+				local items = plot:FindFirstChild("Items")
+				conveyorPending = items ~= nil and #items:GetChildren() > 0
+			end
+		end
 	end
 
 	--[[
@@ -349,6 +399,26 @@ function Minimap.Create(screen: ScreenGui): Map
 			you.Visible = false
 			route.Visible = false
 			return
+		end
+
+		local now = os.clock()
+		local alerting = now < alertUntil
+		-- Saniyede ~3 kez: göz yakalayacak kadar hızlı, rahatsız etmeyecek kadar yavaş
+		local blink = (math.floor(now * 3) % 2) == 0
+
+		for index, cell in cells do
+			if alerting and alertBay == index then
+				-- Soyulan üs kırmızı yanıp sönüyor
+				cell.frame.BackgroundColor3 = if blink then Color3.fromRGB(255, 50, 60) else Color3.fromRGB(120, 24, 28)
+			end
+
+			-- Alınmamış konveyör karakteri: kendi üssünün numarası parlasın
+			if conveyorPending and myPlot then
+				local myIndex = tonumber(string.match(myPlot.Name, "%d+"))
+				if myIndex == index then
+					cell.label.TextColor3 = if blink then Color3.fromRGB(255, 220, 120) else Color3.new(1, 1, 1)
+				end
+			end
 		end
 
 		local character = player.Character
@@ -403,6 +473,17 @@ function Minimap.Create(screen: ScreenGui): Map
 				d.Visible = true
 				d.BackgroundColor3 = ownerColor(p)
 				d.Position = UDim2.fromOffset(math.clamp(ox, 0, m.w), math.clamp(oy, 0, m.h))
+
+				-- Hırsız işaretli: büyüyor ve yanıp sönüyor, peşine düşebilirsin
+				local isThief = alerting and p.DisplayName == alertThief
+				if isThief then
+					d.Size = UDim2.fromOffset(12, 12)
+					d.BackgroundColor3 = if blink then Color3.new(1, 1, 1) else ownerColor(p)
+					d.ZIndex = 8
+				else
+					d.Size = UDim2.fromOffset(6, 6)
+					d.ZIndex = 5
+				end
 			end
 		end
 
@@ -415,7 +496,13 @@ function Minimap.Create(screen: ScreenGui): Map
 		end
 	end
 
-	return { Update = update, Markers = markers }
+	local function alert(bayIndex: number?, thiefName: string)
+		alertBay = bayIndex
+		alertThief = thiefName
+		alertUntil = os.clock() + ALERT_SECONDS
+	end
+
+	return { Update = update, Markers = markers, Alert = alert }
 end
 
 return Minimap
