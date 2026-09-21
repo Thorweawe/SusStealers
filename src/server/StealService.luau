@@ -11,6 +11,7 @@ local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
 
 local PlotService = require(script.Parent.PlotService)
+local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 
 local StealService = {}
@@ -269,7 +270,7 @@ local function setupPodiumPrompt(podium: Part)
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
 	refresh()
 
-	prompt.Triggered:Connect(function(player)
+	PromptGuard.Connect(prompt, function(player)
 		onStealPrompt(podium, player)
 	end)
 end
@@ -289,7 +290,7 @@ local function setupLockPrompt(plot: Model)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = sign
 
-	prompt.Triggered:Connect(function(player)
+	PromptGuard.Connect(prompt, function(player)
 		if PlotService.GetOwner(plot) ~= player then
 			notify(player, "Not your base", true)
 			return

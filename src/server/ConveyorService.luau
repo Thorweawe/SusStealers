@@ -11,6 +11,7 @@ local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
 
 local PlotService = require(script.Parent.PlotService)
+local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 
 local ConveyorService = {}
@@ -85,7 +86,7 @@ local function spawnItem(plot: Model)
 	}
 	table.insert(activeItems, item)
 
-	prompt.Triggered:Connect(function(player)
+	PromptGuard.Connect(prompt, function(player)
 		ConveyorService.TryBuy(player, item, prompt)
 	end)
 end
