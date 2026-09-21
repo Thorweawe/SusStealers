@@ -12,7 +12,6 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
-local Atmosphere = require(script.Atmosphere)
 local CarryGuide = require(script.CarryGuide)
 local Leaderboard = require(script.Leaderboard)
 local PromptFilter = require(script.PromptFilter)
@@ -311,8 +310,6 @@ local function setRow(value: TextLabel, text: string, color: Color3)
 end
 
 -- ─── Döngüler ───────────────────────────────────────────────────────────────
-
-Atmosphere.Start()
 
 --[[
 	Roblox'un hazır oyuncu listesi sağ üstte duruyor ve üs paneliyle üst üste
