@@ -379,7 +379,7 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	part("CounterStripe", Vector3.new(12.2, 0.5, 0.3), Vector3.new(0, 3.1, -3.95), ACCENT, false)
 
 	-- Arka pano ve yan duvarlar: dükkân hissi
-	part("BoothBack", Vector3.new(13, 10, 1), Vector3.new(0, 5, 2.2))
+	part("BoothBack", Vector3.new(13, 10, 1), Vector3.new(0, 5, 2.2), SHELL)
 	for _, s in { -1, 1 } do
 		part("BoothSide", Vector3.new(1, 10, 5.4), Vector3.new(s * 6, 5, -0.3), SHELL)
 	end
