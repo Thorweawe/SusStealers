@@ -15,6 +15,10 @@ local plots: { Model } = {}
 local ownerByPlot: { [Model]: Player? } = {}
 local plotByOwner: { [Player]: Model } = {}
 
+-- Start() tekrar çağrılabilsin diye: eski bağlantılar burada tutulur,
+-- yeniden kurarken kesilir. Yoksa PlayerAdded iki kez tetiklenir.
+local connections: { RBXScriptConnection } = {}
+
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
 
 local function newAnchoredPart(name: string, size: Vector3, cframe: CFrame, color: Color3, parent: Instance): Part
@@ -304,6 +308,17 @@ end
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
 
 function PlotService.Start()
+	-- Tekrar çağrılabilir olmalı: eski dünya siliniyorsa ona ait durum da
+	-- silinmeli. Aksi halde plots listesinde yok edilmiş modeller kalır ve
+	-- oyuncular artık var olmayan üslere atanır.
+	for _, connection in connections do
+		connection:Disconnect()
+	end
+	table.clear(connections)
+	table.clear(plots)
+	table.clear(ownerByPlot)
+	table.clear(plotByOwner)
+
 	local existing = workspace:FindFirstChild("Plots")
 	if existing then
 		existing:Destroy()
@@ -336,8 +351,8 @@ function PlotService.Start()
 		onPlayerAdded(player)
 	end
 
-	Players.PlayerAdded:Connect(onPlayerAdded)
-	Players.PlayerRemoving:Connect(releasePlot)
+	table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
+	table.insert(connections, Players.PlayerRemoving:Connect(releasePlot))
 end
 
 return PlotService

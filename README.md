@@ -53,10 +53,15 @@ bildirimler, leaderstats, HUD). Kod içi yorumlar **Türkçe**.
 
 Kural: **sunucu script'ini yeniden çalıştırmadan önce diğerine haber ver.** Elle yapılan dekor/harita işleri `workspace.Plots` dışında, ayrı bir klasörde dursun.
 
-### 3. Draft commit
-Team Create'te script değişiklikleri taslak olarak durur. Her iş bitiminde:
-`View → Drafts → Commit`
-Commit edilmeyen script karşı tarafa gitmez.
+### 3. Drafts Mode — bu projede KAPALI
+Team Create'te Drafts Mode açıksa script değişiklikleri taslakta bekler ve
+commit edilmeden karşı tarafa gitmez. **Bu place'de kapalı.** Script
+değişiklikleri anında replike oluyor — commit etmeye gerek yok, `View`
+menüsünde `Drafts` girdisi de yok.
+
+Pratikte anlamı: karşı taraf sen yazarken senin script'ini görüyor.
+Koruma katmanı yok, dolayısıyla şerit kuralı ve "önce çek sonra bas"
+kuralı tek güvenceniz.
 
 ### 4. Kim yeniden kuruyor
 Aynı anda iki kişi `run_code` ile aynı şeyi kurmaya çalışırsa ikinci seferinde çift nesne oluşur. Dünyayı kuran komutu **tek kişi** çalıştırsın.
