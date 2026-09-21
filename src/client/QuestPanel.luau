@@ -46,8 +46,14 @@ local TRACK = Color3.fromRGB(44, 50, 62)
 local WIDTH = 300
 -- Sıralama tablosu y=104'te başlayıp 172 yükseliyor; ilk boş nokta burası
 local TOP = 288
--- Alt soldaki öğretici kutusu ve kenar boşluğu için ayrılan yer
-local BOTTOM_RESERVE = 170
+-- Bir görev satırı + aralığı. Yükseklik hep bunun katına yuvarlanıyor.
+local ROW = 34
+-- Vade başlığının yüksekliği
+local SECTION_HEAD = 18
+-- Öğretici kutusu açıkken alt solda ona ayrılan yer
+local TUTORIAL_RESERVE = 170
+-- Öğretici yokken sadece kenar boşluğu
+local EDGE_RESERVE = 32
 local MIN_BODY = 90
 
 export type Panel = {
@@ -233,8 +239,16 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 	--[[
 		Panelin yüksekliği içeriğe göre ama ekrana sığdığı kadar.
 
-		Sınırsız büyüseydi üç vade × iki görev, küçük ekranda alt soldaki
-		öğretici kutusunun üstüne binerdi. Sığmayan kısım kaydırılıyor.
+		İki kural:
+
+		1. Alt sınır ekrana göre. Sınırsız büyüseydi üç vade × iki görev,
+		   küçük ekranda alt soldaki öğretici kutusunun üstüne binerdi.
+		   Öğretici kapalıyken (bitmiş oyuncu) o yer boşuna ayrılmıyor.
+
+		2. Yükseklik satır katına yuvarlanıyor. Ham piksele kırpınca panel
+		   bir görevin tam ortasından kesiliyordu ve bozuk görünüyordu;
+		   artık ya satırın tamamı görünüyor ya hiç görünmüyor, gerisi
+		   kaydırılıyor.
 	]]
 	local function resize()
 		if not expanded then
@@ -249,8 +263,21 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			end
 		end
 
-		local available = screen.AbsoluteSize.Y - TOP - BOTTOM_RESERVE
-		local height = math.max(MIN_BODY, math.min(wanted, available))
+		local tutorial = screen:FindFirstChild("Tutorial")
+		local reserve = if tutorial and tutorial:IsA("GuiObject") and tutorial.Visible
+			then TUTORIAL_RESERVE
+			else EDGE_RESERVE
+
+		local available = screen.AbsoluteSize.Y - TOP - reserve
+		local height = math.min(wanted, available)
+
+		-- Satırın ortasından kesme: sığan tam satır sayısına yuvarla
+		if height < wanted then
+			local usable = height - SECTION_HEAD - 12
+			height = SECTION_HEAD + 12 + math.floor(usable / ROW) * ROW
+		end
+
+		height = math.max(MIN_BODY, height)
 
 		body.Size = UDim2.new(1, 0, 0, height)
 		root.Size = UDim2.new(0, WIDTH, 0, 34 + height)
@@ -258,6 +285,25 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 
 	-- Ekran döndüğünde ya da pencere boyutlandığında yeniden ölç
 	local resizeConnection = screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+
+	--[[
+		Öğretici kutusu bitince kapanıyor ve alt solda yer açılıyor; panel
+		o yeri kullanabilsin diye yeniden ölçüyoruz. Kutu henüz yoksa
+		(paneller ayrı ayrı kuruluyor) beklemeye gerek yok, ilk resize
+		zaten öğreticisiz varsayıyor.
+	]]
+	local tutorialWatch: RBXScriptConnection? = nil
+	local existing = screen:FindFirstChild("Tutorial")
+	if existing and existing:IsA("GuiObject") then
+		tutorialWatch = existing:GetPropertyChangedSignal("Visible"):Connect(resize)
+	else
+		tutorialWatch = screen.ChildAdded:Connect(function(child)
+			if child.Name == "Tutorial" and child:IsA("GuiObject") then
+				child:GetPropertyChangedSignal("Visible"):Connect(resize)
+				resize()
+			end
+		end)
+	end
 
 	local function apply(payload: { Tier })
 		local doneCount, totalCount = 0, 0
@@ -377,6 +423,9 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			connection:Disconnect()
 			tick:Disconnect()
 			resizeConnection:Disconnect()
+			if tutorialWatch then
+				tutorialWatch:Disconnect()
+			end
 			root:Destroy()
 		end,
 	}
