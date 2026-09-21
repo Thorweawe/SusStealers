@@ -40,7 +40,7 @@ end
 function Net.Get(name: string): RemoteEvent
 	if IS_SERVER then
 		local remote = folder:FindFirstChild(name)
-		assert(remote, string.format("Net: '%s' adında remote yok", name))
+		assert(remote, string.format("Net: no remote named '%s'", name))
 		return remote :: RemoteEvent
 	end
 	return folder:WaitForChild(name) :: RemoteEvent

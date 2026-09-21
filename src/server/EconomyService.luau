@@ -17,7 +17,7 @@ local cash: { [Player]: number } = {}
 
 local function refreshStats(player: Player)
 	local stats = player:FindFirstChild("leaderstats")
-	local value = stats and stats:FindFirstChild("Nakit")
+	local value = stats and stats:FindFirstChild("Cash")
 	if value and value:IsA("StringValue") then
 		value.Value = "$" .. Config.FormatCash(cash[player] or 0)
 	end
@@ -78,12 +78,12 @@ local function onPlayerAdded(player: Player)
 	stats.Name = "leaderstats"
 
 	local cashValue = Instance.new("StringValue")
-	cashValue.Name = "Nakit"
+	cashValue.Name = "Cash"
 	cashValue.Value = "$" .. Config.FormatCash(Config.StartingCash)
 	cashValue.Parent = stats
 
 	local stolenValue = Instance.new("IntValue")
-	stolenValue.Name = "Çalınan"
+	stolenValue.Name = "Stolen"
 	stolenValue.Value = 0
 	stolenValue.Parent = stats
 
@@ -93,7 +93,7 @@ end
 
 function EconomyService.AddStealCount(player: Player)
 	local stats = player:FindFirstChild("leaderstats")
-	local value = stats and stats:FindFirstChild("Çalınan")
+	local value = stats and stats:FindFirstChild("Stolen")
 	if value and value:IsA("IntValue") then
 		value.Value += 1
 	end

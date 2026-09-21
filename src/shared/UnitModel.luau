@@ -130,7 +130,7 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
 	subtitle.TextScaled = true
 	subtitle.TextColor3 = Color3.fromRGB(120, 255, 150)
 	subtitle.TextStrokeTransparency = 0.4
-	subtitle.Text = "$" .. Config.FormatCash(income) .. "/sn"
+	subtitle.Text = "$" .. Config.FormatCash(income) .. "/s"
 	subtitle.Parent = gui
 
 	return gui

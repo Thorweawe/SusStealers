@@ -107,7 +107,7 @@ local function returnToVictim(player: Player)
 		local podium = plot and PlotService.FindEmptyPodium(plot)
 		if podium then
 			PlotService.PlaceUnit(podium, carry.unitId, carry.mutationId)
-			notify(victim, "Hırsız yakalandı, karakterin geri döndü", false)
+			notify(victim, "Thief down! Your unit is back", false)
 		end
 	end
 
@@ -158,7 +158,7 @@ local function tryDeposit(player: Player)
 	EconomyService.AddStealCount(player)
 
 	local def = Config.GetUnit(carry.unitId)
-	notify(player, string.format("%s üssüne eklendi", if def then def.name else carry.unitId), false)
+	notify(player, string.format("%s added to your base", if def then def.name else carry.unitId), false)
 
 	stopCarrying(player)
 end
@@ -173,17 +173,17 @@ local function onStealPrompt(podium: Part, thief: Player)
 
 	local thiefPlot = PlotService.GetPlotOf(thief)
 	if not thiefPlot then
-		notify(thief, "Önce bir üs sahibi olman gerek", true)
+		notify(thief, "You need a base first", true)
 		return
 	end
 
 	if thiefPlot == victimPlot then
-		notify(thief, "Kendi karakterini çalamazsın", true)
+		notify(thief, "That is your own unit", true)
 		return
 	end
 
 	if carrying[thief] then
-		notify(thief, "Zaten bir karakter taşıyorsun", true)
+		notify(thief, "You are already carrying one", true)
 		return
 	end
 
@@ -192,24 +192,24 @@ local function onStealPrompt(podium: Part, thief: Player)
 	end
 
 	if victimPlot:GetAttribute("Locked") then
-		notify(thief, "Bu üs kilitli", true)
+		notify(thief, "This base is locked", true)
 		return
 	end
 
 	local placedAt = podium:GetAttribute("PlacedAt") :: number
 	if os.clock() - placedAt < Config.SafeSeconds then
-		notify(thief, "Karakter henüz korumada", true)
+		notify(thief, "Unit is still protected", true)
 		return
 	end
 
 	local cooldownLeft = Config.StealCooldown - (os.clock() - (lastStealAt[thief] or -math.huge))
 	if cooldownLeft > 0 then
-		notify(thief, string.format("%d sn bekle", math.ceil(cooldownLeft)), true)
+		notify(thief, string.format("Wait %d s", math.ceil(cooldownLeft)), true)
 		return
 	end
 
 	if not PlotService.FindEmptyPodium(thiefPlot) then
-		notify(thief, "Boş kaiden yok, önce yer aç", true)
+		notify(thief, "No free podium - make room first", true)
 		return
 	end
 
@@ -232,7 +232,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 	local def = Config.GetUnit(unitId)
 	local unitName = if def then def.name else unitId
 
-	notify(thief, string.format("%s çalındı! Üssüne kaç", unitName), false)
+	notify(thief, string.format("Stole %s! Run to your base", unitName), false)
 	if victim then
 		alertRemote:FireClient(victim, thief.DisplayName, unitName)
 	end
@@ -243,8 +243,8 @@ end
 local function setupPodiumPrompt(podium: Part)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
-	prompt.ActionText = "Çal"
-	prompt.ObjectText = "Hain ol"
+	prompt.ActionText = "Steal"
+	prompt.ObjectText = "Be the impostor"
 	prompt.HoldDuration = Config.StealHoldTime
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
@@ -271,8 +271,8 @@ local function setupLockPrompt(plot: Model)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "LockPrompt"
-	prompt.ActionText = "Kilitle"
-	prompt.ObjectText = string.format("%d sn koruma", Config.LockDuration)
+	prompt.ActionText = "Lock"
+	prompt.ObjectText = string.format("%d s protection", Config.LockDuration)
 	prompt.HoldDuration = 0.5
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
@@ -280,26 +280,26 @@ local function setupLockPrompt(plot: Model)
 
 	prompt.Triggered:Connect(function(player)
 		if PlotService.GetOwner(plot) ~= player then
-			notify(player, "Bu senin üssün değil", true)
+			notify(player, "Not your base", true)
 			return
 		end
 
 		local usedAt = plot:GetAttribute("LockUsedAt") :: number
 		local cooldownLeft = Config.LockCooldown - (os.clock() - usedAt)
 		if usedAt > 0 and cooldownLeft > 0 then
-			notify(player, string.format("Kilit %d sn sonra hazır", math.ceil(cooldownLeft)), true)
+			notify(player, string.format("Lock ready in %d s", math.ceil(cooldownLeft)), true)
 			return
 		end
 
 		plot:SetAttribute("Locked", true)
 		plot:SetAttribute("LockUsedAt", os.clock())
-		notify(player, string.format("Üs %d sn kilitlendi", Config.LockDuration), false)
+		notify(player, string.format("Base locked for %d s", Config.LockDuration), false)
 
 		task.delay(Config.LockDuration, function()
 			if plot.Parent then
 				plot:SetAttribute("Locked", false)
 				if PlotService.GetOwner(plot) == player and player.Parent then
-					notify(player, "Kilit açıldı", true)
+					notify(player, "Lock expired", true)
 				end
 			end
 		end)

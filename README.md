@@ -54,15 +54,59 @@ Aynı anda iki kişi `run_code` ile aynı şeyi kurmaya çalışırsa ikinci sef
 
 ---
 
-## Rojo ile çalışmak (opsiyonel)
+## Dosyaları Studio'ya basmak (sync)
 
-Team Create kullanıyorsanız Rojo'ya gerek yok — kod doğrudan MCP ile place'e basılır. Yine de dosyadan senkron isterseniz:
+Rojo kurmaya gerek yok. Proje klasöründe küçük bir HTTP sunucusu aç:
 
 ```bash
-rojo serve default.project.json
+python -m http.server 8787 --bind 127.0.0.1
 ```
 
-Studio'da Rojo plugin'inden `Connect`.
+Sonra Studio'da MCP'nin `run_code` aracıyla şunu çalıştır — 9 dosyanın hepsini tek seferde çeker:
+
+```lua
+local HttpService = game:GetService("HttpService")
+local RS = game:GetService("ReplicatedStorage")
+local SSS = game:GetService("ServerScriptService")
+local SPS = game:GetService("StarterPlayer").StarterPlayerScripts
+
+local shared, server, client = RS.Shared, SSS.Server, SPS.Client
+local BASE = "http://127.0.0.1:8787/"
+
+local mapping = {
+	{ "src/shared/Config.luau",          shared.Config },
+	{ "src/shared/Net.luau",             shared.Net },
+	{ "src/shared/UnitModel.luau",       shared.UnitModel },
+	{ "src/server/init.server.luau",     server },
+	{ "src/server/PlotService.luau",     server.PlotService },
+	{ "src/server/EconomyService.luau",  server.EconomyService },
+	{ "src/server/ConveyorService.luau", server.ConveyorService },
+	{ "src/server/StealService.luau",    server.StealService },
+	{ "src/client/init.client.luau",     client },
+}
+
+for _, entry in mapping do
+	local ok, result = pcall(function()
+		return HttpService:GetAsync(BASE .. entry[1], true)
+	end)
+	if ok then
+		entry[2].Source = result
+		print("OK", entry[1], #result)
+	else
+		print("HATA", entry[1], result)
+	end
+end
+```
+
+`HttpService.HttpEnabled` kapalı olsa bile çalışıyor — plugin bağlamında `GetAsync` izinli.
+
+**Yapı ilk kez kuruluyorsa** (place boşsa) önce kapları yarat: `ReplicatedStorage.Shared` (Folder), `ServerScriptService.Server` (Script), `StarterPlayerScripts.Client` (LocalScript), ve Shared altına `Config`/`Net`/`UnitModel`, Server altına `PlotService`/`EconomyService`/`ConveyorService`/`StealService` ModuleScript'leri.
+
+## Test etmek
+
+Oyuncu gerektiren testler için MCP'nin `run_script_in_play_mode` aracını `mode = "start_play"` ile kullan — sunucu datamodel'inde çalışır, sonunda otomatik durur. Oyuncusuz birim testleri için `mode = "run_server"` yeterli.
+
+Normal `run_code` **edit datamodel'inde** çalışır; `workspace.Plots` orada yoktur, çünkü üsleri sunucu çalışma anında kuruyor.
 
 ---
 

@@ -114,7 +114,7 @@ Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
 end)
 
 Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName: string)
-	showToast(string.format("%s senden %s çaldı!", thiefName, unitName), Color3.fromRGB(255, 70, 110))
+	showToast(string.format("%s stole your %s!", thiefName, unitName), Color3.fromRGB(255, 70, 110))
 end)
 
 -- ─── Güncelleme ─────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ local function refresh()
 	local income = player:GetAttribute("Income") :: number?
 
 	cashLabel.Text = "$" .. Config.FormatCash(cash or 0)
-	incomeLabel.Text = string.format("+$%s/sn", Config.FormatCash(income or 0))
+	incomeLabel.Text = string.format("+$%s/s", Config.FormatCash(income or 0))
 end
 
 player:GetAttributeChangedSignal("Cash"):Connect(refresh)
@@ -137,6 +137,6 @@ task.spawn(function()
 		task.wait(0.25)
 		local character = player.Character
 		local carried = character and character:FindFirstChild("CarriedUnit")
-		carryLabel.Text = if carried then "TAŞIYORSUN — üssüne dön" else ""
+		carryLabel.Text = if carried then "CARRYING - return to your base" else ""
 	end
 end)

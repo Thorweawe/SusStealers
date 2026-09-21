@@ -64,7 +64,7 @@ local function spawnItem(plot: Model)
 	-- Satın alma promptu
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "BuyPrompt"
-	prompt.ActionText = "Satın Al"
+	prompt.ActionText = "Buy"
 	prompt.ObjectText = string.format("$%s", Config.FormatCash(price))
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 12
@@ -103,23 +103,23 @@ function ConveyorService.TryBuy(player: Player, item: ConveyorItem, prompt: Prox
 
 	local plot = PlotService.GetPlotOf(player)
 	if not plot then
-		notify(player, "Önce bir üs sahibi olman gerek", true)
+		notify(player, "You need a base first", true)
 		return
 	end
 
 	if plot ~= item.plot then
-		notify(player, "Bu senin konveyörün değil", true)
+		notify(player, "Not your conveyor", true)
 		return
 	end
 
 	local podium = PlotService.FindEmptyPodium(plot)
 	if not podium then
-		notify(player, "Boş kaiden yok", true)
+		notify(player, "No free podium", true)
 		return
 	end
 
 	if not EconomyService.TrySpend(player, item.price) then
-		notify(player, "Yeterli paran yok", true)
+		notify(player, "Not enough cash", true)
 		return
 	end
 
@@ -127,7 +127,7 @@ function ConveyorService.TryBuy(player: Player, item: ConveyorItem, prompt: Prox
 	PlotService.PlaceUnit(podium, item.unitId, item.mutationId)
 
 	local def = Config.GetUnit(item.unitId)
-	notify(player, string.format("%s satın alındı", if def then def.name else item.unitId), false)
+	notify(player, string.format("%s purchased", if def then def.name else item.unitId), false)
 
 	item.model:Destroy()
 end

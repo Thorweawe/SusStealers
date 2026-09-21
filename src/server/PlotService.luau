@@ -110,8 +110,19 @@ local function buildPlot(index: number): Model
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(235, 240, 255)
 	label.TextStrokeTransparency = 0.3
-	label.Text = "BOŞ ÜS"
+	label.Text = "EMPTY BASE"
 	label.Parent = gui
+
+	-- Doğuş pedi: oyuncu ortada değil, kendi üssünde başlasın
+	local spawnPad = newAnchoredPart(
+		"SpawnPad",
+		Vector3.new(8, 0.4, 8),
+		CFrame.new(origin + Vector3.new(0, Config.PlotSize.Y / 2 + 0.3, -Config.PlotSize.Z / 2 + 7)),
+		Color3.fromRGB(70, 200, 255),
+		plot
+	)
+	spawnPad.Material = Enum.Material.Neon
+	spawnPad.Transparency = 0.45
 
 	plot:SetAttribute("Locked", false)
 	plot:SetAttribute("LockUsedAt", 0)
@@ -238,12 +249,30 @@ local function setSignText(plot: Model, text: string)
 	end
 end
 
+--[[ Oyuncuyu kendi üssünün doğuş pedine taşır. Üssü yoksa hiçbir şey yapmaz. ]]
+function PlotService.TeleportToPlot(player: Player)
+	local plot = plotByOwner[player]
+	if not plot then
+		return
+	end
+
+	local pad = plot:FindFirstChild("SpawnPad")
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not (pad and pad:IsA("BasePart") and root and root:IsA("BasePart")) then
+		return
+	end
+
+	character:PivotTo(pad.CFrame * CFrame.new(0, 4, 0))
+end
+
 local function assignPlot(player: Player)
 	for _, plot in plots do
 		if ownerByPlot[plot] == nil then
 			ownerByPlot[plot] = player
 			plotByOwner[player] = plot
 			setSignText(plot, string.upper(player.DisplayName))
+			PlotService.TeleportToPlot(player)
 			return
 		end
 	end
@@ -266,7 +295,7 @@ local function releasePlot(player: Player)
 	end
 
 	plot:SetAttribute("Locked", false)
-	setSignText(plot, "BOŞ ÜS")
+	setSignText(plot, "EMPTY BASE")
 
 	ownerByPlot[plot] = nil
 	plotByOwner[player] = nil
@@ -288,11 +317,26 @@ function PlotService.Start()
 		table.insert(plots, buildPlot(index))
 	end
 
-	for _, player in Players:GetPlayers() do
+	-- Üs ver + her doğuşta o üsse taşı
+	local function onPlayerAdded(player: Player)
 		assignPlot(player)
+
+		player.CharacterAdded:Connect(function(character)
+			character:WaitForChild("HumanoidRootPart")
+			task.wait(0.1) -- karakter tam oturmadan ışınlarsak geri kayıyor
+			PlotService.TeleportToPlot(player)
+		end)
+
+		if player.Character then
+			PlotService.TeleportToPlot(player)
+		end
 	end
 
-	Players.PlayerAdded:Connect(assignPlot)
+	for _, player in Players:GetPlayers() do
+		onPlayerAdded(player)
+	end
+
+	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(releasePlot)
 end
 

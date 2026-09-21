@@ -58,31 +58,31 @@ export type UnitDef = {
 
 Config.Units = {
 	-- Common
-	{ id = "RedCrew",     name = "Kırmızı Mürettebat", rarity = "Common",    price =    100, income =     3, weight = 1000, color = Color3.fromRGB(197,  17,  17) },
-	{ id = "BlueCrew",    name = "Mavi Mürettebat",    rarity = "Common",    price =    180, income =     6, weight =  900, color = Color3.fromRGB( 19,  46, 210) },
-	{ id = "YellowCrew",  name = "Sarı Mürettebat",    rarity = "Common",    price =    320, income =    11, weight =  800, color = Color3.fromRGB(241, 224,  90) },
+	{ id = "RedCrew",     name = "Red Crewmate",       rarity = "Common",    price =    100, income =     3, weight = 1000, color = Color3.fromRGB(197,  17,  17) },
+	{ id = "BlueCrew",    name = "Blue Crewmate",      rarity = "Common",    price =    180, income =     6, weight =  900, color = Color3.fromRGB( 19,  46, 210) },
+	{ id = "YellowCrew",  name = "Yellow Crewmate",    rarity = "Common",    price =    320, income =    11, weight =  800, color = Color3.fromRGB(241, 224,  90) },
 
 	-- Uncommon
-	{ id = "Engineer",    name = "Tamirci",            rarity = "Uncommon",  price =    750, income =    28, weight =  500, color = Color3.fromRGB( 56, 254, 220) },
-	{ id = "Scientist",   name = "Bilim İnsanı",       rarity = "Uncommon",  price =   1600, income =    62, weight =  420, color = Color3.fromRGB( 80, 240, 100) },
-	{ id = "Guardian",    name = "Koruyucu Melek",     rarity = "Uncommon",  price =   3400, income =   135, weight =  340, color = Color3.fromRGB(235, 235, 255) },
+	{ id = "Engineer",    name = "Engineer",           rarity = "Uncommon",  price =    750, income =    28, weight =  500, color = Color3.fromRGB( 56, 254, 220) },
+	{ id = "Scientist",   name = "Scientist",          rarity = "Uncommon",  price =   1600, income =    62, weight =  420, color = Color3.fromRGB( 80, 240, 100) },
+	{ id = "Guardian",    name = "Guardian Angel",     rarity = "Uncommon",  price =   3400, income =   135, weight =  340, color = Color3.fromRGB(235, 235, 255) },
 
 	-- Rare
-	{ id = "Shapeshift",  name = "Şekil Değiştiren",   rarity = "Rare",      price =   7500, income =   310, weight =  200, color = Color3.fromRGB(107,  47, 187) },
-	{ id = "VentCrawler", name = "Kanal Sürüngeni",    rarity = "Rare",      price =  16000, income =   680, weight =  160, color = Color3.fromRGB( 62,  71,  78) },
-	{ id = "MedbayScan",  name = "Revir Tarayıcı",     rarity = "Rare",      price =  34000, income =  1450, weight =  120, color = Color3.fromRGB( 90, 200, 255) },
+	{ id = "Shapeshift",  name = "Shapeshifter",       rarity = "Rare",      price =   7500, income =   310, weight =  200, color = Color3.fromRGB(107,  47, 187) },
+	{ id = "VentCrawler", name = "Vent Crawler",       rarity = "Rare",      price =  16000, income =   680, weight =  160, color = Color3.fromRGB( 62,  71,  78) },
+	{ id = "MedbayScan",  name = "Medbay Scanner",     rarity = "Rare",      price =  34000, income =  1450, weight =  120, color = Color3.fromRGB( 90, 200, 255) },
 
 	-- Epic
-	{ id = "Impostor",    name = "Hain",               rarity = "Epic",      price =  72000, income =  3100, weight =   70, color = Color3.fromRGB(140,  10,  10) },
-	{ id = "Reactor",     name = "Reaktör Erimesi",    rarity = "Epic",      price = 155000, income =  6800, weight =   50, color = Color3.fromRGB(255, 120,  20) },
-	{ id = "Emergency",   name = "Acil Toplantı",      rarity = "Epic",      price = 330000, income = 14500, weight =   36, color = Color3.fromRGB(255,  60,  60) },
+	{ id = "Impostor",    name = "Impostor",           rarity = "Epic",      price =  72000, income =  3100, weight =   70, color = Color3.fromRGB(140,  10,  10) },
+	{ id = "Reactor",     name = "Reactor Meltdown",   rarity = "Epic",      price = 155000, income =  6800, weight =   50, color = Color3.fromRGB(255, 120,  20) },
+	{ id = "Emergency",   name = "Emergency Meeting",  rarity = "Epic",      price = 330000, income = 14500, weight =   36, color = Color3.fromRGB(255,  60,  60) },
 
 	-- Legendary
-	{ id = "Ejected",     name = "Uzaya Fırlatıldı",   rarity = "Legendary", price = 700000, income = 31000, weight =   18, color = Color3.fromRGB( 25,  25,  60) },
+	{ id = "Ejected",     name = "Ejected Into Space", rarity = "Legendary", price = 700000, income = 31000, weight =   18, color = Color3.fromRGB( 25,  25,  60) },
 	{ id = "TheSkeld",    name = "The Skeld",          rarity = "Legendary", price =1500000, income = 67000, weight =   12, color = Color3.fromRGB(120, 130, 145) },
 
 	-- Mythic
-	{ id = "DoubleImp",   name = "Çifte Hain",         rarity = "Mythic",    price =3200000, income =145000, weight =    5, color = Color3.fromRGB(190,   0,  55) },
+	{ id = "DoubleImp",   name = "Double Impostor",    rarity = "Mythic",    price =3200000, income =145000, weight =    5, color = Color3.fromRGB(190,   0,  55) },
 
 	-- Secret
 	{ id = "AmogusPrime", name = "Amogus Prime",       rarity = "Secret",    price =9000000, income =420000, weight =    1, color = Color3.fromRGB( 12,  12,  18) },
@@ -98,12 +98,14 @@ export type MutationDef = {
 	tint: Color3?,
 }
 
+-- Toplam mutasyon şansı ~%13. Tek tek çarpılıyor, o yüzden
+-- bir tanesini yükseltmek toplamı beklediğinden çok artırır.
 Config.Mutations = {
-	{ id = "Impostor", name = "HAIN",    chance = 0.004, incomeMul = 30, tint = Color3.fromRGB(190,  15,  40) },
-	{ id = "Golden",   name = "Altın",   chance = 0.012, incomeMul = 15, tint = Color3.fromRGB(255, 200,  60) },
-	{ id = "Ejected",  name = "Fırlatıldı", chance = 0.030, incomeMul = 8, tint = Color3.fromRGB( 40,  40,  90) },
-	{ id = "Vented",   name = "Kanalcı", chance = 0.070, incomeMul = 4,  tint = Color3.fromRGB( 90, 110, 120) },
-	{ id = "Sus",      name = "Şüpheli", chance = 0.150, incomeMul = 2,  tint = Color3.fromRGB(255, 120, 180) },
+	{ id = "Impostor", name = "IMPOSTOR", chance = 0.004, incomeMul = 30, tint = Color3.fromRGB(190,  15,  40) },
+	{ id = "Golden",   name = "Golden",   chance = 0.012, incomeMul = 15, tint = Color3.fromRGB(255, 200,  60) },
+	{ id = "Ejected",  name = "Ejected",  chance = 0.025, incomeMul =  8, tint = Color3.fromRGB( 40,  40,  90) },
+	{ id = "Vented",   name = "Vented",   chance = 0.050, incomeMul =  4, tint = Color3.fromRGB( 90, 110, 120) },
+	{ id = "Sus",      name = "Sus",      chance = 0.050, incomeMul =  2, tint = Color3.fromRGB(255, 120, 180) },
 } :: { MutationDef }
 
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────

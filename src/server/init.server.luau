@@ -19,4 +19,4 @@ EconomyService.Start()
 ConveyorService.Start()
 StealService.Start()
 
-print(string.format("[SusStealers] Sunucu hazır (%.0f ms)", (os.clock() - started) * 1000))
+print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))
