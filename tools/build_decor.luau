@@ -89,9 +89,20 @@ end
 local HULL = Color3.fromRGB(38, 44, 58)
 local HULL_DARK = Color3.fromRGB(24, 29, 39)
 local TRIM = Color3.fromRGB(78, 88, 108)
-local NEON = Color3.fromRGB(80, 220, 255)
+
+--[[
+	Neon malzemesi rengi tam parlaklıkta basıyor; kısmanın tek yolu rengi
+	koyulaştırmak. Uzun çizgiler (zemin dikişi, yürüyüş şeridi, kemer) sönük
+	tonu kullanıyor, parlak ton sadece küçük vurgularda. Hepsi parlak olunca
+	göz dinlenecek yer bulamıyor ve sahne camgöbeğine boğuluyordu.
+]]
+local NEON = Color3.fromRGB(80, 220, 255)        -- parlak: küçük vurgu
+local NEON_DIM = Color3.fromRGB(22, 68, 88)      -- sönük: uzun çizgiler
+local NEON_MID = Color3.fromRGB(44, 124, 152)    -- ara ton: çerçeveler
+
+local LAMP = Color3.fromRGB(225, 240, 255)       -- aydınlatma: nötr beyaz
 local NEON_WARM = Color3.fromRGB(255, 190, 90)
-local HAZARD = Color3.fromRGB(255, 176, 40)
+local HAZARD = Color3.fromRGB(180, 118, 26)      -- sönük kehribar
 local GLASS = Color3.fromRGB(150, 210, 255)
 local RED = Color3.fromRGB(197, 17, 17)
 
@@ -173,13 +184,13 @@ do
 		parent = f,
 	})
 
-	-- Sütunlar arası enine dikişler
+	-- Sütunlar arası enine dikişler (sönük: zeminin her yerinde var)
 	for i = 0, COLUMNS do
 		build({
 			name = "SeamX",
 			size = Vector3.new(0.6, 0.12, halfD * 2 - 6),
 			cf = at((i - 0.5) * PLOT_SPACING, 0.06, centerZ),
-			color = NEON,
+			color = NEON_DIM,
 			material = Enum.Material.Neon,
 			parent = f,
 		})
@@ -191,6 +202,22 @@ do
 			name = "SeamZ",
 			size = Vector3.new(halfW * 2 - 6, 0.12, 0.6),
 			cf = at(centerX, 0.06, (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)),
+			color = NEON_DIM,
+			material = Enum.Material.Neon,
+			parent = f,
+		})
+	end
+
+	--[[
+		İki sıra üssün arasındaki ana koridor. Tek parlak zemin çizgisi bu;
+		oyuncunun gözü doğal olarak onu takip ediyor ve haritanın omurgasını
+		anlıyor. Diğer bütün dikişler sönük tam da bu ayrım görünsün diye.
+	]]
+	if ROWS > 1 then
+		build({
+			name = "MainCorridor",
+			size = Vector3.new(halfW * 2 - 20, 0.14, 2),
+			cf = at(centerX, 0.07, centerZ),
 			color = NEON,
 			material = Enum.Material.Neon,
 			parent = f,
@@ -236,7 +263,7 @@ do
 			place("Glass", cursor + g / 2, g, WALL_H - 13, 3.5 + (WALL_H - 3.5) / 2, 0.7, GLASS, Enum.Material.Glass, false, 0.75)
 			-- Üst kapak ve alt denizlik
 			place("GlassTop", cursor + g / 2, g, 4, WALL_H - 2, 2.4, HULL, Enum.Material.Metal, true)
-			place("Sill", cursor + g / 2, g, 0.5, 3.5 + 3, 2.8, NEON, Enum.Material.Neon, false)
+			place("Sill", cursor + g / 2, g, 0.5, 3.5 + 3, 2.8, NEON_MID, Enum.Material.Neon, false)
 			cursor += g
 		end
 
@@ -340,13 +367,13 @@ do
 				name = "FrameX",
 				size = Vector3.new(0.8, FRAME_H, PLOT_SIZE.Z),
 				cf = at(ox + s * halfX, frameY, oz),
-				color = NEON, material = Enum.Material.Neon, parent = pf,
+				color = NEON_MID, material = Enum.Material.Neon, parent = pf,
 			})
 			build({
 				name = "FrameZ",
 				size = Vector3.new(PLOT_SIZE.X, FRAME_H, 0.8),
 				cf = at(ox, frameY, oz + s * halfZ),
-				color = NEON, material = Enum.Material.Neon, parent = pf,
+				color = NEON_MID, material = Enum.Material.Neon, parent = pf,
 			})
 		end
 
@@ -364,10 +391,13 @@ do
 					cf = at(px, topY + PILLAR_H + 0.35, pz), color = TRIM,
 					material = Enum.Material.Metal, parent = pf })
 
+				-- Sütun tepesindeki ışık: 8 üste 4'er tane, hepsi camgöbeği
+				-- olunca sahneyi maviye boğuyordu. Nötr beyaz aydınlatıyor,
+				-- renk vurgusunu sütundaki bant yapıyor.
 				local lamp = build({ name = "CapLamp", size = Vector3.new(PILLAR * 0.6, 0.5, PILLAR * 0.6),
-					cf = at(px, topY + PILLAR_H + 0.9, pz), color = NEON,
+					cf = at(px, topY + PILLAR_H + 0.9, pz), color = LAMP,
 					material = Enum.Material.Neon, parent = pf })
-				glow(lamp, NEON, 28, 1.5)
+				glow(lamp, LAMP, 24, 0.9)
 			end
 		end
 
@@ -380,7 +410,7 @@ do
 				name = "PodiumRing",
 				size = Vector3.new(5.6, 0.1, 5.6),
 				cf = at(ox + (col - (perRow - 1) / 2) * PODIUM_GAP, topY + 0.05, oz + (if front then -8 else 8)),
-				color = NEON, material = Enum.Material.Neon, transparency = 0.35, parent = pf,
+				color = NEON_DIM, material = Enum.Material.Neon, transparency = 0.3, parent = pf,
 			})
 		end
 
@@ -419,7 +449,7 @@ do
 				cf = at(ax, ARCH_CLEAR + 0.8, oz), color = HULL,
 				material = Enum.Material.Metal, parent = pf })
 			build({ name = "ArchGlow", size = Vector3.new(0.5, 0.2, (halfZ + 3) * 2 - 2),
-				cf = at(ax, ARCH_CLEAR - 0.1, oz), color = NEON,
+				cf = at(ax, ARCH_CLEAR - 0.1, oz), color = NEON_DIM,
 				material = Enum.Material.Neon, parent = pf })
 		end
 	end
@@ -507,13 +537,15 @@ do
 	-- Kirişlere asılı aydınlatma
 	for i = 1, COLUMNS do
 		for r = 0, ROWS - 1 do
+			-- Aydınlatma nötr beyaz: camgöbeği olunca "lamba" değil
+			-- "dekor şeridi" gibi okunuyordu ve sahneyi maviye boğuyordu.
 			local lamp = build({
 				name = "RoofLamp",
 				size = Vector3.new(PLOT_SIZE.X * 0.5, 0.4, 2),
 				cf = at((i - 1) * PLOT_SPACING, Y - 3.2, r * ROW_SPACING),
-				color = NEON, material = Enum.Material.Neon, parent = f,
+				color = LAMP, material = Enum.Material.Neon, parent = f,
 			})
-			glow(lamp, NEON, 40, 1.1)
+			glow(lamp, LAMP, 42, 1.3)
 		end
 	end
 end
@@ -576,8 +608,8 @@ do
 		local z = o.Z + side * (halfZ + 9)
 
 		build({ name = "BayPad", size = Vector3.new(14, 0.14, 7),
-			cf = at(o.X, 0.07, z), color = NEON,
-			material = Enum.Material.Neon, transparency = 0.45, parent = f })
+			cf = at(o.X, 0.07, z), color = NEON_DIM,
+			material = Enum.Material.Neon, transparency = 0.4, parent = f })
 
 		local post = build({ name = "BayPost", size = Vector3.new(1, 1, 1),
 			cf = at(o.X, 6, z), color = HULL,

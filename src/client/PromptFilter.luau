@@ -3,14 +3,15 @@
 --
 -- Sunucu promptları herkese açık yaratmak zorunda: ProximityPrompt.Enabled
 -- oyuncu bazında ayarlanamıyor, sunucu açtığında herkes görüyor. Sonuç olarak
--- başkasının kaidesinde "Sell", kendi kaidende "Steal", ve herkesin üssünde
--- "Lock" görünüyordu.
+-- başkasının üssünde Sell / Lock / Rebirth / Upgrade / Buy görünüyordu,
+-- kendi üssünde de Steal.
 --
 -- Enabled istemcide yerel olarak değiştirilebildiği için burada süzüyoruz.
 --
--- ÖNEMLİ: prompt basılı tutulurken Enabled'a yazmak basışı sıfırlıyor. Bu
--- yüzden döngüde her seferinde yazmıyoruz; her kaideyi bir kez bağlayıp
--- yalnızca durumu gerçekten değiştiğinde dokunuyoruz.
+-- ÖNEMLİ: prompt basılı tutulurken Enabled'a yazmak basışı sıfırlıyor ve
+-- sunucudaki PromptGuard tetiklemeyi sessizce reddediyor. Bu yüzden değer
+-- zaten doğruysa YAZMIYORUZ — satış (0.4 sn) ve çalma (4 sn) basışları
+-- sürekli iptal oluyordu.
 
 local PromptFilter = {}
 
@@ -18,76 +19,75 @@ export type Filter = {
 	Update: (myPlot: Model?) -> (),
 }
 
-local function isOccupied(podium: Part): boolean
+-- Yalnızca kendi üssünde görünmeli
+local OWN_ONLY: { [string]: boolean } = {
+	SellPrompt = true,
+	LockPrompt = true,
+	RebirthPrompt = true,
+	UpgradePrompt = true,
+	BuyPrompt = true,
+}
+
+-- Yalnızca başkasının üssünde görünmeli
+local OTHERS_ONLY: { [string]: boolean } = {
+	StealPrompt = true,
+}
+
+--[[
+	Kaide promptları ayrıca kaidenin dolu olmasını istiyor. Sunucu bunu
+	UnitId niteliğine bakarak yapıyor; biz de aynı kuralı uyguluyoruz,
+	yoksa boş kaidede prompt açık bırakırdık.
+]]
+local NEEDS_UNIT: { [string]: boolean } = {
+	SellPrompt = true,
+	StealPrompt = true,
+}
+
+local function podiumHasUnit(prompt: ProximityPrompt): boolean
+	local podium = prompt.Parent
+	if not (podium and podium:IsA("BasePart")) then
+		return false
+	end
 	local unitId = podium:GetAttribute("UnitId")
 	return typeof(unitId) == "string" and unitId ~= ""
 end
 
-local function setEnabled(instance: Instance?, want: boolean)
-	if instance and instance:IsA("ProximityPrompt") and instance.Enabled ~= want then
-		instance.Enabled = want
-	end
-end
-
 function PromptFilter.Create(): Filter
-	local hookedPodiums: { [Part]: boolean } = {}
-	local myPlot: Model? = nil
-
-	local function refreshPodium(podium: Part, plot: Model)
-		local mine = plot == myPlot
-		local occupied = isOccupied(podium)
-
-		-- Sadece kendi kaideni satabilirsin
-		setEnabled(podium:FindFirstChild("SellPrompt"), mine and occupied)
-		-- Kendi karakterini çalamazsın
-		setEnabled(podium:FindFirstChild("StealPrompt"), (not mine) and occupied)
-	end
-
-	local function refreshLock(plot: Model)
-		local sign = plot:FindFirstChild("Sign")
-		if sign then
-			-- Sadece kendi üssünü kilitleyebilirsin
-			setEnabled(sign:FindFirstChild("LockPrompt"), plot == myPlot)
-		end
-	end
-
-	local function update(plot: Model?)
-		local ownerChanged = plot ~= myPlot
-		myPlot = plot
-
+	local function update(myPlot: Model?)
 		local plots = workspace:FindFirstChild("Plots")
 		if not plots then
 			return
 		end
 
-		for _, candidate in plots:GetChildren() do
-			if not candidate:IsA("Model") then
+		for _, plot in plots:GetChildren() do
+			if not plot:IsA("Model") then
 				continue
 			end
 
-			if ownerChanged then
-				refreshLock(candidate)
-			end
+			local mine = plot == myPlot
 
-			local podiums = candidate:FindFirstChild("Podiums")
-			if not podiums then
-				continue
-			end
-
-			for _, podium in podiums:GetChildren() do
-				if not podium:IsA("Part") then
+			for _, d in plot:GetDescendants() do
+				if not d:IsA("ProximityPrompt") then
 					continue
 				end
 
-				if not hookedPodiums[podium] then
-					hookedPodiums[podium] = true
-					-- Karakter konunca/kalkınca promptlar değişmeli
-					podium:GetAttributeChangedSignal("UnitId"):Connect(function()
-						refreshPodium(podium, candidate)
-					end)
-					refreshPodium(podium, candidate)
-				elseif ownerChanged then
-					refreshPodium(podium, candidate)
+				local want: boolean
+				if OWN_ONLY[d.Name] then
+					want = mine
+				elseif OTHERS_ONLY[d.Name] then
+					want = not mine
+				else
+					-- Tanımadığımız prompt: sunucu ne dediyse o kalsın
+					continue
+				end
+
+				if want and NEEDS_UNIT[d.Name] then
+					want = podiumHasUnit(d)
+				end
+
+				-- Sadece gerçekten değişiyorsa yaz
+				if d.Enabled ~= want then
+					d.Enabled = want
 				end
 			end
 		end
