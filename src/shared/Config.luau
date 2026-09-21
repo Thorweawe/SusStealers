@@ -51,9 +51,13 @@ Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%5
 
 -- ─── Çevrimdışı gelir ───────────────────────────────────────────────────────
 -- Oyuncu çıkınca kazanç tamamen duruyordu, geri gelmek için sebep azdı.
--- Tam oran vermiyoruz ki oynamak hâlâ daha kârlı olsun.
-Config.OfflineIncomeRate = 0.25
-Config.OfflineIncomeCapHours = 4
+-- Ama çevrimdışı oyuncudan çalınamıyor da: çıkmak zaten güvenli, bir de
+-- cömert kazanç verirsek çıkmak oynamaktan kârlı hale gelir.
+--
+-- Bu ayarlarla 3 saat çevrimdışı ≈ 9 dakika aktif oyun. Hoş geldin
+-- hediyesi kadar, strateji olacak kadar değil.
+Config.OfflineIncomeRate = 0.05
+Config.OfflineIncomeCapHours = 3
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
