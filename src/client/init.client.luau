@@ -15,6 +15,7 @@ local Net = require(Shared.Net)
 local CarryGuide = require(script.CarryGuide)
 local DecorFX = require(script.DecorFX)
 local FloorStyle = require(script.FloorStyle)
+local Index = require(script.Index)
 local Leaderboard = require(script.Leaderboard)
 local Lobby = require(script.Lobby)
 local Minimap = require(script.Minimap)
@@ -424,6 +425,7 @@ local minimap = Minimap.Create(screen)
 local lobby = Lobby.Create(screen)
 local floorStyle = FloorStyle.Create()
 local rarityFX = RarityFX.Create()
+local catalog = Index.Create(screen)
 minimapRef = minimap
 
 --[[
@@ -439,7 +441,7 @@ task.spawn(function()
 			local attached = 0
 			for _, pf in plots:GetChildren() do
 				for _, part in pf:GetChildren() do
-					if part:IsA("BasePart") and part.Name == "DispenserHead" then
+					if part:IsA("BasePart") and part.Name == "HatchHood" then
 						SoundFX.AttachMachineHum(part)
 						attached += 1
 					end
@@ -490,5 +492,6 @@ task.spawn(function()
 		lobby.Update()
 		floorStyle.Update()
 		rarityFX.Update()
+		catalog.Update()
 	end
 end)

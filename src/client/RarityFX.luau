@@ -41,6 +41,38 @@ local function tierOf(order: number): { beam: number, rings: number, particles: 
 	return { beam = 24, rings = 3, particles = true }          -- Secret
 end
 
+--[[
+	Karaktere özel süslemeler. Nadirlik kademesi "ne kadar değerli" diyor,
+	bu tablo "bu ne" diyor. Reactor Meltdown ile Ejected Into Space aynı
+	kademede ama biri erimiş bir reaktör, diğeri uzaya fırlatılmış bir ceset —
+	kaidede de öyle görünmeliler.
+
+	Her giriş isteğe bağlı: tanımlanmayan karakter sadece nadirlik vurgusunu
+	alır, hata vermez.
+]]
+type Accent = {
+	tint: Color3?,          -- efekt rengini bastır
+	halo: boolean?,         -- baş üstünde halka
+	spikes: number?,        -- çevresine dikey çubuklar
+	smoke: boolean?,        -- yukarı süzülen ağır parçacık
+	grate: boolean?,        -- altında havalandırma kapağı
+	scan: boolean?,         -- aşağı yukarı süzülen tarama çizgisi
+	pulse: boolean?,        -- nabız gibi atan zemin halkası
+}
+
+local ACCENTS: { [string]: Accent } = {
+	Guardian = { halo = true, tint = Color3.fromRGB(235, 235, 255) },
+	VentCrawler = { grate = true },
+	MedbayScan = { scan = true, tint = Color3.fromRGB(90, 200, 255) },
+	Impostor = { spikes = 4, tint = Color3.fromRGB(190, 20, 20) },
+	Reactor = { smoke = true, tint = Color3.fromRGB(255, 120, 20), pulse = true },
+	Emergency = { pulse = true, tint = Color3.fromRGB(255, 60, 60) },
+	Ejected = { smoke = true, tint = Color3.fromRGB(60, 60, 140) },
+	TheSkeld = { spikes = 2, tint = Color3.fromRGB(150, 165, 185) },
+	DoubleImp = { spikes = 6, tint = Color3.fromRGB(220, 10, 70) },
+	AmogusPrime = { halo = true, spikes = 8, smoke = true, pulse = true },
+}
+
 export type FX = {
 	Update: () -> (),
 	Stop: () -> (),
@@ -50,6 +82,20 @@ type Ring = { part: BasePart, speed: number, base: CFrame }
 
 function RarityFX.Create(): FX
 	local rings: { Ring } = {}
+	-- Kayan tarama çizgileri ve nabız atan halkalar. Ayrı listeler, çünkü
+	-- biri dikey kayıyor diğeri boyut/saydamlık değiştiriyor.
+	local scanners: { { part: BasePart, base: number } } = {}
+	local pulseRings: { { part: BasePart, seed: number, base: CFrame } } = {}
+
+	--[[ Ebeveyni gitmiş parçaları listelerden düşürür. Efekt silindiğinde
+	     tek tek listeleri taramak yerine burada toplu temizleniyor. ]]
+	local function prune<T>(list: { T }, get: (T) -> BasePart)
+		for i = #list, 1, -1 do
+			if not get(list[i]).Parent then
+				table.remove(list, i)
+			end
+		end
+	end
 
 	local function clear(podium: BasePart)
 		local old = podium:FindFirstChild(FX_NAME)
@@ -172,6 +218,91 @@ function RarityFX.Create(): FX
 			emitter.LightEmission = 1
 			emitter.Parent = base
 		end
+
+		-- ─── Karaktere özel süsleme ─────────────────────────────────────────
+
+		local accent = ACCENTS[unitId]
+		if not accent then
+			return
+		end
+
+		local tone = accent.tint or color
+
+		local function deco(name: string, size: Vector3, cf: CFrame, c: Color3, trans: number): Part
+			local p = Instance.new("Part")
+			p.Name = name
+			p.Size = size
+			p.CFrame = cf
+			p.Color = c
+			p.Material = Enum.Material.Neon
+			p.Transparency = trans
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = holder
+			return p
+		end
+
+		if accent.halo then
+			-- Koruyucu Melek: başın üstünde halka
+			local halo = deco("Halo", Vector3.new(4.2, 0.22, 4.2),
+				CFrame.new(top + Vector3.new(0, 5.4, 0)), tone, 0.1)
+			table.insert(rings, { part = halo, speed = 18, base = halo.CFrame })
+		end
+
+		if accent.spikes then
+			-- Hain ve türevleri: çevresine dikey çubuklar
+			for i = 1, accent.spikes do
+				local a = (i - 1) * (math.pi * 2 / accent.spikes)
+				deco("Spike", Vector3.new(0.3, 3.6, 0.3),
+					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(3.2, 1.8, 0),
+					tone, 0.2)
+			end
+		end
+
+		if accent.grate then
+			-- Kanal Sürüngeni: altında havalandırma kapağı
+			deco("Grate", Vector3.new(5.4, 0.1, 4.2),
+				CFrame.new(top + Vector3.new(0, 0.14, 0)), Color3.fromRGB(50, 58, 70), 0)
+			for i = -1, 1 do
+				deco("GrateSlat", Vector3.new(4.8, 0.16, 0.5),
+					CFrame.new(top + Vector3.new(0, 0.2, i * 1.2)), tone, 0.35)
+			end
+		end
+
+		if accent.scan then
+			--[[
+				Revir Tarayıcı: aşağı yukarı süzülen tarama çizgisi. Dönen
+				halka listesine katmıyoruz çünkü o dönüyor, bu kayıyor —
+				hareketi aşağıdaki döngü yürütüyor.
+			]]
+			local line = deco("ScanLine", Vector3.new(5.6, 0.14, 5.6),
+				CFrame.new(top + Vector3.new(0, 1, 0)), tone, 0.35)
+			table.insert(scanners, { part = line, base = top.Y + 0.4 })
+		end
+
+		if accent.pulse then
+			-- Reaktör / Acil Toplantı: nabız gibi atan zemin halkası
+			local ring = deco("PulseRing", Vector3.new(7.4, 0.1, 7.4),
+				CFrame.new(top + Vector3.new(0, 0.1, 0)), tone, 0.3)
+			table.insert(pulseRings, { part = ring, seed = math.random(), base = ring.CFrame })
+		end
+
+		if accent.smoke then
+			-- Erime / uzay tozu: ağır, yavaş yükselen parçacık
+			local smoke = Instance.new("ParticleEmitter")
+			smoke.Color = ColorSequence.new(tone)
+			smoke.Size = NumberSequence.new(0.8, 2.6)
+			smoke.Transparency = NumberSequence.new(0.65, 1)
+			smoke.Lifetime = NumberRange.new(2.6, 4.2)
+			smoke.Rate = 5
+			smoke.Speed = NumberRange.new(0.6, 1.4)
+			smoke.SpreadAngle = Vector2.new(40, 40)
+			smoke.LightEmission = 0.4
+			smoke.Parent = base
+		end
 	end
 
 	--[[ Kaidedeki karakter değişince efekti yeniden kur. ]]
@@ -217,10 +348,44 @@ function RarityFX.Create(): FX
 
 	local connection = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
+
 		for _, r in rings do
 			if r.part.Parent then
 				r.part.CFrame = r.base * CFrame.Angles(0, math.rad(r.speed * t), 0)
 			end
+		end
+
+		-- Tarama çizgisi: aşağıdan yukarı süzülüp başa dönüyor
+		for _, s in scanners do
+			if s.part.Parent then
+				local h = (t * 1.6) % 5
+				s.part.CFrame = CFrame.new(s.part.Position.X, s.base + h, s.part.Position.Z)
+				-- Tepeye yaklaşırken sönüyor: sert kesilme olmasın
+				s.part.Transparency = 0.3 + (h / 5) * 0.55
+			end
+		end
+
+		-- Nabız halkası: büyüyüp sönen dalga
+		for _, p in pulseRings do
+			if p.part.Parent then
+				local phase = (t * 0.8 + p.seed) % 1
+				local scale = 1 + phase * 0.9
+				p.part.Size = Vector3.new(7.4 * scale, 0.1, 7.4 * scale)
+				p.part.Transparency = 0.25 + phase * 0.7
+			end
+		end
+
+		-- Silinmiş efektleri listelerden düşür
+		if math.floor(t * 2) % 8 == 0 then
+			prune(rings, function(r)
+				return r.part
+			end)
+			prune(scanners, function(s)
+				return s.part
+			end)
+			prune(pulseRings, function(p)
+				return p.part
+			end)
 		end
 	end)
 

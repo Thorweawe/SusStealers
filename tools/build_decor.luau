@@ -495,19 +495,71 @@ do
 				material = Enum.Material.Neon, parent = pf })
 		end
 
+		--[[
+			Konveyör sahnesi. Karakterler eskiden bantta birden beliriyordu;
+			şimdi bir kapaktan çıkıyor gibi duruyorlar. Sahne üç parçadan
+			oluşuyor: çıkış kapağı, hareketli bant çıtaları ve kenar ışıkları.
+		]]
 		local dx = ox - (PLOT_SIZE.X - 8) / 2
+		local beltLen = PLOT_SIZE.X - 8
+
+		-- Çıkış kapağı: bantın başındaki ağız
 		for _, e in { -1, 1 } do
-			build({ name = "DispenserLeg", size = Vector3.new(1.2, 7, 1.2),
-				cf = at(dx + e * 3.4, topY + 3.5, convZ), color = TRIM,
+			build({ name = "HatchLeg", size = Vector3.new(1.4, 9, 1.4),
+				cf = at(dx + e * 4.2, topY + 4.5, convZ), color = TRIM,
 				material = Enum.Material.Metal, parent = pf })
 		end
-		build({ name = "DispenserHead", size = Vector3.new(9, 1.6, 6),
-			cf = at(dx, topY + 7.5, convZ), color = HULL,
+		build({ name = "HatchHood", size = Vector3.new(11, 2.2, 7),
+			cf = at(dx, topY + 9.8, convZ), color = HULL,
 			material = Enum.Material.Metal, parent = pf })
-		local dg = build({ name = "DispenserGlow", size = Vector3.new(8, 0.25, 5),
-			cf = at(dx, topY + 6.6, convZ), color = NEON_WARM,
-			material = Enum.Material.Neon, parent = pf })
-		glow(dg, NEON_WARM, 16, 1)
+		build({ name = "HatchBack", size = Vector3.new(11, 9, 1.4),
+			cf = at(dx - 1.6, topY + 4.5, convZ), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = pf })
+
+		-- Kapağın içinden vuran ışık: karakter oradan çıkıyor hissi
+		local mouth = build({ name = "HatchMouth", size = Vector3.new(0.4, 7, 5.6),
+			cf = at(dx - 0.9, topY + 4.2, convZ), color = NEON_WARM,
+			material = Enum.Material.Neon, transparency = 0.25, parent = pf })
+		glow(mouth, NEON_WARM, 22, 1.6)
+
+		-- Kapak dudakları: üstte ve altta tehlike şeridi
+		for _, e in { -1, 1 } do
+			build({ name = "HatchLip", size = Vector3.new(0.8, 0.5, 6.4),
+				cf = at(dx - 0.2, topY + 4.2 + e * 3.6, convZ), color = HAZARD,
+				material = Enum.Material.Neon, parent = pf })
+		end
+
+		--[[
+			Bant çıtaları. Sekiz tane, aralarında eşit boşluk; her biri bant
+			boyu kadar kayıp başa dönüyor. Aralık çıta sayısına bölündüğü için
+			akış kesintisiz görünüyor.
+		]]
+		local SLATS = 8
+		local slatGap = beltLen / SLATS
+		for i = 0, SLATS - 1 do
+			local slat = build({
+				name = "BeltSlat",
+				size = Vector3.new(0.9, 0.18, 4.4),
+				cf = at(dx + i * slatGap, topY + 0.14 + LIFT, convZ),
+				color = NEON_DIM,
+				material = Enum.Material.Neon,
+				parent = pf,
+			})
+			slat:SetAttribute("SlideSpeed", 5)
+			slat:SetAttribute("SlideRange", beltLen)
+		end
+
+		-- Bant kenarındaki ışıklar
+		for _, e in { -1, 1 } do
+			build({ name = "BeltEdge", size = Vector3.new(beltLen, 0.5, 0.5),
+				cf = at(ox, topY + 0.3, convZ + e * 2.6), color = TRIM,
+				material = Enum.Material.Metal, parent = pf })
+		end
+
+		-- Bantın sonundaki durdurucu: karakterler oraya kadar gidiyor
+		build({ name = "BeltStop", size = Vector3.new(0.8, 2.4, 5.6),
+			cf = at(ox + beltLen / 2, topY + 1.2, convZ), color = TRIM,
+			material = Enum.Material.Metal, parent = pf })
 
 		-- Aynı satırdaki komşuya kemer
 		local col = (index - 1) % COLUMNS

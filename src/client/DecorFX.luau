@@ -15,6 +15,8 @@ local DecorFX = {}
 type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string }
 type Pulser = { part: BasePart, period: number, phase: number }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
+-- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
+type Slider = { part: BasePart, speed: number, range: number, base: CFrame }
 
 export type FX = {
 	Stop: () -> (),
@@ -24,6 +26,7 @@ function DecorFX.Start(): FX
 	local spinners: { Spinner } = {}
 	local pulsers: { Pulser } = {}
 	local drifters: { Drifter } = {}
+	local sliders: { Slider } = {}
 
 	local decor = workspace:FindFirstChild("Decor")
 	if not decor then
@@ -55,6 +58,18 @@ function DecorFX.Start(): FX
 			if typeof(period) == "number" and period > 0 then
 				-- Faz kaydırması: hepsi aynı anda yanıp sönerse yapay duruyor
 				table.insert(pulsers, { part = obj, period = period, phase = #pulsers * 0.37 })
+			end
+
+			-- Bant çıtası: kendi ekseninde değil, bir hat boyunca kayıyor
+			local slide = obj:GetAttribute("SlideSpeed")
+			local slideRange = obj:GetAttribute("SlideRange")
+			if typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
+				table.insert(sliders, {
+					part = obj,
+					speed = slide,
+					range = slideRange,
+					base = obj.CFrame,
+				})
 			end
 
 		elseif obj:IsA("Model") then
@@ -103,6 +118,16 @@ function DecorFX.Start(): FX
 		for _, d in drifters do
 			local travelled = (d.speed * elapsed) % d.range
 			d.model:PivotTo(d.base * CFrame.new(travelled, 0, 0))
+		end
+
+		--[[
+			Bant çıtaları. Parçanın kendi yerel x ekseninde kayıyorlar, yani
+			konveyör hangi yöne dönükse çıta da o yöne akıyor — dünya eksenine
+			bağlamak üsler döndüğünde ters yöne akmalarına yol açardı.
+		]]
+		for _, s in sliders do
+			local travelled = (s.speed * elapsed) % s.range
+			s.part.CFrame = s.base * CFrame.new(travelled, 0, 0)
 		end
 	end)
 
