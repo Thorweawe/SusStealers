@@ -85,7 +85,14 @@ local LOBBY_GATE_WIDTH = 24
 local LOBBY_BRIDGE = 58      -- köprü uzunluğu
 local LOBBY_W = 180          -- lobi genişliği
 local LOBBY_D = 120          -- lobi derinliği
-local LOBBY_WALL_H = 30
+--[[
+	Lobi duvarı 30'du ve üstü açıktı — "transit bölgesinin üstü açık"
+	şikâyeti buydu. Tavan kapatılınca çark (tepesindeki tabelayla birlikte
+	~57 stud) tavanı deliyordu. İkisi birden çözülüyor: duvar 40'a çıktı,
+	tavan 42.6'ya kondu, çark da ölçü olarak küçültüldü.
+]]
+local LOBBY_WALL_H = 40
+local LOBBY_CEIL_Y = LOBBY_WALL_H + 2.6
 
 --[[
 	Yüzeye yatırılan ince parçaların (dikiş, halka, şerit, ped) alt yüzeyi
@@ -106,42 +113,47 @@ end
 -- ─── Palet ──────────────────────────────────────────────────────────────────
 
 --[[
-	TEMA: Skeld'in iç mekânı, Tron değil.
+	TEMA: Among Us'ın nakliye gemisi / Skeld koridorları.
 
-	Önceki palet camgöbeği neon ağırlıklıydı ve sahne siber-punk bir tünele
-	dönüşmüştü. Among Us'ın kendi dili bambaşka: mavi-gri boyalı çelik
-	paneller, SICAK beyaz tavan aydınlatması, sarı-siyah uyarı şeritleri ve
-	renk olarak sadece mürettebat tulumları. Parlayan yüzey neredeyse yok;
-	ışık lambadan gelir, duvardan değil.
+	Referans oyunun kendi ekranları: duvarlar DOYGUNLUĞU DÜŞÜK gri-yeşil
+	boyalı çelik, zemin daha koyu aynı aileden, kenarlar açık gri metal,
+	aksan olarak sadece soluk sarı hatlar ve turkuaz dolap/panel yüzeyleri.
+	Işık sıcak beyaz ve TAVANDAN gelir. Oyunun hiçbir yerinde parlayan duvar
+	yoktur.
 
-	Bu yüzden gövde tonları biraz açıldı (koyu lacivert bir kutu yerine
-	boyalı çelik gibi okunsun), aydınlatma nötr beyazdan sıcak beyaza
-	kaydırıldı ve uzun neon hatların yerini fiziksel oluk/plaka detayı aldı.
+	Önceki palet lacivert + camgöbeğiydi; teknik olarak koyu ve "uzay" idi
+	ama gemi değil siberpunk tüneli gibi okunuyordu. Renkler tek aileye
+	(mavi-yeşil gri) indirildi ve doygunluk düşürüldü. Sahneye rengi artık
+	mürettebat tulumları veriyor, mimari değil — referansta da öyle.
 ]]
-local HULL = Color3.fromRGB(56, 66, 88)          -- boyalı çelik panel
-local HULL_DARK = Color3.fromRGB(34, 41, 57)     -- gölgede kalan gövde
-local TRIM = Color3.fromRGB(104, 116, 142)       -- çıplak metal kenar
+local STEEL = Color3.fromRGB(126, 140, 144)      -- açık panel (duvar üstü)
+local STEEL_MID = Color3.fromRGB(94, 108, 114)   -- ana gövde paneli
+local STEEL_DARK = Color3.fromRGB(64, 76, 82)    -- güverte plakası
+local STEEL_DEEP = Color3.fromRGB(44, 54, 60)    -- gölgeli gövde
+local SHADOW = Color3.fromRGB(27, 34, 39)        -- oluk, çukur, boşluk
+local EDGE = Color3.fromRGB(168, 181, 184)       -- çıplak metal kenar
+local TEAL = Color3.fromRGB(84, 124, 132)        -- dolap/panel aksanı
+local BRASS = Color3.fromRGB(198, 172, 100)      -- soluk sarı hat
 
--- Güverte: üç kademe gri. Plaka / oluk / ızgara.
-local DECK = Color3.fromRGB(78, 89, 112)
-local DECK_ALT = Color3.fromRGB(66, 76, 97)      -- desen için ikinci ton
-local GROOVE = Color3.fromRGB(30, 36, 50)        -- plaka arası oluk
+local HULL = STEEL_MID
+local HULL_DARK = STEEL_DEEP
+local TRIM = STEEL
 
---[[
-	Neon malzemesi rengi tam parlaklıkta basıyor; kısmanın tek yolu rengi
-	koyulaştırmak. Artık neon sadece ekran, gösterge ve lamba gibi gerçekten
-	ışık kaynağı olan yerlerde. Uzun çizgilerde fiziksel oluk kullanılıyor.
-]]
-local NEON = Color3.fromRGB(96, 200, 235)        -- ekran mavisi (yumuşatıldı)
-local NEON_DIM = Color3.fromRGB(26, 62, 78)      -- sönük gösterge
-local NEON_MID = Color3.fromRGB(48, 116, 140)    -- ara ton: çerçeveler
+-- Güverte: üç kademe. Plaka / ikinci ton / oluk.
+local DECK = STEEL_DARK
+local DECK_ALT = Color3.fromRGB(56, 67, 73)
+local GROOVE = SHADOW
 
-local LAMP = Color3.fromRGB(255, 246, 228)       -- aydınlatma: SICAK beyaz
-local NEON_WARM = Color3.fromRGB(255, 190, 90)
-local HAZARD = Color3.fromRGB(226, 176, 44)      -- uyarı sarısı (Skeld şeridi)
-local HAZARD_DARK = Color3.fromRGB(38, 34, 22)   -- şeridin siyah aralığı
+local NEON = TEAL                                -- ekran/panel yüzeyi
+local NEON_DIM = Color3.fromRGB(38, 56, 62)      -- sönük gösterge
+local NEON_MID = Color3.fromRGB(62, 92, 99)      -- ara ton: çerçeveler
+
+local LAMP = Color3.fromRGB(255, 244, 222)       -- aydınlatma: SICAK beyaz
+local NEON_WARM = BRASS
+local HAZARD = Color3.fromRGB(206, 172, 72)      -- uyarı sarısı (soluk)
+local HAZARD_DARK = Color3.fromRGB(38, 36, 28)   -- şeridin koyu aralığı
 local GLASS = Color3.fromRGB(150, 210, 255)
-local RED = Color3.fromRGB(197, 17, 17)
+local RED = Color3.fromRGB(178, 44, 40)
 
 --[[
 	Mürettebat renkleri — oyunun kendi paleti. Heykeller, sandık bantları,
@@ -173,8 +185,10 @@ end
 	bir bakışta yerini biliyorsun. Üs sahibinin rengiyle karışmasın diye
 	ikisi de doygunluğu düşük.
 ]]
-local ZONE_COOL = Color3.fromRGB(70, 190, 230)
-local ZONE_WARM = Color3.fromRGB(235, 150, 70)
+-- Doygunluk kasten düşük: bunlar boya, ışık değil. Parlak tonlar
+-- mürettebat tulumlarına ayrıldı.
+local ZONE_COOL = Color3.fromRGB(88, 140, 150)
+local ZONE_WARM = Color3.fromRGB(176, 132, 74)
 
 local function zoneColor(row: number): Color3
 	return if row % 2 == 0 then ZONE_COOL else ZONE_WARM
@@ -198,6 +212,69 @@ local function group(name: string, parent: Instance?): Folder
 	return f
 end
 
+local function at(x: number, y: number, z: number): CFrame
+	return CFrame.new(x, y, z)
+end
+
+local function glow(part: Part, color: Color3, range: number, brightness: number)
+	local l = Instance.new("PointLight")
+	l.Color = color
+	l.Range = range
+	l.Brightness = brightness
+	l.Parent = part
+end
+
+--[[
+	═══ IŞIK SINIFLARI ═══════════════════════════════════════════════════════
+
+	"Her yerde çok fazla neon parıltısı var" şikâyetinin sebebi teknikti:
+	parlayan yüzey her seferinde elle kuruluyordu (`material = Neon` + bazen
+	`glow`). Otuz yedi ayrı çağrı, otuz yedi ayrı karar. Kimse toplamına
+	bakmadığı için sahne yavaş yavaş ışık tablosuna döndü.
+
+	Çözüm kural koymak: parlayan HER yüzey aşağıdaki dört sınıftan birine
+	girer. Sınıf; malzemeyi, rengin ne kadar kısılacağını ve ışık salıp
+	salmayacağını belirler. Denge bozulursa tek yerden ayarlanır.
+
+	  Fixture  — gerçek armatür. Tam parlak + PointLight. SADECE tavan
+	             lambaları, duvar aplikleri, acil düğmesi, ışınlanma feneri.
+	             Sahnede otuzu geçmemeli.
+	  Screen   — konsol ekranı, pano. Orta parlaklık, ışık SAÇMAZ. Ekranın
+	             kendisi görünür ama odayı aydınlatmaz.
+	  Indicator— küçük gösterge, ampul, şerit ucu. Kısık parlaklık, ışık yok.
+	             Sadece 3 studdan küçük parçalarda.
+	  Paint    — uzun hat, zemin çizgisi, çerçeve, bant. HİÇ parlamaz; mat
+	             boya. Eskiden bunların çoğu neondu, asıl parıltı buradan
+	             geliyordu.
+
+	Renk kısma çarpanla değil Lerp ile yapılıyor: Neon malzemesi rengi
+	doğrudan parlaklık olarak bastığı için siyaha doğru harmanlamak,
+	çarpmaktan daha öngörülebilir bir sönüm veriyor.
+]]
+type EmitClass = "Fixture" | "Screen" | "Indicator" | "Paint"
+
+local EMIT: { [string]: { material: Enum.Material, dim: number, light: boolean } } = {
+	Fixture = { material = Enum.Material.Neon, dim = 0.00, light = true },
+	Screen = { material = Enum.Material.Neon, dim = 0.45, light = false },
+	Indicator = { material = Enum.Material.Neon, dim = 0.62, light = false },
+	Paint = { material = Enum.Material.SmoothPlastic, dim = 0.00, light = false },
+}
+
+--[[
+	Verilen sınıfa göre parçanın malzemesini ve rengini ayarlar; Fixture ise
+	ışığını da takar. `range`/`brightness` sadece Fixture'da anlamlı.
+]]
+local function emit(part: Part, class: EmitClass, color: Color3, range: number?, brightness: number?): Part
+	local spec = EMIT[class]
+	part.Material = spec.material
+	part.Color = if spec.dim > 0 then color:Lerp(Color3.new(0, 0, 0), spec.dim) else color
+
+	if spec.light and range then
+		glow(part, color, range, brightness or 1)
+	end
+	return part
+end
+
 type Opts = {
 	size: Vector3,
 	cf: CFrame,
@@ -208,6 +285,15 @@ type Opts = {
 	shape: Enum.PartType?,
 	parent: Instance,
 	name: string?,
+
+	--[[
+		Parlayan yüzeyler `material` yerine BUNU kullanır. Çağrı yerinde
+		"hangi malzeme" değil "bu ne işe yarıyor" yazıyor; parlaklık kararı
+		tek yerde (EMIT tablosu) kalıyor.
+	]]
+	emit: EmitClass?,
+	range: number?,        -- sadece Fixture: ışık menzili
+	brightness: number?,   -- sadece Fixture: ışık şiddeti
 }
 
 local function build(o: Opts): Part
@@ -228,20 +314,13 @@ local function build(o: Opts): Part
 		p.Shape = o.shape
 	end
 	p.Parent = o.parent
+
+	if o.emit then
+		emit(p, o.emit, o.color, o.range, o.brightness)
+	end
 	return p
 end
 
-local function at(x: number, y: number, z: number): CFrame
-	return CFrame.new(x, y, z)
-end
-
-local function glow(part: Part, color: Color3, range: number, brightness: number)
-	local l = Instance.new("PointLight")
-	l.Color = color
-	l.Range = range
-	l.Brightness = brightness
-	l.Parent = part
-end
 
 --[[
 	Mürettebat heykeli. UnitModel'deki karakterin aynı geometrisi, ölçeklenmiş
@@ -596,7 +675,7 @@ do
 		material = Enum.Material.Metal, collide = true, parent = f })
 	build({ name = "GateGlow", size = Vector3.new(LOBBY_GATE_WIDTH + 2, 0.3, 0.5),
 		cf = at(centerX, WALL_H - 3.4, z1 - 1.6), color = NEON,
-		material = Enum.Material.Neon, parent = f })
+		emit = "Paint", parent = f })
 
 	-- ─── Gövde altı: kalınlık hissi ─────────────────────────────────────────
 	-- Kademeli daralan üç katman: yandan bakınca gemi gövdesi gibi
@@ -648,11 +727,10 @@ do
 				size = Vector3.new(1.6, 1.6, 1.6),
 				cf = at(x, -HULL_DEPTH * 0.45, centerZ + side * (halfD - 3)),
 				color = NEON_WARM,
-				material = Enum.Material.Neon,
+				emit = "Indicator",
 				shape = Enum.PartType.Ball,
 				parent = f,
 			})
-			glow(lamp, NEON_WARM, 18, 1.2)
 		end
 	end
 end
@@ -692,13 +770,13 @@ do
 				name = "FrameX",
 				size = Vector3.new(0.8, FRAME_H, PLOT_SIZE.Z),
 				cf = at(ox + s * halfX, frameY, oz),
-				color = NEON_MID, material = Enum.Material.Neon, parent = pf,
+				color = NEON_MID, emit = "Paint", parent = pf,
 			})
 			build({
 				name = "FrameZ",
 				size = Vector3.new(PLOT_SIZE.X, FRAME_H, 0.8),
 				cf = at(ox, frameY, oz + s * halfZ),
-				color = NEON_MID, material = Enum.Material.Neon, parent = pf,
+				color = NEON_MID, emit = "Paint", parent = pf,
 			})
 		end
 
@@ -710,8 +788,10 @@ do
 					cf = at(px, topY + PILLAR_H / 2, pz), color = HULL,
 					material = Enum.Material.Metal, collide = true, parent = pf })
 				build({ name = "PillarBand", size = Vector3.new(PILLAR + 0.5, 0.45, PILLAR + 0.5),
-					cf = at(px, topY + PILLAR_H * 0.62, pz), color = NEON,
-					material = Enum.Material.Neon, parent = pf })
+					cf = at(px, topY + PILLAR_H * 0.62, pz), color = TEAL,
+					-- 8 üste 4'er tane, yani 32 adet. Gösterge sınıfında
+					-- havada parlayan 32 halka oluyordu; boyalı bant yeter.
+					emit = "Paint", parent = pf })
 				build({ name = "PillarCap", size = Vector3.new(PILLAR + 1, 0.7, PILLAR + 1),
 					cf = at(px, topY + PILLAR_H + 0.35, pz), color = TRIM,
 					material = Enum.Material.Metal, parent = pf })
@@ -721,8 +801,8 @@ do
 				-- renk vurgusunu sütundaki bant yapıyor.
 				local lamp = build({ name = "CapLamp", size = Vector3.new(PILLAR * 0.6, 0.5, PILLAR * 0.6),
 					cf = at(px, topY + PILLAR_H + 0.9, pz), color = LAMP,
-					material = Enum.Material.Neon, parent = pf })
-				glow(lamp, LAMP, 24, 0.9)
+					emit = "Fixture", parent = pf })
+				glow(lamp, LAMP, 18, 0.5)
 			end
 		end
 
@@ -762,7 +842,7 @@ do
 		for _, e in { -1, 1 } do
 			build({ name = "HazardStrip", size = Vector3.new(PLOT_SIZE.X - 8, 0.12, 0.7),
 				cf = at(ox, topY + 0.06 + LIFT, convZ + e * 3.2), color = HAZARD,
-				material = Enum.Material.Neon, parent = pf })
+				emit = "Paint", parent = pf })
 		end
 
 		--[[
@@ -789,14 +869,14 @@ do
 		-- Kapağın içinden vuran ışık: karakter oradan çıkıyor hissi
 		local mouth = build({ name = "HatchMouth", size = Vector3.new(0.4, 7, 5.6),
 			cf = at(dx - 0.9, topY + 4.2, convZ), color = NEON_WARM,
-			material = Enum.Material.Neon, transparency = 0.25, parent = pf })
+			emit = "Fixture", transparency = 0.25, parent = pf })
 		glow(mouth, NEON_WARM, 22, 1.6)
 
 		-- Kapak dudakları: üstte ve altta tehlike şeridi
 		for _, e in { -1, 1 } do
 			build({ name = "HatchLip", size = Vector3.new(0.8, 0.5, 6.4),
 				cf = at(dx - 0.2, topY + 4.2 + e * 3.6, convZ), color = HAZARD,
-				material = Enum.Material.Neon, parent = pf })
+				emit = "Paint", parent = pf })
 		end
 
 		--[[
@@ -812,7 +892,7 @@ do
 				size = Vector3.new(0.9, 0.18, 4.4),
 				cf = at(dx + i * slatGap, topY + 0.14 + LIFT, convZ),
 				color = NEON_DIM,
-				material = Enum.Material.Neon,
+				emit = "Paint",
 				parent = pf,
 			})
 			slat:SetAttribute("SlideSpeed", 5)
@@ -848,7 +928,7 @@ do
 			build({ name = "ArchGlow", size = Vector3.new(0.5, 0.2, (halfZ + 3) * 2 - 2),
 				cf = at(ax, ARCH_CLEAR - 0.1, oz),
 				color = zoneColor(math.floor((index - 1) / COLUMNS)):Lerp(Color3.new(0, 0, 0), 0.55),
-				material = Enum.Material.Neon, parent = pf })
+				emit = "Paint", parent = pf })
 		end
 	end
 end
@@ -886,19 +966,27 @@ end
 
 do
 	local f = group("EmergencyButton")
-	local z = centerZ + halfD - 18
 
-	build({ name = "Base", size = Vector3.new(12, 1.2, 12), cf = at(centerX, 0.6, z),
+	--[[
+		Düğme kapının TAM ÖNÜNDEYDİ. Lobi kapısı centerX'te ve 24 stud
+		genişliğinde; düğmenin 12x12 kaidesi de centerX'teydi, yani geçidin
+		ortasını tıkıyordu — "transit bölgesinde blokaj var" şikâyeti buydu.
+		Yana alındı, kapı boşluğu (centerX ± 12) tamamen serbest kaldı.
+	]]
+	local z = centerZ + halfD - 18
+	local bx = centerX + LOBBY_GATE_WIDTH / 2 + 20
+
+	build({ name = "Base", size = Vector3.new(12, 1.2, 12), cf = at(bx, 0.6, z),
 		color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
-	build({ name = "Column", size = Vector3.new(6.5, 4, 6.5), cf = at(centerX, 3.2, z),
+	build({ name = "Column", size = Vector3.new(6.5, 4, 6.5), cf = at(bx, 3.2, z),
 		color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
-	build({ name = "Ring", size = Vector3.new(9.5, 0.3, 9.5), cf = at(centerX, 5.3, z),
-		color = NEON, material = Enum.Material.Neon, parent = f })
-	build({ name = "Top", size = Vector3.new(8.5, 1, 8.5), cf = at(centerX, 5.9, z),
+	build({ name = "Ring", size = Vector3.new(9.5, 0.3, 9.5), cf = at(bx, 5.3, z),
+		color = NEON, emit = "Indicator", parent = f })
+	build({ name = "Top", size = Vector3.new(8.5, 1, 8.5), cf = at(bx, 5.9, z),
 		color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
 
 	local dome = build({ name = "Button", size = Vector3.new(4.8, 4.8, 4.8),
-		cf = at(centerX, 6.7, z), color = RED, material = Enum.Material.Neon,
+		cf = at(bx, 6.7, z), color = RED, emit = "Fixture",
 		shape = Enum.PartType.Ball, parent = f })
 	glow(dome, RED, 34, 2.4)
 end
@@ -1026,7 +1114,7 @@ do
 					name = "RoofLamp",
 					size = Vector3.new(PLOT_SIZE.X * 0.5, 0.35, 2.4),
 					cf = at(lx, CY - 1.5, lz),
-					color = LAMP, material = Enum.Material.Neon, parent = f,
+					color = LAMP, emit = "Fixture", parent = f,
 				})
 				glow(lamp, LAMP, 46, 1.4)
 			end
@@ -1039,7 +1127,7 @@ do
 			local lx = (c - 0.5) * PLOT_SPACING
 			local lamp = build({ name = "CorridorLamp", size = Vector3.new(3, 0.35, 5),
 				cf = at(lx, Y - 2.6, centerZ), color = LAMP,
-				material = Enum.Material.Neon, parent = f })
+				emit = "Fixture", parent = f })
 			glow(lamp, LAMP, 34, 1.1)
 		end
 	end
@@ -1064,9 +1152,8 @@ do
 		-- Eğik ekran
 		local screen = build({ name = "ConsoleScreen", size = Vector3.new(5.2, 3, 0.3),
 			cf = base * CFrame.new(0, 5, -0.9) * CFrame.Angles(math.rad(-28), 0, 0),
-			color = NEON, material = Enum.Material.Neon, parent = f })
+			color = NEON, emit = "Screen", parent = f })
 		screen.Transparency = 0.15
-		glow(screen, NEON, 14, 0.8)
 
 		-- Ekran çerçevesi
 		build({ name = "ScreenFrame", size = Vector3.new(5.8, 3.6, 0.5),
@@ -1169,7 +1256,7 @@ do
 
 	build({ name = "RadarPin", size = Vector3.new(0.6, 2.4, 0.6),
 		cf = at(rx, WALL_H + 17.7, rz), color = NEON_WARM,
-		material = Enum.Material.Neon, parent = f })
+		emit = "Indicator", parent = f })
 
 	-- Uyarı lambaları: çeperin dört köşesinde
 	for _, sx in { -1, 1 } do
@@ -1178,7 +1265,7 @@ do
 				name = "WarnLight",
 				size = Vector3.new(2.2, 2.2, 2.2),
 				cf = at(centerX + sx * (halfW - 3), WALL_H + 2.5, centerZ + sz * (halfD - 3)),
-				color = HAZARD, material = Enum.Material.Neon,
+				color = HAZARD, emit = "Fixture",
 				shape = Enum.PartType.Ball, parent = f,
 			})
 			lamp:SetAttribute("PulsePeriod", 1.6)
@@ -1264,7 +1351,7 @@ do
 		-- İsimde numara: istemci bunu üs sahibinin rengine boyuyor
 		build({ name = "DoorGlow" .. index, size = Vector3.new(W - 1, 0.3, 0.4),
 			cf = at(o.X, H - 1.2, z), color = NEON_MID,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 	end
 end
 
@@ -1300,8 +1387,7 @@ do
 
 		local lamp = build({ name = "Lamp", size = Vector3.new(1.2 * scale, 1.2 * scale, 1.2 * scale),
 			cf = at(x - 4.5 * scale, y, z), color = NEON_WARM,
-			material = Enum.Material.Neon, shape = Enum.PartType.Ball, parent = model })
-		glow(lamp, NEON_WARM, 20, 1)
+			emit = "Indicator", shape = Enum.PartType.Ball, parent = model })
 
 		model:SetAttribute("DriftSpeed", speed)
 		model:SetAttribute("DriftRange", halfW * 2 + 260)
@@ -1351,7 +1437,7 @@ do
 		build({
 			name = "CableGlow",
 			size = if along == "z" then Vector3.new(0.3, 0.3, length - 4) else Vector3.new(length - 4, 0.3, 0.3),
-			cf = at(x, 1.5, z), color = tone, material = Enum.Material.Neon, parent = f,
+			cf = at(x, 1.5, z), color = tone, emit = "Paint", parent = f,
 		})
 
 		local steps = math.max(2, math.floor(length / 20))
@@ -1385,7 +1471,7 @@ do
 			})
 			build({ name = "CrateBand", size = Vector3.new(s + 0.2, 0.3, s + 0.2),
 				cf = at(x, 2.6 + h, z), color = tone,
-				material = Enum.Material.Neon, parent = f })
+				emit = "Paint", parent = f })
 		end
 	end
 
@@ -1408,10 +1494,10 @@ do
 		-- Sıra kimliği: koridor girişine renkli bant
 		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
 			cf = at(centerX, DECK_TOP + 0.13, z - halfZ - 14), color = tone,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
 			cf = at(centerX, DECK_TOP + 0.13, z + halfZ + 14), color = tone,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 	end
 
 	--[[
@@ -1433,7 +1519,7 @@ do
 					* CFrame.Angles(0, math.rad(s * 34), 0)
 					* CFrame.new(s * 1.6, 0, 0),
 				color = NEON,
-				material = Enum.Material.Neon,
+				emit = "Paint",
 				transparency = 0.25,
 				parent = f,
 			})
@@ -1468,7 +1554,7 @@ do
 			color = TRIM, material = Enum.Material.Metal, collide = true, parent = f })
 		build({ name = "BridgeGlow", size = Vector3.new(0.3, 0.2, LOBBY_BRIDGE),
 			cf = at(centerX + s * (LOBBY_GATE_WIDTH / 2 - 0.8), 3.9, centerZ + halfD + LOBBY_BRIDGE / 2),
-			color = NEON_DIM, material = Enum.Material.Neon, parent = f })
+			color = NEON_DIM, emit = "Paint", parent = f })
 	end
 
 	-- Güverte ve gövde
@@ -1510,21 +1596,85 @@ do
 		local r = 22 + i * 16
 		build({ name = "LobbyRing", size = Vector3.new(r * 2, 0.12, 0.7),
 			cf = at(centerX, 0.06 + LIFT, lobbyZ - r), color = NEON_DIM,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 		build({ name = "LobbyRing", size = Vector3.new(r * 2, 0.12, 0.7),
 			cf = at(centerX, 0.06 + LIFT, lobbyZ + r), color = NEON_DIM,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 	end
 
-	-- Tavan kirişleri ve lambalar
+	-- Tavan kirişleri
 	for i = -2, 2 do
 		build({ name = "LobbyTruss", size = Vector3.new(1.4, 1.4, LOBBY_D),
-			cf = at(centerX + i * 34, LOBBY_WALL_H + 2, lobbyZ),
+			cf = at(centerX + i * 34, LOBBY_WALL_H + 1, lobbyZ),
 			color = TRIM, material = Enum.Material.Metal, parent = f })
-		local lamp = build({ name = "LobbyLamp", size = Vector3.new(0.8, 0.35, LOBBY_D - 20),
-			cf = at(centerX + i * 34, LOBBY_WALL_H - 0.5, lobbyZ),
-			color = LAMP, material = Enum.Material.Neon, parent = f })
-		glow(lamp, LAMP, 46, 1.1)
+	end
+
+	--[[
+		TAVAN. Lobinin üstü açıktı: duvarlar bitiyor, üstünde hiçbir şey yok,
+		ama içeride tavan lambaları asılı duruyordu. İstasyondaki tavanla aynı
+		mantık — panel panel döşeme, aralarında çizgi, lambalar panellerin
+		arasına gömülü.
+	]]
+	local ceil = group("LobbyCeiling", f)
+	local panelW, panelD = 30, 24
+	local nx = math.ceil(LOBBY_W / panelW)
+	local nz = math.ceil(LOBBY_D / panelD)
+
+	for i = 0, nx - 1 do
+		for j = 0, nz - 1 do
+			local pw = math.min(panelW, LOBBY_W - i * panelW)
+			local pd = math.min(panelD, LOBBY_D - j * panelD)
+			if pw < 2 or pd < 2 then
+				continue
+			end
+			build({
+				name = "LobbyCeilPanel",
+				size = Vector3.new(pw - 0.5, 1, pd - 0.5),
+				cf = at(
+					centerX - halfLW + i * panelW + pw / 2,
+					LOBBY_CEIL_Y,
+					lobbyZ - halfLD + j * panelD + pd / 2
+				),
+				color = if (i + j) % 2 == 0 then HULL else HULL_DARK,
+				material = Enum.Material.Metal,
+				parent = ceil,
+			})
+		end
+	end
+
+	-- Duvar üstü ile tavan arasındaki boşluğu kapatan bant
+	local band = LOBBY_CEIL_Y - LOBBY_WALL_H + 1
+	local rim = {
+		{ centerX, lobbyZ + halfLD, LOBBY_W + 3, 2.6 },
+		{ centerX, lobbyZ - halfLD, LOBBY_W + 3, 2.6 },
+		{ centerX - halfLW, lobbyZ, 2.6, LOBBY_D + 3 },
+		{ centerX + halfLW, lobbyZ, 2.6, LOBBY_D + 3 },
+	}
+	for _, r in rim do
+		build({ name = "LobbyFascia", size = Vector3.new(r[3], band, r[4]),
+			cf = at(r[1], (LOBBY_WALL_H + LOBBY_CEIL_Y) / 2, r[2]), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = ceil })
+	end
+
+	--[[
+		Gömülü armatürler. Beş uzun şerit yerine ızgara hâlinde panel lambalar:
+		gölge daha eşit dağılıyor ve tavan yüksekliği arttığı için tek tip uzun
+		şerit zemine yetmiyordu.
+	]]
+	for i = -2, 2 do
+		for _, dz in { -30, 0, 30 } do
+			local lx = centerX + i * 34
+			local lz = lobbyZ + dz
+
+			build({ name = "LobbyLampHousing", size = Vector3.new(6, 1.1, 10),
+				cf = at(lx, LOBBY_CEIL_Y - 0.9, lz), color = HULL_DARK,
+				material = Enum.Material.Metal, parent = ceil })
+
+			local lamp = build({ name = "LobbyLamp", size = Vector3.new(4.6, 0.35, 8.6),
+				cf = at(lx, LOBBY_CEIL_Y - 1.5, lz),
+				color = LAMP, emit = "Fixture", parent = ceil })
+			glow(lamp, LAMP, 40, 0.9)
+		end
 	end
 end
 
@@ -1566,14 +1716,14 @@ do
 		-- olduğu okunuyor
 		build({ name = "PedBand", size = Vector3.new(3.6 * scale, 0.35, 3.6 * scale),
 			cf = at(x, 1.5, z), color = color,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 
 		crewStatue(f, x, z, 1 + h + 0.5, scale, color, yaw)
 
 		-- Üstten spot: heykeli sahneden ayırıyor
 		local spot = build({ name = "PedSpot", size = Vector3.new(1.2, 0.3, 1.2),
 			cf = at(x, 1 + h + 5.2 * scale, z), color = LAMP,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Fixture", parent = f })
 		glow(spot, LAMP, 16 + scale * 4, 1.2)
 
 		if label then
@@ -1630,11 +1780,17 @@ do
 		Koridorun kendisine hiçbir şey konmuyor: çalmanın bütün riski rakip
 		üsse koşmakta, yolu daraltan dekor oyunu bozar.
 	]]
+	--[[
+		yaw kuralı: vizör yerel -Z'ye bakar. yaw=0 → -Z, 180 → +Z,
+		90 → -X, -90 → +X. Ön/arka duvardakiler ilk kurulumda ters yazılmıştı
+		ve haritaya değil DUVARA bakıyorlardı; sırtı dönük heykel garip
+		duruyordu. Hepsi içeri, sahanın ortasına bakıyor.
+	]]
 	local watchers = {
-		{ centerX - halfW + 16, centerZ, -90 },              -- sol duvar, içeri bakıyor
-		{ centerX + halfW - 16, centerZ, 90 },               -- sağ duvar
-		{ (COLUMNS >= 2 and 0.5 or 0) * PLOT_SPACING, centerZ - halfD + 16, 0 },
-		{ (COLUMNS >= 2 and COLUMNS - 1.5 or 0) * PLOT_SPACING, centerZ + halfD - 16, 180 },
+		{ centerX - halfW + 16, centerZ, -90 },              -- sol duvar → +X
+		{ centerX + halfW - 16, centerZ, 90 },               -- sağ duvar → -X
+		{ (COLUMNS >= 2 and 0.5 or 0) * PLOT_SPACING, centerZ - halfD + 16, 180 },   -- ön duvar → +Z
+		{ (COLUMNS >= 2 and COLUMNS - 1.5 or 0) * PLOT_SPACING, centerZ + halfD - 16, 0 }, -- arka duvar → -Z
 	}
 	for i, w in watchers do
 		pedestal(w[1], w[2], 3, crewColor(i * 3 + 1), w[3])
@@ -1676,6 +1832,80 @@ do
 				part.CFrame = tip * ground:ToObjectSpace(part.CFrame)
 			end
 		end
+
+		--[[
+			Sahneleme. Yerde yatan bir figür tek başına "hata" gibi okunuyordu:
+			neden orada olduğu belli değildi, sanki heykel devrilmiş gibi.
+			Etrafına bir OLAY YERİ kuruyoruz ve okuma tamamen değişiyor —
+			kordon, yerde tebeşir hattı, yukarıdan tek spot ve yavaş yanıp
+			sönen bir uyarı lambası. Hepsi oyunun kendi şakasını anlatıyor.
+
+			Işık tek: üstten dar bir spot. Ortamı aydınlatmıyor, sadece figürü
+			karanlıktan çekip alıyor. Sahnede parıltı dengesini bozmasın diye
+			menzili küçük tutuldu.
+		]]
+		local scene = group("FallenScene", f)
+
+		-- Yerde tebeşir hattı: figürün etrafını saran kesikli oval
+		for i = 0, 15 do
+			local a = i * (math.pi * 2 / 16)
+			build({
+				name = "ChalkMark",
+				size = Vector3.new(1.8, 0.12, 0.5),
+				cf = CFrame.new(bx, DECK_TOP + 0.06, bz)
+					* CFrame.Angles(0, -a, 0)
+					* CFrame.new(0, 0, 7.5)
+					* CFrame.Angles(0, math.rad(90), 0),
+				color = Color3.fromRGB(196, 200, 188),
+				emit = "Paint",
+				transparency = 0.25,
+				parent = scene,
+			})
+		end
+
+		-- Kordon: dört direk, aralarında sarı-siyah şerit
+		local posts = {}
+		for i = 0, 3 do
+			local a = i * (math.pi / 2) + math.pi / 4
+			local px = bx + math.cos(a) * 10
+			local pz = bz + math.sin(a) * 10
+			posts[i + 1] = Vector3.new(px, 0, pz)
+
+			build({ name = "CordonPost", size = Vector3.new(0.6, 4, 0.6),
+				cf = at(px, 2, pz), color = TRIM,
+				material = Enum.Material.Metal, parent = scene })
+			build({ name = "CordonCap", size = Vector3.new(1.1, 0.4, 1.1),
+				cf = at(px, 4.1, pz), color = HAZARD,
+				emit = "Indicator", parent = scene })
+		end
+
+		--[[ Şeritler direkleri birleştiriyor. İki nokta arasındaki uzunluk ve
+		     yön CFrame.lookAt ile bulunuyor; elle açı hesaplamaya gerek yok. ]]
+		for i = 1, 4 do
+			local a = posts[i]
+			local b = posts[i % 4 + 1]
+			local mid = (a + b) / 2 + Vector3.new(0, 3.4, 0)
+			local span = (b - a).Magnitude
+
+			build({ name = "CordonTape", size = Vector3.new(0.12, 0.7, span),
+				cf = CFrame.lookAt(mid, mid + (b - a).Unit),
+				color = HAZARD, emit = "Paint", parent = scene })
+		end
+
+		-- Üstten tek spot
+		local spot = build({ name = "SceneSpot", size = Vector3.new(2.4, 0.4, 2.4),
+			cf = at(bx, 13, bz), color = LAMP, emit = "Fixture", parent = scene })
+		glow(spot, LAMP, 20, 1.1)
+		build({ name = "SceneSpotShroud", size = Vector3.new(3.2, 1.2, 3.2),
+			cf = at(bx, 13.6, bz), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = scene })
+
+		-- Yavaş yanıp sönen uyarı lambası: DecorFX fazı kendi veriyor
+		local beacon = build({ name = "SceneBeacon", size = Vector3.new(1.4, 1.4, 1.4),
+			cf = at(bx + 8, 5, bz - 8), color = RED,
+			emit = "Fixture", shape = Enum.PartType.Ball, parent = scene })
+		beacon:SetAttribute("PulsePeriod", 2.2)
+		glow(beacon, RED, 14, 1.2)
 	end
 end
 
@@ -1692,7 +1922,7 @@ do
 		material = Enum.Material.Metal, collide = true, parent = f })
 	build({ name = "PadRing", size = Vector3.new(13, 0.2, 13),
 		cf = at(centerX, 1.3, z), color = NEON,
-		material = Enum.Material.Neon, transparency = 0.25, parent = f })
+		emit = "Indicator", transparency = 0.25, parent = f })
 
 	local column = build({ name = "PadColumn", size = Vector3.new(4, 7, 4),
 		cf = at(centerX, 4.7, z), color = HULL,
@@ -1705,7 +1935,7 @@ do
 
 	local beacon = build({ name = "PadBeacon", size = Vector3.new(3, 3, 3),
 		cf = at(centerX, 10, z), color = NEON,
-		material = Enum.Material.Neon, shape = Enum.PartType.Ball, parent = f })
+		emit = "Fixture", shape = Enum.PartType.Ball, parent = f })
 	glow(beacon, NEON, 34, 2)
 	beacon:SetAttribute("PulsePeriod", 2.4)
 
@@ -1781,7 +2011,7 @@ do
 
 		build({ name = "BoardGlow", size = Vector3.new(44, 0.3, 0.4),
 			cf = at(x, 4.4, z - 0.9), color = NEON_MID,
-			material = Enum.Material.Neon, parent = f })
+			emit = "Paint", parent = f })
 	end
 end
 
@@ -1812,9 +2042,9 @@ do
 	local x = centerX - LOBBY_W / 2 + 36
 	local z = lobbyZ + 6
 
-	local R = 15                 -- çark yarıçapı
+	local R = 13                 -- çark yarıçapı
 	local SLICES = 12            -- mürettebat rengi sayısı kadar
-	local hubY = 22
+	local hubY = 19              -- lobi tavanı 42.6; çark buna göre alçaltıldı
 	local SPIN = 26
 
 	-- ── Kaide: iki bacaklı A çerçeve ────────────────────────────────────────
@@ -1864,12 +2094,11 @@ do
 			size = Vector3.new(1.3, 1.3, 1.3),
 			cf = CFrame.new(x, hubY, z + 1.6) * CFrame.Angles(0, 0, a) * CFrame.new(R + 2.6, 0, 0),
 			color = if i % 2 == 0 then LAMP else NEON_WARM,
-			material = Enum.Material.Neon,
+			emit = "Indicator",
 			shape = Enum.PartType.Ball,
 			parent = f,
 		})
 		bulb:SetAttribute("PulsePeriod", 1.4)
-		glow(bulb, NEON_WARM, 9, 0.8)
 	end
 
 	-- ── Dönen kısım ─────────────────────────────────────────────────────────
@@ -1954,7 +2183,6 @@ do
 		cf = at(x, hubY, z - 1.2) * CFrame.Angles(0, math.rad(90), 0),
 		color = TRIM, material = Enum.Material.Metal,
 		shape = Enum.PartType.Cylinder, parent = f })
-	glow(hub, LAMP, 14, 0.7)
 
 	build({ name = "WheelHubCap", size = Vector3.new(1, 2.6, 2.6),
 		cf = at(x, hubY, z - 2.2) * CFrame.Angles(0, math.rad(90), 0),
@@ -1971,17 +2199,24 @@ do
 		color = TRIM, material = Enum.Material.Metal, parent = f })
 	local tip = build({ name = "TickerTip", size = Vector3.new(2.2, 1.4, 2),
 		cf = at(x, hubY + R - 0.3, z - 0.8), color = HAZARD,
-		material = Enum.Material.Neon, parent = f })
-	glow(tip, HAZARD, 10, 1)
+		emit = "Indicator", parent = f })
 
-	-- ── Marka tabelası ──────────────────────────────────────────────────────
-	-- Yazı boşlukta yüzmesin diye çerçeveli pano.
+	--[[
+		── Marka tabelası ──────────────────────────────────────────────────
 
-	local signY = hubY + R + 9
+		Yazı artık BillboardGui değil, panonun yüzeyine basılı SurfaceGui.
 
-	build({ name = "SignBoard", size = Vector3.new(34, 8, 1),
-		cf = at(x, signY, z + 1.6), color = HULL_DARK,
-		material = Enum.Material.Metal, parent = f })
+		BillboardGui her zaman kameraya döner ve kendi çapa noktasının
+		derinliğinde çizilir; çapa panonun içinde kaldığı için pano yazıyı
+		kesiyor, belli açılardan da yazı panoyla iç içe geçiyordu. SurfaceGui
+		yüzeye boyanmış gibi durur, derinlik sorunu olmaz ve asıl önemlisi:
+		gerçek bir tabela gibi okunur, havada yüzen yazı gibi değil.
+	]]
+	local signY = hubY + R + 4
+
+	local board = build({ name = "SignBoard", size = Vector3.new(34, 8, 1),
+		cf = at(x, signY, z + 1.6), color = SHADOW,
+		material = Enum.Material.SmoothPlastic, parent = f })
 	build({ name = "SignFrame", size = Vector3.new(36, 9.6, 0.6),
 		cf = at(x, signY, z + 2.1), color = TRIM,
 		material = Enum.Material.Metal, parent = f })
@@ -1991,27 +2226,33 @@ do
 			material = Enum.Material.Metal, parent = f })
 	end
 
-	-- Panonun üstünde küçük bir mürettebat: çarkın kime ait olduğu bellidir
-	crewStatue(f, x, z + 1.2, signY + 4.8, 1.6, CREW[6], 180)
+	-- Tabelanın altına iki gömme spot: yazıyı yıkasın
+	for _, s in { -1, 1 } do
+		local wash = build({ name = "SignWash", size = Vector3.new(3, 0.5, 1),
+			cf = at(x + s * 9, signY - 4.6, z + 0.9), color = LAMP,
+			emit = "Fixture", parent = f })
+		glow(wash, LAMP, 12, 0.7)
+	end
 
-	local anchor = build({ name = "WheelLabel", size = Vector3.new(1, 1, 1),
-		cf = at(x, signY, z + 1), color = HULL, transparency = 1, parent = f })
-
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "Label"
-	gui.Size = UDim2.fromScale(13, 3.2)
-	gui.MaxDistance = 220
-	gui.Parent = anchor
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "Label"
+	surface.Face = Enum.NormalId.Front
+	surface.CanvasSize = Vector2.new(340, 80)
+	surface.LightInfluence = 0
+	surface.Parent = board
 
 	local text = Instance.new("TextLabel")
 	text.Size = UDim2.fromScale(1, 1)
 	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.GothamBold
+	text.Font = Enum.Font.GothamBlack
 	text.TextScaled = true
-	text.TextColor3 = NEON_WARM
-	text.TextStrokeTransparency = 0.25
+	text.TextColor3 = BRASS
 	text.Text = "LUCKY SPIN"
-	text.Parent = gui
+	text.Parent = surface
+
+	-- Çarkı çeviren mürettebat: tabelanın üstünde değil, kaidenin yanında.
+	-- Tabelanın üstündeyken lobi tavanını deliyordu.
+	crewStatue(f, x + 12, z - 6, 1, 1.5, CREW[6], -60)
 end
 
 -- ─── 17. Baseplate'i gövdenin altına gizle ──────────────────────────────────

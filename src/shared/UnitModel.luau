@@ -70,13 +70,108 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 		leg.Parent = model
 	end
 
-	-- Nadirlik halkası (zeminde parlayan disk)
 	local rarity = Config.Rarities[def.rarity]
-	local glow = Instance.new("PointLight")
-	glow.Color = rarity.color
-	glow.Range = 10
-	glow.Brightness = if mutation then 2.5 else 1.2
-	glow.Parent = body
+
+	--[[
+		═══ NADİRLİK KOZMETİĞİ ═══════════════════════════════════════════════
+
+		Among Us'ta bir karakteri diğerinden ayıran şey tulum rengi değil,
+		KAFASINA TAKTIĞI ŞEY. Oyunun bütün kozmetik ekonomisi şapka üstüne
+		kurulu. Bizde de nadirlik sadece etiket rengiyle anlatılıyordu:
+		kaidedeki sekiz karakter uzaktan birbirinin aynıydı, hangisinin
+		değerli olduğunu anlamak için yanına gidip yazıyı okumak gerekiyordu.
+
+		Artık her nadirlik kademesinin kendi başlığı var. Silueti farklı
+		olduğu için koridorun öbür ucundan bile okunuyor — hırsız hangi üsse
+		gideceğine bakmadan karar verebiliyor.
+
+		Kademeler kasten ARTAN SİLUET büyüklüğünde: Common'da hiçbir şey yok,
+		Mythic'te kafanın iki katı bir taç var. Değer arttıkça karakter
+		fiziksel olarak da büyüyor gibi duruyor.
+	]]
+	local function cosmetic(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): Part
+		local part = newPart(name, size, color, material or Enum.Material.SmoothPlastic)
+		part.CFrame = cf
+		part.Parent = model
+		return part
+	end
+
+	local accent = rarity.color
+
+	if def.rarity == "Uncommon" then
+		-- Kep: düz tepe + siperlik
+		cosmetic("HatCrown", Vector3.new(1.7, 0.55, 1.7), CFrame.new(0, 4.05, 0), accent)
+		cosmetic("HatBrim", Vector3.new(1.5, 0.22, 1.1), CFrame.new(0, 3.85, -1.0), accent)
+
+	elseif def.rarity == "Rare" then
+		-- Miğfer: kafayı saran kubbe + anten
+		local dome = cosmetic("HatDome", Vector3.new(2.1, 2.1, 2.1), CFrame.new(0, 4.0, 0.1), accent)
+		dome.Shape = Enum.PartType.Ball
+		dome.Transparency = 0.15
+		cosmetic("HatAntenna", Vector3.new(0.16, 1.5, 0.16), CFrame.new(0.65, 5.1, 0.1), accent)
+
+	elseif def.rarity == "Epic" then
+		-- Silindir şapka: yüksek gövde + geniş kenar
+		cosmetic("HatBrim", Vector3.new(2.6, 0.22, 2.6), CFrame.new(0, 3.95, 0), accent)
+		cosmetic("HatBody", Vector3.new(1.6, 1.5, 1.6), CFrame.new(0, 4.8, 0), accent)
+		cosmetic("HatBand", Vector3.new(1.75, 0.3, 1.75), CFrame.new(0, 4.25, 0), Color3.fromRGB(26, 28, 34))
+
+	elseif def.rarity == "Legendary" then
+		-- Taç: halka + beş uç
+		cosmetic("CrownRing", Vector3.new(1.9, 0.45, 1.9), CFrame.new(0, 4.1, 0), accent)
+		for i = 1, 5 do
+			local a = (i - 1) * (math.pi * 2 / 5)
+			cosmetic(
+				"CrownSpike",
+				Vector3.new(0.3, 0.95, 0.3),
+				CFrame.new(0, 4.6, 0) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 0.72),
+				accent
+			)
+		end
+
+	elseif def.rarity == "Mythic" then
+		-- Boynuzlu taç + arkada yüzen halka: siluet iyice büyüyor
+		cosmetic("CrownRing", Vector3.new(2.2, 0.5, 2.2), CFrame.new(0, 4.15, 0), accent)
+		for _, s in { -1, 1 } do
+			cosmetic(
+				"CrownHorn",
+				Vector3.new(0.35, 1.9, 0.35),
+				CFrame.new(s * 0.85, 5.0, 0) * CFrame.Angles(0, 0, math.rad(-s * 22)),
+				accent
+			)
+		end
+		local halo = cosmetic("Halo", Vector3.new(3.1, 0.18, 3.1), CFrame.new(0, 5.6, 0), accent, Enum.Material.Neon)
+		halo.Transparency = 0.35
+
+	elseif def.rarity == "Secret" then
+		--[[
+			Gizli kademe hiçbir şey TAKMIYOR: tam tersine, karakterin kendisi
+			yarı saydam ve gövdesi karanlık. "Bu ne takmış" değil "bu ne
+			böyle" dedirtiyor. En üst kademede kozmetik yarışına girmek yerine
+			kuralı bozmak daha güçlü bir sinyal.
+		]]
+		body.Transparency = 0.35
+		head.Transparency = 0.35
+		pack.Transparency = 0.35
+		local shroud = cosmetic("Shroud", Vector3.new(2.6, 2.6, 2.6), CFrame.new(0, 3.0, 0), accent, Enum.Material.Neon)
+		shroud.Shape = Enum.PartType.Ball
+		shroud.Transparency = 0.86
+	end
+
+	--[[
+		Nadirlik ışığı. Eskiden her karakter ışık saçıyordu; bir üste sekiz
+		karakter konunca sekiz ışık kaynağı oluyor ve sahne yıkanıyordu
+		("her yerde çok fazla parıltı var"). Artık sadece Epic ve üstü ışık
+		veriyor — ışığın kendisi bir ödül. Alt kademeler kozmetikten okunuyor.
+	]]
+	local LIT = { Epic = true, Legendary = true, Mythic = true, Secret = true }
+	if LIT[def.rarity] or mutation then
+		local light = Instance.new("PointLight")
+		light.Color = rarity.color
+		light.Range = if mutation then 9 else 7
+		light.Brightness = if mutation then 1.4 else 0.8
+		light.Parent = body
+	end
 
 	-- Pivot parçası: ayakların tabanında ve dönüşsüz.
 	-- Gövde silindir olduğu için 90° çevrili duruyor. Onu PrimaryPart yaparsak
@@ -115,9 +210,13 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "UnitLabel"
 	gui.Size = UDim2.fromScale(7, 2.2)
-	-- Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında.
-	-- Karakterin tepesi ~4 stud, etiket onun biraz üstünde dursun.
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 5.0, 0)
+	--[[
+		Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında.
+		Nadirlik kozmetikleri gelince karakterin boyu 4.10'dan 6.05'e çıktı
+		(Mythic tacı + halkası); etiket 5.0'da kalınca tacın içinden geçiyordu.
+		En uzun figürün üstünde kalacak kadar yukarı alındı.
+	]]
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 6.8, 0)
 
 	--[[
 		Boyut küçültüldü. Kaideler 6.5 stud arayla dizili; 7 stud genişliğinde
