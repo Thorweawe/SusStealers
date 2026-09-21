@@ -53,10 +53,15 @@ bildirimler, leaderstats, HUD). Kod içi yorumlar **Türkçe**.
 
 Kural: **sunucu script'ini yeniden çalıştırmadan önce diğerine haber ver.** Elle yapılan dekor/harita işleri `workspace.Plots` dışında, ayrı bir klasörde dursun.
 
-### 3. Draft commit
-Team Create'te script değişiklikleri taslak olarak durur. Her iş bitiminde:
-`View → Drafts → Commit`
-Commit edilmeyen script karşı tarafa gitmez.
+### 3. Drafts Mode — bu projede KAPALI
+Team Create'te Drafts Mode açıksa script değişiklikleri taslakta bekler ve
+commit edilmeden karşı tarafa gitmez. **Bu place'de kapalı.** Script
+değişiklikleri anında replike oluyor — commit etmeye gerek yok, `View`
+menüsünde `Drafts` girdisi de yok.
+
+Pratikte anlamı: karşı taraf sen yazarken senin script'ini görüyor.
+Koruma katmanı yok, dolayısıyla şerit kuralı ve "önce çek sonra bas"
+kuralı tek güvenceniz.
 
 ### 4. Kim yeniden kuruyor
 Aynı anda iki kişi `run_code` ile aynı şeyi kurmaya çalışırsa ikinci seferinde çift nesne oluşur. Dünyayı kuran komutu **tek kişi** çalıştırsın.
@@ -129,6 +134,29 @@ end
 `HttpService.HttpEnabled` kapalı olsa bile çalışıyor — plugin bağlamında `GetAsync` izinli.
 
 **Yapı ilk kez kuruluyorsa** (place boşsa) önce kapları yarat: `ReplicatedStorage.Shared` (Folder), `ServerScriptService.Server` (Script), `StarterPlayerScripts.Client` (LocalScript), ve Shared altına `Config`/`Net`/`UnitModel`, Server altına `PlotService`/`EconomyService`/`ConveyorService`/`StealService` ModuleScript'leri.
+
+## Kayıt (DataStore)
+
+`src/server/DataService.luau` nakit, kaidedeki karakterler ve çalma
+sayısını kalıcı tutar.
+
+**Studio'da çalışması için açılması gerekiyor:**
+`Game Settings` → `Security` → **Enable Studio Access to API Services**
+
+Kapalıyken oyun çalışmaya devam eder ama hiçbir şey kaydedilmez; Output'ta
+uyarı görürsün. Bu bilinçli — test ederken oyunu kilitlemesin diye.
+
+**Tasarım:** DataService veriyi yorumlamaz. Diğer servisler kendi alanlarını
+profil tablosunda doğrudan günceller (`EconomyService` → `profile.cash`,
+`PlotService` → `profile.units`). DataService yalnızca yükler, kaydeder ve
+oturum kilidini yönetir. Bu yüzden kayıt anında servisler arası çağrı yok.
+
+**Oturum kilidi:** Çalınabilir eşya olan bir oyunda iki sunucunun aynı
+profili yazması kopyalamaya yol açar. Profil `UpdateAsync` ile kilitleniyor;
+kilit başka bir sunucudaysa oyuncu içeri alınmıyor, tekrar girmesi isteniyor.
+
+**Sürüm:** Store adı `PlayerData_v1`. Profil şeması bozucu şekilde
+değişirse adı `_v2` yap — eski kayıtlar bozulmasın.
 
 ## Test etmek
 

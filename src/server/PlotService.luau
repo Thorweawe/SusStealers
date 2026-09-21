@@ -8,12 +8,22 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local UnitModel = require(Shared.UnitModel)
 
+local DataService = require(script.Parent.DataService)
+
 local PlotService = {}
 
 local plotsFolder: Folder
 local plots: { Model } = {}
 local ownerByPlot: { [Model]: Player? } = {}
 local plotByOwner: { [Player]: Model } = {}
+
+-- Start() tekrar çağrılabilsin diye: eski bağlantılar burada tutulur,
+-- yeniden kurarken kesilir. Yoksa PlayerAdded iki kez tetiklenir.
+local connections: { RBXScriptConnection } = {}
+
+-- Oyuncu çıkarken üssü boşaltılıyor. O sırada profile yazarsak kayıtlı
+-- karakterleri kaydedilmeden hemen önce sileriz. Bu bayrak onu engelliyor.
+local releasing: { [Player]: boolean } = {}
 
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
 
@@ -165,6 +175,39 @@ function PlotService.FindEmptyPodium(plot: Model): Part?
 	return nil
 end
 
+--[[
+	Üssün güncel kaide içeriğini sahibinin profiline yazar.
+	Profil DataService'in kaydettiği tablo olduğu için ayrıca kaydetmek
+	gerekmiyor; bir sonraki autosave veya çıkış kaydı bunu diske alır.
+]]
+local function syncProfile(podium: Part)
+	local plot = PlotService.GetPlotFromDescendant(podium)
+	local owner = plot and ownerByPlot[plot]
+	if not (plot and owner) or releasing[owner] then
+		return
+	end
+
+	local profile = DataService.Get(owner)
+	if not profile then
+		return
+	end
+
+	local units = {}
+	for _, other in PlotService.GetPodiums(plot) do
+		local unitId = other:GetAttribute("UnitId") :: string
+		if unitId ~= "" then
+			local mutationId = other:GetAttribute("MutationId") :: string
+			table.insert(units, {
+				slot = other:GetAttribute("SlotIndex") :: number,
+				unitId = unitId,
+				mutationId = if mutationId == "" then nil else mutationId,
+			})
+		end
+	end
+
+	profile.units = units
+end
+
 --[[ Kaideye karakter yerleştirir. Doluysa false döner. ]]
 function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?): boolean
 	if PlotService.IsOccupied(podium) then
@@ -190,6 +233,7 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 	podium:SetAttribute("MutationId", mutationId or "")
 	podium:SetAttribute("PlacedAt", os.clock())
 
+	syncProfile(podium)
 	return true
 end
 
@@ -211,6 +255,7 @@ function PlotService.ClearUnit(podium: Part): (string?, string?)
 	podium:SetAttribute("MutationId", "")
 	podium:SetAttribute("PlacedAt", 0)
 
+	syncProfile(podium)
 	return unitId, (if mutationId == "" then nil else mutationId)
 end
 
@@ -279,15 +324,40 @@ local function assignPlot(player: Player)
 	warn(string.format("PlotService: %s icin bos us kalmadi", player.Name))
 end
 
+--[[ Kayıtlı karakterleri oyuncunun kaidelerine geri koyar. ]]
+local function restoreUnits(player: Player)
+	local plot = plotByOwner[player]
+	local profile = DataService.Get(player)
+	if not (plot and profile) then
+		return
+	end
+
+	-- PlaceUnit profile geri yazıyor; kopyayı gezmezsek listeyi altımızdan çeker
+	local stored = table.clone(profile.units)
+	local podiums = PlotService.GetPodiums(plot)
+
+	for _, entry in stored do
+		local podium = podiums[entry.slot]
+		if podium and not PlotService.IsOccupied(podium) then
+			PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId)
+		end
+	end
+end
+
 local function releasePlot(player: Player)
 	local plot = plotByOwner[player]
 	if not plot then
 		return
 	end
 
+	-- Kaideleri boşaltırken profile dokunma: kayıt henüz alınmamış olabilir
+	releasing[player] = true
+
 	for _, podium in PlotService.GetPodiums(plot) do
 		PlotService.ClearUnit(podium)
 	end
+
+	releasing[player] = nil
 
 	local items = plot:FindFirstChild("Items")
 	if items then
@@ -304,6 +374,17 @@ end
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
 
 function PlotService.Start()
+	-- Tekrar çağrılabilir olmalı: eski dünya siliniyorsa ona ait durum da
+	-- silinmeli. Aksi halde plots listesinde yok edilmiş modeller kalır ve
+	-- oyuncular artık var olmayan üslere atanır.
+	for _, connection in connections do
+		connection:Disconnect()
+	end
+	table.clear(connections)
+	table.clear(plots)
+	table.clear(ownerByPlot)
+	table.clear(plotByOwner)
+
 	local existing = workspace:FindFirstChild("Plots")
 	if existing then
 		existing:Destroy()
@@ -321,6 +402,14 @@ function PlotService.Start()
 	local function onPlayerAdded(player: Player)
 		assignPlot(player)
 
+		-- Kayıtlı karakterleri geri koy. Profil hâlâ yükleniyor olabilir,
+		-- o yüzden ayrı bir iş parçacığında bekliyoruz.
+		task.spawn(function()
+			if DataService.WaitForProfile(player) then
+				restoreUnits(player)
+			end
+		end)
+
 		player.CharacterAdded:Connect(function(character)
 			character:WaitForChild("HumanoidRootPart")
 			task.wait(0.1) -- karakter tam oturmadan ışınlarsak geri kayıyor
@@ -336,8 +425,8 @@ function PlotService.Start()
 		onPlayerAdded(player)
 	end
 
-	Players.PlayerAdded:Connect(onPlayerAdded)
-	Players.PlayerRemoving:Connect(releasePlot)
+	table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
+	table.insert(connections, Players.PlayerRemoving:Connect(releasePlot))
 end
 
 return PlotService

@@ -43,7 +43,7 @@ local function spawnItem(plot: Model)
 	local def = Config.RollUnit(rng)
 	local mutation = Config.RollMutation(rng)
 	local mutationId = if mutation then mutation.id else nil
-	local price = math.floor(def.price * (if mutation then mutation.incomeMul * 0.6 else 1))
+	local price = Config.GetPrice(def.id, mutationId)
 
 	local model = UnitModel.Build(def.id, mutationId)
 	model.Name = "ConveyorItem"

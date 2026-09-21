@@ -108,6 +108,18 @@ Config.Mutations = {
 	{ id = "Sus",      name = "Sus",      chance = 0.050, incomeMul =  2, tint = Color3.fromRGB(255, 120, 180) },
 } :: { MutationDef }
 
+-- Mutasyonlu karakterin fiyat çarpanı = incomeMul * bu sayı.
+-- Gelir çarpanı ise incomeMul'ün tamamı. Yani 0.6'da mutasyonlu karakter
+-- kendini normalden %40 daha hızlı amorti eder — şans vuruşu her zaman
+-- kârlı. 1.0 yaparsan mutasyon sadece "daha büyük ama aynı verimde"
+-- bir karakter olur.
+Config.MutationPriceFactor = 0.6
+
+-- Karakter satılınca alış fiyatının bu kadarı geri gelir. 1.0'a yaklaştıkça
+-- oyuncu bedava deneme hakkı kazanır: alır, beğenmezse tam iade alır.
+-- Düşürdükçe kaide dolduğunda karar vermek zorlaşır.
+Config.SellRefundFactor = 0.5
+
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
 local unitsById: { [string]: UnitDef } = {}
@@ -129,6 +141,27 @@ function Config.GetMutation(id: string?): MutationDef?
 		end
 	end
 	return nil
+end
+
+--[[
+	Karakterin satış fiyatı. Konveyör bunu kullanır; çalınan bir karakter
+	sahibine iade edilemediğinde para iadesi de buradan hesaplanır.
+	Tek kaynak olsun diye iki yerde ayrı ayrı hesaplanmıyor.
+]]
+function Config.GetPrice(unitId: string, mutationId: string?): number
+	local def = unitsById[unitId]
+	if not def then
+		return 0
+	end
+
+	local mutation = Config.GetMutation(mutationId)
+	local multiplier = if mutation then mutation.incomeMul * Config.MutationPriceFactor else 1
+	return math.floor(def.price * multiplier)
+end
+
+--[[ Karakteri satınca eline geçen para. ]]
+function Config.GetSellPrice(unitId: string, mutationId: string?): number
+	return math.floor(Config.GetPrice(unitId, mutationId) * Config.SellRefundFactor)
 end
 
 --[[ Konveyör için ağırlıklı rastgele karakter seçer. ]]

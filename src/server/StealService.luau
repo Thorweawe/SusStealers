@@ -105,9 +105,20 @@ local function returnToVictim(player: Player)
 	if victim and victim.Parent then
 		local plot = PlotService.GetPlotOf(victim)
 		local podium = plot and PlotService.FindEmptyPodium(plot)
+
 		if podium then
 			PlotService.PlaceUnit(podium, carry.unitId, carry.mutationId)
 			notify(victim, "Thief down! Your unit is back", false)
+		else
+			-- Boş kaide yoksa karakteri sessizce yok etmek yerine parasını iade et.
+			-- Kurban çalınmayı takiben o slotu doldurmuş olabiliyor; eski hali
+			-- oyuncunun en pahalı karakterini iz bırakmadan siliyordu.
+			local refund = Config.GetPrice(carry.unitId, carry.mutationId)
+			EconomyService.AddCash(victim, refund)
+			notify(victim, string.format(
+				"Thief down! No free podium - refunded $%s",
+				Config.FormatCash(refund)
+			), false)
 		end
 	end
 
