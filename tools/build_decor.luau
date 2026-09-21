@@ -125,6 +125,19 @@ local HAZARD = Color3.fromRGB(180, 118, 26)      -- sönük kehribar
 local GLASS = Color3.fromRGB(150, 210, 255)
 local RED = Color3.fromRGB(197, 17, 17)
 
+--[[
+	Bölge kimliği. İki sıra üs birbirinin aynıydı; hangi taraftasın anlamak
+	için tabela okumak gerekiyordu. Üst sıra soğuk, alt sıra sıcak tonda —
+	bir bakışta yerini biliyorsun. Üs sahibinin rengiyle karışmasın diye
+	ikisi de doygunluğu düşük.
+]]
+local ZONE_COOL = Color3.fromRGB(70, 190, 230)
+local ZONE_WARM = Color3.fromRGB(235, 150, 70)
+
+local function zoneColor(row: number): Color3
+	return if row % 2 == 0 then ZONE_COOL else ZONE_WARM
+end
+
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
 local old = workspace:FindFirstChild("Decor")
@@ -573,8 +586,11 @@ do
 			build({ name = "ArchBeam", size = Vector3.new(2.2, 1.6, (halfZ + 3) * 2),
 				cf = at(ax, ARCH_CLEAR + 0.8, oz), color = HULL,
 				material = Enum.Material.Metal, parent = pf })
+			-- Kemer şeridi sıranın kimlik renginde: koridorda ilerlerken
+			-- hangi bölgede olduğun üstünden geçen ışıktan okunuyor
 			build({ name = "ArchGlow", size = Vector3.new(0.5, 0.2, (halfZ + 3) * 2 - 2),
-				cf = at(ax, ARCH_CLEAR - 0.1, oz), color = NEON_DIM,
+				cf = at(ax, ARCH_CLEAR - 0.1, oz),
+				color = zoneColor(math.floor((index - 1) / COLUMNS)):Lerp(Color3.new(0, 0, 0), 0.55),
 				material = Enum.Material.Neon, parent = pf })
 		end
 	end
@@ -939,6 +955,125 @@ do
 	drifter(centerX - halfW - 40,  20, centerZ + near, 1.3, 12)
 	drifter(centerX - halfW - 300, 13, centerZ + far,  2.2, 6.5)
 	drifter(centerX - halfW - 160, 26, centerZ + near + 26, 1.8, 9.5)
+end
+
+-- ─── 12b. Koridor dolgusu, bölge kimliği ve yön işaretleri ─────────────────
+--[[
+	Üç sorunu birden çözüyor:
+
+	1. Koridorlar bomboştu. Üsler arasındaki geniş boşluklarda göz tutunacak
+	   bir şey bulamıyordu; harita büyük ama ıssız hissettiriyordu.
+
+	2. İki sıra birbirinin aynıydı. Hangi tarafta olduğunu anlamak için
+	   tabelaları okumak gerekiyordu. Artık üst sıra soğuk (camgöbeği), alt
+	   sıra sıcak (kehribar) kimlikte — bir bakışta yerini biliyorsun.
+
+	3. Lobinin nerede olduğu belli değildi. Zeminde ok işaretleri kapıya
+	   götürüyor.
+]]
+
+do
+	local f = group("Corridors")
+
+	--[[ Kablo demeti: koridor boyunca uzanan, aralıklı kelepçeli hat. ]]
+	local function cableRun(x: number, z: number, length: number, along: string, tone: Color3)
+		local size = if along == "z"
+			then Vector3.new(1.1, 1.1, length)
+			else Vector3.new(length, 1.1, 1.1)
+
+		build({ name = "Cable", size = size, cf = at(x, 0.9, z),
+			color = HULL_DARK, material = Enum.Material.Metal, parent = f })
+		build({
+			name = "CableGlow",
+			size = if along == "z" then Vector3.new(0.3, 0.3, length - 4) else Vector3.new(length - 4, 0.3, 0.3),
+			cf = at(x, 1.5, z), color = tone, material = Enum.Material.Neon, parent = f,
+		})
+
+		local steps = math.max(2, math.floor(length / 20))
+		for i = 0, steps do
+			local t = i / steps
+			local cx = if along == "x" then x - length / 2 + length * t else x
+			local cz = if along == "z" then z - length / 2 + length * t else z
+			build({ name = "CableClamp", size = Vector3.new(1.8, 1.8, 1.8),
+				cf = at(cx, 0.9, cz), color = TRIM,
+				material = Enum.Material.Metal, parent = f })
+		end
+	end
+
+	--[[ Sandık istifi: koddan basit kutu yığını. Koridorun boşluğunu
+	     kırıyor ve ölçek hissi veriyor. ]]
+	local function crates(x: number, z: number, tone: Color3, seed: number)
+		local rng = Random.new(seed)
+		local count = 2 + rng:NextInteger(0, 2)
+		for i = 1, count do
+			local s = 3 + rng:NextNumber() * 1.6
+			local h = i == 1 and 0 or (i - 1) * 3.2
+			build({
+				name = "Crate",
+				size = Vector3.new(s, 3, s),
+				cf = CFrame.new(x + rng:NextNumber(-1.5, 1.5), 1.5 + h, z + rng:NextNumber(-1.5, 1.5))
+					* CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+				color = if i % 2 == 0 then HULL else TRIM,
+				material = Enum.Material.Metal,
+				collide = true,
+				parent = f,
+			})
+			build({ name = "CrateBand", size = Vector3.new(s + 0.2, 0.3, s + 0.2),
+				cf = at(x, 2.6 + h, z), color = tone,
+				material = Enum.Material.Neon, parent = f })
+		end
+	end
+
+	for r = 0, ROWS - 1 do
+		local z = r * ROW_SPACING
+		local tone = zoneColor(r)
+
+		-- Sıranın iki yanında kablo hattı
+		for _, side in { -1, 1 } do
+			cableRun(centerX, z + side * (halfZ + 12), halfW * 2 - 30, "x", tone)
+		end
+
+		-- Üsler arası boşluklarda sandık istifi
+		for c = 1, COLUMNS - 1 do
+			local gx = (c - 0.5) * PLOT_SPACING
+			crates(gx, z - halfZ - 5, tone, c * 97 + r * 13)
+			crates(gx, z + halfZ + 5, tone, c * 131 + r * 29)
+		end
+
+		-- Sıra kimliği: koridor girişine renkli bant
+		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
+			cf = at(centerX, 0.08 + LIFT, z - halfZ - 14), color = tone,
+			material = Enum.Material.Neon, parent = f })
+		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
+			cf = at(centerX, 0.08 + LIFT, z + halfZ + 14), color = tone,
+			material = Enum.Material.Neon, parent = f })
+	end
+
+	--[[
+		Lobiye yön okları. Zemine gömülü, kapıya doğru sıralı. Ok yerine
+		"V" şekli: iki eğik çubuk, yönü açıkça gösteriyor ve tek parçadan
+		daha canlı duruyor.
+	]]
+	local gateZ = centerZ + halfD
+	for i = 1, 6 do
+		local az = centerZ + (i - 3.5) * 26
+		if az >= gateZ - 10 then
+			continue
+		end
+		for _, s in { -1, 1 } do
+			build({
+				name = "WayArrow",
+				size = Vector3.new(0.7, 0.14, 5),
+				cf = CFrame.new(centerX, 0.07 + LIFT, az)
+					* CFrame.Angles(0, math.rad(s * 34), 0)
+					* CFrame.new(s * 1.6, 0, 0),
+				color = NEON,
+				material = Enum.Material.Neon,
+				transparency = 0.25,
+				parent = f,
+			})
+		end
+	end
 end
 
 -- ─── 13. Lobi ───────────────────────────────────────────────────────────────
