@@ -10,15 +10,22 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 
 | Dosya | Nerede çalışır | Sorumluluğu |
 |---|---|---|
-| `src/shared/Config.luau` | Her yerde | Tüm denge sayıları, 16 karakter, 5 mutasyon, para formatı |
+| `src/shared/Config.luau` | Her yerde | Tüm denge sayıları, karakterler, mutasyonlar, formüller |
 | `src/shared/Net.luau` | Her yerde | RemoteEvent yaratma/erişim |
 | `src/shared/UnitModel.luau` | Her yerde | Among Us karakterini koddan üretir + isim etiketi |
 | `src/server/init.server.luau` | Sunucu | Açılış, servis sırası |
-| `src/server/PlotService.luau` | Sunucu | Üsleri kurar, oyunculara dağıtır, kaide durumu |
+| `src/server/DataService.luau` | Sunucu | Kalıcı kayıt, oturum kilidi, çevrimdışı gelir |
+| `src/server/PlotService.luau` | Sunucu | Üsleri kurar, dağıtır, kaide ve kat durumu |
 | `src/server/EconomyService.luau` | Sunucu | Nakit, leaderstats, saniyelik gelir |
 | `src/server/ConveyorService.luau` | Sunucu | Konveyör üretimi, kaydırma, satın alma |
-| `src/server/StealService.luau` | Sunucu | Çalma, taşıma, bırakma, kilit savunması |
-| `src/client/init.client.luau` | İstemci | HUD, bildirim şeridi |
+| `src/server/StealService.luau` | Sunucu | Çalma, taşıma, bırakma, kilit, seri bonusu |
+| `src/server/SellService.luau` | Sunucu | Karakter satma |
+| `src/server/RebirthService.luau` | Sunucu | Rebirth, kat açma |
+| `src/server/UpgradeService.luau` | Sunucu | Oyun içi parayla üs yükseltmeleri |
+| `src/server/MonetizationService.luau` | Sunucu | Gamepass, developer product, makbuz işleme |
+| `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
+| `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
+| `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
 
 **Bağımlılık yönü:** `client → shared ← server`. Sunucu servisleri birbirini `script.Parent.<Servis>` ile çağırır. Shared modülleri hiçbir servise bağımlı değildir — bu yönü bozma.
 
@@ -107,15 +114,34 @@ local shared, server, client = RS.Shared, SSS.Server, SPS.Client
 local BASE = "http://127.0.0.1:8788/"
 
 local mapping = {
-	{ "src/shared/Config.luau",          shared.Config },
-	{ "src/shared/Net.luau",             shared.Net },
-	{ "src/shared/UnitModel.luau",       shared.UnitModel },
-	{ "src/server/init.server.luau",     server },
-	{ "src/server/PlotService.luau",     server.PlotService },
-	{ "src/server/EconomyService.luau",  server.EconomyService },
-	{ "src/server/ConveyorService.luau", server.ConveyorService },
-	{ "src/server/StealService.luau",    server.StealService },
-	{ "src/client/init.client.luau",     client },
+	{ "src/client/CarryGuide.luau",             client.CarryGuide },
+	{ "src/client/DecorFX.luau",                client.DecorFX },
+	{ "src/client/FloorStyle.luau",             client.FloorStyle },
+	{ "src/client/Index.luau",                  client.Index },
+	{ "src/client/Leaderboard.luau",            client.Leaderboard },
+	{ "src/client/Lobby.luau",                  client.Lobby },
+	{ "src/client/Minimap.luau",                client.Minimap },
+	{ "src/client/OwnerColors.luau",            client.OwnerColors },
+	{ "src/client/PromptFilter.luau",           client.PromptFilter },
+	{ "src/client/RarityFX.luau",               client.RarityFX },
+	{ "src/client/ScreenFX.luau",               client.ScreenFX },
+	{ "src/client/SoundFX.luau",                client.SoundFX },
+	{ "src/client/ThiefTrail.luau",             client.ThiefTrail },
+	{ "src/client/init.client.luau",            client },
+	{ "src/server/ConveyorService.luau",        server.ConveyorService },
+	{ "src/server/DataService.luau",            server.DataService },
+	{ "src/server/EconomyService.luau",         server.EconomyService },
+	{ "src/server/MonetizationService.luau",    server.MonetizationService },
+	{ "src/server/PlotService.luau",            server.PlotService },
+	{ "src/server/PromptGuard.luau",            server.PromptGuard },
+	{ "src/server/RebirthService.luau",         server.RebirthService },
+	{ "src/server/SellService.luau",            server.SellService },
+	{ "src/server/StealService.luau",           server.StealService },
+	{ "src/server/UpgradeService.luau",         server.UpgradeService },
+	{ "src/server/init.server.luau",            server },
+	{ "src/shared/Config.luau",                 shared.Config },
+	{ "src/shared/Net.luau",                    shared.Net },
+	{ "src/shared/UnitModel.luau",              shared.UnitModel },
 }
 
 for _, entry in mapping do
@@ -137,11 +163,12 @@ end
 
 ## Kayıt (DataStore)
 
-`src/server/DataService.luau` nakit, kaidedeki karakterler ve çalma
-sayısını kalıcı tutar.
+`src/server/DataService.luau` nakit, kaidedeki karakterler, çalma
+sayısı, rebirth seviyesi, yükseltmeler ve satın alma makbuzlarını kalıcı
+tutar.
 
 **Studio'da çalışması için açılması gerekiyor:**
-`Game Settings` → `Security` → **Enable Studio Access to API Services**
+`File` → `Experience Settings` → `Security` → **Enable Studio Access to API Services**
 
 Kapalıyken oyun çalışmaya devam eder ama hiçbir şey kaydedilmez; Output'ta
 uyarı görürsün. Bu bilinçli — test ederken oyunu kilitlemesin diye.
@@ -155,8 +182,9 @@ oturum kilidini yönetir. Bu yüzden kayıt anında servisler arası çağrı yo
 profili yazması kopyalamaya yol açar. Profil `UpdateAsync` ile kilitleniyor;
 kilit başka bir sunucudaysa oyuncu içeri alınmıyor, tekrar girmesi isteniyor.
 
-**Sürüm:** Store adı `PlayerData_v1`. Profil şeması bozucu şekilde
-değişirse adı `_v2` yap — eski kayıtlar bozulmasın.
+**Sürüm:** Store adı `PlayerData_v2`. Profil şeması bozucu şekilde
+değişirse numarayı artır — eski kayıtlar yanlış yorumlanmasın. v1'den v2'ye
+kat başına kaide 8 -> 10 olduğu için geçildi, slot numaralandırması değişti.
 
 ## Regresyon testleri
 
