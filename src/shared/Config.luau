@@ -541,7 +541,7 @@ Config.LockCooldown = 80
 -- ─── Rebirth ve katlar ──────────────────────────────────────────────────────
 -- Tavana ulaşan oyuncunun yapacak bir şeyi kalmıyordu. Rebirth her şeyi
 -- sıfırlıyor ama karşılığında kalıcı gelir çarpanı ve yeni bir kat veriyor.
-Config.MaxFloors = 3           -- 1. kat açık gelir, her rebirth bir kat açar
+Config.MaxFloors = 3           -- 1. kat açık gelir, üstü satın alınıyor
 Config.FloorHeight = 18        -- katlar arası yükseklik (stud)
 -- 8 kaide Amogus Prime ile 1. kat tavanı ~3.36M/sn. Rebirth'ün o tavanda
 -- birkaç dakikalık oyun kadar tutması gerekiyor; 25M yedi saniyelik
@@ -549,6 +549,57 @@ Config.FloorHeight = 18        -- katlar arası yükseklik (stud)
 Config.RebirthBaseCost = 1000000000
 Config.RebirthCostGrowth = 8   -- her seviyede maliyet bu kat artar
 Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%50)
+
+--[[
+	Üst katlar: rebirth AÇIYOR, para SATIN ALIYOR.
+
+	Eskiden kat doğrudan rebirth ödülüydü. Sorun şuydu: rebirth zaten
+	kalıcı gelir çarpanı veriyor, kat da bedava gelince rebirth tek
+	başına her şeydi ve biriken paranın rebirth dışında harcanacak büyük
+	bir yeri yoktu.
+
+	Şimdi ikisi ayrı: rebirth katın KİLİDİNİ açıyor, kat parayla
+	alınıyor. Böylece rebirth'ten sonra oyuncunun önünde somut ve pahalı
+	bir hedef duruyor, ve para biriktirmek rebirth ile yarışıyor —
+	5 milyarı 2. kata mı yatırayım yoksa 8 milyarlık rebirth'e mi
+	saklayayım sorusu gerçek bir karar.
+
+	Fiyatlar rebirth maliyetlerine göre: 2. kat (5 mlr) ilk rebirth'ün
+	(1 mlr) beş katı, 3. kat (150 mlr) ilk iki rebirth'ün toplamının
+	(9 mlr) çok üstünde — bilerek, oyunun son büyük alımı olsun diye.
+
+	Satın alınan kat KALICI: rebirth onu geri almıyor. Parasını ödedi.
+]]
+
+export type FloorUnlock = {
+	floor: number,
+	rebirths: number,  -- bu kadar rebirth olmadan satın alınamıyor
+	cost: number,      -- oyun içi nakit
+}
+
+Config.FloorUnlocks = {
+	{ floor = 2, rebirths = 1, cost =   5000000000 },
+	{ floor = 3, rebirths = 2, cost = 150000000000 },
+} :: { FloorUnlock }
+
+function Config.GetFloorUnlock(floor: number): FloorUnlock?
+	for _, def in Config.FloorUnlocks do
+		if def.floor == floor then
+			return def
+		end
+	end
+	return nil
+end
+
+--[[
+	Satın alınabilecek bir sonraki kat. Hepsi alınmışsa nil.
+
+	Sıralı: 3. kat 2. kat alınmadan satın alınamıyor. Aksi halde oyuncu
+	ortadaki katı atlayıp üsttekini alır ve arada boşluk kalırdı.
+]]
+function Config.GetNextFloor(floorsBought: number): FloorUnlock?
+	return Config.GetFloorUnlock(floorsBought + 2)
+end
 
 -- ─── Çevrimdışı gelir ───────────────────────────────────────────────────────
 -- Oyuncu çıkınca kazanç tamamen duruyordu, geri gelmek için sebep azdı.
@@ -865,13 +916,19 @@ function Config.GetIncomeMultiplier(rebirths: number): number
 end
 
 --[[ Kaç kat açık. İlk kat bedava, her rebirth bir kat daha açar. ]]
-function Config.GetUnlockedFloors(rebirths: number): number
-	return math.clamp(1 + rebirths, 1, Config.MaxFloors)
+--[[
+	Açık kat sayısı.
+
+	1. kat herkeste açık. Üstü satın alındığı kadar — rebirth koşulu
+	satın alma anında aranıyor, sonradan geri alınmıyor.
+]]
+function Config.GetUnlockedFloors(floorsBought: number): number
+	return math.clamp(1 + floorsBought, 1, Config.MaxFloors)
 end
 
 --[[ Açık katlarla birlikte toplam kaç kaide kullanılabilir. ]]
-function Config.GetUnlockedPodiumCount(rebirths: number): number
-	return Config.GetUnlockedFloors(rebirths) * Config.PodiumsPerPlot
+function Config.GetUnlockedPodiumCount(floorsBought: number): number
+	return Config.GetUnlockedFloors(floorsBought) * Config.PodiumsPerPlot
 end
 
 --[[

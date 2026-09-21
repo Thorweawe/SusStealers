@@ -555,7 +555,7 @@ local function grantPlot(player: Player, plot: Model)
 
 		-- Katları karakterleri geri koymadan ÖNCE aç: kayıtlı karakter
 		-- üst kattaysa kapalı kata konamaz ve sessizce kaybolurdu.
-		PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.rebirths))
+		PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.floorsBought))
 		PlotService.RefreshSign(plot)
 		restoreUnits(player)
 	end)

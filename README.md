@@ -29,6 +29,7 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/TutorialService.luau` | Sunucu | Öğretici adımları, koşullar, ödüller |
 | `src/server/QuestService.luau` | Sunucu | 30dk/3sa/günlük görevler, ilerleme, ödüller |
 | `src/server/PotionService.luau` | Sunucu | İksir envanteri, içme, süreli takviyeler |
+| `src/server/FloorService.luau` | Sunucu | Üst katların parayla satın alınması |
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
@@ -150,6 +151,7 @@ local mapping = {
 	{ "src/server/TutorialService.luau",        server.TutorialService },
 	{ "src/server/QuestService.luau",           server.QuestService },
 	{ "src/server/PotionService.luau",          server.PotionService },
+	{ "src/server/FloorService.luau",           server.FloorService },
 	{ "src/server/UpgradeService.luau",         server.UpgradeService },
 	{ "src/server/init.server.luau",            server },
 	{ "src/shared/Config.luau",                 shared.Config },
@@ -229,7 +231,8 @@ require(game.ServerScriptService.Server.Tests).Run(player)
 
 **Kapsam:** Config bütünlüğü · üs ve kaide yapısı · ekonomi · satın alma
 ve satma · çalma kuralları · yükseltmeler · rebirth · para kazanma ·
-prompt güvenliği · kayıt · unvanlar · öğretici · görevler · iksirler.
+prompt güvenliği · kayıt · unvanlar · öğretici · görevler · iksirler ·
+üst kat satın alma.
 
 Testler oyuncunun profilini geçici olarak değiştiriyor ama `Run` sonunda
 başlangıç hali geri yükleniyor.
@@ -326,6 +329,39 @@ da öne geçerdi.
 
 Etki `MonetizationService`'te, pass'lerle aynı yerden okunuyor; böylece
 "pass mi iksir mi" ayrımını her servis ayrı ayrı yapmıyor.
+
+---
+
+## Üst katlar
+
+Kat artık rebirth ödülü **değil**. Rebirth katın kilidini açıyor, kat
+oyun içi parayla satın alınıyor.
+
+| Kat | Gereken rebirth | Fiyat |
+|---|---|---|
+| 1 | — | bedava |
+| 2 | 1 | $5 milyar |
+| 3 | 2 | $150 milyar |
+
+Neden böyle: rebirth zaten kalıcı gelir çarpanı veriyordu, kat da bedava
+gelince rebirth tek başına her şeydi ve biriken paranın rebirth dışında
+harcanacak büyük bir yeri yoktu. Şimdi "5 milyarı 2. kata mı yatırayım
+yoksa 8 milyarlık rebirth'e mi saklayayım" gerçek bir karar.
+
+- **Satın alınan kat kalıcı.** Rebirth onu geri almıyor; parasını ödedi.
+- **Sıralı.** 3. kat, 2. kat alınmadan satın alınamıyor — yoksa arada
+  erişilemez bir kat kalırdı.
+- **Eski kayıtlar katlarını kaybetmiyor.** `floorsBought` alanı sonradan
+  eklendi; onsuz kaydedilmiş profile eski kuralın verdiği kadarı
+  (`rebirths` kadar kat) hediye ediliyor.
+
+Satın alma pedi rampanın dibinde ve yeri **rampadan türetiliyor**, elle
+koordinat girilmiyor. Pedin kaydırma yönü üssün merkezinden hesaplanıyor:
+alt sıradaki dört üs 180° dönük olduğu için sabit bir yön hiçbir zaman
+ikisinde birden doğru olmuyor.
+
+Fiyat değiştirmek `Config.FloorUnlocks`'ta bir satır. Bir test fiyatın,
+o katı açan rebirth'lere harcanan toplamdan büyük kalmasını koruyor.
 
 ---
 
