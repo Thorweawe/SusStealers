@@ -184,12 +184,18 @@ local function buildPlot(index: number): Model
 		plot
 	)
 
+	--[[
+		AlwaysOnTop kapali: acikken tabela 2B HUD'un uzerine ciziliyordu.
+		Kendi ussune yaklasan oyuncunun ekraninin yarisini "48YUSUF" kapliyor,
+		siralama tablosunun ustune biniyordu. Boyut da kucultuldu; 12x3 olcek
+		uzaktan devasa duruyordu.
+	]]
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "OwnerLabel"
-	gui.Size = UDim2.fromScale(12, 3)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.5, 0)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 250
+	gui.Size = UDim2.fromScale(7, 1.8)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.2, 0)
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 170
 	gui.Parent = sign
 
 	local label = Instance.new("TextLabel")
@@ -532,6 +538,18 @@ local function grantPlot(player: Player, plot: Model)
 	ownerByPlot[plot] = player
 	plotByOwner[player] = plot
 	setSignText(plot, string.upper(player.DisplayName))
+
+	--[[
+		İstemci kendi üssünü bundan buluyor.
+
+		Eskiden tabeladaki yazıyı oyuncunun adıyla karşılaştırıyordu ve
+		rebirth rozeti eklenince ("ATCIKM  [R1]") eşleşme bozuldu: rebirth
+		atan herkeste üs paneli "no base" diyordu, kilit göstergesi ve
+		taşıma oku da çalışmıyordu. Nitelik replike olduğu için remote
+		gerekmiyor ve tabelanın yazısı serbest kalıyor.
+	]]
+	player:SetAttribute("Plot", plot.Name)
+
 	PlotService.TeleportToPlot(player)
 
 	-- Profil hâlâ yükleniyor olabilir
@@ -543,7 +561,7 @@ local function grantPlot(player: Player, plot: Model)
 
 		-- Katları karakterleri geri koymadan ÖNCE aç: kayıtlı karakter
 		-- üst kattaysa kapalı kata konamaz ve sessizce kaybolurdu.
-		PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.rebirths))
+		PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.floorsBought))
 		PlotService.RefreshSign(plot)
 		restoreUnits(player)
 	end)
@@ -627,6 +645,7 @@ local function releasePlot(player: Player)
 
 	ownerByPlot[plot] = nil
 	plotByOwner[player] = nil
+	player:SetAttribute("Plot", nil)
 
 	grantToNextInLine(plot)
 end

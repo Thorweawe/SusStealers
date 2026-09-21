@@ -26,6 +26,15 @@ local ScreenFX = require(script.ScreenFX)
 local SoundFX = require(script.SoundFX)
 local ThiefTrail = require(script.ThiefTrail)
 
+-- Sunucu tarafi hazir olan paneller. Bunlari sunucu sehridi yazdi ama
+-- gorunumleri bu sehride: yerlesim, renk ve animasyonu degistirmek
+-- serbest, sunucu yalnizca veri gonderiyor.
+local ChatTitles = require(script.ChatTitles)
+local TutorialUI = require(script.TutorialUI)
+local QuestPanel = require(script.QuestPanel)
+local Menus = require(script.Menus)
+local HudToggle = require(script.HudToggle)
+
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -74,13 +83,21 @@ panel.AnchorPoint = Vector2.new(1, 0)
 panel.Position = UDim2.new(1, -24, 0, 20)
 panel.Size = UDim2.new(0, 260, 0, 104)
 panel.BackgroundColor3 = PANEL
-panel.BackgroundTransparency = 0.2
+-- Saydamlik kaldirildi: arkadaki dunya panelin icinden gorunuyordu ve
+-- "Podiums / Lock / Carrying" satirlari okunmuyordu.
+panel.BackgroundTransparency = 0
 panel.BorderSizePixel = 0
 panel.Parent = screen
 
 local panelCorner = Instance.new("UICorner")
 panelCorner.CornerRadius = UDim.new(0, 10)
 panelCorner.Parent = panel
+
+local panelStroke = Instance.new("UIStroke")
+panelStroke.Color = Color3.fromRGB(86, 96, 120)
+panelStroke.Thickness = 1
+panelStroke.Transparency = 0.35
+panelStroke.Parent = panel
 
 local panelPadding = Instance.new("UIPadding")
 panelPadding.PaddingTop = UDim.new(0, 10)
@@ -295,13 +312,27 @@ refreshCash()
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
 
 --[[
-	Sunucu hangi üssün bizim olduğunu bildirmiyor (Net.PlotAssigned tanımlı ama
-	kullanılmıyor). O yüzden tabeladaki isimden buluyoruz.
+	Sunucu üssümüzü "Plot" niteliğine yazıyor (PlotService.grantPlot).
+
+	Eskiden tabeladaki yazıyı adımızla karşılaştırıyorduk; tabelaya rebirth
+	rozeti eklenince ("ATCIKM  [R1]") eşleşme bozuldu ve rebirth atan
+	herkeste panel "no base" diyordu. Tabela artık serbest.
+
+	Eski yöntem yedek olarak duruyor: nitelik henüz gelmemişse (oyuncu
+	girer girmez) ya da sunucu eski sürümdeyse panel boş kalmasın.
 ]]
 local function findOwnPlot(): Model?
 	local plots = workspace:FindFirstChild("Plots")
 	if not plots then
 		return nil
+	end
+
+	local assigned = player:GetAttribute("Plot")
+	if typeof(assigned) == "string" and assigned ~= "" then
+		local plot = plots:FindFirstChild(assigned)
+		if plot and plot:IsA("Model") then
+			return plot
+		end
 	end
 
 	local wanted = string.upper(player.DisplayName)
@@ -310,7 +341,10 @@ local function findOwnPlot(): Model?
 			local sign = plot:FindFirstChild("Sign")
 			local gui = sign and sign:FindFirstChild("OwnerLabel")
 			local label = gui and gui:FindFirstChild("Text")
-			if label and label:IsA("TextLabel") and label.Text == wanted then
+			-- Rebirth rozeti yüzünden tam eşitlik yerine "ile başlıyor"
+			if label and label:IsA("TextLabel")
+				and string.sub(label.Text, 1, #wanted) == wanted
+			then
 				return plot
 			end
 		end
@@ -428,6 +462,7 @@ local rarityFX = RarityFX.Create()
 local catalog = Index.Create(screen)
 minimapRef = minimap
 
+
 --[[
 	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca
 	kuruluyor, o yüzden bir kez değil kurulana kadar deneniyor. Ses parçaya
@@ -494,4 +529,54 @@ task.spawn(function()
 		rarityFX.Update()
 		catalog.Update()
 	end
+end)
+
+-- ─── Ek paneller ────────────────────────────────────────────────────────────
+--[[
+	Paneller EN SONDA ve BİRBİRİNDEN YALITILMIŞ kuruluyor.
+
+	Önce dosyanın ortasındaydılar ve bu bütün oyunu bozdu: biri hata
+	verince ya da bir remote'u beklerken takılınca altındaki RenderStepped
+	bağlantısı ve ana HUD döngüsü hiç başlamıyordu. Nakit donuyor, harita
+	ölüyor, promptlar filtrelenmiyor, kaide sayısı gelmiyordu.
+
+	Kural: bu paneller HUD'un çekirdeği değil. Hiçbiri, tek başına bütün
+	arayüzü indirebilecek bir yerde durmamalı.
+
+	task.spawn — biri yield ederse (Net.Get istemcide WaitForChild yapıyor)
+	diğerlerini ve çekirdeği bekletmesin.
+	pcall — biri hata verirse sessizce kaybolmasın, adıyla konsola düşsün.
+
+	Sıra önemsiz: HudToggle gizleyeceği panelleri tıklama anında adıyla
+	arıyor, kurulum anında değil.
+]]
+local function mountPanel(name: string, mount: () -> ())
+	task.spawn(function()
+		local ok, err = pcall(mount)
+		if not ok then
+			warn(string.format("[SusStealers] %s paneli kurulamadi: %s", name, tostring(err)))
+		end
+	end)
+end
+
+-- Sohbet unvanlari: TextChatService.OnIncomingMessage yalnizca istemcide
+-- calisiyor, o yuzden burada.
+mountPanel("ChatTitles", function()
+	ChatTitles.Start()
+end)
+
+mountPanel("TutorialUI", function()
+	TutorialUI.Create(screen)
+end)
+
+mountPanel("QuestPanel", function()
+	QuestPanel.Create(screen)
+end)
+
+mountPanel("Menus", function()
+	Menus.Create(screen)
+end)
+
+mountPanel("HudToggle", function()
+	HudToggle.Create(screen)
 end)

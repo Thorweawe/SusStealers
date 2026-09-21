@@ -126,9 +126,10 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
 		birbirine girmesin, yaklaşınca okunsun.
 	]]
 	gui.Size = UDim2.fromScale(4.6, 1.5)
+	-- AlwaysOnTop kapali: acikken etiketler duvarlarin ve 2B HUD'un uzerine
+	-- ciziliyor, kaide sirasina yaklasinca ekran okunmaz hale geliyordu.
+	gui.AlwaysOnTop = false
 	gui.MaxDistance = 70
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 120
 
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"

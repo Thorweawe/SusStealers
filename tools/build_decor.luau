@@ -105,25 +105,67 @@ end
 
 -- ─── Palet ──────────────────────────────────────────────────────────────────
 
-local HULL = Color3.fromRGB(38, 44, 58)
-local HULL_DARK = Color3.fromRGB(24, 29, 39)
-local TRIM = Color3.fromRGB(78, 88, 108)
+--[[
+	TEMA: Skeld'in iç mekânı, Tron değil.
+
+	Önceki palet camgöbeği neon ağırlıklıydı ve sahne siber-punk bir tünele
+	dönüşmüştü. Among Us'ın kendi dili bambaşka: mavi-gri boyalı çelik
+	paneller, SICAK beyaz tavan aydınlatması, sarı-siyah uyarı şeritleri ve
+	renk olarak sadece mürettebat tulumları. Parlayan yüzey neredeyse yok;
+	ışık lambadan gelir, duvardan değil.
+
+	Bu yüzden gövde tonları biraz açıldı (koyu lacivert bir kutu yerine
+	boyalı çelik gibi okunsun), aydınlatma nötr beyazdan sıcak beyaza
+	kaydırıldı ve uzun neon hatların yerini fiziksel oluk/plaka detayı aldı.
+]]
+local HULL = Color3.fromRGB(56, 66, 88)          -- boyalı çelik panel
+local HULL_DARK = Color3.fromRGB(34, 41, 57)     -- gölgede kalan gövde
+local TRIM = Color3.fromRGB(104, 116, 142)       -- çıplak metal kenar
+
+-- Güverte: üç kademe gri. Plaka / oluk / ızgara.
+local DECK = Color3.fromRGB(78, 89, 112)
+local DECK_ALT = Color3.fromRGB(66, 76, 97)      -- desen için ikinci ton
+local GROOVE = Color3.fromRGB(30, 36, 50)        -- plaka arası oluk
 
 --[[
 	Neon malzemesi rengi tam parlaklıkta basıyor; kısmanın tek yolu rengi
-	koyulaştırmak. Uzun çizgiler (zemin dikişi, yürüyüş şeridi, kemer) sönük
-	tonu kullanıyor, parlak ton sadece küçük vurgularda. Hepsi parlak olunca
-	göz dinlenecek yer bulamıyor ve sahne camgöbeğine boğuluyordu.
+	koyulaştırmak. Artık neon sadece ekran, gösterge ve lamba gibi gerçekten
+	ışık kaynağı olan yerlerde. Uzun çizgilerde fiziksel oluk kullanılıyor.
 ]]
-local NEON = Color3.fromRGB(80, 220, 255)        -- parlak: küçük vurgu
-local NEON_DIM = Color3.fromRGB(22, 68, 88)      -- sönük: uzun çizgiler
-local NEON_MID = Color3.fromRGB(44, 124, 152)    -- ara ton: çerçeveler
+local NEON = Color3.fromRGB(96, 200, 235)        -- ekran mavisi (yumuşatıldı)
+local NEON_DIM = Color3.fromRGB(26, 62, 78)      -- sönük gösterge
+local NEON_MID = Color3.fromRGB(48, 116, 140)    -- ara ton: çerçeveler
 
-local LAMP = Color3.fromRGB(225, 240, 255)       -- aydınlatma: nötr beyaz
+local LAMP = Color3.fromRGB(255, 246, 228)       -- aydınlatma: SICAK beyaz
 local NEON_WARM = Color3.fromRGB(255, 190, 90)
-local HAZARD = Color3.fromRGB(180, 118, 26)      -- sönük kehribar
+local HAZARD = Color3.fromRGB(226, 176, 44)      -- uyarı sarısı (Skeld şeridi)
+local HAZARD_DARK = Color3.fromRGB(38, 34, 22)   -- şeridin siyah aralığı
 local GLASS = Color3.fromRGB(150, 210, 255)
 local RED = Color3.fromRGB(197, 17, 17)
+
+--[[
+	Mürettebat renkleri — oyunun kendi paleti. Heykeller, sandık bantları,
+	pano vurguları buradan besleniyor. Kendi uydurduğumuz tonlar yerine
+	bunları kullanmak tek başına sahneyi "Among Us" yapıyor.
+]]
+local CREW = {
+	Color3.fromRGB(197, 17, 17),    -- red
+	Color3.fromRGB(19, 46, 209),    -- blue
+	Color3.fromRGB(17, 128, 45),    -- green
+	Color3.fromRGB(238, 84, 187),   -- pink
+	Color3.fromRGB(239, 125, 13),   -- orange
+	Color3.fromRGB(245, 245, 87),   -- yellow
+	Color3.fromRGB(63, 71, 78),     -- black
+	Color3.fromRGB(215, 224, 240),  -- white
+	Color3.fromRGB(107, 47, 187),   -- purple
+	Color3.fromRGB(113, 73, 30),    -- brown
+	Color3.fromRGB(56, 254, 220),   -- cyan
+	Color3.fromRGB(80, 240, 57),    -- lime
+}
+
+local function crewColor(i: number): Color3
+	return CREW[(i - 1) % #CREW + 1]
+end
 
 --[[
 	Bölge kimliği. İki sıra üs birbirinin aynıydı; hangi taraftasın anlamak
@@ -201,7 +243,75 @@ local function glow(part: Part, color: Color3, range: number, brightness: number
 	l.Parent = part
 end
 
+--[[
+	Mürettebat heykeli. UnitModel'deki karakterin aynı geometrisi, ölçeklenmiş
+	ve kaideye oturtulmuş hâli: dikey silindir gövde, küre kafa, vizör, sırt
+	çantası, iki bacak. Ayrı bir mesh indirmek yerine aynı dili kullanıyoruz —
+	sahadaki karakterlerle heykeller birbirinin aynı okunsun diye.
+
+	`scale` 1 iken karakter ~4 stud; heykellerde 3-4 arası kullanılıyor.
+	Dönüş `yaw` derece cinsinden; heykel oraya BAKAR.
+]]
+local function crewStatue(parent: Instance, x: number, z: number, y: number, scale: number, color: Color3, yaw: number)
+	local base = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(yaw), 0)
+	local s = scale
+
+	-- Gövde: silindir ekseni X, dikey durması için Z etrafında 90°
+	local body = build({
+		name = "StatueBody", size = Vector3.new(2.0 * s, 2.4 * s, 2.0 * s),
+		cf = base * CFrame.new(0, 1.8 * s, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		color = color, shape = Enum.PartType.Cylinder, parent = parent,
+	})
+	body.Reflectance = 0.04
+
+	build({
+		name = "StatueHead", size = Vector3.new(2.0 * s, 2.0 * s, 2.0 * s),
+		cf = base * CFrame.new(0, 3.0 * s, 0),
+		color = color, shape = Enum.PartType.Ball, parent = parent,
+	})
+
+	local visor = build({
+		name = "StatueVisor", size = Vector3.new(1.35 * s, 0.85 * s, 0.6 * s),
+		cf = base * CFrame.new(0, 3.05 * s, -0.85 * s),
+		color = Color3.fromRGB(150, 220, 255), material = Enum.Material.Glass, parent = parent,
+	})
+	visor.Reflectance = 0.3
+
+	build({
+		name = "StatuePack", size = Vector3.new(0.8 * s, 1.9 * s, 0.9 * s),
+		cf = base * CFrame.new(0, 2.0 * s, 1.25 * s), color = color, parent = parent,
+	})
+
+	for i, offset in { -0.55, 0.55 } do
+		build({
+			name = "StatueLeg" .. i, size = Vector3.new(0.75 * s, 1.3 * s, 1.0 * s),
+			cf = base * CFrame.new(offset * s, 0.65 * s, 0), color = color, parent = parent,
+		})
+	end
+end
+
 -- ─── 1. Güverte ─────────────────────────────────────────────────────────────
+--[[
+	Zemin baştan yazıldı. Eskisi tek koyu levha + birkaç neon dikişti; uzaktan
+	"zemin yok, boşlukta duruyoruz" gibi görünüyordu ve yakından tamamen
+	düzdü.
+
+	Skeld'in zemini plakalı: kare çelik levhalar, aralarında gerçek oluk,
+	kenarlarda perçin, yürüyüş yollarında sarı-siyah uyarı şeridi ve yer yer
+	havalandırma ızgarası. Hepsi FİZİKSEL geometri — parlayan çizgi değil.
+	Işık tavandan gelsin, zeminden değil.
+]]
+
+local TILE = 23                   -- plaka kenarı (stud)
+
+--[[
+	Güvertenin GÖRÜNEN üstü. Ham zemin y=0'da ama üstünde 0.24 kalınlığında
+	plaka döşemesi var; zemine yatan her işaret (bay pedi, bölge bandı, yön
+	oku, havalandırma kapağı) bunun üstünden başlamak zorunda. Yoksa
+	plakaların içinde kalıp kamera açısına göre görünüp kayboluyorlar —
+	"gri platform yok olup geri geliyor" şikâyetinin sebebi tam olarak buydu.
+]]
+local DECK_TOP = 0.24 + LIFT
 
 do
 	local f = group("Floor")
@@ -210,50 +320,179 @@ do
 		name = "Deck",
 		size = Vector3.new(halfW * 2, 1, halfD * 2),
 		cf = at(centerX, -0.5, centerZ),
-		color = HULL_DARK,
+		color = GROOVE,
 		material = Enum.Material.Metal,
 		collide = true,
 		parent = f,
 	})
 
-	-- Sütunlar arası enine dikişler (sönük: zeminin her yerinde var)
-	for i = 0, COLUMNS do
-		build({
-			name = "SeamX",
-			size = Vector3.new(0.6, 0.12, halfD * 2 - 6),
-			cf = at((i - 0.5) * PLOT_SPACING, 0.06 + LIFT, centerZ),
-			color = NEON_DIM,
-			material = Enum.Material.Neon,
-			parent = f,
-		})
-	end
+	--[[
+		Plaka ızgarası. Güvertenin tamamını tek tek karelerle döşemek yerine
+		kareleri güverteden 0.12 yukarıda duran levhalar olarak koyuyoruz;
+		aralarındaki 0.9 studluk boşluktan altındaki koyu gövde görünüyor ve
+		oluk kendiliğinden oluşuyor. Ek parça harcamadan derinlik.
 
-	-- Satırlar arası boyuna dikişler
-	for i = 0, ROWS do
-		build({
-			name = "SeamZ",
-			size = Vector3.new(halfW * 2 - 6, 0.12, 0.6),
-			cf = at(centerX, 0.06 + LIFT, (i - 0.5) * (if ROWS > 1 then ROW_SPACING else halfD * 2)),
-			color = NEON_DIM,
-			material = Enum.Material.Neon,
-			parent = f,
-		})
+		İki ton dama deseninde değişiyor — düz tek renk levha dizisi göze
+		"tekrar eden doku" olarak okunuyor, hafif fark onu kırıyor.
+	]]
+	local cols = math.ceil(halfW * 2 / TILE)
+	local rows = math.ceil(halfD * 2 / TILE)
+	local x0 = centerX - halfW
+	local z0 = centerZ - halfD
+
+	local plates = group("Plates", f)
+	for i = 0, cols - 1 do
+		for j = 0, rows - 1 do
+			local w = math.min(TILE, halfW * 2 - i * TILE) - 0.9
+			local d = math.min(TILE, halfD * 2 - j * TILE) - 0.9
+			if w < 2 or d < 2 then
+				continue
+			end
+			build({
+				name = "Plate",
+				size = Vector3.new(w, 0.24, d),
+				cf = at(x0 + i * TILE + (w + 0.9) / 2, 0.12 + LIFT, z0 + j * TILE + (d + 0.9) / 2),
+				color = if (i + j) % 2 == 0 then DECK else DECK_ALT,
+				material = Enum.Material.Metal,
+				parent = plates,
+			})
+		end
 	end
 
 	--[[
-		İki sıra üssün arasındaki ana koridor. Tek parlak zemin çizgisi bu;
-		oyuncunun gözü doğal olarak onu takip ediyor ve haritanın omurgasını
-		anlıyor. Diğer bütün dikişler sönük tam da bu ayrım görünsün diye.
+		Perçinler. Plaka köşelerine küçük silindirler. Ölçek hissini bunlar
+		veriyor: perçin 0.6 stud olduğu için oyuncu zemine bakınca büyüklüğünü
+		karşılaştıracak bir referans buluyor. Her kesişime değil, ikide bire
+		koyuyoruz — hem parça sayısı yarıya iniyor hem de sıklık gerçekçi.
+	]]
+	local rivets = group("Rivets", f)
+	for i = 1, cols - 1, 2 do
+		for j = 1, rows - 1, 2 do
+			-- Silindirin ekseni yerel X. Dik durması (yassı disk olması) için
+			-- uzunluğu X'e yazıp Z etrafında 90° çeviriyoruz.
+			build({
+				name = "Rivet",
+				size = Vector3.new(0.2, 0.8, 0.8),
+				cf = at(x0 + i * TILE, 0.3 + LIFT, z0 + j * TILE) * CFrame.Angles(0, 0, math.rad(90)),
+				color = TRIM,
+				material = Enum.Material.Metal,
+				shape = Enum.PartType.Cylinder,
+				parent = rivets,
+			})
+		end
+	end
+
+	--[[
+		Yürüyüş yolları. Üs sıralarının önünden ve iki sıranın arasından geçen
+		bantlar; kenarları sarı-siyah uyarı şeridi. Neon çizgi yerine boyalı
+		zemin: Skeld'de yön bilgisi hep boya ile verilir.
+	]]
+	local paint = group("Walkway", f)
+
+	--[[
+		`along` "x" ise yol x boyunca uzanır, "z" ise z boyunca. Kenar şeridi
+		her zaman yolun uzun kenarlarına geliyor.
+	]]
+	local function walkway(cx: number, cz: number, length: number, width: number, along: string)
+		local function box(l: number, w: number): Vector3
+			return if along == "x" then Vector3.new(l, 0.1, w) else Vector3.new(w, 0.1, l)
+		end
+
+		build({
+			name = "WalkPaint",
+			size = box(length, width),
+			cf = at(cx, 0.28 + LIFT, cz),
+			color = DECK_ALT:Lerp(Color3.fromRGB(150, 160, 180), 0.3),
+			material = Enum.Material.SmoothPlastic,
+			parent = paint,
+		})
+
+		-- Kenarlarda kesikli sarı-siyah uyarı şeridi
+		local step = 6
+		local count = math.floor(length / step)
+		for _, side in { -1, 1 } do
+			for i = 0, count - 1 do
+				local offset = -length / 2 + (i + 0.5) * step
+				local px = if along == "x" then cx + offset else cx + side * width / 2
+				local pz = if along == "x" then cz + side * width / 2 else cz + offset
+				build({
+					name = "WalkStripe",
+					size = box(step * 0.55, 0.9),
+					cf = at(px, 0.3 + LIFT, pz),
+					color = if i % 2 == 0 then HAZARD else HAZARD_DARK,
+					material = Enum.Material.SmoothPlastic,
+					parent = paint,
+				})
+			end
+		end
+	end
+
+	--[[
+		Sadece iki ana yol var: sıralar arasındaki omurga ve her üssü ona
+		bağlayan dikey bağlantılar. Üslerin ÖNÜNDEN geçen bir yol denendi ama
+		altlık kenarına (halfZ+3) ve kablo hattına (halfZ+12) denk geliyordu;
+		aynı yükseklikteki iki yüzey titriyordu. Dikey bağlantılar hem temiz
+		hem de "üsten çık, koridora gir, karşıya geç" akışını anlatıyor.
 	]]
 	if ROWS > 1 then
-		build({
-			name = "MainCorridor",
-			size = Vector3.new(halfW * 2 - 20, 0.14, 2),
-			cf = at(centerX, 0.07 + LIFT, centerZ),
-			color = NEON,
-			material = Enum.Material.Neon,
-			parent = f,
-		})
+		walkway(centerX, centerZ, halfW * 2 - 12, 14, "x")
+
+		for i = 1, COLUMNS do
+			local lx = (i - 1) * PLOT_SPACING
+			for r = 0, ROWS - 1 do
+				local z = r * ROW_SPACING
+				local side = if z < centerZ then 1 else -1
+				local from = z + side * (halfZ + 4)
+				local to = centerZ - side * 7
+				walkway(lx, (from + to) / 2, math.abs(to - from), 8, "z")
+			end
+		end
+	else
+		walkway(centerX, centerZ, halfW * 2 - 12, 14, "x")
+	end
+
+	--[[
+		Havalandırma ızgaraları. Çukur bir çerçeve + içinde paralel çıtalar.
+		Duvar diplerine ve koridor kesişimlerine dağıtılmış. Zeminin "içinde
+		bir şeyler var" hissini bunlar veriyor; tamamen düz bir güverte hep
+		kartondan görünür.
+	]]
+	local grates = group("Grates", f)
+
+	local function grate(x: number, z: number, w: number, d: number)
+		-- Karanlık çukur: plakaların üstünde ama ince, altında boşluk varmış
+		-- gibi okunsun diye neredeyse siyah.
+		build({ name = "GrateWell", size = Vector3.new(w, 0.3, d),
+			cf = at(x, 0.32 + LIFT, z), color = Color3.fromRGB(16, 20, 29),
+			material = Enum.Material.Metal, parent = grates })
+
+		-- Çevre lipi: dört ince çıta, dolu levha değil — ortası çukur kalsın
+		for _, s in { -1, 1 } do
+			build({ name = "GrateLip", size = Vector3.new(w + 1.4, 0.4, 0.7),
+				cf = at(x, 0.38 + LIFT, z + s * (d / 2 + 0.35)), color = TRIM,
+				material = Enum.Material.Metal, parent = grates })
+			build({ name = "GrateLip", size = Vector3.new(0.7, 0.4, d + 1.4),
+				cf = at(x + s * (w / 2 + 0.35), 0.38 + LIFT, z), color = TRIM,
+				material = Enum.Material.Metal, parent = grates })
+		end
+
+		-- Çıtalar: aralarından karanlık görünüyor
+		local bars = math.max(2, math.floor(w / 1.9))
+		for i = 1, bars do
+			build({ name = "GrateBar", size = Vector3.new(0.6, 0.42, d - 0.6),
+				cf = at(x - w / 2 + i * (w / (bars + 1)), 0.4 + LIFT, z),
+				color = Color3.fromRGB(62, 71, 90),
+				material = Enum.Material.Metal, parent = grates })
+		end
+	end
+
+	for i = 1, COLUMNS do
+		local gx = (i - 1) * PLOT_SPACING
+		grate(gx, centerZ - halfD + 10, 10, 7)
+		grate(gx, centerZ + halfD - 10, 10, 7)
+	end
+	for c = 1, COLUMNS - 1 do
+		grate((c - 0.5) * PLOT_SPACING, centerZ, 8, 8)
 	end
 end
 
@@ -492,12 +731,30 @@ do
 		for slot = 1, PODIUMS do
 			local front = slot <= perRow
 			local col = if front then slot - 1 else slot - perRow - 1
+			--[[
+				Kaide zemini. Eskiden yarı saydam mavi bir neon kareydi;
+				uzaktan zemine yapıştırılmış çıkartma gibi duruyor ve üssün
+				zeminiyle hizası tutmuyordu. Şimdi fiziksel bir basamak:
+				koyu plaka + üstünde metal kenar çıtası. Karakterin üstünde
+				durduğu yer olduğu belli oluyor.
+			]]
+			local px = ox + (col - (perRow - 1) / 2) * PODIUM_GAP
+			local pz = oz + (if front then -8 else 8)
+
 			build({
-				name = "PodiumRing",
-				size = Vector3.new(5.6, 0.1, 5.6),
-				cf = at(ox + (col - (perRow - 1) / 2) * PODIUM_GAP, topY + 0.05 + LIFT, oz + (if front then -8 else 8)),
-				color = NEON_DIM, material = Enum.Material.Neon, transparency = 0.3, parent = pf,
+				name = "PodiumPad",
+				size = Vector3.new(5.6, 0.3, 5.6),
+				cf = at(px, topY + 0.15 + LIFT, pz),
+				color = HULL_DARK, material = Enum.Material.Metal, parent = pf,
 			})
+			for _, s in { -1, 1 } do
+				build({ name = "PodiumEdge", size = Vector3.new(6, 0.36, 0.5),
+					cf = at(px, topY + 0.18 + LIFT, pz + s * 2.75),
+					color = TRIM, material = Enum.Material.Metal, parent = pf })
+				build({ name = "PodiumEdge", size = Vector3.new(0.5, 0.36, 6),
+					cf = at(px + s * 2.75, topY + 0.18 + LIFT, pz),
+					color = TRIM, material = Enum.Material.Metal, parent = pf })
+			end
 		end
 
 		-- Konveyör şeridi ve dağıtıcı
@@ -602,12 +859,16 @@ do
 	local f = group("Vents")
 
 	local function vent(x: number, z: number)
-		local cf = at(x, 0.06 + LIFT, z)
-		build({ name = "VentFrame", size = Vector3.new(6.4, 0.2, 4.4), cf = cf,
+		local cf = at(x, DECK_TOP + 0.17, z)
+		build({ name = "VentFrame", size = Vector3.new(6.4, 0.24, 4.4), cf = cf,
 			color = TRIM, material = Enum.Material.Metal, parent = f })
+		-- Kapağın içi karanlık: altında bir kanal varmış gibi dursun
+		build({ name = "VentThroat", size = Vector3.new(5.6, 0.26, 3.6),
+			cf = cf * CFrame.new(0, 0.02, 0), color = Color3.fromRGB(14, 18, 26),
+			material = Enum.Material.Metal, parent = f })
 		for i = -1, 1 do
-			build({ name = "VentSlat", size = Vector3.new(5.4, 0.26, 0.7),
-				cf = cf * CFrame.new(0, 0.05, i * 1.2), color = HULL_DARK,
+			build({ name = "VentSlat", size = Vector3.new(5.4, 0.3, 0.7),
+				cf = cf * CFrame.new(0, 0.06, i * 1.2), color = HULL_DARK,
 				material = Enum.Material.Metal, parent = f })
 		end
 	end
@@ -642,9 +903,17 @@ do
 	glow(dome, RED, 34, 2.4)
 end
 
--- ─── 6. Çatı kirişleri ──────────────────────────────────────────────────────
--- Üstü tamamen kapatmıyoruz; kafes kirişler kapalı mekân hissi verirken
--- yıldızlar aradan görünmeye devam ediyor.
+-- ─── 6. Çatı ────────────────────────────────────────────────────────────────
+--[[
+	Eskiden sadece kafes kiriş vardı; lambalar boşlukta asılı duruyordu ve
+	"kapalı bir istasyondayız" hissi hiç kurulmuyordu — tavan yokken tavan
+	lambası olmaz.
+
+	Şimdi gerçek bir tavan var: kirişlerin üstüne panel döşemesi, panellerin
+	arasına gömülü lamba yuvaları. Yıldızları tamamen kaybetmemek için ana
+	koridorun üstü cam şerit bırakıldı — hem dışarısı görünüyor hem de
+	"burada bir kapak var" bilgisi veriyor.
+]]
 
 do
 	local f = group("Roof")
@@ -675,18 +944,103 @@ do
 			cf = at(centerX, Y, z), color = TRIM, material = Enum.Material.Metal, parent = f })
 	end
 
-	-- Kirişlere asılı aydınlatma
+	--[[
+		Tavan döşemesi. Kirişlerin hemen üstünde, panel panel. Ana koridorun
+		üstündeki şerit cam bırakılıyor: yıldızlar oradan görünüyor, gerisi
+		kapalı. Tek dev levha yerine panel dizisi, çünkü aralarındaki çizgi
+		ölçek veriyor ve tavan "gökyüzü" değil "yapı" gibi okunuyor.
+	]]
+	local ceil = group("Ceiling", f)
+	local CY = Y + 1.6
+	local SKY_HALF = if ROWS > 1 then 9 else 0     -- cam şeridin yarı genişliği
+
+	local panelW = PLOT_SPACING / 2
+	local panelD = 26
+	local nx = math.ceil(halfW * 2 / panelW)
+	local nz = math.ceil(halfD * 2 / panelD)
+
+	for i = 0, nx - 1 do
+		for j = 0, nz - 1 do
+			local pw = math.min(panelW, halfW * 2 - i * panelW)
+			local pd = math.min(panelD, halfD * 2 - j * panelD)
+			if pw < 2 or pd < 2 then
+				continue
+			end
+			local px = centerX - halfW + i * panelW + pw / 2
+			local pz = centerZ - halfD + j * panelD + pd / 2
+
+			-- Koridor camının üstüne denk gelen paneli atlıyoruz
+			local overSky = SKY_HALF > 0 and math.abs(pz - centerZ) < SKY_HALF + pd / 2 - 1
+			if overSky then
+				continue
+			end
+
+			build({ name = "CeilPanel", size = Vector3.new(pw - 0.5, 1, pd - 0.5),
+				cf = at(px, CY, pz), color = if (i + j) % 2 == 0 then HULL else HULL_DARK,
+				material = Enum.Material.Metal, parent = ceil })
+		end
+	end
+
+	--[[
+		Çeper bandı. Duvarın üstü 34, tavan 38.6'da; arada kalan boşluktan
+		yanlardan dışarısı görünüyordu ve tavan "asılı bir levha" gibi
+		duruyordu. Bu bant duvarı tavana bağlıyor, mekân kapanıyor.
+	]]
+	for _, s in { -1, 1 } do
+		build({ name = "Fascia", size = Vector3.new(halfW * 2, CY - WALL_H + 1, 2.6),
+			cf = at(centerX, (WALL_H + CY) / 2, centerZ + s * halfD), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = ceil })
+		build({ name = "Fascia", size = Vector3.new(2.6, CY - WALL_H + 1, halfD * 2),
+			cf = at(centerX + s * halfW, (WALL_H + CY) / 2, centerZ), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = ceil })
+	end
+
+	-- Koridor camı: dışarısı görünsün
+	if SKY_HALF > 0 then
+		build({ name = "Skylight", size = Vector3.new(halfW * 2 - 8, 0.4, SKY_HALF * 2),
+			cf = at(centerX, CY, centerZ), color = GLASS,
+			material = Enum.Material.Glass, transparency = 0.88, parent = ceil })
+		for _, s in { -1, 1 } do
+			build({ name = "SkyRail", size = Vector3.new(halfW * 2 - 8, 1.4, 1.4),
+				cf = at(centerX, CY - 0.4, centerZ + s * SKY_HALF), color = TRIM,
+				material = Enum.Material.Metal, parent = ceil })
+		end
+	end
+
+	--[[
+		Aydınlatma artık tavana GÖMÜLÜ: koyu bir yuva, içinde sıcak beyaz
+		panel. Boşlukta asılı parlak çubuk yerine gerçek armatür. Sıcak beyaz
+		çünkü Skeld'in iç mekânı mavi değil, sarımsı beyaz aydınlanır.
+	]]
 	for i = 1, COLUMNS do
 		for r = 0, ROWS - 1 do
-			-- Aydınlatma nötr beyaz: camgöbeği olunca "lamba" değil
-			-- "dekor şeridi" gibi okunuyordu ve sahneyi maviye boğuyordu.
-			local lamp = build({
-				name = "RoofLamp",
-				size = Vector3.new(PLOT_SIZE.X * 0.5, 0.4, 2),
-				cf = at((i - 1) * PLOT_SPACING, Y - 3.2, r * ROW_SPACING),
-				color = LAMP, material = Enum.Material.Neon, parent = f,
-			})
-			glow(lamp, LAMP, 42, 1.3)
+			for _, dz in { -13, 13 } do
+				local lx = (i - 1) * PLOT_SPACING
+				local lz = r * ROW_SPACING + dz
+
+				build({ name = "LampHousing", size = Vector3.new(PLOT_SIZE.X * 0.5 + 1.6, 1.1, 3.6),
+					cf = at(lx, CY - 0.9, lz), color = HULL_DARK,
+					material = Enum.Material.Metal, parent = f })
+
+				local lamp = build({
+					name = "RoofLamp",
+					size = Vector3.new(PLOT_SIZE.X * 0.5, 0.35, 2.4),
+					cf = at(lx, CY - 1.5, lz),
+					color = LAMP, material = Enum.Material.Neon, parent = f,
+				})
+				glow(lamp, LAMP, 46, 1.4)
+			end
+		end
+	end
+
+	-- Koridor boyunca ara aydınlatma: iki sıra arası karanlık kalmasın
+	if ROWS > 1 then
+		for c = 0, COLUMNS do
+			local lx = (c - 0.5) * PLOT_SPACING
+			local lamp = build({ name = "CorridorLamp", size = Vector3.new(3, 0.35, 5),
+				cf = at(lx, Y - 2.6, centerZ), color = LAMP,
+				material = Enum.Material.Neon, parent = f })
+			glow(lamp, LAMP, 34, 1.1)
 		end
 	end
 end
@@ -750,9 +1104,20 @@ do
 
 		-- İsimlere numara: istemci tarafı bunları üs sahibine göre
 		-- renklendiriyor, hangisinin hangi üs olduğunu bilmesi gerek.
+		--[[
+			Boyalı ped. Eskiden yarı saydam neon bir levhaydı ve plakaların
+			içinde kaldığı için kamera açısına göre görünüp kayboluyordu.
+			Artık güvertenin üstünde duran mat bir boya + çerçeve; hem stabil
+			hem de Skeld'in zemin işaretlerine benziyor.
+		]]
 		build({ name = "BayPad" .. index, size = Vector3.new(14, 0.14, 7),
-			cf = at(o.X, 0.07 + LIFT, z), color = NEON_DIM,
-			material = Enum.Material.Neon, transparency = 0.4, parent = f })
+			cf = at(o.X, DECK_TOP + 0.12, z), color = DECK_ALT:Lerp(NEON_MID, 0.35),
+			material = Enum.Material.SmoothPlastic, parent = f })
+		for _, s in { -1, 1 } do
+			build({ name = "BayPadEdge", size = Vector3.new(14.8, 0.16, 0.6),
+				cf = at(o.X, DECK_TOP + 0.13, z + s * 3.7), color = HAZARD,
+				material = Enum.Material.SmoothPlastic, parent = f })
+		end
 
 		local post = build({ name = "BayPost" .. index, size = Vector3.new(1, 1, 1),
 			cf = at(o.X, 6, z), color = HULL,
@@ -1042,10 +1407,10 @@ do
 
 		-- Sıra kimliği: koridor girişine renkli bant
 		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
-			cf = at(centerX, 0.08 + LIFT, z - halfZ - 14), color = tone,
+			cf = at(centerX, DECK_TOP + 0.13, z - halfZ - 14), color = tone,
 			material = Enum.Material.Neon, parent = f })
 		build({ name = "ZoneBar", size = Vector3.new(halfW * 2 - 40, 0.16, 1.6),
-			cf = at(centerX, 0.08 + LIFT, z + halfZ + 14), color = tone,
+			cf = at(centerX, DECK_TOP + 0.13, z + halfZ + 14), color = tone,
 			material = Enum.Material.Neon, parent = f })
 	end
 
@@ -1064,7 +1429,7 @@ do
 			build({
 				name = "WayArrow",
 				size = Vector3.new(0.7, 0.14, 5),
-				cf = CFrame.new(centerX, 0.07 + LIFT, az)
+				cf = CFrame.new(centerX, DECK_TOP + 0.18, az)
 					* CFrame.Angles(0, math.rad(s * 34), 0)
 					* CFrame.new(s * 1.6, 0, 0),
 				color = NEON,
@@ -1160,6 +1525,157 @@ do
 			cf = at(centerX + i * 34, LOBBY_WALL_H - 0.5, lobbyZ),
 			color = LAMP, material = Enum.Material.Neon, parent = f })
 		glow(lamp, LAMP, 46, 1.1)
+	end
+end
+
+-- ─── 13b. Mürettebat heykelleri ─────────────────────────────────────────────
+--[[
+	Haritanın teması "Among Us" ama içinde tek bir mürettebat figürü yoktu;
+	kaidedeki karakterler dışında sahne herhangi bir uzay istasyonu olabilirdi.
+	Heykeller bunu tek başına çözüyor — oyuncu kapıdan girer girmez ne
+	oynadığını anlıyor.
+
+	Üç yerde duruyorlar:
+	  • Lobi kapısının iki yanında iki dev nöbetçi (ölçek 4)
+	  • Lobinin arka duvarında renk galerisi (ölçek 2.4, 6 mürettebat rengi)
+	  • İstasyonun dört köşesinde gözcüler (ölçek 3)
+
+	Ayrıca havalandırmanın yanında devrilmiş bir figür var: oyunun kendi
+	şakası, keşfedene küçük bir ödül.
+]]
+
+do
+	local f = group("Statues")
+
+	--[[ Heykel + kaide + üstten aydınlatma. Kaide olmadan figür zeminden
+	     bitmiş gibi duruyor; kaide onu "sergilenen nesne" yapıyor. ]]
+	local function pedestal(x: number, z: number, scale: number, color: Color3, yaw: number, label: string?)
+		local h = 2.2 + scale * 0.4
+
+		build({ name = "PedBase", size = Vector3.new(4.4 * scale, 1, 4.4 * scale),
+			cf = at(x, 0.5, z), color = HULL_DARK,
+			material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "PedShaft", size = Vector3.new(3.4 * scale, h, 3.4 * scale),
+			cf = at(x, 1 + h / 2, z), color = HULL,
+			material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "PedCap", size = Vector3.new(4 * scale, 0.5, 4 * scale),
+			cf = at(x, 1 + h + 0.25, z), color = TRIM,
+			material = Enum.Material.Metal, collide = true, parent = f })
+
+		-- Kaidenin altında figür rengiyle bir bant: uzaktan hangi mürettebat
+		-- olduğu okunuyor
+		build({ name = "PedBand", size = Vector3.new(3.6 * scale, 0.35, 3.6 * scale),
+			cf = at(x, 1.5, z), color = color,
+			material = Enum.Material.Neon, parent = f })
+
+		crewStatue(f, x, z, 1 + h + 0.5, scale, color, yaw)
+
+		-- Üstten spot: heykeli sahneden ayırıyor
+		local spot = build({ name = "PedSpot", size = Vector3.new(1.2, 0.3, 1.2),
+			cf = at(x, 1 + h + 5.2 * scale, z), color = LAMP,
+			material = Enum.Material.Neon, parent = f })
+		glow(spot, LAMP, 16 + scale * 4, 1.2)
+
+		if label then
+			local anchor = build({ name = "PedLabelAnchor", size = Vector3.new(1, 1, 1),
+				cf = at(x, 1.1, z), color = HULL, transparency = 1, parent = f })
+
+			local gui = Instance.new("BillboardGui")
+			gui.Name = "Label"
+			gui.Size = UDim2.fromScale(6, 1.4)
+			gui.StudsOffsetWorldSpace = Vector3.new(0, 1.2, 0)
+			gui.MaxDistance = 90
+			gui.Parent = anchor
+
+			local text = Instance.new("TextLabel")
+			text.Size = UDim2.fromScale(1, 1)
+			text.BackgroundTransparency = 1
+			text.Font = Enum.Font.GothamBold
+			text.TextScaled = true
+			text.TextColor3 = color
+			text.TextStrokeTransparency = 0.3
+			text.Text = label
+			text.Parent = gui
+		end
+	end
+
+	--[[
+		Lobi kapısının iki yanında nöbetçiler. Köprüden çıkan oyuncu tam
+		aralarından geçiyor; birbirlerine baktıkları için kapı bir "geçit"
+		gibi okunuyor.
+
+		yaw kuralı: figürün vizörü yerel -Z'ye bakar. yaw=90 → -X yönü,
+		yaw=-90 → +X yönü.
+	]]
+	local gateZ = lobbyZ - LOBBY_D / 2 + 18
+	pedestal(centerX - LOBBY_GATE_WIDTH / 2 - 14, gateZ, 4, CREW[1], -90)
+	pedestal(centerX + LOBBY_GATE_WIDTH / 2 + 14, gateZ, 4, CREW[2], 90)
+
+	--[[
+		Renk galerisi. Arka duvara koyamıyoruz — sıralama panoları orada ve
+		heykeller ekranların önünü kapatırdı. Sağ duvar boyunca diziliyorlar,
+		hepsi içeri bakıyor. Sol taraf çarkın alanı.
+	]]
+	for i = 1, 4 do
+		pedestal(centerX + LOBBY_W / 2 - 16, lobbyZ + (i - 3) * 24, 2.4, crewColor(i * 3), 90)
+	end
+
+	--[[
+		İstasyondaki gözcüler DUVAR DİPLERİNDE, köşelerde değil. Köşe denendi
+		ama orası hem radar direğinin hem de ilk üssün altlığının alanı;
+		heykel üssün içinde kalıyordu. Duvar dibinde üs ayak izinin dışında
+		kalan şerit var (üsler x=-33..306 arası, gövde -64..340) ve orası
+		zaten boştu.
+
+		Koridorun kendisine hiçbir şey konmuyor: çalmanın bütün riski rakip
+		üsse koşmakta, yolu daraltan dekor oyunu bozar.
+	]]
+	local watchers = {
+		{ centerX - halfW + 16, centerZ, -90 },              -- sol duvar, içeri bakıyor
+		{ centerX + halfW - 16, centerZ, 90 },               -- sağ duvar
+		{ (COLUMNS >= 2 and 0.5 or 0) * PLOT_SPACING, centerZ - halfD + 16, 0 },
+		{ (COLUMNS >= 2 and COLUMNS - 1.5 or 0) * PLOT_SPACING, centerZ + halfD - 16, 180 },
+	}
+	for i, w in watchers do
+		pedestal(w[1], w[2], 3, crewColor(i * 3 + 1), w[3])
+	end
+
+	--[[
+		Devrilmiş figür. Oyunun kendi şakası: havalandırmanın yanında yatıyor.
+		Kaide yok, doğrudan zeminde ve yan yatmış — heykel değil "olay yeri"
+		gibi duruyor. Koridoru kapatmasın diye duvar dibinde.
+	]]
+	do
+		-- Üs ayak izinin dışında kalan duvar şeridinde. 30 denendi ama orası
+		-- 5. üssün altlığına (x = -33) değiyordu.
+		local bx = centerX - halfW + 14
+		local bz = centerZ + halfD - 26
+		local lying = group("FallenCrew", f)
+
+		--[[
+			Figürü dik kuruyoruz, sonra bütün parçaları TEK bir dönüşle
+			yatırıyoruz. Her parçanın yatık konumunu ayrı ayrı hesaplamak
+			yerine, her birinin tabana göre bağıl konumunu alıp aynı dönüşle
+			yeniden yerleştiriyoruz — gövde, kafa, vizör, bacaklar arasındaki
+			ilişki bozulmadan korunuyor.
+		]]
+		crewStatue(lying, bx, bz, 0, 2.2, CREW[5], 0)
+
+		--[[
+			Z ekseni etrafında yatırıyoruz, X etrafında değil. X denendi:
+			figür sırtüstü kalıyor ve sırt çantası zeminin 2.6 stud altına
+			gömülüyordu. Z ile yan yatıyor, bütün parçalar y=0 civarında
+			kalıyor ve hiçbiri güvertenin altına düşmüyor.
+		]]
+		local ground = CFrame.new(bx, 0, bz)
+		local tip = CFrame.new(bx, 3, bz)
+			* CFrame.Angles(0, math.rad(-35), 0)
+			* CFrame.Angles(0, 0, math.rad(90))
+		for _, part in lying:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.CFrame = tip * ground:ToObjectSpace(part.CFrame)
+			end
+		end
 	end
 end
 
@@ -1270,105 +1786,221 @@ do
 end
 
 -- ─── 16. Çark (şimdilik dekor) ──────────────────────────────────────────────
--- Ödül verme kısmı sunucu işi. Burada geometri ve dönüş var; bağlanınca
--- DecorFX'in SpinSpeed niteliği zaten döndürüyor.
+--[[
+	Ödül verme kısmı sunucu işi. Burada geometri ve dönüş var.
+
+	Çark baştan yazıldı. Eskisi bir disk + sekiz ince çubuktu; "dilim" olması
+	gereken parçalar tel gibi ince kaldığı için çark değil pervane gibi
+	duruyordu. Gerçek bir şans çarkının okunması üç şeye bağlı:
+
+	  1. Dilimler BİTİŞİK olmalı — aralarından arka levha görünmemeli.
+	     Dilim genişliği yarıçapa göre hesaplanır: dış kiriş 2R·sin(pi/N).
+	     Eskisi sabit 2.6 studdu, R=13 için gereken 6.7 idi.
+	  2. Bir jant olmalı. Çemberi kapatan kalın halka, diski çarka çevirir.
+	  3. Durdurucu dil ve pimler olmalı. Çarkın nerede duracağını anlatan
+	     tek eleman o; olmayınca dönen disk sadece dekor kalıyor.
+
+	Ayrıca ampul çerçevesi artık DÖNMÜYOR. Eskiden ampuller diskle beraber
+	döndüğü için ışık deseni hiç değişmiyordu; şimdi sabit çerçevede sırayla
+	yanıyorlar (DecorFX her ampule eklenme sırasına göre faz veriyor).
+
+	Renkler mürettebat paletinden: on iki dilim, on iki tulum rengi.
+]]
 
 do
 	local f = group("Wheel")
-	local x = centerX - LOBBY_W / 2 + 34
-	local z = lobbyZ + 10
+	local x = centerX - LOBBY_W / 2 + 36
+	local z = lobbyZ + 6
 
-	--[[
-		Çark dik duruyor. Yatay disk üstten bakmadıkça okunmuyordu; dik
-		çark gerçek şans çarkı gibi, dilimleri ve göstergeyi karşıdan
-		görüyorsun. Dönüş ekseni ekrana bakan eksen (Z).
-	]]
-	local R = 13                 -- çark yarıçapı
-	local SLICES = 8
-	local hubY = 18
+	local R = 15                 -- çark yarıçapı
+	local SLICES = 12            -- mürettebat rengi sayısı kadar
+	local hubY = 22
+	local SPIN = 26
 
-	-- Kaide ve gövde
-	build({ name = "WheelBase", size = Vector3.new(16, 1.4, 12),
-		cf = at(x, 0.7, z), color = TRIM,
+	-- ── Kaide: iki bacaklı A çerçeve ────────────────────────────────────────
+
+	build({ name = "WheelDeck", size = Vector3.new(30, 1, 18),
+		cf = at(x, 0.5, z), color = HULL_DARK,
 		material = Enum.Material.Metal, collide = true, parent = f })
-	build({ name = "WheelPlinth", size = Vector3.new(10, 4, 8),
-		cf = at(x, 3.2, z), color = HULL,
-		material = Enum.Material.Metal, collide = true, parent = f })
-	for _, s in { -1, 1 } do
-		build({ name = "WheelLeg", size = Vector3.new(2, hubY - 5, 2),
-			cf = at(x + s * 5.5, 5.2 + (hubY - 5) / 2, z),
-			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+
+	-- Kaidenin önünde uyarı şeridi: burası bir makine, üstüne çıkılmaz
+	for i = 0, 9 do
+		build({ name = "WheelHazard", size = Vector3.new(2.4, 0.16, 1.2),
+			cf = at(x - 13.5 + i * 3, 1.05, z - 8.4),
+			color = if i % 2 == 0 then HAZARD else HAZARD_DARK,
+			material = Enum.Material.SmoothPlastic, parent = f })
 	end
 
-	-- Arka levha: dilimler boşlukta durmasın
-	build({ name = "WheelBacking", size = Vector3.new(R * 2 + 3, R * 2 + 3, 0.8),
-		cf = at(x, hubY, z + 1.4), color = HULL_DARK,
+	build({ name = "WheelPlinth", size = Vector3.new(14, 5, 10),
+		cf = at(x, 3.5, z), color = HULL,
+		material = Enum.Material.Metal, collide = true, parent = f })
+	build({ name = "WheelPlinthCap", size = Vector3.new(15, 0.6, 11),
+		cf = at(x, 6.3, z), color = TRIM,
+		material = Enum.Material.Metal, collide = true, parent = f })
+
+	--[[ Eğik bacaklar. Dik iki çubuk yerine içe yatan çerçeve: gerçek çark
+	     standı böyle durur ve siluet çok daha sağlam okunur. ]]
+	local legH = hubY - 6
+	for _, s in { -1, 1 } do
+		build({ name = "WheelLeg", size = Vector3.new(2.4, legH + 3, 2.4),
+			cf = at(x + s * 8, 6 + legH / 2, z + 1.2) * CFrame.Angles(0, 0, math.rad(-s * 11)),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+		build({ name = "WheelBrace", size = Vector3.new(11, 1.4, 1.4),
+			cf = at(x + s * 4, 13, z + 1.2), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+	end
+
+	-- ── Sabit arka çerçeve ve ampul kuşağı ──────────────────────────────────
+
+	build({ name = "WheelBacking", size = Vector3.new(R * 2 + 5, R * 2 + 5, 0.8),
+		cf = at(x, hubY, z + 2.2), color = HULL_DARK,
 		material = Enum.Material.Metal, parent = f })
 
-	local disc = build({ name = "WheelDisc", size = Vector3.new(R * 2, R * 2, 0.9),
-		cf = at(x, hubY, z), color = HULL_DARK,
-		material = Enum.Material.Metal, parent = f })
-	disc:SetAttribute("SpinSpeed", 26)
-	disc:SetAttribute("SpinAxis", "Z")
-
-	--[[
-		Dilimler diskin çocuğu değil, ayrı parçalar — ama diskle birlikte
-		dönmeleri gerekiyor. Her birine kendi SpinSpeed'ini veriyoruz ki
-		aynı hızda dönsünler; DecorFX her parçayı kendi başlangıç
-		konumundan döndürdüğü için aralarındaki açı korunuyor.
-	]]
-	local palette = {
-		NEON, NEON_WARM,
-		Color3.fromRGB(197, 17, 17), Color3.fromRGB(0, 158, 55),
-		Color3.fromRGB(236, 84, 187), Color3.fromRGB(107, 47, 187),
-		Color3.fromRGB(245, 245, 87), Color3.fromRGB(56, 254, 220),
-	}
-	for i = 1, SLICES do
-		local a = (i - 1) * (math.pi * 2 / SLICES)
-		local slice = build({
-			name = "WheelSlice",
-			size = Vector3.new(R * 0.82, 2.6, 1.1),
-			cf = CFrame.new(x, hubY, z - 0.6) * CFrame.Angles(0, 0, a) * CFrame.new(R * 0.52, 0, 0),
-			color = palette[i],
-			material = Enum.Material.Neon,
-			parent = f,
-		})
-		slice:SetAttribute("SpinSpeed", 26)
-		slice:SetAttribute("SpinAxis", "Z")
-
-		-- Dilim ucundaki ampul
+	local BULBS = 24
+	for i = 1, BULBS do
+		local a = (i - 1) * (math.pi * 2 / BULBS)
 		local bulb = build({
 			name = "WheelBulb",
-			size = Vector3.new(1.5, 1.5, 1.5),
-			cf = CFrame.new(x, hubY, z - 0.6) * CFrame.Angles(0, 0, a) * CFrame.new(R + 1.4, 0, 0),
-			color = palette[i],
+			size = Vector3.new(1.3, 1.3, 1.3),
+			cf = CFrame.new(x, hubY, z + 1.6) * CFrame.Angles(0, 0, a) * CFrame.new(R + 2.6, 0, 0),
+			color = if i % 2 == 0 then LAMP else NEON_WARM,
 			material = Enum.Material.Neon,
 			shape = Enum.PartType.Ball,
 			parent = f,
 		})
-		bulb:SetAttribute("SpinSpeed", 26)
-		bulb:SetAttribute("SpinAxis", "Z")
+		bulb:SetAttribute("PulsePeriod", 1.4)
+		glow(bulb, NEON_WARM, 9, 0.8)
 	end
 
-	-- Göbek
-	local hub = build({ name = "WheelHub", size = Vector3.new(4, 4, 1.6),
-		cf = at(x, hubY, z - 0.8), color = TRIM,
-		material = Enum.Material.Metal, shape = Enum.PartType.Cylinder, parent = f })
-	hub.CFrame = at(x, hubY, z - 0.8) * CFrame.Angles(0, math.rad(90), 0)
-	glow(hub, NEON, 18, 1)
+	-- ── Dönen kısım ─────────────────────────────────────────────────────────
 
-	-- Tepedeki gösterge iğnesi
-	build({ name = "WheelPointer", size = Vector3.new(2, 3.4, 1.4),
-		cf = at(x, hubY + R + 2.2, z - 0.8), color = NEON_WARM,
+	local function spins(part: Part): Part
+		part:SetAttribute("SpinSpeed", SPIN)
+		part:SetAttribute("SpinAxis", "Z")
+		return part
+	end
+
+	spins(build({ name = "WheelDisc", size = Vector3.new(R * 2 - 1, R * 2 - 1, 0.9),
+		cf = at(x, hubY, z), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f }))
+
+	local chord = 2 * R * math.sin(math.pi / SLICES)
+	local taper = math.tan(math.pi / SLICES)   -- yarıçap başına yarım genişlik
+
+	--[[
+		Dilim kademeli kuruluyor. Tek dikdörtgen denendi: dış kirişe göre
+		genişlettiğinde göbeğe yakın kısımda komşusuyla üst üste biniyor,
+		iki yüzey aynı düzlemde olduğu için kamera oynadıkça titriyordu.
+		Dar tuttuğunda da dilim değil çubuk oluyordu.
+
+		Çözüm: her dilimi yarıçap boyunca RINGS parçaya bölmek ve her
+		parçanın genişliğini bulunduğu yarıçapa göre hesaplamak. Sonuç
+		kademeli ama gerçek bir pasta dilimi — boşluk da yok, çakışma da.
+	]]
+	local RINGS = 5
+
+	for i = 1, SLICES do
+		local a = (i - 1) * (math.pi * 2 / SLICES)
+		local pivot = CFrame.new(x, hubY, z - 0.7) * CFrame.Angles(0, 0, a)
+		local tone = crewColor(i)
+
+		for j = 1, RINGS do
+			local rMid = R * (j - 0.5) / RINGS
+			spins(build({
+				name = "WheelSlice",
+				size = Vector3.new(R / RINGS + 0.05, 2 * rMid * taper * 0.98, 0.7),
+				cf = pivot * CFrame.new(rMid, 0, 0),
+				-- Dışa doğru hafif açılan ton: düz tek renk dilim yassı
+				-- duruyordu, bu kademe çarka hacim veriyor
+				color = tone:Lerp(Color3.new(1, 1, 1), (j - 1) / RINGS * 0.18),
+				material = Enum.Material.SmoothPlastic,
+				parent = f,
+			}))
+		end
+
+		-- Dilimler arası ayraç: sınır net olsun
+		spins(build({
+			name = "WheelSpoke",
+			size = Vector3.new(R * 0.96, 0.5, 1),
+			cf = pivot * CFrame.Angles(0, 0, math.pi / SLICES) * CFrame.new(R * 0.5, 0, 0),
+			color = TRIM,
+			material = Enum.Material.Metal,
+			parent = f,
+		}))
+
+		-- Jant parçası: çokgen halka, çarkın çevresini kapatıyor
+		spins(build({
+			name = "WheelRim",
+			size = Vector3.new(1.6, chord + 0.3, 2.2),
+			cf = pivot * CFrame.new(R + 0.4, 0, 0),
+			color = TRIM,
+			material = Enum.Material.Metal,
+			parent = f,
+		}))
+
+		-- Pim: durdurucu dilin çarptığı çubuk
+		spins(build({
+			name = "WheelPeg",
+			size = Vector3.new(1, 0.7, 0.7),
+			cf = pivot * CFrame.Angles(0, 0, math.pi / SLICES) * CFrame.new(R + 1.8, 0, 0),
+			color = LAMP,
+			material = Enum.Material.Metal,
+			parent = f,
+		}))
+	end
+
+	-- Göbek. Silindirin ekseni yerel X; çarka baksın diye Y etrafında 90°.
+	local hub = build({ name = "WheelHub", size = Vector3.new(2, 6, 6),
+		cf = at(x, hubY, z - 1.2) * CFrame.Angles(0, math.rad(90), 0),
+		color = TRIM, material = Enum.Material.Metal,
+		shape = Enum.PartType.Cylinder, parent = f })
+	glow(hub, LAMP, 14, 0.7)
+
+	build({ name = "WheelHubCap", size = Vector3.new(1, 2.6, 2.6),
+		cf = at(x, hubY, z - 2.2) * CFrame.Angles(0, math.rad(90), 0),
+		color = HULL_DARK, material = Enum.Material.Metal,
+		shape = Enum.PartType.Cylinder, parent = f })
+
+	-- ── Durdurucu dil ───────────────────────────────────────────────────────
+
+	build({ name = "TickerMount", size = Vector3.new(3, 1.6, 3),
+		cf = at(x, hubY + R + 4.4, z - 0.8), color = HULL,
+		material = Enum.Material.Metal, parent = f })
+	build({ name = "TickerArm", size = Vector3.new(1.2, 4.2, 1.6),
+		cf = at(x, hubY + R + 1.8, z - 0.8) * CFrame.Angles(0, 0, math.rad(7)),
+		color = TRIM, material = Enum.Material.Metal, parent = f })
+	local tip = build({ name = "TickerTip", size = Vector3.new(2.2, 1.4, 2),
+		cf = at(x, hubY + R - 0.3, z - 0.8), color = HAZARD,
 		material = Enum.Material.Neon, parent = f })
+	glow(tip, HAZARD, 10, 1)
+
+	-- ── Marka tabelası ──────────────────────────────────────────────────────
+	-- Yazı boşlukta yüzmesin diye çerçeveli pano.
+
+	local signY = hubY + R + 9
+
+	build({ name = "SignBoard", size = Vector3.new(34, 8, 1),
+		cf = at(x, signY, z + 1.6), color = HULL_DARK,
+		material = Enum.Material.Metal, parent = f })
+	build({ name = "SignFrame", size = Vector3.new(36, 9.6, 0.6),
+		cf = at(x, signY, z + 2.1), color = TRIM,
+		material = Enum.Material.Metal, parent = f })
+	for _, s in { -1, 1 } do
+		build({ name = "SignPost", size = Vector3.new(1.4, 6, 1.4),
+			cf = at(x + s * 15, signY - 6.5, z + 1.6), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+	end
+
+	-- Panonun üstünde küçük bir mürettebat: çarkın kime ait olduğu bellidir
+	crewStatue(f, x, z + 1.2, signY + 4.8, 1.6, CREW[6], 180)
 
 	local anchor = build({ name = "WheelLabel", size = Vector3.new(1, 1, 1),
-		cf = at(x, hubY + R + 7, z), color = HULL, transparency = 1, parent = f })
+		cf = at(x, signY, z + 1), color = HULL, transparency = 1, parent = f })
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Label"
-	gui.Size = UDim2.fromScale(11, 3)
-	gui.MaxDistance = 200
+	gui.Size = UDim2.fromScale(13, 3.2)
+	gui.MaxDistance = 220
 	gui.Parent = anchor
 
 	local text = Instance.new("TextLabel")

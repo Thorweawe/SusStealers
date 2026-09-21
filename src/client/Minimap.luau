@@ -54,13 +54,20 @@ function Minimap.Create(screen: ScreenGui): Map
 	holder.Position = UDim2.new(1, -24, 1, -24)
 	holder.Size = UDim2.fromOffset(SIZE, SIZE + 22)
 	holder.BackgroundColor3 = PANEL
-	holder.BackgroundTransparency = 0.2
+	-- Opak: harita hucrelerinin arkasinda dunya gorunuyordu
+	holder.BackgroundTransparency = 0
 	holder.BorderSizePixel = 0
 	holder.Parent = screen
 
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = holder
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(86, 96, 120)
+	stroke.Thickness = 1
+	stroke.Transparency = 0.35
+	stroke.Parent = holder
 
 	local title = Instance.new("TextLabel")
 	title.Position = UDim2.fromOffset(12, 5)

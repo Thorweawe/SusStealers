@@ -148,8 +148,10 @@ local function buildBoard(plot: Model, def: Config.UpgradeDef, index: number, to
 	gui.Name = "Label"
 	gui.Size = UDim2.fromScale(7, 1.6)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0)
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = 90
+	-- AlwaysOnTop kapatildi: yukseltme tabelalari HUD'un (minimap, siralama
+	-- tablosu) uzerine ciziliyor ve yaklasinca ekrani kapatiyordu.
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 80
 	gui.Parent = board
 
 	local label = Instance.new("TextLabel")
