@@ -178,6 +178,17 @@ function EconomyService.Start()
 				end
 				player:SetAttribute("Income", income)
 
+				-- Kilitlenme koruması: geliri sıfır ve en ucuz karakteri
+				-- bile alamıyorsa oyuncu hiçbir şey yapamaz. Satmak artık
+				-- engelli ama karakteri çalınan oyuncu da bu duruma
+				-- düşebiliyor, o yüzden kontrol satıştan bağımsız.
+				if income <= 0 and PlotService.GetPlotOf(player) then
+					local floor = Config.GetCheapestUnitPrice()
+					if EconomyService.GetCash(player) < floor then
+						EconomyService.AddCash(player, floor - EconomyService.GetCash(player))
+					end
+				end
+
 				-- Çevrimdışı kazanç bu değerden hesaplanıyor
 				local profile = DataService.Get(player)
 				if profile then

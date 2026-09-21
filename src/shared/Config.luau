@@ -121,11 +121,15 @@ export type UpgradeDef = {
 	costGrowth: number,
 }
 
+-- Eğri bilerek uzun: ilk seviyeler birkaç dakikada alınıyor ama hepsini
+-- maksimuma çekmek rebirth maliyetlerinin toplamından fazla tutuyor.
+-- Böylece rebirth'ten sonra da alınacak yükseltme kalıyor; kalıcı gelir
+-- çarpanı da üst seviyeleri erişilebilir hale getiriyor.
 Config.Upgrades = {
-	{ id = "ConveyorSpeed", name = "Conveyor Speed", maxLevel = 5, baseCost =  25000, costGrowth = 6 },
-	{ id = "UnitGuard",     name = "Unit Guard",     maxLevel = 4, baseCost =  60000, costGrowth = 7 },
-	{ id = "CarrySpeed",    name = "Carry Speed",    maxLevel = 4, baseCost =  80000, costGrowth = 7 },
-	{ id = "LockPower",     name = "Lock Power",     maxLevel = 3, baseCost = 150000, costGrowth = 8 },
+	{ id = "ConveyorSpeed", name = "Conveyor Speed", maxLevel = 12, baseCost =  25000, costGrowth = 2.6 },
+	{ id = "UnitGuard",     name = "Unit Guard",     maxLevel = 12, baseCost =  60000, costGrowth = 2.6 },
+	{ id = "CarrySpeed",    name = "Carry Speed",    maxLevel = 10, baseCost = 100000, costGrowth = 2.6 },
+	{ id = "LockPower",     name = "Lock Power",     maxLevel = 12, baseCost = 150000, costGrowth = 2.6 },
 } :: { UpgradeDef }
 
 local upgradesById: { [string]: UpgradeDef } = {}
@@ -148,27 +152,32 @@ end
 
 -- Yükseltme etkileri. Hepsi tek yerde dursun ki denge değiştirmek kolay olsun.
 
---[[ Konveyörde iki karakter arası süre. ]]
+--[[
+	Konveyörde iki karakter arası süre. Çarpımsal azalıyor: doğrusal
+	olsaydı birkaç seviyede tabana çarpar, kalan seviyeler hiçbir şey
+	yapmazdı.
+]]
 function Config.GetConveyorInterval(level: number): number
-	return math.max(4, Config.ConveyorInterval - level)
+	return math.max(2, Config.ConveyorInterval * 0.88 ^ level)
 end
 
 --[[ Yeni konan karakterin dokunulmazlık süresi. ]]
 function Config.GetSafeSeconds(level: number): number
-	return Config.SafeSeconds + level * 3
+	return Config.SafeSeconds + level * 2
 end
 
 --[[
 	Karakter taşırken yürüme hızı. Normal hızı geçmemeli, yoksa taşımak
-	avantaj haline gelir ve çalmanın riski kaybolur.
+	avantaj haline gelir ve çalmanın riski kaybolur. Son seviyede tam
+	tavana ulaşacak şekilde ayarlı.
 ]]
 function Config.GetCarryWalkSpeed(level: number): number
-	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level)
+	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level * 0.4)
 end
 
 --[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]
 function Config.GetLockValues(level: number): (number, number)
-	return Config.LockDuration + level * 5, math.max(30, Config.LockCooldown - level * 10)
+	return Config.LockDuration + level * 2.5, math.max(30, Config.LockCooldown - level * 3.5)
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
@@ -298,6 +307,25 @@ function Config.GetPrice(unitId: string, mutationId: string?): number
 	local mutation = Config.GetMutation(mutationId)
 	local multiplier = if mutation then mutation.incomeMul * Config.MutationPriceFactor else 1
 	return math.floor(def.price * multiplier)
+end
+
+--[[
+	Konveyörden alınabilecek en ucuz karakterin fiyatı. Oyuncunun
+	kilitlenip kilitlenmediğini anlamak için kullanılıyor: geliri sıfır
+	ve nakdi bunun altındaysa hiçbir şey yapamaz.
+]]
+local cheapestPrice: number? = nil
+function Config.GetCheapestUnitPrice(): number
+	if not cheapestPrice then
+		local lowest = math.huge
+		for _, unit in Config.Units do
+			if unit.price < lowest then
+				lowest = unit.price
+			end
+		end
+		cheapestPrice = lowest
+	end
+	return cheapestPrice :: number
 end
 
 --[[ Karakteri satınca eline geçen para. ]]

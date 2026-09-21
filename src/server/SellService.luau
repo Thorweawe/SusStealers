@@ -47,6 +47,22 @@ function SellService.Sell(player: Player, podium: Part): boolean
 		return false
 	end
 
+	-- Son karakterini satan oyuncunun geliri sıfırlanıyor. Eline geçen
+	-- para en ucuz karakteri almaya yetmezse oyun tamamen kilitleniyor:
+	-- kazanç yok, alacak parası yok. İstemci promptu gizliyor ama asıl
+	-- kontrol burada olmalı, istemci kontrolü atlanabilir.
+	local occupied = 0
+	for _, other in PlotService.GetPodiums(plot) do
+		if PlotService.IsOccupied(other) then
+			occupied += 1
+		end
+	end
+
+	if occupied <= 1 then
+		notify(player, "You cannot sell your last unit", true)
+		return false
+	end
+
 	-- Fiyatı kaide boşalmadan önce oku
 	local unitId = podium:GetAttribute("UnitId") :: string
 	local mutationId = podium:GetAttribute("MutationId") :: string
