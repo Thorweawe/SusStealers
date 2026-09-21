@@ -622,19 +622,26 @@ do
 		local side = if row % 2 == 0 then 1 else -1
 		local z = o.Z + side * (halfZ + 9)
 
-		build({ name = "BayPad", size = Vector3.new(14, 0.14, 7),
+		-- İsimlere numara: istemci tarafı bunları üs sahibine göre
+		-- renklendiriyor, hangisinin hangi üs olduğunu bilmesi gerek.
+		build({ name = "BayPad" .. index, size = Vector3.new(14, 0.14, 7),
 			cf = at(o.X, 0.07 + LIFT, z), color = NEON_DIM,
 			material = Enum.Material.Neon, transparency = 0.4, parent = f })
 
-		local post = build({ name = "BayPost", size = Vector3.new(1, 1, 1),
+		local post = build({ name = "BayPost" .. index, size = Vector3.new(1, 1, 1),
 			cf = at(o.X, 6, z), color = HULL,
 			material = Enum.Material.Metal, transparency = 1, parent = f })
 
+		--[[
+			Boyut stud cinsinden ve mesafeyle ölçekleniyor. 11x4 uzaktan
+			okunaklıydı ama yaklaşınca ekranın yarısını kaplıyordu. 6x2
+			uzakta da seçiliyor, yanına gelince de önü kapatmıyor.
+		]]
 		local gui = Instance.new("BillboardGui")
 		gui.Name = "BayLabel"
-		gui.Size = UDim2.fromScale(11, 4)
+		gui.Size = UDim2.fromScale(6, 2)
 		gui.AlwaysOnTop = false
-		gui.MaxDistance = 320
+		gui.MaxDistance = 260
 		gui.Parent = post
 
 		local label = Instance.new("TextLabel")
@@ -689,7 +696,132 @@ do
 	end
 end
 
--- ─── 10. Baseplate'i gövdenin altına gizle ──────────────────────────────────
+-- ─── 10. Boru hatları ───────────────────────────────────────────────────────
+-- Çeper duvarların dibinde dolaşan borular. Düz duvar yerine "işleyen bir
+-- tesis" hissi veriyor; aralıklı kelepçeler ölçek algısını güçlendiriyor.
+
+do
+	local f = group("Pipes")
+	local Y = 6.5
+	local R = 1.1
+
+	local function run(axis: string, fixed: number, from: number, to: number, inset: number)
+		local length = to - from
+		local mid = (from + to) / 2
+
+		for lane, dy in { 0, 3.2 } do
+			local y = Y + dy
+			local size = if axis == "x"
+				then Vector3.new(length, R * 2, R * 2)
+				else Vector3.new(R * 2, R * 2, length)
+			local cf = if axis == "x" then at(mid, y, fixed + inset) else at(fixed + inset, y, mid)
+
+			build({ name = "Pipe", size = size, cf = cf,
+				color = if lane == 1 then TRIM else HULL,
+				material = Enum.Material.Metal, parent = f })
+
+			-- Kelepçeler
+			local steps = math.max(2, math.floor(length / 22))
+			for s = 0, steps do
+				local along = from + length * (s / steps)
+				local csize = if axis == "x"
+					then Vector3.new(1, R * 2.7, R * 2.7)
+					else Vector3.new(R * 2.7, R * 2.7, 1)
+				local ccf = if axis == "x" then at(along, y, fixed + inset) else at(fixed + inset, y, along)
+				build({ name = "PipeCollar", size = csize, cf = ccf,
+					color = TRIM, material = Enum.Material.Metal, parent = f })
+			end
+		end
+	end
+
+	local x0, x1 = centerX - halfW, centerX + halfW
+	local z0, z1 = centerZ - halfD, centerZ + halfD
+
+	run("x", z0, x0 + 6, x1 - 6, 3.2)
+	run("x", z1, x0 + 6, x1 - 6, -3.2)
+	run("z", x0, z0 + 6, z1 - 6, 3.2)
+	run("z", x1, z0 + 6, z1 - 6, -3.2)
+end
+
+-- ─── 11. Üs kapı eşikleri ───────────────────────────────────────────────────
+-- Koridordan üsse geçerken "içeri girdim" hissi. Kapı yok, sadece çerçeve:
+-- geçiş engellenmemeli.
+
+do
+	local f = group("Doorways")
+	local H = 12
+	local W = 16
+	local T = 1.4
+
+	for index = 1, PLOT_COUNT do
+		local o = plotOrigin(index)
+		local row = math.floor((index - 1) / COLUMNS)
+		-- Üs koridora bakıyor; eşik de o tarafta
+		local side = if row % 2 == 0 then 1 else -1
+		local z = o.Z + side * (halfZ + 2)
+
+		for _, sx in { -1, 1 } do
+			build({ name = "DoorJamb", size = Vector3.new(T, H, T * 2),
+				cf = at(o.X + sx * (W / 2), H / 2, z),
+				color = HULL, material = Enum.Material.Metal, parent = f })
+		end
+
+		build({ name = "DoorLintel", size = Vector3.new(W + T, T * 1.6, T * 2),
+			cf = at(o.X, H, z), color = TRIM,
+			material = Enum.Material.Metal, parent = f })
+
+		build({ name = "DoorGlow", size = Vector3.new(W - 1, 0.3, 0.4),
+			cf = at(o.X, H - 1.2, z), color = NEON_MID,
+			material = Enum.Material.Neon, parent = f })
+	end
+end
+
+-- ─── 12. Pencere dışında süzülen nesneler ───────────────────────────────────
+-- Uzay hareketsiz olunca ölü görünüyor. Dışarıda yavaşça geçen birkaç nesne
+-- pencerelere bakma sebebi veriyor. Hareketi DecorFX yapıyor.
+
+do
+	local f = group("Drifters")
+
+	--[[
+		Her süzülen nesne bir Model: parçaları tek tek taşımak yerine
+		DecorFX modeli bir bütün olarak kaydırıyor, parçalar birbirinden
+		ayrılmıyor.
+	]]
+	local function drifter(x: number, y: number, z: number, scale: number, speed: number)
+		local model = Instance.new("Model")
+		model.Name = "Drifter"
+		model.Parent = f
+
+		local body = build({
+			name = "Body",
+			size = Vector3.new(9 * scale, 3 * scale, 5 * scale),
+			cf = at(x, y, z),
+			color = HULL,
+			material = Enum.Material.Metal,
+			parent = model,
+		})
+		model.PrimaryPart = body
+
+		build({ name = "Fin", size = Vector3.new(3 * scale, 0.6 * scale, 8 * scale),
+			cf = at(x, y, z), color = TRIM, material = Enum.Material.Metal, parent = model })
+
+		local lamp = build({ name = "Lamp", size = Vector3.new(1.2 * scale, 1.2 * scale, 1.2 * scale),
+			cf = at(x - 4.5 * scale, y, z), color = NEON_WARM,
+			material = Enum.Material.Neon, shape = Enum.PartType.Ball, parent = model })
+		glow(lamp, NEON_WARM, 20, 1)
+
+		model:SetAttribute("DriftSpeed", speed)
+		model:SetAttribute("DriftRange", halfW * 2 + 260)
+	end
+
+	-- Farklı yükseklik, boyut ve hızda: aynı anda geçmesinler
+	drifter(centerX - halfW - 70, 22, centerZ - halfD - 55, 1.0, 9)
+	drifter(centerX - halfW - 140, 40, centerZ + halfD + 70, 1.7, 5.5)
+	drifter(centerX - halfW - 30, 12, centerZ + halfD + 42, 0.7, 13)
+end
+
+-- ─── 13. Baseplate'i gövdenin altına gizle ──────────────────────────────────
 --[[
 	Varsayılan 2048x2048 Baseplate, Slate malzemesiyle koyu rengi yıkıyor ve
 	uzaktan devasa açık gri bir düzlem olarak her şeyi bastırıyordu. İstasyon

@@ -14,6 +14,7 @@ local DecorFX = {}
 
 type Spinner = { part: BasePart, speed: number, base: CFrame }
 type Pulser = { part: BasePart, period: number, phase: number }
+type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 
 export type FX = {
 	Stop: () -> (),
@@ -22,28 +23,40 @@ export type FX = {
 function DecorFX.Start(): FX
 	local spinners: { Spinner } = {}
 	local pulsers: { Pulser } = {}
+	local drifters: { Drifter } = {}
 
 	local decor = workspace:FindFirstChild("Decor")
-	local animated = decor and decor:FindFirstChild("Animated")
-	if not animated then
+	if not decor then
 		-- Dekor henüz kurulmamış olabilir; sessizce çık
 		return { Stop = function() end }
 	end
 
-	for _, part in animated:GetDescendants() do
-		if not part:IsA("BasePart") then
-			continue
-		end
+	-- Bütün dekoru tarıyoruz: hareketli parçalar tek bir klasörde değil,
+	-- hangi niteliği taşıyorsa ona göre davranıyor.
+	for _, obj in decor:GetDescendants() do
+		if obj:IsA("BasePart") then
+			local speed = obj:GetAttribute("SpinSpeed")
+			if typeof(speed) == "number" then
+				table.insert(spinners, { part = obj, speed = speed, base = obj.CFrame })
+			end
 
-		local speed = part:GetAttribute("SpinSpeed")
-		if typeof(speed) == "number" then
-			table.insert(spinners, { part = part, speed = speed, base = part.CFrame })
-		end
+			local period = obj:GetAttribute("PulsePeriod")
+			if typeof(period) == "number" and period > 0 then
+				-- Faz kaydırması: hepsi aynı anda yanıp sönerse yapay duruyor
+				table.insert(pulsers, { part = obj, period = period, phase = #pulsers * 0.37 })
+			end
 
-		local period = part:GetAttribute("PulsePeriod")
-		if typeof(period) == "number" and period > 0 then
-			-- Faz kaydırması: hepsi aynı anda yanıp sönerse yapay duruyor
-			table.insert(pulsers, { part = part, period = period, phase = #pulsers * 0.37 })
+		elseif obj:IsA("Model") then
+			local drift = obj:GetAttribute("DriftSpeed")
+			local range = obj:GetAttribute("DriftRange")
+			if typeof(drift) == "number" and typeof(range) == "number" and obj.PrimaryPart then
+				table.insert(drifters, {
+					model = obj,
+					speed = drift,
+					range = range,
+					base = obj:GetPivot(),
+				})
+			end
 		end
 	end
 
@@ -65,6 +78,16 @@ function DecorFX.Start(): FX
 			if light then
 				light.Brightness = 0.35 + intensity * 2.2
 			end
+		end
+
+		--[[
+			Süzülen nesneler x ekseninde ilerliyor, menzilin sonuna gelince
+			başa dönüyor. Modulo ile hesaplandığı için birikmiş hata olmuyor
+			ve nesne her turda tam aynı yoldan geçiyor.
+		]]
+		for _, d in drifters do
+			local travelled = (d.speed * elapsed) % d.range
+			d.model:PivotTo(d.base * CFrame.new(travelled, 0, 0))
 		end
 	end)
 
