@@ -14,6 +14,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local PlotService = require(script.Parent.PlotService)
+local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 
 local SellService = {}
@@ -101,7 +102,7 @@ local function setupPodiumPrompt(podium: Part)
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
 	refresh()
 
-	prompt.Triggered:Connect(function(player)
+	PromptGuard.Connect(prompt, function(player)
 		SellService.Sell(player, podium)
 	end)
 end

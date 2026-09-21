@@ -6,12 +6,12 @@ local RunService = game:GetService("RunService")
 
 local IS_SERVER = RunService:IsServer()
 
+-- Sadece gerçekten kullanılanlar. Boş duran bir RemoteEvent, ileride
+-- doğrulamasız bir handler bağlanmasını davet ediyor. Şu an istemciden
+-- sunucuya hiçbir remote dinlenmiyor; öyle kalması güvenlik açısından iyi.
 local EVENTS = {
-	"BuyUnit",        -- client -> server (conveyorItemId)
-	"RequestLock",    -- client -> server ()
-	"Notify",         -- server -> client (text, color)
-	"PlotAssigned",   -- server -> client (plotModel)
-	"StealAlert",     -- server -> client (thiefName, unitName)
+	"Notify",      -- server -> client (text, isError)
+	"StealAlert",  -- server -> client (thiefName, unitName)
 }
 
 local Net = {}
