@@ -25,14 +25,25 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local UiKit = require(script.Parent.UiKit)
+
 local Menus = {}
 
-local INK = Color3.fromRGB(235, 240, 250)
-local MUTED = Color3.fromRGB(150, 163, 184)
-local ACCENT = Color3.fromRGB(255, 190, 90)
-local GOOD = Color3.fromRGB(120, 255, 150)
-local PANEL = Color3.fromRGB(18, 20, 28)
-local ROW = Color3.fromRGB(28, 32, 42)
+--[[
+	Renkler ve parçalar UiKit'ten; bütün paneller aynı dili konuşuyor.
+
+	Unvanlar mürettebat rütbesi, iksirler de laboratuvar işi. İkisi ayrı
+	sekme ama aynı kutuda, o yüzden vurgu rengi sekmeye göre değişiyor:
+	unvanlarda vizör camgöbeği, iksirlerde yeşil.
+]]
+local INK = UiKit.INK
+local MUTED = UiKit.MUTED
+local ACCENT = UiKit.VISOR
+local GOOD = UiKit.GOOD
+local PANEL = UiKit.SHELL
+local ROW = UiKit.ROW
+
+local POTION_ACCENT = Color3.fromRGB(150, 226, 160)
 
 export type Menu = {
 	Destroy: () -> (),
@@ -139,24 +150,33 @@ function Menus.Create(screen: ScreenGui): Menu
 
 	-- ─── Üst katman ─────────────────────────────────────────────────────────
 
-	local overlay = Instance.new("Frame")
-	overlay.Name = "MenuOverlay"
+	local overlay = UiKit.Shell(screen, "MenuOverlay", ACCENT)
 	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
 	overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
-	overlay.Size = UDim2.new(0, 460, 0, 420)
-	overlay.BackgroundColor3 = PANEL
-	overlay.BackgroundTransparency = 0.05
-	overlay.BorderSizePixel = 0
+	overlay.Size = UDim2.new(0, 440, 0, 420)
 	overlay.Visible = false
 	overlay.ZIndex = 10
-	overlay.Parent = screen
 
-	local overlayCorner = Instance.new("UICorner")
-	overlayCorner.CornerRadius = UDim.new(0, 12)
-	overlayCorner.Parent = overlay
+	-- Kenarlık sekmeye göre renk değiştiriyor; hangi sekmede olduğun
+	-- panelin çerçevesinden de okunuyor
+	local overlayStroke = overlay:FindFirstChildOfClass("UIStroke")
+
+	--[[
+		Başlıkta mürettebat silueti. Unvan sekmesinde takılı unvanın
+		rengini alıyor — oyuncu kendi rengini panelde de görüyor.
+	]]
+	local badge = Instance.new("Frame")
+	badge.Name = "Badge"
+	badge.Position = UDim2.fromOffset(18, 14)
+	badge.Size = UDim2.fromOffset(26, 26)
+	badge.BackgroundTransparency = 1
+	badge.ZIndex = 11
+	badge.Parent = overlay
+	local badgeBody = UiKit.Crewmate(badge, 24, ACCENT)
+	badgeBody.ZIndex = 12
 
 	local heading = Instance.new("TextLabel")
-	heading.Position = UDim2.new(0, 20, 0, 14)
+	heading.Position = UDim2.new(0, 52, 0, 14)
 	heading.Size = UDim2.new(1, -60, 0, 26)
 	heading.BackgroundTransparency = 1
 	heading.Font = Enum.Font.GothamBold
@@ -168,7 +188,7 @@ function Menus.Create(screen: ScreenGui): Menu
 	heading.Parent = overlay
 
 	local hint = Instance.new("TextLabel")
-	hint.Position = UDim2.new(0, 20, 0, 38)
+	hint.Position = UDim2.new(0, 52, 0, 38)
 	hint.Size = UDim2.new(1, -40, 0, 18)
 	hint.BackgroundTransparency = 1
 	hint.Font = Enum.Font.GothamMedium
@@ -179,18 +199,8 @@ function Menus.Create(screen: ScreenGui): Menu
 	hint.ZIndex = 11
 	hint.Parent = overlay
 
-	local close = Instance.new("TextButton")
-	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position = UDim2.new(1, -14, 0, 12)
-	close.Size = UDim2.new(0, 30, 0, 30)
-	close.BackgroundTransparency = 1
-	close.Font = Enum.Font.GothamBold
-	close.TextSize = 20
-	close.TextColor3 = MUTED
-	close.Text = "✕"
-	close.AutoButtonColor = false
+	local close = UiKit.CloseButton(overlay)
 	close.ZIndex = 11
-	close.Parent = overlay
 
 	local list = Instance.new("ScrollingFrame")
 	list.Position = UDim2.new(0, 14, 0, 62)
@@ -216,6 +226,7 @@ function Menus.Create(screen: ScreenGui): Menu
 		name: TextLabel,
 		detail: TextLabel,
 		badge: TextLabel,
+		slot: Frame,
 	}
 
 	local rows: { Row } = {}
@@ -239,9 +250,24 @@ function Menus.Create(screen: ScreenGui): Menu
 		corner.CornerRadius = UDim.new(0, 8)
 		corner.Parent = frame
 
+		--[[
+			Satırın solunda küçük bir figür yuvası.
+
+			Unvanlarda mürettebat silueti (unvan rengiyle), iksirlerde
+			şişe. İkisi de Frame'den; liste bir metin yığını olmaktan
+			çıkıp bakışta taranabilir hale geliyor.
+		]]
+		local slot = Instance.new("Frame")
+		slot.Name = "Slot"
+		slot.Position = UDim2.fromOffset(12, 12)
+		slot.Size = UDim2.fromOffset(28, 28)
+		slot.BackgroundTransparency = 1
+		slot.ZIndex = 12
+		slot.Parent = frame
+
 		local name = Instance.new("TextLabel")
-		name.Position = UDim2.new(0, 14, 0, 8)
-		name.Size = UDim2.new(1, -110, 0, 20)
+		name.Position = UDim2.new(0, 50, 0, 8)
+		name.Size = UDim2.new(1, -146, 0, 20)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.GothamBold
 		name.TextSize = 15
@@ -251,8 +277,8 @@ function Menus.Create(screen: ScreenGui): Menu
 		name.Parent = frame
 
 		local detail = Instance.new("TextLabel")
-		detail.Position = UDim2.new(0, 14, 0, 27)
-		detail.Size = UDim2.new(1, -110, 0, 18)
+		detail.Position = UDim2.new(0, 50, 0, 27)
+		detail.Size = UDim2.new(1, -146, 0, 18)
 		detail.BackgroundTransparency = 1
 		detail.Font = Enum.Font.GothamMedium
 		detail.TextSize = 12
@@ -273,9 +299,64 @@ function Menus.Create(screen: ScreenGui): Menu
 		badge.ZIndex = 12
 		badge.Parent = frame
 
-		local row = { frame = frame, name = name, detail = detail, badge = badge }
+		local row = { frame = frame, name = name, detail = detail, badge = badge, slot = slot }
 		rows[index] = row
 		return row
+	end
+
+	--[[
+		Yuvayı boşaltıp yeniden çiziyoruz.
+
+		Satırlar yeniden kullanılıyor (liste her çizimde baştan
+		kurulmuyor), o yüzden içerik değişince eski figür kalmasın diye
+		temizlik gerekiyor.
+	]]
+	local function clearSlot(slot: Frame)
+		for _, child in slot:GetChildren() do
+			child:Destroy()
+		end
+	end
+
+	--[[
+		İksir şişesi: boyun, gövde ve içindeki sıvı.
+
+		Sıvı seviyesi envanterdeki adede göre doluyor — bakışta "kaç tane
+		var" bilgisini sayı okumadan veriyor. Boşken şişe sönük kalıyor.
+	]]
+	local function drawVial(slot: Frame, tint: Color3, fillRatio: number, active: boolean)
+		clearSlot(slot)
+
+		local neck = Instance.new("Frame")
+		neck.AnchorPoint = Vector2.new(0.5, 0)
+		neck.Position = UDim2.fromScale(0.5, 0.02)
+		neck.Size = UDim2.fromOffset(8, 7)
+		neck.BackgroundColor3 = if active then tint else UiKit.DIM
+		neck.BorderSizePixel = 0
+		neck.ZIndex = 13
+		neck.Parent = slot
+		UiKit.Corner(neck, 2)
+
+		local body = Instance.new("Frame")
+		body.AnchorPoint = Vector2.new(0.5, 1)
+		body.Position = UDim2.fromScale(0.5, 1)
+		body.Size = UDim2.fromOffset(20, 20)
+		body.BackgroundColor3 = UiKit.SHELL_DEEP
+		body.BorderSizePixel = 0
+		body.ClipsDescendants = true
+		body.ZIndex = 12
+		body.Parent = slot
+		UiKit.Corner(body, 9)
+		UiKit.Stroke(body, if active then tint else UiKit.DIM, 1.2, 0.3)
+
+		local liquid = Instance.new("Frame")
+		liquid.AnchorPoint = Vector2.new(0.5, 1)
+		liquid.Position = UDim2.fromScale(0.5, 1)
+		liquid.Size = UDim2.new(1, 0, math.clamp(fillRatio, 0, 1), 0)
+		liquid.BackgroundColor3 = if active then tint else UiKit.DIM
+		liquid.BackgroundTransparency = if active then 0.15 else 0.6
+		liquid.BorderSizePixel = 0
+		liquid.ZIndex = 13
+		liquid.Parent = body
 	end
 
 	local function hideRowsFrom(index: number)
@@ -326,7 +407,16 @@ function Menus.Create(screen: ScreenGui): Menu
 	local potionData: { PotionRow } = {}
 	local currentTab = "titles"
 
+	local function applyAccent(tone: Color3)
+		heading.TextColor3 = tone
+		if overlayStroke then
+			overlayStroke.Color = tone
+		end
+		badgeBody.BackgroundColor3 = tone
+	end
+
 	local function drawTitles()
+		applyAccent(ACCENT)
 		heading.Text = "TITLES"
 		hint.Text = "Click an unlocked title to wear it in chat"
 
@@ -352,6 +442,9 @@ function Menus.Create(screen: ScreenGui): Menu
 		index += 1
 		local autoRow = bindRow(index)
 		autoRow.frame.Visible = true
+		-- Otomatik seçim: nötr gri figür
+		clearSlot(autoRow.slot)
+		UiKit.Crewmate(autoRow.slot, 24, UiKit.MUTED).ZIndex = 13
 		autoRow.name.Text = "Automatic"
 		autoRow.name.TextColor3 = INK
 		autoRow.detail.Text = "Always wear your highest title"
@@ -365,10 +458,20 @@ function Menus.Create(screen: ScreenGui): Menu
 			index += 1
 			local widget = bindRow(index)
 			widget.frame.Visible = true
-			widget.name.Text = row.name
-			widget.name.TextColor3 = if row.unlocked
+			--[[
+				Her unvanın kendi renginde bir mürettebat silueti.
+				Kilitliyken sönük: hangi rütbeye ulaşılmadığı bakışta
+				belli oluyor.
+			]]
+			local tone = if row.unlocked
 				then colorForOrder(row.order, highest)
-				else Color3.fromRGB(96, 104, 118)
+				else UiKit.DIM
+
+			clearSlot(widget.slot)
+			UiKit.Crewmate(widget.slot, 24, tone).ZIndex = 13
+
+			widget.name.Text = row.name
+			widget.name.TextColor3 = tone
 
 			if row.unlocked then
 				widget.detail.Text = "Unlocked"
@@ -382,9 +485,9 @@ function Menus.Create(screen: ScreenGui): Menu
 				end
 			else
 				widget.detail.Text = describeCondition(row)
-				widget.detail.TextColor3 = Color3.fromRGB(96, 104, 118)
+				widget.detail.TextColor3 = UiKit.DIM
 				widget.badge.Text = "LOCKED"
-				widget.badge.TextColor3 = Color3.fromRGB(96, 104, 118)
+				widget.badge.TextColor3 = UiKit.DIM
 				rowAction[index] = nil
 			end
 		end
@@ -395,6 +498,7 @@ function Menus.Create(screen: ScreenGui): Menu
 	-- ─── İksirler ───────────────────────────────────────────────────────────
 
 	local function drawPotions()
+		applyAccent(POTION_ACCENT)
 		heading.Text = "POTIONS"
 		hint.Text = "Earned by finishing all daily quests. Click to drink."
 
@@ -409,8 +513,15 @@ function Menus.Create(screen: ScreenGui): Menu
 			local remaining = math.max(0, row.activeUntil - now)
 			local has = row.count > 0
 
+			drawVial(
+				widget.slot,
+				POTION_ACCENT,
+				row.count / math.max(1, Config.PotionStackLimit),
+				has or remaining > 0
+			)
+
 			widget.name.Text = row.name
-			widget.name.TextColor3 = if has or remaining > 0 then INK else Color3.fromRGB(96, 104, 118)
+			widget.name.TextColor3 = if has or remaining > 0 then INK else UiKit.DIM
 
 			if remaining > 0 then
 				widget.detail.Text = string.format("%s  ·  active %s",
@@ -432,7 +543,7 @@ function Menus.Create(screen: ScreenGui): Menu
 				end
 			else
 				widget.badge.Text = "NONE"
-				widget.badge.TextColor3 = Color3.fromRGB(96, 104, 118)
+				widget.badge.TextColor3 = UiKit.DIM
 				rowAction[index] = nil
 			end
 		end

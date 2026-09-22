@@ -34,14 +34,23 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local UiKit = require(script.Parent.UiKit)
+
 local QuestPanel = {}
 
-local INK = Color3.fromRGB(235, 240, 250)
-local MUTED = Color3.fromRGB(150, 163, 184)
-local ACCENT = Color3.fromRGB(255, 190, 90)
-local GOOD = Color3.fromRGB(120, 255, 150)
-local PANEL = Color3.fromRGB(18, 20, 28)
-local TRACK = Color3.fromRGB(44, 50, 62)
+--[[
+	Renkler ve parçalar UiKit'ten. Her panel kendi kutu tasarımını
+	kurduğunda aynı oyunda beş farklı dil oluyordu; rebirth paneli doğru
+	dili kurdu, hepsi artık onu konuşuyor.
+
+	Vurgu rengi panele özel: görevler GÖREV panelidir, mürettebat
+	tulumunun camgöbeği vizörü burada imza rengi.
+]]
+local INK = UiKit.INK
+local MUTED = UiKit.MUTED
+local ACCENT = UiKit.VISOR
+local GOOD = UiKit.GOOD
+local DIM = UiKit.DIM
 
 local WIDTH = 300
 -- Sıralama tablosu y=104'te başlayıp 172 yükseliyor; ilk boş nokta burası
@@ -78,31 +87,39 @@ type Tier = {
 }
 
 function QuestPanel.Create(screen: ScreenGui): Panel
-	local root = Instance.new("Frame")
-	root.Name = "Quests"
+	local root = UiKit.Shell(screen, "Quests", ACCENT)
 	root.Position = UDim2.new(0, 24, 0, TOP)
 	root.Size = UDim2.new(0, WIDTH, 0, 40)
-	root.BackgroundColor3 = PANEL
-	root.BackgroundTransparency = 0.15
-	root.BorderSizePixel = 0
 	root.ClipsDescendants = true
-	root.Parent = screen
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = root
 
 	-- ─── Başlık ─────────────────────────────────────────────────────────────
 
+	--[[
+		Başlıkta küçük bir mürettebat silueti duruyor.
+
+		Panelin ne olduğunu ikonla değil FİGÜRLE söylüyor: oyuncunun
+		sahada oynadığı karakterin aynısı. Oyunun her yerinde aynı üç
+		parça (kapsül, çanta, vizör), o yüzden bakışta tanınıyor ve
+		arayüz oyunun içinden çıkmış gibi duruyor.
+	]]
+	local badge = Instance.new("Frame")
+	badge.Name = "Badge"
+	badge.Position = UDim2.fromOffset(12, 7)
+	badge.Size = UDim2.fromOffset(20, 20)
+	badge.BackgroundTransparency = 1
+	badge.Parent = root
+	UiKit.Crewmate(badge, 18, ACCENT)
+
 	local header = Instance.new("TextButton")
 	header.Name = "Header"
-	header.Size = UDim2.new(1, 0, 0, 34)
+	header.Position = UDim2.fromOffset(36, 0)
+	header.Size = UDim2.new(1, -36, 0, 34)
 	header.BackgroundTransparency = 1
-	header.Font = Enum.Font.GothamBold
+	header.Font = Enum.Font.GothamBlack
 	header.TextSize = 14
 	header.TextXAlignment = Enum.TextXAlignment.Left
 	header.TextColor3 = ACCENT
-	header.Text = "  QUESTS"
+	header.Text = "QUESTS"
 	header.AutoButtonColor = false
 	header.Parent = root
 
@@ -212,26 +229,8 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 		label.Text = ""
 		label.Parent = frame
 
-		local track = Instance.new("Frame")
+		local track, fill = UiKit.Bar(frame, 5, ACCENT)
 		track.Position = UDim2.new(0, 0, 0, 21)
-		track.Size = UDim2.new(1, 0, 0, 5)
-		track.BackgroundColor3 = TRACK
-		track.BorderSizePixel = 0
-		track.Parent = frame
-
-		local trackCorner = Instance.new("UICorner")
-		trackCorner.CornerRadius = UDim.new(1, 0)
-		trackCorner.Parent = track
-
-		local fill = Instance.new("Frame")
-		fill.Size = UDim2.new(0, 0, 1, 0)
-		fill.BackgroundColor3 = ACCENT
-		fill.BorderSizePixel = 0
-		fill.Parent = track
-
-		local fillCorner = Instance.new("UICorner")
-		fillCorner.CornerRadius = UDim.new(1, 0)
-		fillCorner.Parent = fill
 
 		table.insert(section.rows, { frame = frame, label = label, fill = fill, track = track })
 	end
@@ -344,6 +343,8 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 					else tostring(entry.goal)
 
 				if entry.done then
+					-- Tamamlanan görev sönmüyor, YEŞİLE dönüyor: yapılmış
+					-- işi silikleştirmek ilerleme hissini de siliyor
 					row.label.Text = "✓  " .. entry.text
 					row.label.TextColor3 = GOOD
 					row.fill.BackgroundColor3 = GOOD
@@ -385,7 +386,7 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 	header.Activated:Connect(function()
 		expanded = not expanded
 		body.Visible = expanded
-		header.Text = if expanded then "  QUESTS" else "  QUESTS  ▸"
+		header.Text = if expanded then "QUESTS" else "QUESTS  ▸"
 		resize()
 	end)
 
@@ -413,7 +414,7 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			if endsAt then
 				local left = math.max(0, endsAt - now)
 				section.timer.Text = Config.FormatDuration(left)
-				section.timer.TextColor3 = if left < 300 then ACCENT else MUTED
+				section.timer.TextColor3 = if left < 300 then UiKit.WARN else DIM
 			end
 		end
 	end)
