@@ -1538,19 +1538,44 @@ do
 		local plinthHalf = halfZ + 3
 		local z = o.Z + side * (plinthHalf + T + 0.6)   -- altlik yuzeyiyle ayni duzlemde olmasin
 
+		--[[
+			Eşik güvertenin GÖRÜNEN üstünden başlıyor.
+
+			Dikmeler y=0'dan kuruluyordu ama güverte plaka döşemesiyle
+			kaplı ve plakalar 0.03–0.27 arasında duruyor. Yani dikmenin
+			alt 0.27'si plakaların içinden geçiyordu: plakanın üst yüzü
+			dikmenin yan yüzünü kesiyor ve kapının dibinde titreme
+			oluyordu. Ölçüldü: DoorJamb x Plate kesişimi 1.40 × 0.24 × 2.80.
+		]]
+		local base = DECK_TOP + 0.05
+
 		for _, sx in { -1, 1 } do
 			build({ name = "DoorJamb", size = Vector3.new(T, H, T * 2),
-				cf = at(o.X + sx * (W / 2), H / 2, z),
+				cf = at(o.X + sx * (W / 2), base + H / 2, z),
 				color = HULL, material = Enum.Material.Metal, parent = f })
 		end
 
-		build({ name = "DoorLintel", size = Vector3.new(W + T, T * 1.6, T * 2),
-			cf = at(o.X, H, z), color = TRIM,
+		--[[
+			Lento dikmelerin ÜSTÜNE oturuyor, içine girmiyor.
+
+			Önce merkezi base+H'deydi: alt yarısı dikmelerin içine 1.12 stud
+			giriyordu ve ikisinin yan/ön/arka yüzleri aynı düzlemdeydi
+			(ikisi de W+T genişlikte ve T*2 kalınlıkta). Şimdi tabanı tam
+			dikmenin tepesinde ve her iki yönde biraz daha taşkın, yani
+			hiçbir yüz çakışmıyor.
+		]]
+		build({ name = "DoorLintel", size = Vector3.new(W + T + 0.8, T * 1.6, T * 2 + 0.5),
+			cf = at(o.X, base + H + T * 0.8, z), color = TRIM,
 			material = Enum.Material.Metal, parent = f })
 
-		-- İsimde numara: istemci bunu üs sahibinin rengine boyuyor
+		--[[
+			Şerit dikmenin ön yüzünden 0.6 stud AYRI. Bitişikken iki
+			parçanın yüzü aynı düzlemdeydi ve x/y'de de örtüştükleri için
+			titriyordu. İsimdeki numarayı istemci üs sahibinin rengine
+			boyamak için kullanıyor.
+		]]
 		build({ name = "DoorGlow" .. index, size = Vector3.new(W - 1, 0.3, 0.4),
-			cf = at(o.X, H - 2.6, z - (if side > 0 then -1.6 else 1.6)), color = NEON_MID,
+			cf = at(o.X, base + H - 2.6, z - side * (T + 0.6)), color = NEON_MID,
 			emit = "Paint", parent = f })
 	end
 end
