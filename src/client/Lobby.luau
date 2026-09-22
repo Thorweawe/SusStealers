@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local OwnPlot = require(script.Parent.OwnPlot)
 
 local Lobby = {}
 
@@ -133,28 +134,6 @@ function Lobby.Create(screen: ScreenGui): Hub
 	note.Text = ""
 	note.Parent = panel
 
-	--[[
-		Kendi üssünü tabeladaki isimden buluyoruz; sunucu sahiplik bilgisini
-		ayrıca yayınlamıyor ama tabela zaten replike oluyor.
-	]]
-	local function myPlot(): Model?
-		local plots = workspace:FindFirstChild("Plots")
-		if not plots then
-			return nil
-		end
-		local wanted = string.upper(player.DisplayName)
-		for _, plot in plots:GetChildren() do
-			if plot:IsA("Model") then
-				local sign = plot:FindFirstChild("Sign")
-				local gui = sign and sign:FindFirstChild("OwnerLabel")
-				local label = gui and gui:FindFirstChild("Text")
-				if label and label:IsA("TextLabel") and label.Text == wanted then
-					return plot
-				end
-			end
-		end
-		return nil
-	end
 
 	local function carrying(): boolean
 		local char = player.Character
@@ -174,7 +153,7 @@ function Lobby.Create(screen: ScreenGui): Hub
 			return
 		end
 
-		local plot = myPlot()
+		local plot = OwnPlot.Get()
 		local base = plot and plot:FindFirstChild("Base")
 		local char = player.Character
 		if not (base and base:IsA("BasePart") and char) then

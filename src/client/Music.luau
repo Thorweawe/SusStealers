@@ -52,26 +52,41 @@ local player = Players.LocalPlayer
 	istasyonda iyi durur; lobide daha yumuşak bir şey.
 ]]
 local PLAYLIST: { [string]: { string } } = {
-	-- Lobi: sakin, yakın; alışveriş yapılan yer
+	--[[
+		Parçalar FON SESİNDEN farklı olmalı.
+
+		İlk halinde lobi müziği ile ortam uğultusu AYNI dosyaydı
+		(Buzzy Ambience Drone) — ikisi üst üste çalınca müzik duyulmuyordu,
+		çünkü zaten çalan sesin aynısıydı. İstasyonda da ikisi birbirine
+		çok yakın alçak gümbürtülerdi.
+
+		Şimdi ikisi de nabızlı: altta duran uğultunun üstünde ritim olarak
+		ayrışıyorlar.
+	]]
 	lobby = {
-		"rbxassetid://9113652844",   -- Buzzy Ambience Constant Gritty Drone 1
+		"rbxassetid://9119960234",   -- Telemetry Shimmering Pulse Constant Whir 1
 	},
-	-- İstasyon: geniş ve alçak gemi uğultusu; asıl oyun burada
 	station = {
-		"rbxassetid://9125970753",   -- Spacecraft Engine Constant Mild Roar Rumble
+		"rbxassetid://9119845261",   -- Synth Tone Constant Big Pulsing Low Pitch 1
+		"rbxassetid://9114504868",   -- Flutter Ring Constant Intense Pulsing Hum 2
 	},
 }
 
 -- Müzik kendi grubunda: oyuncu ayarlardan efektlerden bağımsız kısabilsin
 -- ve kısılma (ducking) tek yerden uygulanabilsin.
--- Doku müziği; öne çıkmamalı, altta durmalı
-local BASE_VOLUME = 0.16
-local DUCK_VOLUME = 0.03
+--[[
+	Doku müziği altta durmalı ama DUYULMALI. 0.16'da ortam uğultusunun
+	altında kalıyordu ve oyuncu müziği hiç fark etmiyordu.
+]]
+local BASE_VOLUME = 0.32
+local DUCK_VOLUME = 0.05
 local FADE = 1.5
 
 local function ensureGroup(): SoundGroup
 	local existing = SoundService:FindFirstChild("Music")
 	if existing and existing:IsA("SoundGroup") then
+		-- Önceki oturumdan kalan seviye yapışmasın
+		existing.Volume = BASE_VOLUME
 		return existing
 	end
 
@@ -260,6 +275,16 @@ function Music.Start(): Handle
 		local zone = zoneOf(root.Position)
 		if zone ~= currentZone then
 			playZone(zone)
+			--[[
+				Bölge değişimi Output'a yazılıyor.
+
+				İlk denemem bunu oyuncunun niteliğine yazmaktı ama
+				İSTEMCİNİN YAZDIĞI NİTELİKLER SUNUCUYA REPLİKE OLMUYOR;
+				sunucudan bakınca hiç gelmemiş görünüyordu ve müziğin
+				çalışmadığını sandım. Tek satırlık çıktı, istemci
+				konsolunda görülebilen tek dürüst iz.
+			]]
+			print(string.format("[SusStealers] Muzik bolgesi: %s", zone))
 		end
 	end)
 

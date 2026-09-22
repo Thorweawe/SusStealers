@@ -35,6 +35,7 @@ local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
 local HudToggle = require(script.HudToggle)
 local Music = require(script.Music)
+local OwnPlot = require(script.OwnPlot)
 local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
 local RebirthPanel = require(script.RebirthPanel)
@@ -363,44 +364,11 @@ refreshCash()
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
 
 --[[
-	Sunucu üssümüzü "Plot" niteliğine yazıyor (PlotService.grantPlot).
-
-	Eskiden tabeladaki yazıyı adımızla karşılaştırıyorduk; tabelaya rebirth
-	rozeti eklenince ("ATCIKM  [R1]") eşleşme bozuldu ve rebirth atan
-	herkeste panel "no base" diyordu. Tabela artık serbest.
-
-	Eski yöntem yedek olarak duruyor: nitelik henüz gelmemişse (oyuncu
-	girer girmez) ya da sunucu eski sürümdeyse panel boş kalmasın.
+	Kendi üssümüz. Arama OwnPlot modülünde: aynı arama Lobby'de de gerekiyor
+	ve iki kopya birbirinden ayrışıp bir hataya yol açmıştı.
 ]]
 local function findOwnPlot(): Model?
-	local plots = workspace:FindFirstChild("Plots")
-	if not plots then
-		return nil
-	end
-
-	local assigned = player:GetAttribute("Plot")
-	if typeof(assigned) == "string" and assigned ~= "" then
-		local plot = plots:FindFirstChild(assigned)
-		if plot and plot:IsA("Model") then
-			return plot
-		end
-	end
-
-	local wanted = string.upper(player.DisplayName)
-	for _, plot in plots:GetChildren() do
-		if plot:IsA("Model") then
-			local sign = plot:FindFirstChild("Sign")
-			local gui = sign and sign:FindFirstChild("OwnerLabel")
-			local label = gui and gui:FindFirstChild("Text")
-			-- Rebirth rozeti yüzünden tam eşitlik yerine "ile başlıyor"
-			if label and label:IsA("TextLabel")
-				and string.sub(label.Text, 1, #wanted) == wanted
-			then
-				return plot
-			end
-		end
-	end
-	return nil
+	return OwnPlot.Get()
 end
 
 local function countPodiums(plot: Model): (number, number)
