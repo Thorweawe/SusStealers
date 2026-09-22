@@ -5,6 +5,7 @@
 -- sonra biriken para hiçbir işe yaramıyordu. Rebirth o parayı harcanabilir
 -- bir hedefe çeviriyor.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -12,7 +13,6 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local PlotService = require(script.Parent.PlotService)
-local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
@@ -118,46 +118,18 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 	return true
 end
 
--- ─── Prompt ─────────────────────────────────────────────────────────────────
+-- ─── İstek ──────────────────────────────────────────────────────────────────
+--[[
+	PROMPT KALDIRILDI.
 
-local function setupPrompt(plot: Model)
-	local sign = plot:FindFirstChild("Sign")
-	if not (sign and sign:IsA("BasePart")) then
-		return
-	end
+	Rebirth üssün önündeki tabelaya bağlı bir "R'ye basılı tut"tu. İki
+	sorunu vardı: oyunun en büyük kararı sıradan bir promptun arkasında
+	duruyordu, ve rakibin üssüne giden oyuncu yanlışlıkla kendi tabelasına
+	basıp rebirth atabiliyordu.
 
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "RebirthPrompt"
-	prompt.ActionText = "Rebirth"
-	prompt.KeyboardKeyCode = Enum.KeyCode.R
-	prompt.GamepadKeyCode = Enum.KeyCode.ButtonY
-	prompt.HoldDuration = 1.5
-	prompt.MaxActivationDistance = 12
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = sign
-
-	--[[ Sahip değiştikçe veya rebirth oldukça fiyatı tazele. ]]
-	local function refresh()
-		local owner = PlotService.GetOwner(plot)
-		local profile = owner and DataService.Get(owner)
-		local rebirths = if profile then profile.rebirths else 0
-
-		if rebirths >= Config.MaxFloors - 1 then
-			prompt.ObjectText = "MAX"
-			return
-		end
-
-		prompt.ObjectText = "$" .. Config.FormatCash(Config.GetRebirthCost(rebirths))
-	end
-
-	plot:GetAttributeChangedSignal("UnlockedFloors"):Connect(refresh)
-	refresh()
-
-	PromptGuard.Connect(prompt, function(player)
-		RebirthService.TryRebirth(player)
-		refresh()
-	end)
-end
+	Artık arayüzden: oyuncu ne kaybedeceğini (kaideler, yükseltmeler) ve ne
+	kazanacağını görüp onaylıyor. Doğrulama değişmedi, TryRebirth aynı.
+]]
 
 function RebirthService.Start()
 	notifyRemote = Net.Get("Notify")
@@ -166,9 +138,40 @@ function RebirthService.Start()
 		return RebirthService.TryRebirth(player, true)
 	end)
 
-	for _, plot in PlotService.GetAllPlots() do
-		setupPrompt(plot)
+	--[[ Arayüzün göstermesi için: kaçıncı rebirth ve sıradakinin fiyatı.
+	     Nitelik kendiliğinden replike oluyor, remote gerekmiyor. ]]
+	local function publish(player: Player)
+		local profile = DataService.Get(player)
+		local rebirths = if profile then profile.rebirths else 0
+		player:SetAttribute("Rebirths", rebirths)
+		player:SetAttribute("RebirthCost", Config.GetRebirthCost(rebirths))
 	end
+
+	local lastTry: { [Player]: number } = {}
+
+	Net.Get("RebirthBuy").OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		if now - (lastTry[player] or 0) < 1 then
+			return
+		end
+		lastTry[player] = now
+
+		RebirthService.TryRebirth(player)
+		publish(player)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastTry[player] = nil
+	end)
+
+	task.spawn(function()
+		while true do
+			for _, player in Players:GetPlayers() do
+				publish(player)
+			end
+			task.wait(2)
+		end
+	end)
 end
 
 return RebirthService

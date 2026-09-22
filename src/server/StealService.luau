@@ -559,8 +559,19 @@ local function setupPodiumPrompt(podium: Part)
 end
 
 local function setupLockPrompt(plot: Model)
-	local sign = plot:FindFirstChild("Sign")
-	if not (sign and sign:IsA("BasePart")) then
+	--[[
+		Prompt üssün İÇİNDEKİ kilit konsoluna bağlanıyor.
+
+		Eskiden üssün önündeki tabeladaydı: oyuncunun üssünü kilitlemek için
+		dışarı çıkıp kapının önüne gitmesi gerekiyordu, ki hırsız içerideyken
+		yapılacak en son şey bu. Konsol kaidelerin yanında.
+
+		Konsol bulunamazsa tabelaya düşülüyor — eski bir place ya da
+		PlotService değişirse kilit tamamen kaybolmasın.
+	]]
+	local console = plot:FindFirstChild("LockConsole")
+	local anchor = console and console:FindFirstChild("LockButton") or plot:FindFirstChild("Sign")
+	if not (anchor and anchor:IsA("BasePart")) then
 		return
 	end
 
@@ -569,9 +580,9 @@ local function setupLockPrompt(plot: Model)
 	prompt.ActionText = "Lock"
 	prompt.ObjectText = string.format("%d s protection", Config.LockDuration)
 	prompt.HoldDuration = 0.5
-	prompt.MaxActivationDistance = 12
+	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
-	prompt.Parent = sign
+	prompt.Parent = anchor
 
 	PromptGuard.Connect(prompt, function(player)
 		if PlotService.GetOwner(plot) ~= player then

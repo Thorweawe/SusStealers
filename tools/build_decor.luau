@@ -876,16 +876,38 @@ do
 			daha okunur, çünkü artık sınırı gösteriyorlar — ama içeride
 			kimseyi engellemiyorlar.
 		]]
-		local PILLAR_OUT = 4
+		--[[
+			4'ten 7'ye çıktı ve ÇARPIŞMA KAPANDI.
+
+			4'te sütun, çıkış kapağının gövdesine 0.2 stud kalıyordu
+			(ölçüldü: gövde x 81.4'te bitiyor, sütun 81.2'de başlıyor).
+			Kapaktan çıkan karakteri almaya giden oyuncu tam orada sütuna
+			takılıyordu.
+
+			Çarpışma da kapatıldı: bunlar üssün sınırını gösteren işaretler,
+			duvar değil. Katı kalmalarının oyuna hiçbir katkısı yok, köşede
+			sıkışmanın ise bariz zararı var.
+		]]
+		local PILLAR_OUT = 7
 
 		for _, sx in { -1, 1 } do
 			for _, sz in { -1, 1 } do
 				local px = ox + sx * (halfX + PILLAR_OUT)
 				local pz = oz + sz * (halfZ + PILLAR_OUT)
 
+				--[[
+					collide = false AÇIKÇA yazılıyor.
+
+					Dekorun varsayılanı artık katı (bkz. isSolid) ve bu
+					doğru bir varsayılan. Ama bu dört sütun üssün köşesinde,
+					tam da oyuncunun kapaktan çıkan karakteri almaya
+					koştuğu yerde duruyor. Sınırı göstermeleri yeterli;
+					katı olmalarının oyuna katkısı yok, köşede sıkışmanın
+					ise bariz zararı var.
+				]]
 				build({ name = "Pillar", size = Vector3.new(PILLAR, PILLAR_H, PILLAR),
 					cf = at(px, topY + PILLAR_H / 2, pz), color = HULL,
-					material = Enum.Material.Metal, collide = true, parent = pf })
+					material = Enum.Material.Metal, collide = false, parent = pf })
 				build({ name = "PillarBand", size = Vector3.new(PILLAR + 0.5, 0.45, PILLAR + 0.5),
 					cf = at(px, topY + PILLAR_H * 0.62, pz), color = TEAL,
 					-- 8 üste 4'er tane, yani 32 adet. Gösterge sınıfında
@@ -958,11 +980,24 @@ do
 		local flip = if ROWS > 1 and rowIndex % 2 == 0 then -1 else 1
 
 		local convZ = oz + flip * (halfZ - 5)
+
+		--[[
+			BANT YÜKSEKLİĞİ. Dekor şimdiye kadar üssün güvertesinden (topY)
+			kuruluyordu ama karakterler gerçek Conveyor parçasının ÜSTÜNDE
+			yürüyor: parça topY+0.5'te ve 1 stud kalın, yani yürüme yüzeyi
+			topY+1. Aradaki farktan dolayı karakterler dekoratif çıtaların
+			havasında süzülüyor, kapaklar da onların altında kalıyordu —
+			"tam ortadan çıkmıyor" bundandı.
+
+			beltLen, ConveyorService'in kullandığı mesafenin AYNISI:
+			travel = Conveyor.Size.X - 4 = (PLOT_SIZE.X - 8) - 4.
+		]]
+		local beltY = topY + 1
 		local beltLen = PLOT_SIZE.X - 12
 
 		for _, e in { -1, 1 } do
 			build({ name = "HazardStrip", size = Vector3.new(beltLen + 4, 0.12, 0.7),
-				cf = at(ox, topY + 0.06 + LIFT, convZ + e * 3.2), color = HAZARD,
+				cf = at(ox, beltY + 0.06 + LIFT, convZ + e * 3.2), color = HAZARD,
 				emit = "Paint", parent = pf })
 		end
 
@@ -980,39 +1015,39 @@ do
 			-- Çerçeve: dört ince kenar, dolu kutu değil
 			for _, e in { -1, 1 } do
 				build({ name = name .. "Jamb", size = Vector3.new(1.1, H, 1.1),
-					cf = at(ax, topY + H / 2, convZ + e * (D / 2 - 0.4)),
+					cf = at(ax, beltY + H / 2, convZ + e * (D / 2 - 0.4)),
 					color = TRIM, material = Enum.Material.Metal, parent = pf })
 			end
 			build({ name = name .. "Lintel", size = Vector3.new(1.6, 1.2, D + 1),
-				cf = at(ax, topY + H, convZ), color = TRIM,
+				cf = at(ax, beltY + H, convZ), color = TRIM,
 				material = Enum.Material.Metal, parent = pf })
 			build({ name = name .. "Sill", size = Vector3.new(1.6, 0.5, D + 1),
-				cf = at(ax, topY + 0.25, convZ), color = TRIM,
+				cf = at(ax, beltY + 0.25, convZ), color = TRIM,
 				material = Enum.Material.Metal, parent = pf })
 
 			-- Gövde: çerçevenin ARKASINDA, üsse taşmıyor
 			build({ name = name .. "Body", size = Vector3.new(W, H + 1.4, D + 2.6),
-				cf = at(ax + dir * (W / 2 + 0.6), topY + (H + 1.4) / 2, convZ),
+				cf = at(ax + dir * (W / 2 + 0.6), beltY + (H + 1.4) / 2, convZ),
 				color = HULL, material = Enum.Material.Metal, parent = pf })
 			build({ name = name .. "Cap", size = Vector3.new(W + 1.2, 0.9, D + 3.4),
-				cf = at(ax + dir * (W / 2 + 0.6), topY + H + 1.8, convZ),
+				cf = at(ax + dir * (W / 2 + 0.6), beltY + H + 1.8, convZ),
 				color = STEEL, material = Enum.Material.Metal, parent = pf })
 
 			-- Karanlık boğaz: içeriye devam ettiği hissi
 			build({ name = name .. "Throat", size = Vector3.new(W - 1, H - 1, D - 1),
-				cf = at(ax + dir * (W / 2 + 0.4), topY + (H - 1) / 2 + 0.5, convZ),
+				cf = at(ax + dir * (W / 2 + 0.4), beltY + (H - 1) / 2 + 0.5, convZ),
 				color = SHADOW, material = Enum.Material.SmoothPlastic, parent = pf })
 
 			-- Ağız: tek ışık kaynağı
 			local mouth = build({ name = name .. "Mouth", size = Vector3.new(0.35, H - 1.6, D - 1.4),
-				cf = at(ax + dir * 0.5, topY + (H - 1.6) / 2 + 0.6, convZ),
+				cf = at(ax, beltY + (H - 1.6) / 2 + 0.6, convZ),
 				color = tone, emit = "Fixture", transparency = 0.3, parent = pf })
 			glow(mouth, tone, 14, bright)
 
 			-- Uyarı şeridi: çerçevenin üstünde kısa kesikler
 			for i = -1, 1 do
 				build({ name = name .. "Mark", size = Vector3.new(1.1, 0.4, 0.9),
-					cf = at(ax, topY + H + 0.9, convZ + i * 1.7),
+					cf = at(ax, beltY + H + 0.9, convZ + i * 1.7),
 					color = if i == 0 then HAZARD else HAZARD_DARK,
 					emit = "Paint", parent = pf })
 			end
@@ -1035,7 +1070,7 @@ do
 			local slat = build({
 				name = "BeltSlat",
 				size = Vector3.new(0.9, 0.18, 4.4),
-				cf = at(dx + flip * i * slatGap, topY + 0.14 + LIFT, convZ),
+				cf = at(dx + flip * i * slatGap, beltY + 0.14 + LIFT, convZ),
 				color = NEON_DIM,
 				emit = "Paint",
 				parent = pf,
@@ -1047,7 +1082,7 @@ do
 		-- Bant kenarındaki çıtalar
 		for _, e in { -1, 1 } do
 			build({ name = "BeltEdge", size = Vector3.new(beltLen, 0.5, 0.5),
-				cf = at(ox, topY + 0.3, convZ + e * 2.6), color = TRIM,
+				cf = at(ox, beltY + 0.3, convZ + e * 2.6), color = TRIM,
 				material = Enum.Material.Metal, parent = pf })
 		end
 
@@ -1327,7 +1362,7 @@ do
 		local row = math.floor((index - 1) / COLUMNS)
 		-- Üsler koridora bakıyor; işaret de koridor tarafında dursun
 		local side = if row % 2 == 0 then 1 else -1
-		local z = o.Z + side * (halfZ + 9)
+		local z = o.Z + side * (halfZ + 14)   -- kapi esigi 30.4'te bitiyor, ped onu asmali
 
 		-- İsimlere numara: istemci tarafı bunları üs sahibine göre
 		-- renklendiriyor, hangisinin hangi üs olduğunu bilmesi gerek.
@@ -1761,8 +1796,16 @@ do
 		kaburga tavanda, ayağı aşağıda ayrı duruyordu ve aralarında görünür
 		bir boşluk kalıyordu ("eklediğin şeyler temas etmiyor").
 	]]
-	local WALL_LOW = 5         -- dolu alt duvar
-	local WALL_TOP = 14        -- tavan yüksekliği
+	--[[
+		YÜKSEKLİK. Köprü 14 studdu; istasyon duvarı 52, lobi duvarı 46. İki
+		yüksek salonu birbirine bağlayan tünel onların üçte biriydi ve
+		kapıdan çıkınca tavan çöküyormuş gibi oluyordu.
+
+		26 ikisinin ortası: hâlâ bir geçit, salon değil — ama iki uçtaki
+		kapı boşluklarıyla aynı ölçek ailesinde.
+	]]
+	local WALL_LOW = 6         -- dolu alt duvar
+	local WALL_TOP = 26        -- tavan yüksekliği
 
 	build({ name = "Bridge", size = Vector3.new(LOBBY_GATE_WIDTH, 1, bridgeLen),
 		cf = at(centerX, -0.5, bridgeZ),
@@ -2886,6 +2929,32 @@ do
 	-- Çarkı çeviren mürettebat: tabelanın üstünde değil, kaidenin yanında.
 	-- Tabelanın üstündeyken lobi tavanını deliyordu.
 	crewStatue(f, x + 12, z - 6, 1, 1.5, CREW[6], -60)
+end
+
+-- ─── 16b. Varsayılan doğuş noktasını gizle ──────────────────────────────────
+--[[
+	Yerleşimin kendi SpawnLocation'ı haritanın merkezine yakın duruyor ve
+	istasyon büyüdükçe BAY 06'nın tam içine düştü: camgöbeği bir kare ve
+	ortasında Roblox'un siyah yıldız dokusu. Oyuncular zaten kendi üslerine
+	doğuyor (PlotService bunu SpawnPad ile yapıyor), yani bu nesnenin
+	oyunda hiçbir işlevi yok.
+
+	Silinmiyor çünkü Studio boş bir yerleşimde onu yeniden yaratıyor;
+	kapatılıp gövdenin altına alınıyor.
+]]
+do
+	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	if spawn then
+		spawn.Enabled = false
+		spawn.Transparency = 1
+		spawn.CanCollide = false
+		spawn.CFrame = at(centerX, -HULL_DEPTH - 14, centerZ)
+		for _, d in spawn:GetChildren() do
+			if d:IsA("Decal") or d:IsA("Texture") then
+				d:Destroy()
+			end
+		end
+	end
 end
 
 -- ─── 17. Baseplate'i gövdenin altına gizle ──────────────────────────────────

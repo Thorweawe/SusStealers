@@ -377,7 +377,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	slab("DeckWallBand", Vector3.new(deckW - 6, 0.5, 1.4), Vector3.new(deckCX, deckTop + 5.4, deckZ / 2 - 0.9), tint)
 
 	-- Duvara gömme aydınlatma: kat kendi ışığını taşısın
-	for _, t in { 0.25, 0.5, 0.75 } do
+	for _, t in { 0.22, 0.48, 0.74 } do
 		local wall = newAnchoredPart(
 			"DeckWallLamp",
 			Vector3.new(deckW * 0.18, 0.3, 0.5),
@@ -396,34 +396,14 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	end
 
 	--[[
-		Kat numarası. Merdivenden çıkan oyuncu kaçıncı kata geldiğini
-		görüyor; üç kat birbirinin aynı olunca kaybolmak kolay.
+		KAT NUMARASI PLAKASI KALDIRILDI.
+
+		Duvara "FLOOR 2" yazan bir pano vardı ama duvardaki renk bandı ve
+		üçüncü gömme lamba tam önüne geliyordu; yazının yarısı okunmuyordu.
+		Hizalamak yerine tamamen çıkarıldı — oyuncu hangi kata çıktığını
+		merdivenden zaten biliyor ve katın kendi renk aksanı da söylüyor.
+		Duvarda okunmayan bir yazı hiç olmayandan kötü.
 	]]
-	local plate = newAnchoredPart(
-		"FloorPlate",
-		Vector3.new(9, 3, 0.4),
-		CFrame.new(origin + Vector3.new(deckX0 + 8, deckTop + 5.2, deckZ / 2 - 1.1)),
-		Color3.fromRGB(27, 34, 39),
-		parent
-	)
-	plate.Material = Enum.Material.SmoothPlastic
-	plate.CanCollide = false
-
-	local surface = Instance.new("SurfaceGui")
-	surface.Name = "Label"
-	surface.Face = Enum.NormalId.Front
-	surface.CanvasSize = Vector2.new(180, 60)
-	surface.LightInfluence = 0
-	surface.Parent = plate
-
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.fromScale(1, 1)
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.GothamBold
-	text.TextScaled = true
-	text.TextColor3 = tint
-	text.Text = string.format("FLOOR %d", floorIndex)
-	text.Parent = surface
 
 	--[[
 		Merdiven başına kemer. Çıkış noktasını işaretliyor ve merdivenin
@@ -634,6 +614,60 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	vendor("VendorCapTip", Vector3.new(1.5, 0.22, 1.1), Vector3.new(0, 4.4, -1.1), ACCENT)
 end
 
+--[[
+	═══ KİLİT KONSOLU ═══════════════════════════════════════════════════════
+
+	Kilit promptu üssün ÖNÜNDEKİ tabelaya bağlıydı. Tabela koridora bakıyor,
+	yani oyuncu üssünü kilitlemek için dışarı çıkıp kapının önüne gitmek
+	zorundaydı — hırsız içerideyken yapılacak en son şey.
+
+	Artık üssün İÇİNDE, kaidelerin yanında fiziksel bir düğme var: kırmızı
+	kubbe, altında kaide, çevresinde uyarı şeridi. Acil toplantı düğmesinin
+	küçük kardeşi; oyunun kendi diliyle "bu bir acil durum düğmesi" diyor.
+
+	Sol ön köşede duruyor — yükseltme kulübesi sağda, doğuş pedi ortada,
+	merdiven daha solda; arada kalan boşluk burası.
+]]
+local function buildLockConsole(parent: Instance, origin: Vector3)
+	local halfZ = Config.PlotSize.Z / 2
+	local topY = Config.PlotSize.Y / 2
+
+	local cx = -Config.PlotSize.X / 2 + 18
+	local cz = -halfZ + 11
+
+	local console = Instance.new("Model")
+	console.Name = "LockConsole"
+	console.Parent = parent
+
+	local SHELL = Color3.fromRGB(96, 108, 114)
+	local TRIM = Color3.fromRGB(168, 181, 184)
+
+	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
+		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(cx, topY, cz) + offset), color, console)
+		p.Material = Enum.Material.Metal
+		p.CanCollide = collide ~= false
+		return p
+	end
+
+	-- Zeminde uyarı halkası: düğmenin alanı belli olsun
+	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.07, 0), Color3.fromRGB(206, 172, 72), false).Transparency = 0.78
+
+	part("LockBase", Vector3.new(6, 1.2, 6), Vector3.new(0, 0.6, 0), TRIM)
+	part("LockColumn", Vector3.new(3.4, 3.4, 3.4), Vector3.new(0, 2.9, 0), SHELL)
+	part("LockCollar", Vector3.new(5, 0.4, 5), Vector3.new(0, 4.7, 0), TRIM)
+
+	-- Kırmızı kubbe: promptun bağlandığı parça
+	local dome = part("LockButton", Vector3.new(3.2, 3.2, 3.2), Vector3.new(0, 5.6, 0), Color3.fromRGB(178, 44, 40), false)
+	dome.Shape = Enum.PartType.Ball
+	dome.Material = Enum.Material.Neon
+
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(178, 44, 40)
+	light.Range = 12
+	light.Brightness = 0.9
+	light.Parent = dome
+end
+
 local function buildPlot(index: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = string.format("Plot%d", index)
@@ -705,6 +739,7 @@ local function buildPlot(index: number): Model
 	end
 
 	buildUpgradeBooth(plot, origin)
+	buildLockConsole(plot, origin)
 
 	-- Konveyör (görsel şerit)
 	local conveyor = newAnchoredPart(
