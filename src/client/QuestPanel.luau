@@ -6,14 +6,12 @@
 	burada sadece çiziliyor. İlerleme sunucuda hesaplanıyor, istemci onu
 	değiştiremiyor.
 
-	Yer: sol kenar, sıralama tablosunun altı. Sol üst şerit sırayla nakit
-	(y=20), gelir (y=62) ve TOP PLAYERS (y=104, 172 yüksek) ile dolu, yani
-	ilk boş nokta y=288. Sağ üst üs paneline, alt orta bildirimlere,
-	sağ alt haritaya ayrılmış.
+	Yer: sol kenar, sıralama tablosunun altı (y=200). Sol sütunun tam
+	dökümü aşağıda TOP'un yanında.
 
 	Yükseklik ekrana göre sınırlanıyor ve sığmazsa gövde kayıyor: küçük
-	ekranda (özellikle telefonda) panel alt soldaki öğretici kutusunun
-	üstüne biniyordu. Sağ üst üs paneline, alt orta bildirimlere ayrılmış.
+	ekranda (özellikle telefonda) panel alt soldaki ray ve hapların
+	üstüne biniyordu.
 
 	Geri sayım istemcide dönüyor: sunucu bitiş anını gönderiyor, saniyede
 	bir paket yollamıyor.
@@ -53,16 +51,29 @@ local GOOD = UiKit.GOOD
 local DIM = UiKit.DIM
 
 local WIDTH = 300
--- Sıralama tablosu y=104'te başlayıp 172 yükseliyor; ilk boş nokta burası
-local TOP = 288
+--[[
+	Sol sütun yukarıdan aşağı:
+
+	    20..192   sıralama tablosu
+	    200..     görevler (bu panel, içeriğe göre uzuyor)
+	    ..H-142   SHOP / INDEX rayı
+	    ..H-22    nakit + çalma hızı hapları
+
+	Nakit sol üstten sol alta taşınınca tablo yukarı çıktı ve burası
+	88 piksel yukarı kaydı. Alt tarafta ray ile hapların yeri ayrılıyor;
+	eskiden panel ekranın dibine kadar uzayıp ikisinin üstüne biniyordu.
+]]
+local TOP = 200
 -- Bir görev satırı + aralığı. Yükseklik hep bunun katına yuvarlanıyor.
 local ROW = 34
 -- Vade başlığının yüksekliği
 local SECTION_HEAD = 18
--- Öğretici kutusu açıkken alt solda ona ayrılan yer
-local TUTORIAL_RESERVE = 170
--- Öğretici yokken sadece kenar boşluğu
-local EDGE_RESERVE = 32
+--[[
+	Alt solda ray + haplara ayrılan yer: kenar 22 + haplar 108 + ara 12 +
+	ray 128 + ara 12. Öğretici kutusu artık hapların SAĞINDA duruyor,
+	o yüzden ayrı bir öğretici payı yok.
+]]
+local BOTTOM_RESERVE = 290
 local MIN_BODY = 90
 
 export type Panel = {
@@ -329,12 +340,7 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			end
 		end
 
-		local tutorial = screen:FindFirstChild("Tutorial")
-		local reserve = if tutorial and tutorial:IsA("GuiObject") and tutorial.Visible
-			then TUTORIAL_RESERVE
-			else EDGE_RESERVE
-
-		local available = screen.AbsoluteSize.Y - TOP - reserve
+		local available = screen.AbsoluteSize.Y - TOP - BOTTOM_RESERVE
 		local height = math.min(wanted, available)
 
 		-- Satırın ortasından kesme: sığan tam satır sayısına yuvarla

@@ -61,17 +61,21 @@ end
 --[[
 	Pet modelini kurar. PrimaryPart gövdedir, taban y = 0 hizasındadır.
 
-	Bilinmeyen kimlik nil döndürüyor, hata atmıyor: eski bir kayıtta
+	`key` envanter anahtarı: "MiniCrew" ya da "MiniCrew:Golden"
+	(Config.PetKey). Model adı anahtarın kendisi — PetService sahadaki
+	modelle takılı listeyi adla eşleştiriyor.
+
+	Bilinmeyen anahtar nil döndürüyor, hata atmıyor: eski bir kayıtta
 	kaldırılmış bir pet varsa sunucu düşmemeli.
 ]]
-function PetModel.Build(petId: string): Model?
-	local def = Config.GetPet(petId)
+function PetModel.Build(key: string): Model?
+	local def, mutation = Config.ParsePetKey(key)
 	if not def then
 		return nil
 	end
 
 	local model = Instance.new("Model")
-	model.Name = def.id
+	model.Name = key
 
 	local form = FORMS[def.id] or "blob"
 	local body: Part
@@ -246,6 +250,58 @@ function PetModel.Build(petId: string): Model?
 		crown("SecretCore", Vector3.new(0.45, 0.45, 0.45), CFrame.new(0, topY - 0.2, 0), accent, Enum.Material.Neon)
 		local core = model:FindFirstChild("SecretCore") :: Part
 		core.Shape = Enum.PartType.Ball
+	end
+
+	--[[
+		═══ MUTASYON ════════════════════════════════════════════════════
+
+		Taç kademeyi söylüyor, mutasyon GÖVDEYİ değiştiriyor — ikisi farklı
+		eksenler, farklı yerlerde okunmalı.
+
+		  Golden  — gövde altın ve metalik. En sık mutasyon, en sade işaret.
+		  Crystal — gövde camgöbeği cam; Polus kristallerinin rengi.
+		  Cosmic  — gövde mor neon ve etrafında ışık. En nadiri, uzaktan
+		            parlayan tek pet o.
+
+		Taç ve vizör olduğu gibi kalıyor: mutasyonlu Legendary'nin hâlâ
+		Legendary olduğu okunmalı.
+	]]
+	if mutation then
+		local skip = { Visor = true, AntennaTip = true, ShardCore = true, SecretCore = true }
+		for _, part in model:GetChildren() do
+			if not part:IsA("BasePart") or skip[part.Name] then
+				continue
+			end
+			--[[
+				Yalnızca petin KENDİ renginde boyanmış parçalar gövde sayılıyor.
+				Taç (nadirlik rengi), metal aksam ve koyu bacaklar farklı
+				renkte kurulduğu için ayrıca listelemeye gerek kalmıyor.
+			]]
+			if part.Color ~= def.color then
+				continue
+			end
+
+			if mutation.id == "Golden" then
+				part.Color = mutation.tint
+				part.Material = Enum.Material.Metal
+				part.Reflectance = 0.2
+			elseif mutation.id == "Crystal" then
+				part.Color = mutation.tint
+				part.Material = Enum.Material.Glass
+				part.Transparency = math.max(part.Transparency, 0.25)
+			else
+				part.Color = mutation.tint
+				part.Material = Enum.Material.Neon
+			end
+		end
+
+		if mutation.id == "Cosmic" then
+			local light = Instance.new("PointLight")
+			light.Color = mutation.tint
+			light.Range = 9
+			light.Brightness = 1.4
+			light.Parent = body
+		end
 	end
 
 	model.PrimaryPart = body

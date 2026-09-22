@@ -72,7 +72,8 @@ export type Profile = {
 	-- Satın alınmış üst kat sayısı (1. kat bedava, sayıya dahil değil)
 	floorsBought: number,
 	--[[
-		Pet envanteri: pet kimliği -> adet.
+		Pet envanteri: anahtar -> adet. Anahtar "MiniCrew" ya da
+		"MiniCrew:Golden" (Config.PetKey) — mutasyonlu kopya ayrı satır.
 
 		Adet tutuluyor çünkü yumurtadan aynı pet tekrar çıkabiliyor ve
 		kopyayı sessizce yakmak "yumurta boşa gitti" hissi veriyordu.
@@ -259,11 +260,13 @@ local function sanitize(raw: any): Profile
 		elle kurcalanmış olsa bile bonus, sahip olunmayan bir petten gelemez.
 	]]
 	if typeof(raw.pets) == "table" then
-		for id, count in raw.pets do
-			if typeof(id) == "string" and Config.GetPet(id)
+		for key, count in raw.pets do
+			-- Anahtar "pet" ya da "pet:mutasyon" (Config.PetKey); ikisi de
+			-- tanınmalı, yoksa satır atılıyor
+			if typeof(key) == "string" and (Config.ParsePetKey(key)) ~= nil
 				and typeof(count) == "number" and count > 0
 			then
-				profile.pets[id] = math.clamp(math.floor(count), 0, Config.PetStackLimit)
+				profile.pets[key] = math.clamp(math.floor(count), 0, Config.PetStackLimit)
 			end
 		end
 	end

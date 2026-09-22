@@ -603,6 +603,8 @@ Config.NotifyCues = {
 	potion   = { source = "UiD", startAt = 7.00, length = 0.22, pitch = 1.45, volume = 0.40 },
 	-- Yumurta açılışı: yükselen üç vuruş, "çatladı" hissi için hızlı
 	pet      = { source = "UiA", startAt = 3.00, length = 0.20, pitch = 1.35, volume = 0.50, repeats = 3, gap = 0.08 },
+	-- Çağrı: herkese aynı anda gidiyor, ağır ve dikkat çekici
+	summon   = { source = "Throb", startAt = 6.00, length = 0.70, pitch = 0.70, volume = 0.60, repeats = 2, gap = 0.18 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -1210,6 +1212,107 @@ function Config.RollUnit(rng: Random, conveyorLevel: number?): UnitDef
 	return Config.Units[1]
 end
 
+--[[
+	Verilen nadirlikten bir karakter, o kademenin kendi ağırlıklarıyla.
+	Saatli çağrılar bunu kullanıyor: "bir Mythic" garanti ama hangisi
+	olduğu yine şans — ucuz Mythic pahalısından sık çıkmaya devam ediyor.
+]]
+function Config.RollUnitOfRarity(rng: Random, rarity: string): UnitDef?
+	local total = 0
+	for _, unit in Config.Units do
+		if unit.rarity == rarity then
+			total += unit.weight
+		end
+	end
+	if total <= 0 then
+		return nil
+	end
+
+	local roll = rng:NextNumber(0, total)
+	for _, unit in Config.Units do
+		if unit.rarity == rarity then
+			roll -= unit.weight
+			if roll <= 0 then
+				return unit
+			end
+		end
+	end
+	return nil
+end
+
+-- ─── Çağrılar (saatli konveyör olayları) ───────────────────────────────────
+--[[
+	Belirli saatlerde HER dolu üssün konveyörüne garantili bir nadir
+	karakter düşüyor: saat başı bir Mythic, beş saatte bir Secret.
+
+	═══ DENGEYİ BOZUYOR MU ═════════════════════════════════════════════════
+
+	Olduğu gibi yapılsaydı BOZARDI. Mythic ancak ConveyorSpeed 8'de,
+	Secret 10'da çıkmaya başlıyor (RarityUnlock) ve 1. katın tavanı 6 —
+	yani ikisi de kasten 2. kat + rebirth arkasında kilitli. Herkese
+	çağrı düşseydi 1. kattaki oyuncu o kilidi saat başı atlardı.
+
+	O yüzden çağrı YALNIZCA o kademeyi zaten açmış konveyörlere düşüyor.
+	Açmış oyuncu için ölçülen etki (doğal sıklığa ek):
+
+	    ConveyorSpeed 12: Mythic 2.27/saat -> 3.27 (+%44)
+	                      Secret 2.9 saatte 1 -> +%58
+	    ConveyorSpeed 24: Mythic 10/saat -> 11 (+%10), Secret +%10
+
+	Üstelik BEDAVA DEĞİL: çağrılan karakter normal fiyatından satılıyor.
+	Garanti edilen şey değer değil, fırsat.
+
+	Asıl kazanç sosyal: saat herkes için aynı (os.time'a hizalı), yani
+	sunucudaki herkes aynı anda üssüne koşuyor ve hırsızlar da biliyor.
+	Kimin Mythic'i aldığı, kimin çaldığı o dakikanın olayı.
+
+	Sıra önemli: aynı saate denk gelirse Secret kazanır, Mythic atlanır.
+]]
+export type SummonEvent = {
+	id: string,
+	rarity: string,
+	every: number,   -- saniye
+}
+
+Config.SummonEvents = {
+	{ id = "Secret", rarity = "Secret", every = 5 * 3600 },
+	{ id = "Mythic", rarity = "Mythic", every = 3600 },
+} :: { SummonEvent }
+
+--[[
+	Çağrılan karakter bantta daha uzun kalıyor (normal 22s). Olay saati
+	belli ama oyuncu o an çalmaya gitmiş olabilir; 22 saniye geri dönmeye
+	yetmiyordu.
+]]
+Config.SummonLifetime = 45
+
+-- Çağrıdan kaç saniye önce Summons kanalında uyarı çıksın
+Config.SummonWarning = 60
+
+--[[ Bu konveyör seviyesinde o nadirlik çıkabiliyor mu (RarityUnlock). ]]
+function Config.IsRarityUnlocked(rarity: string, conveyorLevel: number): boolean
+	local gate = Config.RarityUnlock[rarity]
+	return gate == nil or conveyorLevel >= gate.unlockLevel
+end
+
+--[[ Bir sonraki çağrı anı (os.time / GetServerTimeNow cinsinden). ]]
+function Config.GetNextSummonAt(event: SummonEvent, now: number): number
+	return (math.floor(now / event.every) + 1) * event.every
+end
+
+--[[
+	Şu an çalması gereken çağrı. Aynı ana iki olay denk geliyorsa listede
+	önce geleni (Secret) döndürüyor.
+]]
+function Config.GetSummonAt(moment: number): SummonEvent?
+	for _, event in Config.SummonEvents do
+		if moment % event.every == 0 then
+			return event
+		end
+	end
+	return nil
+end
+
 --[[ Mutasyon çeker, çıkmazsa nil döner. ]]
 function Config.RollMutation(rng: Random): MutationDef?
 	for _, mutation in Config.Mutations do
@@ -1340,6 +1443,138 @@ Config.PetEquipSlots = 3
 ]]
 Config.PetStackLimit = 99
 
+--[[
+	═══ PET MUTASYONLARI ═══════════════════════════════════════════════════
+
+	Karakter mutasyonlarından AYRI bir tablo. Onlarınki gelir çarpanı
+	x2..x30; pete x30 verseydik tek bir Cosmic Secret +%3750 gelir demekti
+	ve oyun biterdi. Burada çarpan petin BONUSUNA uygulanıyor ve en fazla
+	x3.
+
+	Şans yumurta açarken bir kez atılıyor; birleştirmede mutasyon
+	KORUNUYOR (üç Golden -> bir Golden). Böylece mutasyonlu kopya
+	toplamanın da bir anlamı oluyor.
+]]
+export type PetMutationDef = {
+	id: string,
+	name: string,
+	chance: number,
+	multiplier: number,
+	tint: Color3,
+}
+
+Config.PetMutations = {
+	-- Sıra önemli: en nadir önce denenir, tutan uygulanır
+	{ id = "Cosmic",  name = "Cosmic",  chance = 0.005, multiplier = 3.0, tint = Color3.fromRGB(150,  90, 255) },
+	{ id = "Crystal", name = "Crystal", chance = 0.020, multiplier = 2.0, tint = Color3.fromRGB(120, 230, 255) },
+	{ id = "Golden",  name = "Golden",  chance = 0.050, multiplier = 1.5, tint = Color3.fromRGB(255, 200,  60) },
+} :: { PetMutationDef }
+
+function Config.GetPetMutation(id: string?): PetMutationDef?
+	if not id or id == "" then
+		return nil
+	end
+	for _, def in Config.PetMutations do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+function Config.RollPetMutation(rng: Random): PetMutationDef?
+	for _, def in Config.PetMutations do
+		if rng:NextNumber() < def.chance then
+			return def
+		end
+	end
+	return nil
+end
+
+--[[
+	═══ ENVANTER ANAHTARI ══════════════════════════════════════════════════
+
+	Envanter "pet kimliği -> adet" tablosu. Mutasyon gelince aynı petin
+	Golden'ı ile düzü AYRI satır olmalı, ama tabloyu iç içe yapmak kayıt
+	biçimini ve bütün okuyucuları değiştirirdi.
+
+	Çözüm: anahtar "MiniCrew" ya da "MiniCrew:Golden". Mutasyonsuz pet
+	eski biçimle birebir aynı, yani mevcut kayıtlar olduğu gibi okunuyor.
+]]
+function Config.PetKey(petId: string, mutationId: string?): string
+	if mutationId and mutationId ~= "" then
+		return petId .. ":" .. mutationId
+	end
+	return petId
+end
+
+--[[
+	Anahtarı çözer. Pet ya da mutasyon tanınmıyorsa pet nil döner —
+	çağıran o satırı atlamalı (Config'ten kalkmış bir şey kayıtta
+	kalmış olabilir).
+]]
+function Config.ParsePetKey(key: string): (PetDef?, PetMutationDef?)
+	local petId, mutationId = string.match(key, "^([^:]+):?(.*)$")
+	if not petId then
+		return nil, nil
+	end
+
+	-- Config.GetPet aşağıda tanımlı; çağrı anında çözülüyor
+	local def = Config.GetPet(petId)
+	if not def then
+		return nil, nil
+	end
+
+	if mutationId == nil or mutationId == "" then
+		return def, nil
+	end
+
+	local mutation = Config.GetPetMutation(mutationId)
+	if not mutation then
+		-- Tanınmayan mutasyon: peti de geçersiz sayıyoruz, sessizce
+		-- mutasyonsuz yapmak oyuncunun elinden bir şey almak olurdu
+		return nil, nil
+	end
+	return def, mutation
+end
+
+--[[
+	═══ BİRLEŞTİRME ════════════════════════════════════════════════════════
+
+	Aynı anahtardan üç kopya -> bir üst kademeden rastgele bir pet, aynı
+	mutasyonla. Secret birleştirilemiyor (üstü yok).
+
+	Hesap: Supply yumurtasından bir Uncommon ortalama ~$180K'ya çıkıyor,
+	üç Common ~$150K. Birleştirme doğrudan açmaktan biraz ucuz — kopyaları
+	biriktirmenin ödülü bu. Mythic -> Secret'ta aynı oran: üç Mythic
+	~$123B, doğrudan Secret ~$150B.
+]]
+Config.PetFuseCount = 3
+
+local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+
+function Config.GetNextRarity(rarity: string): string?
+	local index = table.find(RARITY_LADDER, rarity)
+	if not index or index >= #RARITY_LADDER then
+		return nil
+	end
+	return RARITY_LADDER[index + 1]
+end
+
+--[[ Verilen kademeden eşit şansla bir pet. Yumurta çekilişinin ikinci aşaması. ]]
+function Config.RollPetOfRarity(rng: Random, rarity: string): PetDef?
+	local pool = {}
+	for _, def in Config.Pets do
+		if def.rarity == rarity then
+			table.insert(pool, def)
+		end
+	end
+	if #pool == 0 then
+		return nil
+	end
+	return pool[rng:NextInteger(1, #pool)]
+end
+
 export type EggDef = {
 	id: string,
 	name: string,
@@ -1415,35 +1650,37 @@ function Config.RollPet(rng: Random, eggId: string): PetDef?
 		return nil
 	end
 
-	local pool = {}
-	for _, def in Config.Pets do
-		if def.rarity == chosen then
-			table.insert(pool, def)
-		end
-	end
-	if #pool == 0 then
-		return nil
-	end
-	return pool[rng:NextInteger(1, #pool)]
+	return Config.RollPetOfRarity(rng, chosen)
 end
 
 --[[
-	Takılı petlerin toplam bonusu.
+	Tek bir envanter anahtarının bonusu: petin kademe bonusu x mutasyon.
+]]
+function Config.GetPetKeyBonus(key: string): (number, number)
+	local def, mutation = Config.ParsePetKey(key)
+	if not def then
+		return 0, 0
+	end
+	local mul = if mutation then mutation.multiplier else 1
+	return def.incomeBonus * mul, def.speedBonus * mul
+end
 
-	Bilinmeyen kimlikler sessizce atlanıyor: bir pet Config'den kaldırılırsa
-	eski kayıtlar oyunu kırmasın.
+--[[
+	Takılı petlerin toplam bonusu. Liste envanter ANAHTARLARI tutuyor
+	("MiniCrew" ya da "MiniCrew:Golden").
+
+	Bilinmeyen anahtarlar sessizce atlanıyor: bir pet Config'den
+	kaldırılırsa eski kayıtlar oyunu kırmasın.
 ]]
 function Config.GetPetBonus(equipped: { string }): (number, number)
 	local income, speed = 0, 0
-	for index, id in equipped do
+	for index, key in equipped do
 		if index > Config.PetEquipSlots then
 			break
 		end
-		local def = petsById[id]
-		if def then
-			income += def.incomeBonus
-			speed += def.speedBonus
-		end
+		local i, s = Config.GetPetKeyBonus(key)
+		income += i
+		speed += s
 	end
 	return income, speed
 end

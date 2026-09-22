@@ -55,11 +55,17 @@ end
 	arayüzü gizleme düğmesi bu rayı bulamaz.
 ]]
 function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
+	--[[
+		Alt sola, nakit haplarının hemen üstüne yaslı: 22 kenar + 108 hap +
+		12 ara = 142. Ekranın ortasına dikey ortalıyken görev paneliyle
+		üst üste biniyordu; alta yaslı olunca görev paneli (QuestPanel,
+		BOTTOM_RESERVE) bu yeri hesaba katıp üstünde duruyor.
+	]]
 	local rail = Instance.new("Frame")
 	rail.Name = name
-	rail.AnchorPoint = Vector2.new(0, 0.5)
-	rail.Position = UDim2.new(0, 22, 0.5, -30)
-	rail.Size = UDim2.fromOffset(196, #specs * 68)
+	rail.AnchorPoint = Vector2.new(0, 1)
+	rail.Position = UDim2.new(0, 22, 1, -142)
+	rail.Size = UDim2.fromOffset(196, #specs * 60 + (#specs - 1) * 8)
 	rail.BackgroundTransparency = 1
 	rail.Parent = screen
 

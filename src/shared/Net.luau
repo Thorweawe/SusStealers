@@ -21,6 +21,8 @@ local EVENTS = {
 	"Quests",       -- server -> client (vade -> görev listesi)
 	"Potions",      -- server -> client (envanter + aktif takviye)
 	"Pets",         -- server -> client (sahip olunanlar + takılı sıra)
+	"PetHatched",   -- server -> client (key: string, source: "egg" | "fuse")
+	"Summons",      -- server -> client (text: string) — Summons sohbet kanalı
 	"TutorialSkip", -- client -> server (argümansız)
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
@@ -29,7 +31,8 @@ local EVENTS = {
 	"FloorBuy",     -- client -> server (argumansiz)
 	"RebirthBuy",   -- client -> server (argumansiz)
 	"PetHatch",     -- client -> server (eggId: string)
-	"PetEquip",     -- client -> server (petId: string, equip: boolean)
+	"PetEquip",     -- client -> server (key: string, equip: boolean)
+	"PetFuse",      -- client -> server (key: string)
 	"Sprint",       -- client -> server (active: boolean)
 }
 
@@ -71,9 +74,14 @@ local CLIENT_TO_SERVER = {
 		PetEquip hiçbir şey vermiyor, zaten SAHİP OLUNAN bir peti takıp
 		çıkarıyor. Sahiplik profilden doğrulanıyor ve slot sayısı
 		sunucuda sınırlanıyor.
+
+		PetFuse üç kopyayı YAKIP bir tane veriyor: adet sunucuda sayılıyor,
+		sonuç sunucuda çekiliyor. İstemci yalnızca hangi anahtar olduğunu
+		söylüyor; üç kopyası yoksa istek reddediliyor.
 	]]
 	PetHatch = true,
 	PetEquip = true,
+	PetFuse = true,
 	--[[
 		Sprint yalnızca bir bayrak; hızı sunucu belirliyor ve TAŞIRKEN
 		reddediyor. Roblox'ta oyuncu zaten kendi WalkSpeed'ini istemciden

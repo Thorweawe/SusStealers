@@ -104,12 +104,16 @@ local function positionOf(target: Instance): Vector3?
 end
 
 function TutorialUI.Create(screen: ScreenGui): Panel
-	-- Sol alt: sol üstte nakit, sağ üstte üs paneli, alt ortada bildirimler
-	-- var. Kalan tek boş köşe burası.
+	--[[
+		Alt sol, nakit haplarının SAĞINDA: 22 kenar + 232 hap + 12 ara.
+		Eskiden tam köşedeydi ama nakit sol alta taşınınca ikisi üst üste
+		bindi — öğretici tam da oyuncunun parasına bakması gereken anda
+		parayı kapatıyordu.
+	]]
 	local frame = Instance.new("Frame")
 	frame.Name = "Tutorial"
 	frame.AnchorPoint = Vector2.new(0, 1)
-	frame.Position = UDim2.new(0, 24, 1, -24)
+	frame.Position = UDim2.new(0, 266, 1, -22)
 	frame.Size = UDim2.new(0, 330, 0, 126)
 	frame.BackgroundColor3 = PANEL
 	frame.BackgroundTransparency = 0.15

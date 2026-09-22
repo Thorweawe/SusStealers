@@ -197,202 +197,268 @@ function PetPanel.Create(screen: ScreenGui): Panel
 	listLayout.Padding = UDim.new(0, 4)
 	listLayout.Parent = list
 
-	type Card = {
-		def: Config.PetDef,
-		frame: TextButton,
-		figure: Frame,
-		name: TextLabel,
-		stat: TextLabel,
-		count: TextLabel,
-		mark: Frame,
-	}
-	local cards: { [string]: Card } = {}
-	local order = 0
+	--[[
+		═══ KOLEKSİYON ═════════════════════════════════════════════════════
 
-	for _, tier in TIERS do
-		local members = {}
-		for _, def in Config.Pets do
-			if def.rarity == tier then
-				table.insert(members, def)
-			end
-		end
-		if #members == 0 then
-			continue
-		end
+		Her kademe bir satır. Satırda önce SAHİP OLUNAN anahtarlar (düz ve
+		mutasyonlu kopyalar ayrı kart), sonra henüz bulunmamış petler "???"
+		olarak.
 
-		local info = Config.Rarities[tier]
-
-		order += 1
-		local label = Instance.new("TextLabel")
-		label.LayoutOrder = order
-		label.Size = UDim2.new(1, -6, 0, 24)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBlack
-		label.TextSize = 12
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = info.color
-		label.Text = string.upper(tier)
-		label.ZIndex = 42
-		label.Parent = list
-
-		order += 1
-		local row = Instance.new("Frame")
-		row.LayoutOrder = order
-		row.Size = UDim2.new(1, -6, 0, math.ceil(#members / COLS) * (CARD_H + 6))
-		row.BackgroundTransparency = 1
-		row.ZIndex = 42
-		row.Parent = list
-
-		local grid = Instance.new("UIGridLayout")
-		grid.CellSize = UDim2.fromOffset(CARD_W, CARD_H)
-		grid.CellPadding = UDim2.fromOffset(6, 6)
-		grid.SortOrder = Enum.SortOrder.LayoutOrder
-		grid.Parent = row
-
-		for cellIndex, def in members do
-			local card = Instance.new("TextButton")
-			card.Name = def.id
-			card.LayoutOrder = cellIndex
-			card.BackgroundColor3 = UiKit.ROW
-			card.BorderSizePixel = 0
-			card.AutoButtonColor = false
-			card.Text = ""
-			card.ZIndex = 43
-			card.Parent = row
-			UiKit.Corner(card, 10)
-			local stroke = UiKit.Stroke(card, info.color, 1.4, 0.75)
-
-			--[[
-				Figür: petin kendi renginde mürettebat silueti. 3B modelin
-				biçimini (orb, bot, crab...) arayüzde tekrarlamak yirmi ayrı
-				çizim demekti; siluet + RENK zaten hangi pet olduğunu
-				söylüyor ve panel tek bir dilde kalıyor.
-			]]
-			local figure = Instance.new("Frame")
-			figure.Name = "Figure"
-			figure.AnchorPoint = Vector2.new(0.5, 0)
-			figure.Position = UDim2.new(0.5, 0, 0, 10)
-			figure.Size = UDim2.fromOffset(34, 34)
-			figure.BackgroundTransparency = 1
-			figure.ZIndex = 44
-			figure.Parent = card
-
-			local name = Instance.new("TextLabel")
-			name.Position = UDim2.new(0, 4, 0, 48)
-			name.Size = UDim2.new(1, -8, 0, 16)
-			name.BackgroundTransparency = 1
-			name.Font = Enum.Font.GothamBold
-			name.TextSize = 11
-			name.TextTruncate = Enum.TextTruncate.AtEnd
-			name.TextColor3 = INK
-			name.Text = def.name
-			name.ZIndex = 44
-			name.Parent = card
-
-			local stat = Instance.new("TextLabel")
-			stat.Position = UDim2.new(0, 4, 0, 64)
-			stat.Size = UDim2.new(1, -8, 0, 28)
-			stat.BackgroundTransparency = 1
-			stat.Font = Enum.Font.GothamMedium
-			stat.TextSize = 10
-			stat.TextColor3 = MUTED
-			stat.RichText = true
-			stat.Text = string.format(
-				"+%d%% cash\n+%.2f speed", math.floor(def.incomeBonus * 100), def.speedBonus)
-			stat.ZIndex = 44
-			stat.Parent = card
-
-			-- Adet rozeti: sağ üstte, yalnızca birden fazlası varken
-			local count = Instance.new("TextLabel")
-			count.AnchorPoint = Vector2.new(1, 0)
-			count.Position = UDim2.new(1, -6, 0, 6)
-			count.Size = UDim2.fromOffset(28, 14)
-			count.BackgroundTransparency = 1
-			count.Font = Enum.Font.GothamBlack
-			count.TextSize = 11
-			count.TextXAlignment = Enum.TextXAlignment.Right
-			count.TextColor3 = MUTED
-			count.Text = ""
-			count.ZIndex = 45
-			count.Parent = card
-
-			-- Takılı işareti: alt kenarda kademe renginde şerit
-			local mark = Instance.new("Frame")
-			mark.AnchorPoint = Vector2.new(0.5, 1)
-			mark.Position = UDim2.new(0.5, 0, 1, -4)
-			mark.Size = UDim2.new(1, -16, 0, 3)
-			mark.BackgroundColor3 = GOOD
-			mark.BorderSizePixel = 0
-			mark.Visible = false
-			mark.ZIndex = 45
-			mark.Parent = card
-			UiKit.Corner(mark, 2)
-
-			cards[def.id] = {
-				def = def, frame = card, figure = figure,
-				name = name, stat = stat, count = count, mark = mark,
-			}
-
-			local id = def.id
-			card.MouseButton1Click:Connect(function()
-				-- Takılıysa çıkar, değilse tak: tek düğme, iki yön
-				equipRemote:FireServer(id, cards[id].mark.Visible == false)
-			end)
-
-			card.MouseEnter:Connect(function()
-				stroke.Transparency = 0.2
-			end)
-			card.MouseLeave:Connect(function()
-				stroke.Transparency = 0.75
-			end)
-		end
-	end
-
-	-- ─── Veri ───────────────────────────────────────────────────────────────
+		Kartlar her güncellemede yeniden kuruluyor. Mutasyon gelince kart
+		sayısı sabit değil (bir petin düzü ve Golden'ı iki kart) ve en kötü
+		durumda birkaç düzine kart: yeniden kullanım tablosu tutmaya
+		değmeyecek kadar ucuz.
+	]]
+	local fuseRemote = Net.Get("PetFuse")
 
 	local owned: { [string]: number } = {}
 	local equipped: { string } = {}
 
-	local function redraw()
-		local slotsUsed = #equipped
-		hint.Text = string.format(
-			"%d / %d equipped  ·  click a pet to equip or remove",
-			slotsUsed, Config.PetEquipSlots)
+	-- Kart sırası: düz önce, sonra sıktan nadire (Golden, Crystal, Cosmic)
+	local MUTATION_ORDER: { [string]: number } = { [""] = 0 }
+	for index = #Config.PetMutations, 1, -1 do
+		MUTATION_ORDER[Config.PetMutations[index].id] = #Config.PetMutations - index + 1
+	end
 
-		local income, speed = Config.GetPetBonus(equipped)
-		if slotsUsed > 0 then
-			hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed",
-				math.floor(income * 100), speed)
+	local rows: { Instance } = {}
+
+	local function makeCard(parent: Instance, orderIndex: number, def: Config.PetDef, key: string?, count: number)
+		local info = Config.Rarities[def.rarity]
+		local isOn = key ~= nil and table.find(equipped, key) ~= nil
+
+		--[[
+			Açık if bloğu, if-ifadesi DEĞİL: `if k then f(k) else nil, nil`
+			f'in yalnızca İLK dönüşünü alıyor ve mutasyon hep nil kalıyordu.
+		]]
+		local mutation: Config.PetMutationDef? = nil
+		local income, speed = def.incomeBonus, def.speedBonus
+		if key then
+			local _, m = Config.ParsePetKey(key)
+			mutation = m
+			income, speed = Config.GetPetKeyBonus(key)
 		end
 
-		for id, card in cards do
-			local have = owned[id] or 0
-			local isOn = table.find(equipped, id) ~= nil
+		local card = Instance.new("TextButton")
+		card.Name = key or def.id
+		card.LayoutOrder = orderIndex
+		card.BackgroundColor3 = UiKit.ROW
+		card.BackgroundTransparency = if key then 0 else 0.45
+		card.BorderSizePixel = 0
+		card.AutoButtonColor = false
+		card.Text = ""
+		card.ZIndex = 43
+		card.Parent = parent
+		UiKit.Corner(card, 10)
+		local stroke = UiKit.Stroke(card,
+			if mutation then mutation.tint else info.color,
+			if mutation then 2 else 1.4,
+			if mutation then 0.2 else 0.75)
 
-			UiKit.ClearSlot(card.figure)
+		--[[
+			Figür: petin rengindeki mürettebat silueti. Mutasyonlu kopyada
+			mutasyon rengi — Golden'ı düzünden ayıran ilk şey bu olmalı.
+		]]
+		local figure = Instance.new("Frame")
+		figure.AnchorPoint = Vector2.new(0.5, 0)
+		figure.Position = UDim2.new(0.5, 0, 0, 10)
+		figure.Size = UDim2.fromOffset(34, 34)
+		figure.BackgroundTransparency = 1
+		figure.ZIndex = 44
+		figure.Parent = card
+		UiKit.Crewmate(figure, 30,
+			if not key then UiKit.DIM elseif mutation then mutation.tint else def.color)
 
-			if have > 0 then
-				UiKit.Crewmate(card.figure, 30, card.def.color)
-				card.name.Text = card.def.name
-				card.name.TextColor3 = INK
-				card.stat.TextColor3 = MUTED
-				card.frame.BackgroundTransparency = 0
-				card.count.Text = if have > 1 then "x" .. have else ""
-			else
-				--[[
-					Sahip olunmayan pet: sönük siluet ve gizli ad. İstatistik
-					GÖRÜNÜYOR — neyi kaçırdığını bilmeden hedef olmuyor.
-				]]
-				UiKit.Crewmate(card.figure, 30, UiKit.DIM)
-				card.name.Text = "???"
-				card.name.TextColor3 = UiKit.DIM
-				card.stat.TextColor3 = UiKit.DIM
-				card.frame.BackgroundTransparency = 0.45
-				card.count.Text = ""
+		local name = Instance.new("TextLabel")
+		name.Position = UDim2.new(0, 4, 0, 46)
+		name.Size = UDim2.new(1, -8, 0, 15)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBold
+		name.TextSize = 11
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		name.TextColor3 = if key then UiKit.INK else UiKit.DIM
+		name.Text = if key then def.name else "???"
+		name.ZIndex = 44
+		name.Parent = card
+
+		-- Mutasyon adı ismin altında, kendi renginde
+		local tag = Instance.new("TextLabel")
+		tag.Position = UDim2.new(0, 4, 0, 60)
+		tag.Size = UDim2.new(1, -8, 0, 12)
+		tag.BackgroundTransparency = 1
+		tag.Font = Enum.Font.GothamBlack
+		tag.TextSize = 10
+		tag.TextColor3 = if mutation then mutation.tint else UiKit.DIM
+		tag.Text = if mutation then string.upper(mutation.name) .. string.format(" x%.1f", mutation.multiplier) else ""
+		tag.ZIndex = 44
+		tag.Parent = card
+
+		--[[
+			İstatistik sahip olunmasa da GÖRÜNÜYOR: neyi kaçırdığını
+			bilmeden hedef olmuyor.
+		]]
+		local stat = Instance.new("TextLabel")
+		stat.Position = UDim2.new(0, 4, 0, 72)
+		stat.Size = UDim2.new(1, -8, 0, 26)
+		stat.BackgroundTransparency = 1
+		stat.Font = Enum.Font.GothamMedium
+		stat.TextSize = 10
+		stat.TextColor3 = if key then UiKit.MUTED else UiKit.DIM
+		stat.Text = string.format("+%d%% cash\n+%.2f speed", math.floor(income * 100 + 0.5), speed)
+		stat.ZIndex = 44
+		stat.Parent = card
+
+		if not key then
+			return
+		end
+
+		-- Adet rozeti: sağ üstte, birden fazlası varken
+		local countLabel = Instance.new("TextLabel")
+		countLabel.AnchorPoint = Vector2.new(1, 0)
+		countLabel.Position = UDim2.new(1, -6, 0, 6)
+		countLabel.Size = UDim2.fromOffset(28, 14)
+		countLabel.BackgroundTransparency = 1
+		countLabel.Font = Enum.Font.GothamBlack
+		countLabel.TextSize = 11
+		countLabel.TextXAlignment = Enum.TextXAlignment.Right
+		countLabel.TextColor3 = if isOn then GOOD else MUTED
+		countLabel.Text = if count > 1 then "x" .. count else ""
+		countLabel.ZIndex = 45
+		countLabel.Parent = card
+
+		-- Takılı işareti: alt kenarda yeşil şerit
+		local mark = Instance.new("Frame")
+		mark.AnchorPoint = Vector2.new(0.5, 1)
+		mark.Position = UDim2.new(0.5, 0, 1, -4)
+		mark.Size = UDim2.new(1, -16, 0, 3)
+		mark.BackgroundColor3 = GOOD
+		mark.BorderSizePixel = 0
+		mark.Visible = isOn
+		mark.ZIndex = 45
+		mark.Parent = card
+		UiKit.Corner(mark, 2)
+
+		local k = key
+		card.MouseButton1Click:Connect(function()
+			-- Takılıysa çıkar, değilse tak: tek düğme, iki yön
+			equipRemote:FireServer(k, not isOn)
+		end)
+		card.MouseEnter:Connect(function()
+			stroke.Transparency = 0.1
+		end)
+		card.MouseLeave:Connect(function()
+			stroke.Transparency = if mutation then 0.2 else 0.75
+		end)
+
+		--[[
+			FUSE düğmesi yalnızca üç kopya varken ve üstünde bir kademe
+			varken çıkıyor. Kartın sol üstünde, adet rozetinin karşısında:
+			"x3" ile "FUSE" aynı bakışta okunsun.
+
+			Ayrı bir düğme, kartın kendisi değil — kart tıklaması takıp
+			çıkarıyor ve iki işi tek tıklamaya bağlamak kopyaları kazayla
+			yakmak demekti.
+		]]
+		if count >= Config.PetFuseCount and Config.GetNextRarity(def.rarity) then
+			local nextInfo = Config.Rarities[Config.GetNextRarity(def.rarity) :: string]
+			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", nextInfo.color, UDim2.fromOffset(40, 20), 6)
+			fuseHolder.Position = UDim2.fromOffset(5, 5)
+			fuseHolder.ZIndex = 46
+			fuse.ZIndex = 47
+			local fuseText = Instance.new("TextLabel")
+			fuseText.Size = UDim2.fromScale(1, 1)
+			fuseText.BackgroundTransparency = 1
+			fuseText.Font = Enum.Font.GothamBlack
+			fuseText.TextSize = 10
+			fuseText.TextColor3 = Color3.new(1, 1, 1)
+			fuseText.TextStrokeTransparency = 0.5
+			fuseText.Text = "FUSE"
+			fuseText.ZIndex = 48
+			fuseText.Parent = fuse
+			fuse.MouseButton1Click:Connect(function()
+				fuseRemote:FireServer(k)
+			end)
+		end
+	end
+
+	local function redraw()
+		for _, row in rows do
+			row:Destroy()
+		end
+		table.clear(rows)
+
+		local slotsUsed = #equipped
+		local income, speed = Config.GetPetBonus(equipped)
+		hint.Text = string.format("%d / %d equipped  ·  click to equip  ·  3 copies = FUSE", slotsUsed, Config.PetEquipSlots)
+		if slotsUsed > 0 then
+			hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed", math.floor(income * 100 + 0.5), speed)
+		end
+
+		local order = 0
+		for _, tier in TIERS do
+			local info = Config.Rarities[tier]
+
+			-- Bu kademenin sahip olunan anahtarları ve hiç bulunmamış petleri
+			type Slot = { def: Config.PetDef, key: string?, count: number }
+			local slots: { Slot } = {}
+			local found: { [string]: boolean } = {}
+
+			for key, count in owned do
+				local def = Config.ParsePetKey(key)
+				if def and def.rarity == tier and count > 0 then
+					table.insert(slots, { def = def, key = key, count = count })
+					found[def.id] = true
+				end
+			end
+			table.sort(slots, function(a, b)
+				if a.def.id ~= b.def.id then
+					return a.def.name < b.def.name
+				end
+				local _, ma = Config.ParsePetKey(a.key :: string)
+				local _, mb = Config.ParsePetKey(b.key :: string)
+				return (MUTATION_ORDER[if ma then ma.id else ""] or 0) < (MUTATION_ORDER[if mb then mb.id else ""] or 0)
+			end)
+			for _, def in Config.Pets do
+				if def.rarity == tier and not found[def.id] then
+					table.insert(slots, { def = def, key = nil, count = 0 })
+				end
 			end
 
-			card.mark.Visible = isOn
-			card.count.TextColor3 = if isOn then GOOD else MUTED
+			if #slots == 0 then
+				continue
+			end
+
+			order += 1
+			local label = Instance.new("TextLabel")
+			label.LayoutOrder = order
+			label.Size = UDim2.new(1, -6, 0, 24)
+			label.BackgroundTransparency = 1
+			label.Font = Enum.Font.GothamBlack
+			label.TextSize = 12
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.TextColor3 = info.color
+			label.Text = string.upper(tier)
+			label.ZIndex = 42
+			label.Parent = list
+			table.insert(rows, label)
+
+			order += 1
+			local row = Instance.new("Frame")
+			row.LayoutOrder = order
+			row.Size = UDim2.new(1, -6, 0, math.ceil(#slots / COLS) * (CARD_H + 6))
+			row.BackgroundTransparency = 1
+			row.ZIndex = 42
+			row.Parent = list
+			table.insert(rows, row)
+
+			local grid = Instance.new("UIGridLayout")
+			grid.CellSize = UDim2.fromOffset(CARD_W, CARD_H)
+			grid.CellPadding = UDim2.fromOffset(6, 6)
+			grid.SortOrder = Enum.SortOrder.LayoutOrder
+			grid.Parent = row
+
+			for index, slot in slots do
+				makeCard(row, index, slot.def, slot.key, slot.count)
+			end
 		end
 	end
 
@@ -416,12 +482,13 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		end
 		owned = if typeof(payload.owned) == "table" then payload.owned else {}
 		equipped = if typeof(payload.equipped) == "table" then payload.equipped else {}
-		redraw()
+		if overlay.Visible then
+			redraw()
+		end
 	end)
 
 	local cashConnection = player:GetAttributeChangedSignal("Cash"):Connect(refreshEggs)
 
-	redraw()
 	refreshEggs()
 
 	close.Activated:Connect(function()
@@ -431,8 +498,11 @@ function PetPanel.Create(screen: ScreenGui): Panel
 	return {
 		Toggle = function()
 			overlay.Visible = not overlay.Visible
+			-- Kapalıyken çizilmiyor (kartlar her seferinde yeniden kuruluyor);
+			-- açılırken son veriyle çiz
 			if overlay.Visible then
 				refreshEggs()
+				redraw()
 			end
 		end,
 		Destroy = function()

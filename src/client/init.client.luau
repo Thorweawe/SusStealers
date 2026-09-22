@@ -43,6 +43,8 @@ local RebirthPanel = require(script.RebirthPanel)
 local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
 local PetPanel = require(script.PetPanel)
+local HatchFX = require(script.HatchFX)
+local Summons = require(script.Summons)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -754,6 +756,16 @@ mountPanel("SideRail", function()
 			onClick = catalog.Toggle,
 		},
 	})
+end)
+
+-- Yumurta/birlestirme animasyonu: sonucu sunucu gonderiyor, burasi gosteriyor
+mountPanel("HatchFX", function()
+	HatchFX.Create(screen)
+end)
+
+-- Summons sohbet sekmesi ve ustteki cagri geri sayimi
+mountPanel("Summons", function()
+	Summons.Create(screen)
 end)
 
 mountPanel("HudToggle", function()
