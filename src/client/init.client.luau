@@ -34,6 +34,7 @@ local TutorialUI = require(script.TutorialUI)
 local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
 local HudToggle = require(script.HudToggle)
+local Music = require(script.Music)
 local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
 local RebirthPanel = require(script.RebirthPanel)
@@ -228,6 +229,17 @@ SoundFX.StartAmbient()
 	tanımlanıyor. Önden bildirip sonra dolduruyoruz; işleyici tetiklendiğinde
 	ikisi de hazır olmuş oluyor.
 ]]
+--[[
+	Müzik. Bölgeye göre değişiyor ve çalınma alarmı çalarken kısılıyor —
+	alarm oyuncunun duyması GEREKEN şey, müzik onunla yarışmamalı.
+
+	Burada tanımlı çünkü aşağıdaki StealAlert işleyicisi onu kullanıyor;
+	dosyanın sonunda tanımlansaydı Lua o satırda yerel değil GLOBAL
+	görürdü ve müzik hiç kısılmazdı. Kurulumu panellerle birlikte, en
+	sonda yapılıyor.
+]]
+local music: Music.Handle? = nil
+
 local minimapRef: Minimap.Map? = nil
 local currentPlot: Model? = nil
 
@@ -236,13 +248,16 @@ local currentPlot: Model? = nil
 local upgradePanel: UpgradePanel.Panel? = nil
 local rebirthPanel: RebirthPanel.Panel? = nil
 
-Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
+--[[
+	Sunucu bildirimin TÜRÜNÜ de gönderiyor (dördüncü argüman) ve ses ona
+	göre seçiliyor. Eskiden bütün başarılı işlemler aynı tınıydı: satın
+	alma, satma, yükseltme, görev hepsi tek sesti.
+
+	Tür gelmezse SoundFX taban sese düşüyor, yani eski çağrılar da çalışıyor.
+]]
+Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean, kind: string?)
 	showToast(text, if isError then BAD else GOOD)
-	if isError then
-		SoundFX.Deny()
-	else
-		SoundFX.Success()
-	end
+	SoundFX.Event(kind, isError)
 end)
 
 Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName: string)
@@ -258,7 +273,21 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 		CarriedUnit istemciye replike olduğu için bunu sunucuya sormadan
 		izleyebiliyoruz: model kaybolduğu an teslim etmiş demektir.
 	]]
-	SoundFX.AlarmUntil(function()
+	-- Alarm boyunca müziği geri çek, bitince aç
+	if music then
+		music.SetDucked(true)
+	end
+
+	--[[
+		Aynı koşul hem alarmı hem müziğin kısılmasını yönetiyor: hırsız
+		karakteri bıraktığı an ikisi de bitiyor. Ayrı bir zamanlayıcı
+		kursaydık biri diğerinden önce biter ve alarm sustuğu halde müzik
+		kısık kalırdı.
+
+		Süre sınırı ayrıca: koşul hiç false dönmezse (hırsız çıktı, olay
+		kaçtı) müzik sonsuza kadar kısık kalmasın.
+	]]
+	local function thiefStillCarrying(): boolean
 		for _, p in Players:GetPlayers() do
 			if p.DisplayName == thiefName then
 				local char = p.Character
@@ -266,7 +295,21 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 			end
 		end
 		return false -- hırsız oyundan çıktı
+	end
+
+	SoundFX.AlarmUntil(function()
+		local carrying = thiefStillCarrying()
+		if not carrying and music then
+			music.SetDucked(false)
+		end
+		return carrying
 	end, 45)
+
+	task.delay(46, function()
+		if music then
+			music.SetDucked(false)
+		end
+	end)
 
 	-- Haritada soyulan üssü yak ve hırsızı işaretle: peşinden gidebilesin
 	if minimapRef then
@@ -600,6 +643,10 @@ end)
 mountPanel("UpgradePanel", function()
 	local panel = UpgradePanel.Create(screen)
 	upgradePanel = panel
+end)
+
+mountPanel("Music", function()
+	music = Music.Start()
 end)
 
 mountPanel("Sprint", function()

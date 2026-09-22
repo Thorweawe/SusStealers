@@ -537,6 +537,52 @@ function Config.GetTutorialTotalReward(): number
 	return total
 end
 
+-- ─── Bildirim sesleri ───────────────────────────────────────────────────────
+export type NotifyCue = {
+	id: string?,      -- kendi örneği varsa; yoksa taban örnek kullanılıyor
+	pitch: number,
+	volume: number,
+	repeats: number?, -- kaç vuruş (kutlama sesleri için)
+	gap: number?,     -- vuruşlar arası saniye
+}
+
+Config.NotifyCues = {
+	-- Sık tekrarlanan, hafif işlemler: yüksek ve kısa, kulağı yormasın
+	buy      = { pitch = 1.18, volume = 0.55 },
+	sell     = { pitch = 0.92, volume = 0.55 },
+	spin     = { pitch = 1.30, volume = 0.60 },
+
+	-- Çalma döngüsü: kaçarken yüksek ve gergin, bırakınca çözülen alçak
+	steal    = { pitch = 1.42, volume = 0.75 },
+	deposit  = { pitch = 0.78, volume = 0.80, repeats = 2, gap = 0.10 },
+	lock     = { pitch = 0.62, volume = 0.70 },
+	catch    = { pitch = 1.10, volume = 0.85, repeats = 3, gap = 0.07 },
+
+	-- Kalıcı ve pahalı olanlar: alçak ve ağır, "bu büyük bir şeydi" desin
+	upgrade  = { pitch = 0.84, volume = 0.70 },
+	floor    = { pitch = 0.55, volume = 0.90, repeats = 2, gap = 0.16 },
+	rebirth  = { pitch = 0.48, volume = 1.00, repeats = 3, gap = 0.18 },
+	purchase = { pitch = 0.70, volume = 0.85, repeats = 2, gap = 0.12 },
+
+	-- Kutlama: çok vuruşlu, yükselen
+	badge    = { pitch = 1.25, volume = 0.85, repeats = 3, gap = 0.09 },
+	title    = { pitch = 1.15, volume = 0.80, repeats = 3, gap = 0.09 },
+	quest    = { pitch = 1.05, volume = 0.70, repeats = 2, gap = 0.10 },
+	potion   = { pitch = 1.35, volume = 0.65, repeats = 2, gap = 0.08 },
+
+	-- Bilgilendirme: sessize yakın, araya girmesin
+	tutorial = { pitch = 1.00, volume = 0.45 },
+	welcome  = { pitch = 0.88, volume = 0.60, repeats = 2, gap = 0.14 },
+	plot     = { pitch = 1.00, volume = 0.50 },
+	-- Pasif gelir: en sessiz tını, oyuna karışmasın
+	income   = { pitch = 0.95, volume = 0.32 },
+} :: { [string]: NotifyCue }
+
+--[[ Bu türün tanımlı bir sesi var mı. Testler buna bakıyor. ]]
+function Config.HasNotifyCue(kind: string): boolean
+	return Config.NotifyCues[kind] ~= nil
+end
+
 -- ─── Rozetler ───────────────────────────────────────────────────────────────
 -- ID'ler Creator Dashboard > Badges altında oluşturulunca buraya yazılacak.
 -- id = 0 olan rozet verilmiyor; oyun onu yokmuş gibi çalışıyor.

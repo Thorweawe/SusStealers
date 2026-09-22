@@ -34,6 +34,10 @@ local notifyRemote: RemoteEvent
 ]]
 local NOTIFY_KIND = "sell"
 
+-- Dışa açık: bir test her servisin türünün Config.NotifyCues'ta
+-- karşılığı olduğunu doğruluyor, yani sessiz kalan işlem olmuyor.
+SellService.NotifyKind = NOTIFY_KIND
+
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)
 end

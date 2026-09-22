@@ -6,7 +6,10 @@
 -- Ses kimlikleri burada tek yerde. Yeni ses eklemek için Creator Store'dan
 -- alıp ID'sini buraya yazmak yeterli.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local SoundFX = {}
 
@@ -133,6 +136,111 @@ end
 
 function SoundFX.Deny()
 	fire("Deny")
+end
+
+-- ─── Olay sesleri ───────────────────────────────────────────────────────────
+
+--[[
+	Her işlem kendi sesini çalıyor.
+
+	Önce bütün başarılı işlemler tek bir "Success" tınısıydı: satın alma,
+	satma, yükseltme, görev, unvan hepsi aynı geliyordu ve hangi işlemin
+	tuttuğu kulaktan anlaşılmıyordu. Sunucu artık bildirimin TÜRÜNÜ de
+	gönderiyor (Notify'ın dördüncü argümanı), burada ona bakıyoruz.
+
+	AYRI ÖRNEK YOK, DİYE BEKLEMİYORUZ. Her tür için ayrı ses dosyası
+	yüklenene kadar tınıyı aynı örnekten TÜRETİYORUZ: perde (pitch),
+	ses seviyesi ve tekrar sayısı. Bu üçü bir arada gerçekten ayırt
+	edilebilir işaretler veriyor —
+
+	  alçak + tek vuruş   → ağır, kalıcı şeyler (kat, rebirth)
+	  yüksek + tek vuruş  → hafif, sık şeyler (satın alma, satma)
+	  çoklu vuruş         → kutlama (rozet, unvan, görev)
+
+	Gerçek örnekler geldiğinde tek yapılacak şey `id` alanını doldurmak;
+	çağıran taraf hiç değişmiyor.
+
+	concept: Among Us / uzay istasyonu. Sesler kısa, kuru ve elektronik
+	olmalı; orkestral ya da fantastik tınılar temayı bozuyor.
+]]
+--[[
+	Tınılar Config'te (Config.NotifyCues).
+
+	Orada çünkü hangi türlerin var olduğu SUNUCU ile İSTEMCİNİN ortak
+	bilgisi: sunucu türü gönderiyor, istemci sesi seçiyor. Ayrı yerlerde
+	dursaydı sunucuya yeni bir tür eklenip buraya yazılmadığında o işlem
+	sessizce taban sese düşer ve kimse fark etmezdi. Bir test iki tarafın
+	ayrışmasını yakalıyor.
+]]
+
+--[[
+	Tek seferlik ses örneği.
+
+	Paylaşılan örneğin perdesini değiştirip bırakırsak bir sonraki çalan
+	ses de o perdeden çalar. Çoklu vuruşta üst üste binmeleri de gerekiyor.
+	O yüzden burada her vuruş için ayrı, çalınca kendini silen bir Sound
+	yaratıyoruz — kısa arayüz sesleri için bu maliyet önemsiz.
+]]
+local function playOnce(id: string, pitch: number, volume: number)
+	local s = Instance.new("Sound")
+	s.SoundId = id
+	s.Volume = volume
+	s.PlaybackSpeed = pitch
+	s.SoundGroup = effectGroup
+	s.Parent = SoundService
+	s:Play()
+
+	s.Ended:Once(function()
+		s:Destroy()
+	end)
+
+	-- Ended bazı durumlarda hiç gelmiyor (ses yüklenemezse); sızıntı olmasın
+	game:GetService("Debris"):AddItem(s, 6)
+end
+
+--[[
+	Bildirim türüne göre ses çalar.
+
+	Tanınmayan tür sessizce taban sese düşüyor: sunucuya yeni bir tür
+	eklenip burası unutulursa oyuncu ses duymamazlık etmesin.
+]]
+function SoundFX.Event(kind: string?, isError: boolean)
+	if isError then
+		SoundFX.Deny()
+		return
+	end
+
+	local cue = if kind then Config.NotifyCues[kind] else nil
+	if not cue then
+		SoundFX.Success()
+		return
+	end
+
+	local id = cue.id or ID.Success
+	local repeats = cue.repeats or 1
+
+	if repeats <= 1 then
+		playOnce(id, cue.pitch, cue.volume)
+		return
+	end
+
+	--[[
+		Çoklu vuruşta perde her vuruşta biraz yükseliyor: düz tekrar
+		"takıldı" gibi duruyor, yükselen dizi "tamamlandı" diyor.
+	]]
+	task.spawn(function()
+		for i = 1, repeats do
+			playOnce(id, cue.pitch * (1 + (i - 1) * 0.09), cue.volume)
+			if i < repeats then
+				task.wait(cue.gap or 0.1)
+			end
+		end
+	end)
+end
+
+--[[ Bir türün tanımlı olup olmadığı. Testler ve tanı için. ]]
+function SoundFX.HasCue(kind: string): boolean
+	return Config.NotifyCues[kind] ~= nil
 end
 
 --[[

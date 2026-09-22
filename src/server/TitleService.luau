@@ -41,6 +41,10 @@ local paused = false
 ]]
 local NOTIFY_KIND = "title"
 
+-- Dışa açık: bir test her servisin türünün Config.NotifyCues'ta
+-- karşılığı olduğunu doğruluyor, yani sessiz kalan işlem olmuyor.
+TitleService.NotifyKind = NOTIFY_KIND
+
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote then
 		notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)

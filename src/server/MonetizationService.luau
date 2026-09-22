@@ -42,6 +42,10 @@ local granters: { [string]: Granter } = {}
 ]]
 local NOTIFY_KIND = "purchase"
 
+-- Dışa açık: bir test her servisin türünün Config.NotifyCues'ta
+-- karşılığı olduğunu doğruluyor, yani sessiz kalan işlem olmuyor.
+MonetizationService.NotifyKind = NOTIFY_KIND
+
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote then
 		notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)

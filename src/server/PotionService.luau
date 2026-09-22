@@ -43,6 +43,10 @@ local lastSignature: { [Player]: string } = {}
 ]]
 local NOTIFY_KIND = "potion"
 
+-- Dışa açık: bir test her servisin türünün Config.NotifyCues'ta
+-- karşılığı olduğunu doğruluyor, yani sessiz kalan işlem olmuyor.
+PotionService.NotifyKind = NOTIFY_KIND
+
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote then
 		notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)

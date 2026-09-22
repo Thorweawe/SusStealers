@@ -64,6 +64,10 @@ local victimBlockedUntil: { [Player]: { [Player]: number } } = {}
 ]]
 local NOTIFY_KIND = "steal"
 
+-- Dışa açık: bir test her servisin türünün Config.NotifyCues'ta
+-- karşılığı olduğunu doğruluyor, yani sessiz kalan işlem olmuyor.
+StealService.NotifyKind = NOTIFY_KIND
+
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)
 end

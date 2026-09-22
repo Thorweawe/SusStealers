@@ -1760,11 +1760,18 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 	local listened = Net.GetClientToServer()
 
 	--[[
-		Sayı büyüdükçe değil, gerekçesizleştikçe tehlikeli. Şu an beş remote
-		var ve hiçbiri oyuncuya bedava bir şey vermiyor; sınır altıda
-		tutuluyor ki yenisi eklemek bilinçli bir karar olsun.
+		Sayı büyüdükçe değil, gerekçesizleştikçe tehlikeli.
+
+		Şu an yedi remote var: TutorialSkip, TitleEquip, PotionUse,
+		UpgradeBuy, Sprint, FloorBuy, RebirthBuy. Hiçbiri oyuncuya bedava
+		bir şey VERMİYOR — hepsi ya oyuncunun kendi parasını kendi üssünde
+		harcıyor ya da zaten kazanılmış bir şeyi kullanıyor. Doğrulama da
+		istemcide değil, ilgili servisin kendi TryX fonksiyonunda.
+
+		Sınır sekizde: yenisi eklemek bilinçli bir karar olsun, kazara
+		büyümesin.
 	]]
-	ok("liste küçük", #listened <= 6, tostring(#listened))
+	ok("liste küçük", #listened <= 8, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -1779,6 +1786,71 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 end)
 
 -- ─── T. Üst kat satın alma ──────────────────────────────────────────────────
+
+case("Ses: her servisin bildirim türünün sesi var", function()
+	--[[
+		Sunucu bildirimle birlikte bir TÜR gönderiyor, istemci ona göre ses
+		seçiyor. Sunucuya yeni bir tür eklenip Config.NotifyCues'a
+		yazılmazsa o işlem sessizce taban sese düşer ve kimse fark etmez —
+		kullanıcının şikâyeti tam olarak buydu: her şey aynı sesti.
+
+		Betik kaynağını okuyamıyoruz (çalışan oyun betiği için Roblox bunu
+		eklentiye kısıtlıyor), o yüzden her servis kendi türünü NotifyKind
+		olarak dışa açıyor ve burada onu topluyoruz.
+	]]
+	local missing = {}
+	local checked = 0
+
+	for _, module in script.Parent:GetChildren() do
+		if not module:IsA("ModuleScript") or module.Name == "Tests" then
+			continue
+		end
+
+		local loaded = require(module) :: any
+		local kind = if typeof(loaded) == "table" then loaded.NotifyKind else nil
+
+		if typeof(kind) == "string" then
+			checked += 1
+			if not Config.HasNotifyCue(kind) then
+				table.insert(missing, module.Name .. ":" .. kind)
+			end
+		end
+	end
+
+	ok("tür açan servis var", checked >= 10, tostring(checked))
+	ok("sesi olmayan tür yok", #missing == 0, table.concat(missing, ", "))
+end)
+
+case("Ses: tınılar birbirinden ayırt edilebilir", function()
+	--[[
+		Ayrı tür ama aynı perde+seviye, kulakta aynı sese çıkıyor. En sık
+		karıştırılacak üçlü satın alma / satma / yükseltme; onlar kesin
+		farklı olmalı.
+	]]
+	local seen: { [string]: string } = {}
+	local clashes = {}
+
+	for kind, cue in Config.NotifyCues do
+		ok(kind .. " perdesi makul", cue.pitch >= 0.4 and cue.pitch <= 2,
+			string.format("%.2f", cue.pitch))
+		ok(kind .. " seviyesi makul", cue.volume > 0 and cue.volume <= 1,
+			string.format("%.2f", cue.volume))
+
+		local signature = string.format("%.2f/%.2f/%d",
+			cue.pitch, cue.volume, cue.repeats or 1)
+
+		if seen[signature] then
+			table.insert(clashes, seen[signature] .. "=" .. kind)
+		end
+		seen[signature] = kind
+	end
+
+	ok("aynı tınıya sahip iki tür yok", #clashes == 0, table.concat(clashes, ", "))
+
+	for _, kind in { "buy", "sell", "upgrade" } do
+		ok(kind .. " tanımlı", Config.NotifyCues[kind] ~= nil)
+	end
+end)
 
 case("Kat: tanımlar tutarlı", function()
 	local floors = {}
