@@ -282,6 +282,46 @@ end)
 
 -- ─── C. Ekonomi ─────────────────────────────────────────────────────────────
 
+case("Üs: dekor pedleri kaidelerin altında hizalı", function(ctx)
+	--[[
+		Ped konumu iki ayrı dosyada elle yazılıydı (PlotService 9,
+		build_decor 8) ve bir stud kayıyordu: pedler kaidelerin altından
+		taşıyordu. Sayı artık Config.PodiumRowZ'de ve bu test iki tarafın
+		yeniden ayrışmasını yakalıyor.
+	]]
+	local decor = workspace:FindFirstChild("Decor")
+	local plotsDecor = decor and decor:FindFirstChild("Plots")
+	local pf = plotsDecor and plotsDecor:FindFirstChild(ctx.plot.Name)
+
+	ok("dekor klasörü var", pf ~= nil)
+	if not pf then return end
+
+	local pads = {}
+	for _, part in pf:GetChildren() do
+		if part:IsA("BasePart") and part.Name == "PodiumPad" then
+			table.insert(pads, part)
+		end
+	end
+
+	ok("ped var", #pads > 0, tostring(#pads))
+
+	local podiums = PlotService.GetPodiums(ctx.plot)
+	local worst = 0
+
+	for _, pad in pads do
+		local best = math.huge
+		for _, pod in podiums do
+			local d = (Vector3.new(pad.Position.X, 0, pad.Position.Z)
+				- Vector3.new(pod.Position.X, 0, pod.Position.Z)).Magnitude
+			if d < best then best = d end
+		end
+		if best > worst then worst = best end
+	end
+
+	ok("her ped bir kaidenin altında", worst < 0.5,
+		string.format("%.2f stud kayma", worst))
+end)
+
 case("Ekonomi: nakit ekleme ve harcama", function(ctx)
 	setCash(ctx.player, 1000)
 	eq("başlangıç", EconomyService.GetCash(ctx.player), 1000)

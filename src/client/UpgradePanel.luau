@@ -49,7 +49,15 @@ local TINT: { [string]: Color3 } = {
 	LockPower = Color3.fromRGB(190, 110, 210),
 }
 
-local REACH = 11          -- tetik alanının yarıçapı (kulübedeki daire 16 çap)
+--[[
+	Tetik alanının yarıçapı.
+
+	11 studda panel kulübenin epey uzağından açılıyordu: oyuncu yanından
+	geçerken ekranın yarısı doluyor, kapatmak için geri çekilmek
+	gerekiyordu. 6'da kulübenin önüne GELMEK gerekiyor — açılması bir
+	niyet, kaza değil.
+]]
+local REACH = 6
 
 export type Panel = {
 	Update: () -> (),
@@ -88,7 +96,12 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	root.Name = "UpgradePanel"
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.new(0.5, 0, 0.56, 0)
-	root.Size = UDim2.fromOffset(460, 96 + #Config.Upgrades * 64)
+	--[[
+		Panel 460 genişti ve satır başına 64 piksel ayırıyordu; dört
+		yükseltmeyle ekranın ortasında 352 piksellik bir blok oluyordu.
+		380x(76+52n) aynı bilgiyi veriyor, arkasındaki oyunu kapatmadan.
+	]]
+	root.Size = UDim2.fromOffset(380, 76 + #Config.Upgrades * 52)
 	root.BackgroundColor3 = SHELL
 	root.BorderSizePixel = 0
 	root.Visible = false
@@ -107,7 +120,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	local header = Instance.new("Frame")
 	header.Name = "Header"
-	header.Size = UDim2.new(1, 0, 0, 44)
+	header.Size = UDim2.new(1, 0, 0, 38)
 	header.BackgroundTransparency = 1
 	header.Parent = root
 
@@ -160,7 +173,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local list = Instance.new("Frame")
 	list.Name = "List"
 	list.Position = UDim2.fromOffset(0, 52)
-	list.Size = UDim2.new(1, 0, 1, -52)
+	list.Size = UDim2.new(1, 0, 1, -44)
 	list.BackgroundTransparency = 1
 	list.Parent = root
 
@@ -177,7 +190,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local frame = Instance.new("Frame")
 		frame.Name = def.id
 		frame.LayoutOrder = index
-		frame.Size = UDim2.new(1, 0, 0, 56)
+		frame.Size = UDim2.new(1, 0, 0, 46)
 		frame.BackgroundColor3 = SHELL_DARK
 		frame.BorderSizePixel = 0
 		frame.Parent = list
@@ -195,7 +208,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local name = Instance.new("TextLabel")
 		name.Name = "Name"
 		name.Position = UDim2.fromOffset(16, 8)
-		name.Size = UDim2.new(1, -140, 0, 20)
+		name.Size = UDim2.new(1, -120, 0, 18)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.GothamBold
 		name.TextSize = 16
@@ -214,7 +227,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local pipArea = Instance.new("Frame")
 		pipArea.Name = "Pips"
 		pipArea.Position = UDim2.fromOffset(16, 32)
-		pipArea.Size = UDim2.new(1, -156, 0, 12)
+		pipArea.Size = UDim2.new(1, -132, 0, 9)
 		pipArea.BackgroundTransparency = 1
 		pipArea.Parent = frame
 
@@ -248,7 +261,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		button.Name = "Buy"
 		button.AnchorPoint = Vector2.new(1, 0.5)
 		button.Position = UDim2.new(1, -10, 0.5, 0)
-		button.Size = UDim2.fromOffset(110, 36)
+		button.Size = UDim2.fromOffset(92, 30)
 		button.BackgroundColor3 = tint
 		button.BorderSizePixel = 0
 		button.AutoButtonColor = false

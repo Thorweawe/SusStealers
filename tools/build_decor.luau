@@ -28,6 +28,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PLOT_COUNT, PLOT_SPACING, PLOT_SIZE, PODIUMS, PODIUM_GAP = 8, 76, Vector3.new(60, 2, 44), 8, 6.5
 local COLUMNS, ROW_SPACING = PLOT_COUNT, 0
+-- Ön/arka kaide sırasının merkezden uzaklığı; Config'ten okunuyor ki
+-- gerçek kaidelerle aynı sayı olsun (bkz. Config.PodiumRowZ)
+local PODIUM_ROW_Z = 9
 
 do
 	--[[
@@ -48,6 +51,7 @@ do
 		PLOT_SIZE = cfg.PlotSize or PLOT_SIZE
 		PODIUMS = cfg.PodiumsPerPlot or PODIUMS
 		PODIUM_GAP = cfg.PodiumSpacing or PODIUM_GAP
+		PODIUM_ROW_Z = cfg.PodiumRowZ or PODIUM_ROW_Z
 		COLUMNS = cfg.PlotColumns or PLOT_COUNT
 		ROW_SPACING = cfg.PlotRowSpacing or 0
 	else
@@ -914,7 +918,8 @@ do
 				durduğu yer olduğu belli oluyor.
 			]]
 			local px = ox + (col - (perRow - 1) / 2) * PODIUM_GAP
-			local pz = oz + (if front then -8 else 8)
+			-- Gerçek kaidelerle aynı sayı; ayrı yazılıydı ve bir stud kayıyordu
+			local pz = oz + (if front then -PODIUM_ROW_Z else PODIUM_ROW_Z)
 
 			build({
 				name = "PodiumPad",

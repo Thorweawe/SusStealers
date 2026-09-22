@@ -85,7 +85,8 @@ end
 ]]
 local LAYOUT = {
 	STAIR_W = 11,
-	ROW_Z = 9,           -- ön/arka kaide sırasının merkezden uzaklığı
+	-- Dekor da aynı sayıyı kullanıyor, o yüzden Config'te (bkz. PodiumRowZ)
+	ROW_Z = Config.PodiumRowZ,
 	BONUS_X = 2.5,       -- bonus kaidenin kaç "PodiumSpacing" kadar yanda olduğu
 	DECK_INSET = 6,      -- güvertenin ön/arka kenarının üs kenarından içeride kalması
 }

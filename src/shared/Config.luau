@@ -15,6 +15,15 @@ Config.PodiumsPerPlot = 8
 ]]
 Config.PlotSize = Vector3.new(72, 2, 52)
 Config.PodiumSpacing = 7.5
+--[[
+	Ön/arka kaide sırasının üs merkezine uzaklığı.
+
+	Burada duruyor çünkü İKİ yer birden kullanıyor: PlotService gerçek
+	kaideleri, build_decor da altlarındaki pedleri buna göre koyuyor.
+	Ayrı ayrı yazılıydı (9 ve 8) ve bir stud kayıyorlardı — pedler
+	kaidelerin altından taşıyordu.
+]]
+Config.PodiumRowZ = 9
 
 --[[
 	Üsler ızgara halinde diziliyor: soldan sağa PlotColumns tane, sonra alt
