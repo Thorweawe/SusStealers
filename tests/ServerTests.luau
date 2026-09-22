@@ -1881,6 +1881,42 @@ case("Ses: tınılar birbirinden ayırt edilebilir", function()
 	end
 end)
 
+case("Ses: her tınının kaynağı gerçekten var", function()
+	--[[
+		Kaynak adı Config'te metin, karşılığı SoundFX'teki ID tablosunda.
+		İkisi ayrı dosyada olduğu için bir yazım hatası sessizce taban
+		sese düşürüyor ve kimse fark etmiyor — bu tam olarak oldu:
+		Config "AlarmBurst" diyordu, tabloda adı "Alarm"dı.
+
+		Sunucudan SoundFX'in kendi tablosunu okuyamıyoruz (istemci modülü),
+		o yüzden geçerli adların listesi burada duruyor. Yeni kaynak
+		eklenince buraya da yazılmalı; test bunu zorluyor.
+	]]
+	local SOURCES = {
+		Ambient = true, Machine = true, Alarm = true,
+		UiA = true, UiB = true, UiC = true, UiD = true,
+		Throb = true, Deny = true, Success = true,
+	}
+
+	local bad = {}
+	for kind, cue in Config.NotifyCues do
+		if cue.source and not SOURCES[cue.source] then
+			table.insert(bad, kind .. "->" .. cue.source)
+		end
+
+		-- Kesit başlangıcı negatif olamaz; süre de pozitif olmalı
+		if cue.startAt then
+			ok(kind .. " kesit başlangıcı geçerli", cue.startAt >= 0,
+				tostring(cue.startAt))
+		end
+		if cue.length then
+			ok(kind .. " kesit süresi pozitif", cue.length > 0, tostring(cue.length))
+		end
+	end
+
+	ok("tanınmayan kaynak yok", #bad == 0, table.concat(bad, ", "))
+end)
+
 case("Kat: tanımlar tutarlı", function()
 	local floors = {}
 	local increasing = true

@@ -576,40 +576,37 @@ export type NotifyCue = {
 
 Config.NotifyCues = {
 	--[[
-		Para işlemleri. Alma ile satma bir oktavdan fazla ayrı: ikisi en sık
-		arka arkaya yapılan işlem, karışmaları en kötüsü.
+		Para işlemleri. ÜÇÜ DE FARKLI KAYNAKTAN: perde farkı kısa seslerde
+		ayırt edilmiyordu, timbre farkı ediliyor. Kullanıcının "satın alma,
+		satma ve yükseltme hâlâ aynı" şikâyeti tam olarak buydu.
 	]]
-	buy      = { pitch = 1.45, volume = 0.50 },
-	sell     = { pitch = 0.62, volume = 0.55 },
+	buy      = { source = "UiA", startAt = 1.20, length = 0.28, pitch = 1.15, volume = 0.45 },
+	sell     = { source = "UiB", startAt = 2.40, length = 0.30, pitch = 0.85, volume = 0.45 },
+	upgrade  = { source = "UiC", startAt = 3.60, length = 0.26, pitch = 1.00, volume = 0.50, repeats = 2, gap = 0.13 },
 
-	-- Yükseltme mekanik bir iş: mekanik bir ses. Perdeyle değil, TIMBRE
-	-- ile ayrılıyor, o yüzden diğer ikisiyle asla karışmıyor.
-	upgrade  = { source = "Machine", startAt = 0.15, length = 0.45, pitch = 0.85, volume = 0.60 },
+	-- Çalma döngüsü: uyarı ailesinden, kısa ve gergin
+	steal    = { source = "Alarm", startAt = 2.00, length = 0.22, pitch = 1.25, volume = 0.45 },
+	deposit  = { source = "UiD", startAt = 1.50, length = 0.28, pitch = 0.80, volume = 0.50, repeats = 2, gap = 0.12 },
+	lock     = { source = "Throb", startAt = 4.00, length = 0.55, pitch = 0.75, volume = 0.50 },
+	catch    = { source = "Alarm", startAt = 1.00, length = 0.18, pitch = 1.10, volume = 0.55, repeats = 3, gap = 0.10 },
 
-	-- Çalma döngüsü. Çalma anı sirenden kesilmiş gergin bir bip; bırakma
-	-- ise ağır ve çözülen, çünkü tehlike bitti.
-	steal    = { source = "Alarm", startAt = 0.10, length = 0.30, pitch = 1.50, volume = 0.60 },
-	deposit  = { source = "Machine", startAt = 0.10, length = 0.50, pitch = 0.70, volume = 0.70, repeats = 2, gap = 0.12 },
-	lock     = { source = "Machine", startAt = 0.00, length = 0.60, pitch = 0.50, volume = 0.70 },
-	catch    = { source = "Alarm", startAt = 0.10, length = 0.25, pitch = 1.20, volume = 0.75, repeats = 3, gap = 0.09 },
+	-- Büyük ve kalıcı alımlar: ağır, çok vuruşlu
+	floor    = { source = "Throb", startAt = 2.00, length = 0.65, pitch = 0.60, volume = 0.60, repeats = 2, gap = 0.22 },
+	rebirth  = { source = "Throb", startAt = 8.00, length = 1.60, pitch = 0.55, volume = 0.65 },
+	purchase = { source = "UiC", startAt = 5.00, length = 0.26, pitch = 1.05, volume = 0.55, repeats = 3, gap = 0.11 },
 
-	-- Büyük ve kalıcı alımlar: ağır mekanik, çok vuruşlu
-	floor    = { source = "Machine", startAt = 0.20, length = 0.70, pitch = 0.55, volume = 0.85, repeats = 2, gap = 0.20 },
-	rebirth  = { source = "Ambient", startAt = 2.00, length = 2.50, pitch = 0.70, volume = 0.85 },
-	purchase = { pitch = 1.00, volume = 0.80, repeats = 3, gap = 0.10 },
+	-- Kutlamalar: yükselen dizi, farklı tonlardan
+	badge    = { source = "UiD", startAt = 4.00, length = 0.24, pitch = 1.20, volume = 0.55, repeats = 3, gap = 0.09 },
+	title    = { source = "UiA", startAt = 6.00, length = 0.26, pitch = 1.05, volume = 0.50, repeats = 3, gap = 0.12 },
+	quest    = { source = "UiB", startAt = 5.50, length = 0.26, pitch = 0.95, volume = 0.45, repeats = 2, gap = 0.12 },
+	spin     = { source = "UiC", startAt = 8.00, length = 0.24, pitch = 1.30, volume = 0.45, repeats = 2, gap = 0.07 },
+	potion   = { source = "UiD", startAt = 7.00, length = 0.22, pitch = 1.45, volume = 0.40 },
 
-	-- Kutlamalar: yükselen dizi. Aralarında perde ve vuruş farkı var.
-	badge    = { pitch = 1.30, volume = 0.80, repeats = 3, gap = 0.08 },
-	title    = { pitch = 1.10, volume = 0.75, repeats = 3, gap = 0.12 },
-	quest    = { pitch = 0.95, volume = 0.65, repeats = 2, gap = 0.11 },
-	spin     = { pitch = 1.25, volume = 0.60, repeats = 2, gap = 0.06 },
-	potion   = { pitch = 1.70, volume = 0.50 },
-
-	-- Bilgilendirme: araya girmemeli, en sessizler
-	tutorial = { pitch = 1.05, volume = 0.40 },
-	welcome  = { source = "Ambient", startAt = 5.00, length = 1.80, pitch = 1.00, volume = 0.50 },
-	plot     = { pitch = 0.80, volume = 0.45 },
-	income   = { pitch = 0.90, volume = 0.30 },
+	-- Bilgilendirme: en sessizler, araya girmemeli
+	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
+	welcome  = { source = "UiB", startAt = 8.00, length = 0.30, pitch = 1.00, volume = 0.38, repeats = 2, gap = 0.15 },
+	plot     = { source = "UiC", startAt = 11.0, length = 0.24, pitch = 0.90, volume = 0.32 },
+	income   = { source = "UiB", startAt = 12.0, length = 0.20, pitch = 0.95, volume = 0.25 },
 } :: { [string]: NotifyCue }
 
 --[[ Bu türün tanımlı bir sesi var mı. Testler buna bakıyor. ]]

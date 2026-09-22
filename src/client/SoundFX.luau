@@ -13,12 +13,42 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local SoundFX = {}
 
+--[[
+	Ses kimlikleri.
+
+	Hepsi Roblox'un KENDİ ses kütüphanesinden (AssetService:SearchAudio ile
+	bulundu) ve hepsinin bu yerde yüklendiği ölçülerek doğrulandı. Roblox
+	bu kütüphaneyi creator'lar için lisanslıyor, yani oyun içinde kullanmak
+	serbest.
+
+	Müzik yerine DOKU seçildi — şarkı değil, dron ve uzay atmosferi. İki
+	sebep: temaya (Among Us / istasyon) melodik prodüksiyon müziğinden daha
+	çok oturuyor, ve biri oynanışı kaydedip dışarı koyduğunda telif
+	taraması takılmıyor.
+
+	HEPSİNİN BAŞLIĞINDA "Constant" VAR ve bu bilinçli: sürekli ses oldukları
+	için neresinden kesilirse kesilsin geçerli bir tını çıkıyor. Derleme
+	dosyalarından körlemesine kesit almak, sessizliğe ya da bir vuruşun
+	ortasına denk gelme riski taşıyordu.
+]]
 local ID = {
-	Ambient = "rbxassetid://9114330975",    -- istasyon fonu, uzun süzülme
-	Machine = "rbxassetid://91861694498690", -- makine uğultusu, kısa döngü
-	Alarm = "rbxassetid://7084812679",       -- acil durum alarmı
-	Deny = "rbxassetid://87437544236708",    -- reddedildi
-	Success = "rbxassetid://125296945528316", -- başarılı işlem
+	-- Fon: istasyon gövdesi ve makine
+	Ambient = "rbxassetid://9113652844",   -- Buzzy Ambience Constant Gritty Drone 1
+	Machine = "rbxassetid://91861694498690",
+	Alarm   = "rbxassetid://9113392056",   -- Beeps Constant Fast Cluster Bursts Alarm 2
+
+	-- Arayüz tonları: dördü de farklı TİMBRE, aynı aileden
+	UiA     = "rbxassetid://9113120937",   -- Analysis Tone Ui Scan 1
+	UiB     = "rbxassetid://9113120926",   -- Analysis Tone Ui Scan 2
+	UiC     = "rbxassetid://9113120949",   -- Analysis Tone Ui Scan 3
+	UiD     = "rbxassetid://9113121236",   -- Analysis Tone Ui Scan 4
+
+	-- Ağır / mekanik işler
+	Throb   = "rbxassetid://9119838397",   -- Synth Throb Constant Low Frequency 1
+
+	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
+	Deny    = "rbxassetid://87437544236708",
+	Success = "rbxassetid://125296945528316",
 }
 
 --[[
@@ -40,8 +70,10 @@ local function ensureGroup(name: string, volume: number): SoundGroup
 	return groupObj
 end
 
-local ambienceGroup = ensureGroup("Ambience", 0.35)
-local effectGroup = ensureGroup("Effects", 0.8)
+-- Fon sürekli çaldığı için efektlerden belirgin kısık; kullanıcı
+-- "baş ağrıtıyor" dediği için ikisi de düşürüldü.
+local ambienceGroup = ensureGroup("Ambience", 0.18)
+local effectGroup = ensureGroup("Effects", 0.45)
 
 local function newSound(id: string, parent: Instance, groupObj: SoundGroup, volume: number, looped: boolean): Sound
 	local s = Instance.new("Sound")
@@ -315,8 +347,13 @@ function SoundFX.AlarmUntil(shouldContinue: () -> boolean, maxSeconds: number)
 			dikişi duyuluyordu. Kısa bir dilim çalıp susmak hem temiz hem de
 			gerçek bir alarma daha çok benziyor.
 		]]
-		local BEEP = 0.85
-		local GAP = 0.75
+		--[[
+			Bip daha kısa, ara daha uzun. Önceki ritim (0.85 çal / 0.75 sustur)
+			45 saniye boyunca neredeyse kesintisiz siren demekti ve baş
+			ağrıtıyordu. Şimdi kısa bir uyarı, sonra nefes.
+		]]
+		local BEEP = 0.45
+		local GAP = 1.60
 
 		local deadline = os.clock() + maxSeconds
 		while os.clock() < deadline do
@@ -361,7 +398,13 @@ end
 function SoundFX.Preload()
 	effect("Success", ID.Success, 0.75)
 	effect("Deny", ID.Deny, 0.55)
-	effect("Alarm", ID.Alarm, 0.8)
+	effect("Alarm", ID.Alarm, 0.55)
+
+	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
+	-- sessizlik olmasın
+	for _, key in { "UiA", "UiB", "UiC", "UiD", "Throb" } do
+		effect(key, ID[key], 0.5)
+	end
 
 	task.spawn(function()
 		local ContentProvider = game:GetService("ContentProvider")

@@ -17,11 +17,16 @@
 	modül kurulup hiçbir şey çalmıyor — oyun çalışmaya devam ediyor.
 	Kimlikler geldiğinde tek yapılacak şey aşağıdaki listeleri doldurmak.
 
-	Kimlik eklerken: Roblox'ta başkasının yüklediği ses çoğunlukla başka
-	oyunda KULLANILAMIYOR. Creator Store'da "Audio" altında, kendi
-	hesabınla kullanım hakkı olan ya da Roblox'un kendi yüklediği
-	parçaları seç. Şüpheliysen Studio'da çaldır: yüklenmiyorsa sessiz
-	kalır ve fark etmezsin.
+	Parçalar Roblox'un kendi kütüphanesinden (AssetService:SearchAudio) ve
+	bu yerde yüklendikleri ölçülerek doğrulandı.
+
+	ŞARKI DEĞİL DOKU seçildi: dron ve gemi uğultusu. Temaya melodik
+	prodüksiyon müziğinden daha çok oturuyor, ve biri oynanışı kaydedip
+	dışarı koyduğunda telif taraması takılmıyor.
+
+	Kimlik eklerken: Roblox'ta başkasının YÜKLEDİĞİ ses başka oyunda
+	kullanılamıyor — katalogdan alınan kimlikler sessiz kalıyor. Studio'nun
+	kendi ses kütüphanesini kullan ve eklemeden önce yüklendiğini doğrula.
 
 	Kullanım (init.client.luau içinde):
 		mountPanel("Music", function() Music.Start() end)
@@ -47,14 +52,21 @@ local player = Players.LocalPlayer
 	istasyonda iyi durur; lobide daha yumuşak bir şey.
 ]]
 local PLAYLIST: { [string]: { string } } = {
-	lobby = {},
-	station = {},
+	-- Lobi: sakin, yakın; alışveriş yapılan yer
+	lobby = {
+		"rbxassetid://9113652844",   -- Buzzy Ambience Constant Gritty Drone 1
+	},
+	-- İstasyon: geniş ve alçak gemi uğultusu; asıl oyun burada
+	station = {
+		"rbxassetid://9125970753",   -- Spacecraft Engine Constant Mild Roar Rumble
+	},
 }
 
 -- Müzik kendi grubunda: oyuncu ayarlardan efektlerden bağımsız kısabilsin
 -- ve kısılma (ducking) tek yerden uygulanabilsin.
-local BASE_VOLUME = 0.30
-local DUCK_VOLUME = 0.06
+-- Doku müziği; öne çıkmamalı, altta durmalı
+local BASE_VOLUME = 0.16
+local DUCK_VOLUME = 0.03
 local FADE = 1.5
 
 local function ensureGroup(): SoundGroup
