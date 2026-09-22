@@ -24,6 +24,7 @@ local EVENTS = {
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
 	"UpgradeBuy",   -- client -> server (upgradeId: string)
+	"FloorBuy",     -- client -> server (argumansiz)
 	"Sprint",       -- client -> server (active: boolean)
 }
 
@@ -48,6 +49,7 @@ local CLIENT_TO_SERVER = {
 	TitleEquip = true,
 	PotionUse = true,
 	UpgradeBuy = true,
+	FloorBuy = true,
 	--[[
 		Sprint yalnızca bir bayrak; hızı sunucu belirliyor ve TAŞIRKEN
 		reddediyor. Roblox'ta oyuncu zaten kendi WalkSpeed'ini istemciden

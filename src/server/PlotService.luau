@@ -318,6 +318,130 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		light.Brightness = 0.7
 		light.Parent = lamp
 	end
+
+	--[[
+		═══ KAT DEKORU ══════════════════════════════════════════════════════
+
+		Üst kat "boş bir levha" gibi duruyordu: güverte, korkuluk, kaideler,
+		bitti. Oyuncu milyarlarını verip açtığı katta bir alt kattan farklı
+		hiçbir şey görmüyordu.
+
+		Bu blok katı BİR ODA yapıyor. Hepsi alt katta zaten olan dille
+		kuruluyor (aynı plaka, oluk, uyarı şeridi), böylece katlar arasında
+		uyum var — ama her katın kendi numarası ve kendi renk aksanı var.
+	]]
+	local floorIndex = math.floor((deckTop - Config.PlotSize.Y / 2) / rise) + 1
+	local FLOOR_TINT = {
+		Color3.fromRGB(86, 140, 150),
+		Color3.fromRGB(176, 132, 74),
+		Color3.fromRGB(150, 110, 170),
+	}
+	local tint = FLOOR_TINT[math.clamp(floorIndex, 1, #FLOOR_TINT)]
+
+	-- Zemin plakaları: alt kattaki güverte dokusunun aynısı
+	local TILE = 14
+	local cols = math.max(1, math.floor(deckW / TILE))
+	local rowsT = math.max(1, math.floor(deckZ / TILE))
+	for i = 0, cols - 1 do
+		for j = 0, rowsT - 1 do
+			slab("DeckPlate", Vector3.new(deckW / cols - 0.8, 0.2, deckZ / rowsT - 0.8), Vector3.new(
+				deckX0 + (i + 0.5) * (deckW / cols),
+				deckTop + 0.1,
+				-deckZ / 2 + (j + 0.5) * (deckZ / rowsT)
+			), if (i + j) % 2 == 0 then DECK_COLOR else Color3.fromRGB(56, 67, 73))
+		end
+	end
+
+	-- Kaide sıralarının arasındaki yürüme yolu, kenarında uyarı şeridi
+	slab("DeckLane", Vector3.new(deckW - 4, 0.12, 7), Vector3.new(deckCX, deckTop + 0.26, 0),
+		Color3.fromRGB(96, 108, 118))
+	for _, sz in { -1, 1 } do
+		local step = 5
+		local count = math.floor((deckW - 4) / step)
+		for i = 0, count - 1 do
+			slab("DeckStripe", Vector3.new(step * 0.55, 0.14, 0.7), Vector3.new(
+				deckCX - (deckW - 4) / 2 + (i + 0.5) * step,
+				deckTop + 0.3,
+				sz * 3.5
+			), if i % 2 == 0 then Color3.fromRGB(206, 172, 72) else Color3.fromRGB(38, 36, 28))
+		end
+	end
+
+	--[[
+		Arka duvar paneli. Kaidelerin arkasını kapatıyor; açık kenardan
+		aşağı bakınca kat "kesilmiş" gibi duruyordu. Korkuluk yerine dolu
+		panel çünkü bu kenarda geçiş yok.
+	]]
+	slab("DeckWall", Vector3.new(deckW, 7, 1), Vector3.new(deckCX, deckTop + 3.5, deckZ / 2 - 0.5), DECK_COLOR)
+	slab("DeckWallTrim", Vector3.new(deckW, 0.6, 1.6), Vector3.new(deckCX, deckTop + 7.2, deckZ / 2 - 0.5), TRIM_COLOR)
+	slab("DeckWallBand", Vector3.new(deckW - 6, 0.5, 1.4), Vector3.new(deckCX, deckTop + 5.4, deckZ / 2 - 0.9), tint)
+
+	-- Duvara gömme aydınlatma: kat kendi ışığını taşısın
+	for _, t in { 0.25, 0.5, 0.75 } do
+		local wall = newAnchoredPart(
+			"DeckWallLamp",
+			Vector3.new(deckW * 0.18, 0.3, 0.5),
+			CFrame.new(origin + Vector3.new(deckX0 + deckW * t, deckTop + 6.4, deckZ / 2 - 1.1)),
+			Color3.fromRGB(255, 244, 222),
+			parent
+		)
+		wall.Material = Enum.Material.Neon
+		wall.CanCollide = false
+
+		local wl = Instance.new("PointLight")
+		wl.Color = Color3.fromRGB(255, 244, 222)
+		wl.Range = 20
+		wl.Brightness = 0.6
+		wl.Parent = wall
+	end
+
+	--[[
+		Kat numarası. Merdivenden çıkan oyuncu kaçıncı kata geldiğini
+		görüyor; üç kat birbirinin aynı olunca kaybolmak kolay.
+	]]
+	local plate = newAnchoredPart(
+		"FloorPlate",
+		Vector3.new(9, 3, 0.4),
+		CFrame.new(origin + Vector3.new(deckX0 + 8, deckTop + 5.2, deckZ / 2 - 1.1)),
+		Color3.fromRGB(27, 34, 39),
+		parent
+	)
+	plate.Material = Enum.Material.SmoothPlastic
+	plate.CanCollide = false
+
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "Label"
+	surface.Face = Enum.NormalId.Front
+	surface.CanvasSize = Vector2.new(180, 60)
+	surface.LightInfluence = 0
+	surface.Parent = plate
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = tint
+	text.Text = string.format("FLOOR %d", floorIndex)
+	text.Parent = surface
+
+	--[[
+		Merdiven başına kemer. Çıkış noktasını işaretliyor ve merdivenin
+		"bir kuyu değil bir geçit" olduğunu anlatıyor.
+	]]
+	for _, s in { -1, 1 } do
+		slab("StairArchLeg", Vector3.new(1.2, 8, 1.2), Vector3.new(
+			stairX + s * (stairW / 2 - 1),
+			deckTop + 4,
+			zTop - landingLen + 1
+		), TRIM_COLOR)
+	end
+	slab("StairArchBeam", Vector3.new(stairW, 1.4, 1.6), Vector3.new(
+		stairX, deckTop + 8.5, zTop - landingLen + 1
+	), TRIM_COLOR)
+	slab("StairArchBand", Vector3.new(stairW - 3, 0.5, 1.2), Vector3.new(
+		stairX, deckTop + 7.4, zTop - landingLen + 0.6
+	), tint)
 end
 
 --[[
@@ -435,22 +559,29 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 		CanCollide kapalı (içinden geçilebilir), CanQuery açık: istemci
 		oyuncunun mesafesini buna göre ölçüyor.
 	]]
+	--[[
+		ÇAP = 2 × UpgradePanel.REACH. Daire 16 studdu ama panel 6'da
+		açılıyordu: zemindeki sarı alan etkileşim alanından iki kat büyük
+		görünüyor, oyuncu dairenin içinde durduğu hâlde panel açılmıyordu.
+		İkisi artık aynı ölçüde; halkaya bastığın an açılıyor.
+	]]
+	local ZONE_D = 12
+
 	local zone = newAnchoredPart(
 		"UpgradeZone",
-		Vector3.new(16, 0.4, 16),
-		CFrame.new(origin + root + Vector3.new(0, 0.2, -9)),
+		Vector3.new(ZONE_D, 0.4, ZONE_D),
+		CFrame.new(origin + root + Vector3.new(0, 0.2, -8)) * CFrame.Angles(0, 0, math.rad(90)),
 		ACCENT,
 		booth
 	)
 	zone.Shape = Enum.PartType.Cylinder
-	zone.CFrame = CFrame.new(origin + root + Vector3.new(0, 0.2, -9)) * CFrame.Angles(0, 0, math.rad(90))
 	zone.Transparency = 1
 	zone.CanCollide = false
 	zone.CanTouch = false
 
 	-- Zeminde alanın nerede olduğunu gösteren soluk halka
-	part("ZoneRing", Vector3.new(16, 0.14, 16), Vector3.new(0, 0.07, -9), ACCENT, false).Transparency = 0.72
-	part("ZoneRingInner", Vector3.new(12.4, 0.16, 12.4), Vector3.new(0, 0.08, -9), DARK, false).Transparency = 0.5
+	part("ZoneRing", Vector3.new(ZONE_D, 0.14, ZONE_D), Vector3.new(0, 0.07, -8), ACCENT, false).Transparency = 0.8
+	part("ZoneRingInner", Vector3.new(ZONE_D - 2.4, 0.16, ZONE_D - 2.4), Vector3.new(0, 0.08, -8), DARK, false).Transparency = 0.55
 
 	--[[
 		═══ SATICI ══════════════════════════════════════════════════════════
@@ -469,7 +600,9 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	local S = 1.35                       -- ölçek
 	local FEET = 0.6                     -- tezgâhın arkasında bir basamak
 
-	local vroot = Vector3.new(bx, topY + FEET, bz + 0.4)
+	-- z: sirt cantasi 1.35*1 = 1.35 derin ve arka pano z = bz+2.2'de.
+	-- 0.4'te canta panonun icine giriyordu; -0.9 onu tamamen one aliyor.
+	local vroot = Vector3.new(bx, topY + FEET, bz - 0.9)
 
 	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?): Part
 		local p = newAnchoredPart(name, size * S, CFrame.new(origin + vroot + offset * S), color, booth)
