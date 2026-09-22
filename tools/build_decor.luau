@@ -605,7 +605,7 @@ do
 			build({ name = "GrateLip", size = Vector3.new(w + 1.4, 0.4, 0.7),
 				cf = at(x, 0.38 + LIFT, z + s * (d / 2 + 0.35)), color = TRIM,
 				material = Enum.Material.Metal, parent = grates })
-			build({ name = "GrateLip", size = Vector3.new(0.7, 0.4, d + 1.4),
+			build({ name = "GrateLip", size = Vector3.new(0.7, 0.4, d - 0.6),
 				cf = at(x + s * (w / 2 + 0.35), 0.38 + LIFT, z), color = TRIM,
 				material = Enum.Material.Metal, parent = grates })
 		end
@@ -749,8 +749,11 @@ do
 	-- Kapının iki yanı aynadaki gibi: sol parça sondan başlıyor
 	wall("x", z1, x0, centerX - gapHalf, 1, "end")
 	wall("x", z1, centerX + gapHalf, x1, 1)
-	wall("z", x0, z0, z1, -1)
-	wall("z", x1, z0, z1, 1)
+	-- Ön/arka duvar 2.4 kalın ve köşeyi zaten kapatıyor. Yan duvarlar o
+	-- kadar kısaltılmazsa dört köşede iki kornişin ve iki süpürgeliğin
+	-- üst yüzü aynı düzlemde kalıyor ve titriyor.
+	wall("z", x0, z0 + 2.1, z1 - 2.1, -1)
+	wall("z", x1, z0 + 2.1, z1 - 2.1, 1)
 
 	-- Kapı boşluğunun kenar dikmeleri ve üst kirişi
 	for _, s in { -1, 1 } do
@@ -946,15 +949,15 @@ do
 			build({
 				name = "PodiumPad",
 				size = Vector3.new(5.6, 0.3, 5.6),
-				cf = at(px, topY + 0.15 + LIFT, pz),
+				cf = at(px, topY + 0.22 + LIFT, pz),
 				color = HULL_DARK, material = Enum.Material.Metal, parent = pf,
 			})
 			for _, s in { -1, 1 } do
 				build({ name = "PodiumEdge", size = Vector3.new(6, 0.36, 0.5),
-					cf = at(px, topY + 0.18 + LIFT, pz + s * 2.75),
+					cf = at(px, topY + 0.26 + LIFT, pz + s * 2.75),
 					color = TRIM, material = Enum.Material.Metal, parent = pf })
 				build({ name = "PodiumEdge", size = Vector3.new(0.5, 0.36, 6),
-					cf = at(px + s * 2.75, topY + 0.18 + LIFT, pz),
+					cf = at(px + s * 2.75, topY + 0.26 + LIFT, pz),
 					color = TRIM, material = Enum.Material.Metal, parent = pf })
 			end
 		end
@@ -1785,7 +1788,7 @@ do
 		sadece havada bir tahta vardı.
 	]]
 	local bridgeZ = centerZ + halfD + LOBBY_BRIDGE / 2
-	local bridgeLen = LOBBY_BRIDGE + 2
+	local bridgeLen = LOBBY_BRIDGE - 1
 
 	--[[
 		Ölçüler büyütüldü: geçit 28 studdu ve iki yanda 1.2'lik duvarlarla
@@ -1947,7 +1950,7 @@ do
 		build({ name = "LobbyWall", size = Vector3.new(e.sx, LOBBY_WALL_H, e.sz),
 			cf = at(e.x, LOBBY_WALL_H / 2, e.z), color = HULL,
 			material = Enum.Material.Metal, collide = true, parent = f })
-		build({ name = "LobbyCornice", size = Vector3.new(e.sx + 3, 1.4, e.sz + 3),
+		build({ name = "LobbyCornice", size = Vector3.new(e.sx + (if e.sx > 10 then 3 else -6), 1.4, e.sz + (if e.sz > 10 then 3 else -6)),
 			cf = at(e.x, LOBBY_WALL_H + 0.7, e.z), color = TRIM,
 			material = Enum.Material.Metal, parent = f })
 	end
@@ -2016,12 +2019,13 @@ do
 	local rim = {
 		{ centerX, lobbyZ + halfLD, LOBBY_W + 3, 2.6 },
 		{ centerX, lobbyZ - halfLD, LOBBY_W + 3, 2.6 },
-		{ centerX - halfLW, lobbyZ, 2.6, LOBBY_D + 3 },
-		{ centerX + halfLW, lobbyZ, 2.6, LOBBY_D + 3 },
+		-- Ön/arka bant köşeyi kapatıyor; yan bantlar onun kalınlığı kadar kısa
+		{ centerX - halfLW, lobbyZ, 2.6, LOBBY_D - 3 },
+		{ centerX + halfLW, lobbyZ, 2.6, LOBBY_D - 3 },
 	}
 	for _, r in rim do
 		build({ name = "LobbyFascia", size = Vector3.new(r[3], band, r[4]),
-			cf = at(r[1], (LOBBY_WALL_H + LOBBY_CEIL_Y) / 2, r[2]), color = HULL_DARK,
+			cf = at(r[1], (LOBBY_WALL_H + LOBBY_CEIL_Y) / 2 - 0.5, r[2]), color = HULL_DARK,
 			material = Enum.Material.Metal, parent = ceil })
 	end
 
@@ -2328,7 +2332,7 @@ do
 		end
 
 		build({ name = "LanePaint", size = box(length, width),
-			cf = at(cx, PAINT_Y, cz),
+			cf = at(cx, PAINT_Y + (if along == "z" then 0.06 else 0), cz),
 			color = DECK_ALT:Lerp(Color3.fromRGB(150, 160, 180), 0.3),
 			emit = "Paint", parent = f })
 
@@ -2342,7 +2346,7 @@ do
 					size = box(step * 0.55, 0.9),
 					cf = at(
 						if along == "x" then cx + off else cx + side * width / 2,
-						PAINT_Y + 0.02,
+						PAINT_Y + 0.08 + (if along == "z" then 0.06 else 0),
 						if along == "x" then cz + side * width / 2 else cz + off
 					),
 					color = if i % 2 == 0 then HAZARD else HAZARD_DARK,
@@ -2382,7 +2386,7 @@ do
 	-- Her panoya ayrı kol. Panolar 52 stud arayla; enine akstan duvara
 	-- doğru kısa birer bağlantı.
 	for i = -1, 1 do
-		lane(centerX + i * 52, boardZ + 9, 20, 10, "z")
+		lane(centerX + i * 52, boardZ + 13, 14, 10, "z")
 	end
 
 	-- Çark kolu: ana akstan sola, portalın önüne kadar
@@ -2745,8 +2749,8 @@ do
 		build({ name = "WheelLeg", size = Vector3.new(2.4, legH + 3, 2.4),
 			cf = at(x + s * 8, 6 + legH / 2, z + 1.2) * CFrame.Angles(0, 0, math.rad(-s * 11)),
 			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
-		build({ name = "WheelBrace", size = Vector3.new(11, 1.4, 1.4),
-			cf = at(x + s * 4, 13, z + 1.2), color = TRIM,
+		build({ name = "WheelBrace", size = Vector3.new(7, 1.4, 1.4),
+			cf = at(x + s * 5.5, 13, z + 1.2), color = TRIM,
 			material = Enum.Material.Metal, parent = f })
 	end
 
