@@ -13,6 +13,10 @@
 	Sahip olunmayan petler de GÖRÜNÜYOR, sönük ve "???" olarak. Hedef
 	listesi olmadan koleksiyon sadece bir envanter; neyin eksik olduğunu
 	görmek onu koleksiyon yapıyor.
+
+	İkinci hâli: BİRLEŞTİRME MAKİNESİ (OpenFuse). Kuluçkahanedeki makinede
+	E'ye basınca aynı pencere açılıyor ama yalnızca üç kopyası olan petler
+	ve büyük FUSE düğmeleriyle.
 ]]
 
 local Players = game:GetService("Players")
@@ -21,6 +25,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
 
@@ -35,6 +40,13 @@ local GOOD = UiKit.GOOD
 
 export type Panel = {
 	Toggle: () -> (),
+	--[[
+		Birleştirme makinesinde E'ye basınca açılıyor: yumurtalar gizli,
+		yalnızca üç kopyası olan petler ve büyük FUSE düğmeleri. Birleştirme
+		sadece makinenin yanında yapılabiliyor (sunucu mesafeyi doğruluyor),
+		o yüzden normal pet ekranında FUSE düğmesi yok.
+	]]
+	OpenFuse: () -> (),
 	Destroy: () -> (),
 }
 
@@ -214,6 +226,9 @@ function PetPanel.Create(screen: ScreenGui): Panel
 	local owned: { [string]: number } = {}
 	local equipped: { string } = {}
 
+	-- "pets": yumurtalar + koleksiyon; "fuse": makinede, yalnızca birleşebilenler
+	local mode = "pets"
+
 	-- Kart sırası: düz önce, sonra sıktan nadire (Golden, Crystal, Cosmic)
 	local MUTATION_ORDER: { [string]: number } = { [""] = 0 }
 	for index = #Config.PetMutations, 1, -1 do
@@ -241,7 +256,9 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		local card = Instance.new("TextButton")
 		card.Name = key or def.id
 		card.LayoutOrder = orderIndex
-		card.BackgroundColor3 = UiKit.ROW
+		-- Sahip olunan kart kademe rengine hafifçe boyanıyor: panel renkli
+		-- bir koleksiyon gibi okunuyor, gri bir tablo gibi değil
+		card.BackgroundColor3 = if key then info.color:Lerp(UiKit.ROW, 0.8) else UiKit.ROW
 		card.BackgroundTransparency = if key then 0 else 0.45
 		card.BorderSizePixel = 0
 		card.AutoButtonColor = false
@@ -255,17 +272,18 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			if mutation then 0.2 else 0.75)
 
 		--[[
-			Figür: petin rengindeki mürettebat silueti. Mutasyonlu kopyada
-			mutasyon rengi — Golden'ı düzünden ayıran ilk şey bu olmalı.
+			Figür: petin sahadaki biçimi (küre, robot, yengeç...) kendi
+			renginde. Mutasyonlu kopyada mutasyon rengi — Golden'ı düzünden
+			ayıran ilk şey bu olmalı. Sahip olunmayan pet sönük siluet.
 		]]
 		local figure = Instance.new("Frame")
 		figure.AnchorPoint = Vector2.new(0.5, 0)
-		figure.Position = UDim2.new(0.5, 0, 0, 10)
-		figure.Size = UDim2.fromOffset(34, 34)
+		figure.Position = UDim2.new(0.5, 0, 0, 8)
+		figure.Size = UDim2.fromOffset(38, 38)
 		figure.BackgroundTransparency = 1
 		figure.ZIndex = 44
 		figure.Parent = card
-		UiKit.Crewmate(figure, 30,
+		UiKit.PetFigure(figure, 34, PetModel.FormOf(def.id),
 			if not key then UiKit.DIM elseif mutation then mutation.tint else def.color)
 
 		local name = Instance.new("TextLabel")
@@ -338,6 +356,42 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		UiKit.Corner(mark, 2)
 
 		local k = key
+
+		--[[
+			Birleştirme modunda kartın alt yarısı FUSE düğmesi: üstünde
+			hangi kademeye çıkacağı yazıyor ("→ RARE"). Kart tıklaması bu
+			modda pet takmıyor — iki işi aynı ekranda karıştırmak kopyaları
+			kazayla yakmak demekti.
+		]]
+		if mode == "fuse" then
+			local nextRarity = Config.GetNextRarity(def.rarity) :: string
+			local nextInfo = Config.Rarities[nextRarity]
+			stat.Visible = false
+			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", nextInfo.color, UDim2.new(1, -10, 0, 30), 8)
+			fuseHolder.AnchorPoint = Vector2.new(0.5, 1)
+			fuseHolder.Position = UDim2.new(0.5, 0, 1, -6)
+			fuseHolder.ZIndex = 46
+			fuse.ZIndex = 47
+			local fuseText = Instance.new("TextLabel")
+			fuseText.Size = UDim2.fromScale(1, 1)
+			fuseText.BackgroundTransparency = 1
+			fuseText.Font = Enum.Font.GothamBlack
+			fuseText.TextSize = 11
+			fuseText.TextColor3 = Color3.new(1, 1, 1)
+			fuseText.TextStrokeTransparency = 0.5
+			fuseText.Text = "FUSE → " .. string.upper(nextRarity)
+			fuseText.TextScaled = true
+			fuseText.ZIndex = 48
+			fuseText.Parent = fuse
+			local limit = Instance.new("UITextSizeConstraint")
+			limit.MaxTextSize = 11
+			limit.Parent = fuseText
+			fuse.MouseButton1Click:Connect(function()
+				fuseRemote:FireServer(k)
+			end)
+			return
+		end
+
 		card.MouseButton1Click:Connect(function()
 			-- Takılıysa çıkar, değilse tak: tek düğme, iki yön
 			equipRemote:FireServer(k, not isOn)
@@ -348,36 +402,6 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		card.MouseLeave:Connect(function()
 			stroke.Transparency = if mutation then 0.2 else 0.75
 		end)
-
-		--[[
-			FUSE düğmesi yalnızca üç kopya varken ve üstünde bir kademe
-			varken çıkıyor. Kartın sol üstünde, adet rozetinin karşısında:
-			"x3" ile "FUSE" aynı bakışta okunsun.
-
-			Ayrı bir düğme, kartın kendisi değil — kart tıklaması takıp
-			çıkarıyor ve iki işi tek tıklamaya bağlamak kopyaları kazayla
-			yakmak demekti.
-		]]
-		if count >= Config.PetFuseCount and Config.GetNextRarity(def.rarity) then
-			local nextInfo = Config.Rarities[Config.GetNextRarity(def.rarity) :: string]
-			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", nextInfo.color, UDim2.fromOffset(40, 20), 6)
-			fuseHolder.Position = UDim2.fromOffset(5, 5)
-			fuseHolder.ZIndex = 46
-			fuse.ZIndex = 47
-			local fuseText = Instance.new("TextLabel")
-			fuseText.Size = UDim2.fromScale(1, 1)
-			fuseText.BackgroundTransparency = 1
-			fuseText.Font = Enum.Font.GothamBlack
-			fuseText.TextSize = 10
-			fuseText.TextColor3 = Color3.new(1, 1, 1)
-			fuseText.TextStrokeTransparency = 0.5
-			fuseText.Text = "FUSE"
-			fuseText.ZIndex = 48
-			fuseText.Parent = fuse
-			fuse.MouseButton1Click:Connect(function()
-				fuseRemote:FireServer(k)
-			end)
-		end
 	end
 
 	local function redraw()
@@ -386,14 +410,25 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		end
 		table.clear(rows)
 
+		local fusing = mode == "fuse"
+		eggRow.Visible = not fusing
+		list.Position = UDim2.fromOffset(14, if fusing then 60 else 138)
+		list.Size = UDim2.new(1, -28, 1, if fusing then -74 else -152)
+		heading.Text = if fusing then "FUSE MACHINE" else "PETS"
+
 		local slotsUsed = #equipped
 		local income, speed = Config.GetPetBonus(equipped)
-		hint.Text = string.format("%d / %d equipped  ·  click to equip  ·  3 copies = FUSE", slotsUsed, Config.PetEquipSlots)
-		if slotsUsed > 0 then
-			hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed", math.floor(income * 100 + 0.5), speed)
+		if fusing then
+			hint.Text = string.format("Pick a pet you have %d of. They become 1 pet of the next rarity (mutation kept).", Config.PetFuseCount)
+		else
+			hint.Text = string.format("%d / %d equipped  ·  click to equip  ·  fuse at the Pet Hatchery", slotsUsed, Config.PetEquipSlots)
+			if slotsUsed > 0 then
+				hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed", math.floor(income * 100 + 0.5), speed)
+			end
 		end
 
 		local order = 0
+		local anyFusable = false
 		for _, tier in TIERS do
 			local info = Config.Rarities[tier]
 
@@ -405,7 +440,12 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			for key, count in owned do
 				local def = Config.ParsePetKey(key)
 				if def and def.rarity == tier and count > 0 then
-					table.insert(slots, { def = def, key = key, count = count })
+					-- Birleştirme modunda yalnızca üç kopyası olan ve üstü olan
+					local fusable = count >= Config.PetFuseCount and Config.GetNextRarity(def.rarity) ~= nil
+					if not fusing or fusable then
+						table.insert(slots, { def = def, key = key, count = count })
+						anyFusable = anyFusable or fusable
+					end
 					found[def.id] = true
 				end
 			end
@@ -417,9 +457,11 @@ function PetPanel.Create(screen: ScreenGui): Panel
 				local _, mb = Config.ParsePetKey(b.key :: string)
 				return (MUTATION_ORDER[if ma then ma.id else ""] or 0) < (MUTATION_ORDER[if mb then mb.id else ""] or 0)
 			end)
-			for _, def in Config.Pets do
-				if def.rarity == tier and not found[def.id] then
-					table.insert(slots, { def = def, key = nil, count = 0 })
+			if not fusing then
+				for _, def in Config.Pets do
+					if def.rarity == tier and not found[def.id] then
+						table.insert(slots, { def = def, key = nil, count = 0 })
+					end
 				end
 			end
 
@@ -460,6 +502,22 @@ function PetPanel.Create(screen: ScreenGui): Panel
 				makeCard(row, index, slot.def, slot.key, slot.count)
 			end
 		end
+
+		-- Makinede birleştirilecek bir şey yoksa boş ekran değil, ne gerektiği
+		if fusing and not anyFusable then
+			local empty = Instance.new("TextLabel")
+			empty.LayoutOrder = 1
+			empty.Size = UDim2.new(1, -6, 0, 80)
+			empty.BackgroundTransparency = 1
+			empty.Font = Enum.Font.GothamBold
+			empty.TextSize = 15
+			empty.TextWrapped = true
+			empty.TextColor3 = MUTED
+			empty.Text = string.format("You need %d copies of the same pet to fuse.\nHatch more eggs and come back!", Config.PetFuseCount)
+			empty.ZIndex = 42
+			empty.Parent = list
+			table.insert(rows, empty)
+		end
 	end
 
 	--[[
@@ -497,6 +555,13 @@ function PetPanel.Create(screen: ScreenGui): Panel
 
 	return {
 		Toggle = function()
+			-- Makinede açıkken PETS düğmesine basılırsa normal ekrana geç
+			if overlay.Visible and mode == "fuse" then
+				mode = "pets"
+				redraw()
+				return
+			end
+			mode = "pets"
 			overlay.Visible = not overlay.Visible
 			-- Kapalıyken çizilmiyor (kartlar her seferinde yeniden kuruluyor);
 			-- açılırken son veriyle çiz
@@ -504,6 +569,11 @@ function PetPanel.Create(screen: ScreenGui): Panel
 				refreshEggs()
 				redraw()
 			end
+		end,
+		OpenFuse = function()
+			mode = "fuse"
+			overlay.Visible = true
+			redraw()
 		end,
 		Destroy = function()
 			petsConnection:Disconnect()

@@ -1077,6 +1077,9 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 	local plot = PlotService.GetPlotFromDescendant(podium)
 	local owner = plot and ownerByPlot[plot]
 	if owner then
+		-- İndeks: satın alınan, çalınan ya da çarktan gelen her karakter
+		DataService.Discover(owner, unitId)
+
 		local def = Config.GetUnit(unitId)
 		if def and def.rarity == "Secret" then
 			BadgeService.Award(owner, "SecretFind")

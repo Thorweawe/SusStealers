@@ -86,6 +86,15 @@ export type Profile = {
 		Uzunluğu Config.PetEquipSlots ile sınırlı.
 	]]
 	equippedPets: { string },
+	--[[
+		İndekste KEŞFEDİLMİŞ karakterler: kimlik -> true. Konveyörde
+		görülen ya da bir kaideye konan her karakter giriyor, hiç çıkmıyor.
+
+		Eskiden "görüldü" bilgisi istemcide oturum boyunca tutuluyordu ve
+		her girişte sıfırlanıyordu; indeks bir koleksiyon değil, o anki
+		kaidelerin listesiydi.
+	]]
+	discovered: { [string]: boolean },
 }
 
 export type QuestEntry = {
@@ -152,6 +161,7 @@ local function newProfile(): Profile
 		floorsBought = 0,
 		pets = {},
 		equippedPets = {},
+		discovered = {},
 	}
 end
 
@@ -370,6 +380,22 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
+	--[[
+		Keşif listesi. Alan sonradan eklendi; eski kayıtta yok. O yüzden
+		kaidelerde duran karakterler de keşfedilmiş sayılıyor — oyuncunun
+		elindeki bir karakterin indekste "???" görünmesi saçma olurdu.
+	]]
+	if typeof(raw.discovered) == "table" then
+		for id, flag in raw.discovered do
+			if typeof(id) == "string" and flag == true and Config.GetUnit(id) then
+				profile.discovered[id] = true
+			end
+		end
+	end
+	for _, stored in profile.units do
+		profile.discovered[stored.unitId] = true
+	end
+
 	return profile
 end
 
@@ -471,6 +497,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.upgrades = table.clone(profile.upgrades)
 	snapshot.titles = table.clone(profile.titles)
 	snapshot.potions = table.clone(profile.potions)
+	snapshot.discovered = table.clone(profile.discovered)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 
@@ -622,6 +649,39 @@ local function onPlayerAdded(player: Player)
 
 	profiles[player] = profile
 	loading[player] = nil
+
+	DataService.PublishDiscovered(player)
+end
+
+--[[
+	Keşif listesini istemciye nitelik olarak yayınlar: virgülle ayrılmış
+	kimlikler. Ayrı bir remote yerine nitelik, çünkü yirmi beş kısa
+	kimlik küçük bir metin ve nitelik zaten replike oluyor.
+]]
+function DataService.PublishDiscovered(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	local ids = {}
+	for id in profile.discovered do
+		table.insert(ids, id)
+	end
+	table.sort(ids)
+	player:SetAttribute("Discovered", table.concat(ids, ","))
+end
+
+--[[
+	Karakteri oyuncunun indeksine ekler. Zaten varsa bir şey yapmıyor,
+	yani sık çağrılması ucuz (konveyör her üretimde çağırıyor).
+]]
+function DataService.Discover(player: Player, unitId: string)
+	local profile = profiles[player]
+	if not profile or profile.discovered[unitId] or not Config.GetUnit(unitId) then
+		return
+	end
+	profile.discovered[unitId] = true
+	DataService.PublishDiscovered(player)
 end
 
 --[[ Bu oturumda çevrimdışı kazanç verildiyse tutarı döner, sonra unutur. ]]

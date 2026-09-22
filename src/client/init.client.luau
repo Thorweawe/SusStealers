@@ -18,7 +18,6 @@ local FloorStyle = require(script.FloorStyle)
 local Index = require(script.Index)
 local Leaderboard = require(script.Leaderboard)
 local Lobby = require(script.Lobby)
-local Minimap = require(script.Minimap)
 local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
 local RarityFX = require(script.RarityFX)
@@ -98,80 +97,14 @@ local cashPill, cashDisc, cashValue, cashSub = UiKit.StatPill(statBar, "CashPill
 cashPill.LayoutOrder = 2
 UiKit.Coin(cashDisc, 26, UiKit.CREW.LIME)
 
--- ─── Üs paneli ──────────────────────────────────────────────────────────────
--- Sağ üstte: kaide doluluğu, kilit durumu ve taşınan karakter.
-
-local panel = Instance.new("Frame")
-panel.Name = "PlotPanel"
-panel.AnchorPoint = Vector2.new(1, 0)
-panel.Position = UDim2.new(1, -24, 0, 20)
-panel.Size = UDim2.new(0, 260, 0, 104)
-panel.BackgroundColor3 = PANEL
--- Saydamlik kaldirildi: arkadaki dunya panelin icinden gorunuyordu ve
--- "Podiums / Lock / Carrying" satirlari okunmuyordu.
-panel.BackgroundTransparency = 0
-panel.BorderSizePixel = 0
-panel.Parent = screen
-
-local panelCorner = Instance.new("UICorner")
-panelCorner.CornerRadius = UDim.new(0, 10)
-panelCorner.Parent = panel
-
-local panelStroke = Instance.new("UIStroke")
-panelStroke.Color = Color3.fromRGB(86, 96, 120)
-panelStroke.Thickness = 1
-panelStroke.Transparency = 0.35
-panelStroke.Parent = panel
-
-local panelPadding = Instance.new("UIPadding")
-panelPadding.PaddingTop = UDim.new(0, 10)
-panelPadding.PaddingLeft = UDim.new(0, 14)
-panelPadding.PaddingRight = UDim.new(0, 14)
-panelPadding.Parent = panel
-
-local panelLayout = Instance.new("UIListLayout")
-panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
-panelLayout.Padding = UDim.new(0, 4)
-panelLayout.Parent = panel
-
---[[ Panelde "başlık  değer" biçiminde tek satır üretir. ]]
-local function newRow(order: number, caption: string): TextLabel
-	local row = Instance.new("Frame")
-	row.Name = caption
-	row.LayoutOrder = order
-	row.Size = UDim2.new(1, 0, 0, 22)
-	row.BackgroundTransparency = 1
-	row.Parent = panel
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(0.45, 0, 1, 0)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamMedium
-	title.TextSize = 15
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = MUTED
-	title.Text = caption
-	title.Parent = row
-
-	local value = Instance.new("TextLabel")
-	value.Name = "Value"
-	value.Position = UDim2.new(0.45, 0, 0, 0)
-	value.Size = UDim2.new(0.55, 0, 1, 0)
-	value.BackgroundTransparency = 1
-	value.Font = Enum.Font.GothamBold
-	value.TextSize = 15
-	value.TextXAlignment = Enum.TextXAlignment.Right
-	value.TextColor3 = INK
-	value.Text = "—"
-	value.Parent = row
-
-	return value
-end
-
-local podiumValue = newRow(1, "Podiums")
-local lockValue = newRow(2, "Lock")
-local carryValue = newRow(3, "Carrying")
-
+--[[
+	Eskiden burada sağ üstte "Podiums / Lock / Carrying" paneli vardı.
+	Kaldırıldı: kilit artık üssün içindeki fiziksel düğmede, taşınan
+	karakteri sırtındaki model ve yön oku zaten gösteriyor, kaide sayısı
+	da üsse bakınca okunuyor. Panel bilgiyi ikinci kez yazıyordu ve
+	oyuncular ne işe yaradığını anlamıyordu. Yeri sıralama tablosuna
+	kaldı.
+]]
 -- ─── Bildirimler ────────────────────────────────────────────────────────────
 
 local toastHolder = Instance.new("Frame")
@@ -260,7 +193,6 @@ SoundFX.StartAmbient()
 ]]
 local music: Music.Handle? = nil
 
-local minimapRef: Minimap.Map? = nil
 local currentPlot: Model? = nil
 
 -- Yukseltme arayuzu en sonda kuruluyor (asagidaki mountPanel); ana dongu
@@ -331,12 +263,6 @@ Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName
 		end
 	end)
 
-	-- Haritada soyulan üssü yak ve hırsızı işaretle: peşinden gidebilesin
-	if minimapRef then
-		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
-		minimapRef.Alert(bay, thiefName)
-	end
-
 	print(string.format("[SusStealers] Calinma bildirimi geldi: %s -> %s", thiefName, unitName))
 end)
 
@@ -357,12 +283,6 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, processed
 	SoundFX.Alarm()
 	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
 	effects.Shake(1.6, 0.6)
-
-	if minimapRef then
-		local bay = if currentPlot then tonumber(string.match(currentPlot.Name, "%d+")) else nil
-		-- Kendimizi hırsız gösteriyoruz ki nokta işaretlemesi de denensin
-		minimapRef.Alert(bay, player.DisplayName)
-	end
 	print("[SusStealers] K: efektler yerel olarak tetiklendi")
 end)
 
@@ -427,82 +347,6 @@ local function findOwnPlot(): Model?
 	return OwnPlot.Get()
 end
 
-local function countPodiums(plot: Model): (number, number)
-	local folder = plot:FindFirstChild("Podiums")
-	if not folder then
-		return 0, 0
-	end
-
-	local filled, total = 0, 0
-	for _, podium in folder:GetChildren() do
-		if podium:IsA("Part") then
-			total += 1
-			local unitId = podium:GetAttribute("UnitId")
-			if typeof(unitId) == "string" and unitId ~= "" then
-				filled += 1
-			end
-		end
-	end
-	return filled, total
-end
-
---[[
-	Kilit soğuması sunucuda os.clock() ile tutuluyor; o saat istemcide farklı
-	çalıştığı için doğrudan okunamaz. Bunun yerine kilidin açılma anını burada
-	kendimiz görüp sayıyoruz. Oyuna soğuma ortasında girersen bilinmez kalır.
-]]
-local lockedSince: number? = nil
-
-local function describeLock(plot: Model): (string, Color3)
-	local locked = plot:GetAttribute("Locked") == true
-
-	if locked then
-		if lockedSince == nil then
-			lockedSince = os.clock()
-		end
-		local left = Config.LockDuration - (os.clock() - (lockedSince :: number))
-		return string.format("LOCKED · %ds", math.max(0, math.ceil(left))), GOOD
-	end
-
-	if lockedSince ~= nil then
-		local left = Config.LockCooldown - (os.clock() - (lockedSince :: number))
-		if left > 0 then
-			return string.format("cooldown · %ds", math.ceil(left)), WARN
-		end
-		lockedSince = nil
-	end
-
-	return "ready", INK
-end
-
-local function describeCarry(): (string, Color3)
-	local character = player.Character
-	local carried = character and character:FindFirstChild("CarriedUnit")
-	if not carried then
-		return "—", MUTED
-	end
-
-	local unitTag = carried:FindFirstChild("UnitId")
-	local unitId = if unitTag and unitTag:IsA("StringValue") then unitTag.Value else ""
-
-	local def = Config.GetUnit(unitId)
-	if not def then
-		return "yes", WARN
-	end
-
-	local mutationTag = carried:FindFirstChild("MutationId")
-	local mutationId = if mutationTag and mutationTag:IsA("StringValue") then mutationTag.Value else ""
-	local mutation = Config.GetMutation(if mutationId == "" then nil else mutationId)
-
-	local income = def.income * (if mutation then mutation.incomeMul else 1)
-	return string.format("%s +$%s/s", def.name, Config.FormatCash(income)), WARN
-end
-
-local function setRow(value: TextLabel, text: string, color: Color3)
-	value.Text = text
-	value.TextColor3 = color
-end
-
 -- ─── Döngüler ───────────────────────────────────────────────────────────────
 
 --[[
@@ -530,12 +374,10 @@ local guide = CarryGuide.Create(screen)
 local board = Leaderboard.Create(screen)
 local prompts = PromptFilter.Create()
 local colors = OwnerColors.Create()
-local minimap = Minimap.Create(screen)
 local lobby = Lobby.Create(screen)
 local floorStyle = FloorStyle.Create()
 local rarityFX = RarityFX.Create()
 local catalog = Index.Create(screen)
-minimapRef = minimap
 
 
 --[[
@@ -569,8 +411,6 @@ end)
 -- güncellense kamerayı çevirdiğinde takılarak döner.
 RunService.RenderStepped:Connect(function()
 	guide.Update(currentPlot)
-	-- Harita işaretleri de her karede: yavaş döngüde dönerken takılıyordu
-	minimap.Markers(colors.ColorOf, currentPlot)
 end)
 
 task.spawn(function()
@@ -580,25 +420,10 @@ task.spawn(function()
 		local plot = findOwnPlot()
 		currentPlot = plot
 
-		if plot then
-			local filled, total = countPodiums(plot)
-			local ratio = if total > 0 then filled / total else 0
-			setRow(
-				podiumValue,
-				string.format("%d / %d", filled, total),
-				if ratio >= 1 then WARN else INK
-			)
-			setRow(lockValue, describeLock(plot))
-		else
-			setRow(podiumValue, "no base", MUTED)
-			setRow(lockValue, "—", MUTED)
-		end
-
-		setRow(carryValue, describeCarry())
-		board.Update()
-		prompts.Update(plot)
 		colors.Update()
-		minimap.Update(colors.ColorOf)
+		-- Tablo her oyuncuyu kendi üs renginde gösteriyor
+		board.Update(colors.ColorOf)
+		prompts.Update(plot)
 		lobby.Update()
 		floorStyle.Update()
 		rarityFX.Update()
@@ -650,9 +475,6 @@ mountPanel("TutorialUI", function()
 	TutorialUI.Create(screen)
 end)
 
-mountPanel("QuestPanel", function()
-	QuestPanel.Create(screen)
-end)
 
 mountPanel("Menus", function()
 	Menus.Create(screen)
@@ -725,14 +547,29 @@ mountPanel("PetPanel", function()
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()
 	end)
+
+	--[[
+		Kuluçkahanedeki birleştirme makinesi. Promptu sunucu kuruyor ama
+		pencere istemcinin işi: oyuncunun kendi tetiklemesi burada da
+		görünüyor ve birleştirme modunu açıyor. Asıl işlem (PetFuse)
+		sunucuda, makineye yakınlık orada doğrulanıyor.
+	]]
+	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
+		if who == player and prompt.Name == "FusePrompt" then
+			panel.OpenFuse()
+		end
+	end)
 end)
 
 --[[
-	Sol kenar: SHOP ve INDEX.
+	Sol kenar: SHOP, INDEX, QUESTS.
 
-	Mağaza paneli burada kuruluyor çünkü onu açan tek şey bu ray. İndeks
-	paneli yukarıda zaten var (catalog), ray sadece onu açıp kapatıyor —
-	C tuşu duruyor ama artık tek yol değil.
+	Mağaza ve görev pencereleri burada kuruluyor çünkü onları açan tek şey
+	bu ray. İndeks paneli yukarıda zaten var (catalog), ray sadece onu
+	açıp kapatıyor — C tuşu duruyor ama artık tek yol değil.
+
+	Görev penceresi hazır ödül sayısını bildiriyor; QUESTS düğmesinin
+	köşesindeki kırmızı rozet ona bağlı.
 
 	Ayrı bir görevde çünkü mağaza açılışta Roblox'a fiyat soruyor; o ağ
 	çağrısı çekirdek HUD'u bekletmemeli.
@@ -740,7 +577,8 @@ end)
 mountPanel("SideRail", function()
 	local shop = ShopPanel.Create(screen)
 
-	SideRail.Create(screen, "SideRail", {
+	local quests: QuestPanel.Panel? = nil
+	local rail = SideRail.Create(screen, "SideRail", {
 		{
 			name = "Shop",
 			label = "SHOP",
@@ -755,7 +593,22 @@ mountPanel("SideRail", function()
 			icon = "crewmate",
 			onClick = catalog.Toggle,
 		},
+		{
+			name = "Quests",
+			label = "QUESTS",
+			tint = UiKit.CREW.YELLOW:Lerp(UiKit.CREW.ORANGE, 0.35),
+			icon = "clipboard",
+			onClick = function()
+				if quests then
+					quests.Toggle()
+				end
+			end,
+		},
 	})
+
+	quests = QuestPanel.Create(screen, function(ready)
+		rail.SetBadge("Quests", ready)
+	end)
 end)
 
 -- Yumurta/birlestirme animasyonu: sonucu sunucu gonderiyor, burasi gosteriyor

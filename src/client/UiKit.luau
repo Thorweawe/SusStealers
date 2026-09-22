@@ -623,6 +623,162 @@ function UiKit.Egg(parent: Instance, size: number, tint: Color3): Frame
 	return egg
 end
 
+--[[
+	Pet figürü: 3B modelin biçimini (PetModel.FormOf) 2B'de çiziyor.
+
+	Önceden her pet arayüzde aynı mürettebat siluetiydi ve yalnızca
+	rengi farklıydı; panelde yirmi pet yirmi aynı fasulye gibi duruyordu.
+	Artık sahada gördüğün şekil arayüzde de o şekil.
+
+	Beş biçim, hepsi aynı ölçü kutusunda:
+	  blob  — mürettebat (Crewmate)
+	  orb   — küre + çapraz halka + vizör
+	  bot   — köşeli kutu + anten + vizör
+	  crab  — basık gövde + altı bacak + vizör
+	  shard — elmas + içinde parlak çekirdek
+]]
+function UiKit.PetFigure(parent: Instance, size: number, form: string, color: Color3): Frame
+	local z = baseZ(parent)
+
+	if form == "blob" then
+		return UiKit.Crewmate(parent, size, color)
+	end
+
+	local holder = Instance.new("Frame")
+	holder.Name = "PetFigure"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = z
+	holder.Parent = parent
+
+	local function box(name: string, pos: UDim2, sz: UDim2, tint: Color3, zOff: number, radius: number?): Frame
+		local f = Instance.new("Frame")
+		f.Name = name
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = pos
+		f.Size = sz
+		f.BackgroundColor3 = tint
+		f.BorderSizePixel = 0
+		f.ZIndex = z + zOff
+		f.Parent = holder
+		if radius then
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(radius, 0)
+			c.Parent = f
+		end
+		return f
+	end
+
+	local dark = color:Lerp(Color3.new(0, 0, 0), 0.45)
+	local metal = Color3.fromRGB(198, 206, 214)
+
+	local function visor(y: number, w: number, h: number)
+		box("Visor", UDim2.fromScale(0.5, y), UDim2.fromScale(w, h), UiKit.VISOR, 3, 0.4)
+		box("Glint", UDim2.fromScale(0.5 + w * 0.22, y - h * 0.18), UDim2.fromScale(w * 0.2, h * 0.28), Color3.new(1, 1, 1), 4, 0.5)
+	end
+
+	if form == "orb" then
+		box("Body", UDim2.fromScale(0.5, 0.52), UDim2.fromScale(0.78, 0.78), color, 1, 0.5)
+		local ring = box("Ring", UDim2.fromScale(0.5, 0.56), UDim2.fromScale(1.02, 0.1), metal, 2, 0.5)
+		ring.Rotation = -14
+		visor(0.46, 0.48, 0.2)
+
+	elseif form == "bot" then
+		box("Antenna", UDim2.fromScale(0.5, 0.14), UDim2.fromScale(0.06, 0.22), metal, 1)
+		box("Tip", UDim2.fromScale(0.5, 0.05), UDim2.fromScale(0.14, 0.14), UiKit.VISOR, 2, 0.5)
+		box("Body", UDim2.fromScale(0.5, 0.56), UDim2.fromScale(0.78, 0.64), color, 1, 0.18)
+		box("Tread", UDim2.fromScale(0.5, 0.9), UDim2.fromScale(0.84, 0.1), dark, 2, 0.4)
+		visor(0.5, 0.56, 0.18)
+
+	elseif form == "crab" then
+		for i = 0, 2 do
+			for _, side in { -1, 1 } do
+				local leg = box("Leg", UDim2.fromScale(0.5 + side * 0.42, 0.62 + i * 0.1), UDim2.fromScale(0.26, 0.06), dark, 0)
+				leg.Rotation = side * (18 + i * 10)
+			end
+		end
+		box("Body", UDim2.fromScale(0.5, 0.6), UDim2.fromScale(0.86, 0.46), color, 1, 0.45)
+		visor(0.56, 0.5, 0.16)
+
+	else -- shard
+		local gem = box("Body", UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.6, 0.6), color, 1, 0.08)
+		gem.Rotation = 45
+		local core = box("Core", UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.26, 0.26), color:Lerp(Color3.new(1, 1, 1), 0.6), 2, 0.08)
+		core.Rotation = 45
+	end
+
+	return holder
+end
+
+--[[
+	Görev panosu: görevlerin ikonu. Among Us'ta görev listesi bir
+	panoda (clipboard) duruyor; üstteki kıskaç ve satır çizgileri onu
+	düz bir kareden ayırıyor.
+]]
+function UiKit.Clipboard(parent: Instance, size: number, tint: Color3): Frame
+	local z = baseZ(parent)
+
+	local board = Instance.new("Frame")
+	board.Name = "Clipboard"
+	board.AnchorPoint = Vector2.new(0.5, 0.5)
+	board.Position = UDim2.fromScale(0.5, 0.55)
+	board.Size = UDim2.fromOffset(size * 0.74, size * 0.86)
+	board.BackgroundColor3 = tint
+	board.BorderSizePixel = 0
+	board.ZIndex = z + 1
+	board.Parent = parent
+	UiKit.Corner(board, math.max(2, math.floor(size * 0.1)))
+
+	local clip = Instance.new("Frame")
+	clip.AnchorPoint = Vector2.new(0.5, 0.5)
+	clip.Position = UDim2.fromScale(0.5, 0)
+	clip.Size = UDim2.fromOffset(size * 0.38, size * 0.16)
+	clip.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.45)
+	clip.BorderSizePixel = 0
+	clip.ZIndex = z + 2
+	clip.Parent = board
+	UiKit.Corner(clip, math.max(1, math.floor(size * 0.05)))
+
+	for index = 1, 3 do
+		local line = Instance.new("Frame")
+		line.Position = UDim2.new(0.2, 0, 0.18 + index * 0.2, 0)
+		line.Size = UDim2.new(if index == 3 then 0.4 else 0.6, 0, 0, math.max(2, size * 0.07))
+		line.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.45)
+		line.BorderSizePixel = 0
+		line.ZIndex = z + 2
+		line.Parent = board
+	end
+
+	return board
+end
+
+--[[
+	Bildirim rozeti: düğmenin köşesinde kırmızı daire ve sayı. Sıfırken
+	gizli. Hazır görev ödülü gibi "sana bekleyen bir şey var" durumları
+	için; renk mürettebatın kırmızısı.
+]]
+function UiKit.Badge(parent: GuiObject): TextLabel
+	local dot = Instance.new("TextLabel")
+	dot.Name = "Badge"
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.new(1, -4, 0, 4)
+	dot.Size = UDim2.fromOffset(24, 24)
+	dot.BackgroundColor3 = UiKit.CREW.RED
+	dot.BorderSizePixel = 0
+	dot.Font = Enum.Font.GothamBlack
+	dot.TextSize = 13
+	dot.TextColor3 = Color3.new(1, 1, 1)
+	dot.Text = ""
+	dot.Visible = false
+	dot.ZIndex = parent.ZIndex + 5
+	dot.Parent = parent
+	UiKit.Corner(dot, 12)
+	UiKit.Stroke(dot, Color3.new(1, 1, 1), 2, 0)
+	return dot
+end
+
 --[[ Madeni para: nakit hapının ikonu. ]]
 function UiKit.Coin(parent: Instance, size: number, tint: Color3): Frame
 	local coin = Instance.new("Frame")

@@ -14,8 +14,9 @@
 	  PetFuse  — üç kopyayı yakıp bir tane veriyor. Adet sunucuda
 	             sayılıyor, sonuç sunucuda çekiliyor.
 
-	Lobideki yumurta standı remote kullanmıyor: ProximityPrompt doğrudan
-	sunucuda tetikleniyor ve PromptGuard'dan geçiyor.
+	Lobideki kuluçkahanenin yumurtaları remote kullanmıyor: ProximityPrompt
+	doğrudan sunucuda tetikleniyor ve PromptGuard'dan geçiyor. Birleştirme
+	ise yalnızca makinenin yanında kabul ediliyor (NearFuseMachine).
 
 	Envanter ANAHTAR tutuyor: "MiniCrew" ya da "MiniCrew:Golden"
 	(Config.PetKey). Mutasyonlu kopya ayrı satır, ayrı eşya.
@@ -370,6 +371,16 @@ function PetService.TryFuse(player: Player, key: string): string?
 		return nil
 	end
 
+	--[[
+		Birleştirme yalnızca lobideki makinenin yanında. Remote her yerden
+		gönderilebildiği için kontrol burada, istemcide değil. (Aşağıda
+		tanımlı; tablo alanı olarak çağrılıyor ki çağrı anında çözülsün.)
+	]]
+	if not PetService.NearFuseMachine(player) then
+		notify(player, "Use the Fuse Machine in the Pet Hatchery", true)
+		return nil
+	end
+
 	local have = profile.pets[key] or 0
 	if have < Config.PetFuseCount then
 		notify(player, string.format("You need %d of the same pet to fuse", Config.PetFuseCount), true)
@@ -456,34 +467,24 @@ function PetService.TryEquip(player: Player, key: string, equip: boolean): boole
 	return true
 end
 
--- ─── Lobideki yumurta standı ────────────────────────────────────────────────
+-- ─── Kuluçkahane ────────────────────────────────────────────────────────────
 
 --[[
-	Yumurtaların dünyadaki yeri. Panelden de açılabiliyor ama kazanma anı
-	ekranda değil DÜNYADA olmalı: oyuncu bir şeyin önünde durup ona
-	basıyor, etrafındakiler de görüyor.
+	Lobideki kuluçkahaneyi oyuna bağlar.
 
-	═══ KONUM ══════════════════════════════════════════════════════════════
+	Mimari haritanın kodunda (tools/build_decor.luau, "Hatchery"). Burada
+	yalnızca ADI belli parçalara iş bağlanıyor: yumurtalara prompt ve renk,
+	ekranlara ad ve fiyat, birleştirme çekirdeğine prompt. Böylece fiyat
+	Config'ten geliyor ve haritayı yeniden kurmadan değişebiliyor.
 
-	Çarkın AYNASI: lobinin orta eksenine göre simetrik. Çark sol tarafta
-	(x=86..116), stand sağda aynı yerde. Konum sabit yazılmıyor, lobi
-	zemininden ve çarkın kendisinden hesaplanıyor — lobi yeniden kurulursa
-	stand yine doğru yere düşüyor.
-
-	Ölçüldü: aynadaki bölgede (x 244..274, z 317..335) hiçbir parça yok.
-	En yakın komşu sağdaki dolap (x 275'te başlıyor, 1 stud boşluk) ve
-	arkadaki heykel kaidesi (z 342.7'de başlıyor).
-
-	Stand sunucuda kuruluyor (build_decor'da değil) çünkü promptlarının
-	sunucu mantığına bağlanması gerekiyor.
+	Harita kurulmamışsa (Decor yok) sessizce atlanıyor: yumurtalar panelden
+	yine açılabiliyor.
 ]]
-local SHELL = Color3.fromRGB(58, 66, 78)
-local SHELL_DARK = Color3.fromRGB(34, 39, 47)
-local TRIM = Color3.fromRGB(150, 160, 172)
-local HAZARD = Color3.fromRGB(240, 196, 60)
+local FUSE_RANGE = 18
+local fuseCore: BasePart? = nil
 
 local function eggTint(egg: Config.EggDef): Color3
-	local best, bestOrder = TRIM, 0
+	local best, bestOrder = Color3.fromRGB(236, 228, 210), 0
 	for rarity in egg.weights do
 		local info = Config.Rarities[rarity]
 		if info and info.order > bestOrder then
@@ -493,156 +494,75 @@ local function eggTint(egg: Config.EggDef): Color3
 	return best
 end
 
-local function standPart(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, collide: boolean?): Part
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.CFrame = cf
-	part.Color = color
-	part.Material = Enum.Material.SmoothPlastic
-	part.Anchored = true
-	part.CanCollide = collide ~= false
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = parent
-	return part
-end
-
-local function findPart(root: Instance, name: string): BasePart?
-	for _, d in root:GetDescendants() do
-		if d:IsA("BasePart") and d.Name == name then
-			return d
-		end
-	end
-	return nil
-end
-
-function PetService.BuildStand(): Model?
-	local decor = workspace:FindFirstChild("Decor")
-	local lobbyDeck = decor and findPart(decor, "LobbyDeck")
-	local wheelDeck = decor and findPart(decor, "WheelDeck")
-	if not (lobbyDeck and wheelDeck) then
-		warn("[PetService] Lobi ya da cark bulunamadi, yumurta standi kurulmadi")
-		return nil
-	end
-
-	local old = workspace:FindFirstChild("EggStand")
+local function screenLabel(part: BasePart, title: string, titleColor: Color3, sub: string)
+	local old = part:FindFirstChild("Label")
 	if old then
 		old:Destroy()
 	end
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Label"
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(300, 130)
+	gui.LightInfluence = 0
+	gui.Parent = part
 
-	local cx = 2 * lobbyDeck.Position.X - wheelDeck.Position.X
-	local cz = wheelDeck.Position.Z
-	local floorTop = lobbyDeck.Position.Y + lobbyDeck.Size.Y / 2
+	local top = Instance.new("TextLabel")
+	top.Position = UDim2.fromScale(0.04, 0.06)
+	top.Size = UDim2.fromScale(0.92, 0.5)
+	top.BackgroundTransparency = 1
+	top.Font = Enum.Font.GothamBlack
+	top.TextScaled = true
+	top.TextColor3 = titleColor
+	top.Text = title
+	top.Parent = gui
 
-	local stand = Instance.new("Model")
-	stand.Name = "EggStand"
+	local bottom = Instance.new("TextLabel")
+	bottom.Position = UDim2.fromScale(0.04, 0.58)
+	bottom.Size = UDim2.fromScale(0.92, 0.34)
+	bottom.BackgroundTransparency = 1
+	bottom.Font = Enum.Font.GothamBold
+	bottom.TextScaled = true
+	bottom.TextColor3 = Color3.fromRGB(128, 224, 150)
+	bottom.Text = sub
+	bottom.Parent = gui
+end
 
-	local W, D = 30, 18
-	local deckTop = floorTop + 1
-
-	local function at(x: number, y: number, z: number): CFrame
-		return CFrame.new(cx + x, y, cz + z)
+function PetService.WireHatchery(): boolean
+	local decor = workspace:FindFirstChild("Decor")
+	local hatchery = decor and decor:FindFirstChild("Hatchery", true)
+	if not hatchery then
+		warn("[PetService] Decor.Hatchery yok; yumurtalar yalnizca panelden acilabilir")
+		return false
 	end
 
-	-- Zemin: çarkın platformuyla aynı ölçüde
-	standPart(stand, "StandDeck", Vector3.new(W, 1, D), at(0, floorTop + 0.5, 0), SHELL_DARK)
-
-	--[[ Ön kenarda tehlike şeridi. Zeminden 0.02 yukarıda: aynı yüksekliğe
-	     koyunca iki üst yüz aynı düzlemde kalıp titriyordu. ]]
-	standPart(stand, "StandHazard", Vector3.new(W - 0.4, 0.1, 0.8),
-		at(0, deckTop + 0.07, -D / 2 + 0.6), HAZARD, false)
-
-	-- Arka pano ve üstünde tabela
-	local back = standPart(stand, "StandBack", Vector3.new(W, 12, 1), at(0, deckTop + 6, D / 2 - 0.5), SHELL)
-	standPart(stand, "StandBackTrim", Vector3.new(W + 0.6, 0.8, 1.6), at(0, deckTop + 12.4, D / 2 - 0.5), TRIM)
-
-	local sign = Instance.new("SurfaceGui")
-	sign.Name = "Sign"
-	sign.Face = Enum.NormalId.Front
-	sign.CanvasSize = Vector2.new(600, 240)
-	sign.LightInfluence = 0
-	sign.Parent = back
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0.42, 0)
-	title.Position = UDim2.fromScale(0, 0.08)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBlack
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(238, 132, 195)
-	title.Text = "PET EGGS"
-	title.Parent = sign
-
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Size = UDim2.new(1, 0, 0.16, 0)
-	subtitle.Position = UDim2.fromScale(0, 0.52)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.GothamBold
-	subtitle.TextScaled = true
-	subtitle.TextColor3 = Color3.fromRGB(190, 198, 210)
-	subtitle.Text = "Walk up to an egg to hatch it"
-	subtitle.Parent = sign
-
-	-- Dört kaide, yumurta başına bir tane
-	local count = #Config.Eggs
-	local spacing = 7
 	for index, egg in Config.Eggs do
-		local x = (index - (count + 1) / 2) * spacing
+		local shell = hatchery:FindFirstChild("Egg" .. index)
+		local ring = hatchery:FindFirstChild("PodRing" .. index)
+		local screen = hatchery:FindFirstChild("PodScreen" .. index)
+		if not (shell and shell:IsA("BasePart")) then
+			continue
+		end
+
 		local tint = eggTint(egg)
+		shell.Color = tint:Lerp(Color3.new(1, 1, 1), 0.35)
+		shell.CanQuery = true
+		if ring and ring:IsA("BasePart") then
+			ring.Color = tint
+		end
+		if screen and screen:IsA("BasePart") then
+			screenLabel(screen, string.upper(egg.name), tint, "$" .. Config.FormatCash(egg.price))
+		end
 
-		local pedestal = standPart(stand, "Pedestal", Vector3.new(5, 3, 5), at(x, deckTop + 1.5, -1), SHELL)
-		standPart(stand, "PedestalCap", Vector3.new(5.4, 0.3, 5.4), at(x, deckTop + 3.15, -1), TRIM)
-
-		--[[ Kaidenin önünde yumurtanın adı ve fiyatı. SurfaceGui: yüzeye
-		     boyanıyor, derinlikle yarışmıyor (BillboardGui kameraya döndüğü
-		     için yan yana dört tanesi birbirinin üstüne biniyordu). ]]
-		local label = Instance.new("SurfaceGui")
-		label.Face = Enum.NormalId.Front
-		label.CanvasSize = Vector2.new(250, 150)
-		label.LightInfluence = 0
-		label.Parent = pedestal
-
-		local eggName = Instance.new("TextLabel")
-		eggName.Size = UDim2.new(1, 0, 0.45, 0)
-		eggName.Position = UDim2.fromScale(0, 0.08)
-		eggName.BackgroundTransparency = 1
-		eggName.Font = Enum.Font.GothamBlack
-		eggName.TextScaled = true
-		eggName.TextColor3 = tint
-		eggName.Text = string.upper(egg.name)
-		eggName.Parent = label
-
-		local price = Instance.new("TextLabel")
-		price.Size = UDim2.new(1, 0, 0.35, 0)
-		price.Position = UDim2.fromScale(0, 0.56)
-		price.BackgroundTransparency = 1
-		price.Font = Enum.Font.GothamBold
-		price.TextScaled = true
-		price.TextColor3 = Color3.fromRGB(128, 224, 150)
-		price.Text = "$" .. Config.FormatCash(egg.price)
-		price.Parent = label
-
-		-- Yumurtanın altında kademe renginde halka
-		local ring = standPart(stand, "EggRing", Vector3.new(0.2, 4, 4),
-			at(x, deckTop + 3.4, -1) * CFrame.Angles(0, 0, math.rad(90)), tint, false)
-		ring.Shape = Enum.PartType.Cylinder
-		ring.Transparency = 0.25
-
-		--[[ Yumurta: küre ağı ile uzatılmış parça. Ball şekli her yönde
-		     eşit kalıyor, ağ ise parçanın boyutuna uyuyor. ]]
-		local shell = standPart(stand, "Egg", Vector3.new(3, 4, 3), at(x, deckTop + 5.5, -1), tint, false)
-		shell.Reflectance = 0.08
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = shell
-
+		local old = shell:FindFirstChild("HatchPrompt")
+		if old then
+			old:Destroy()
+		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.Name = "HatchPrompt"
 		prompt.ActionText = "Hatch"
 		prompt.ObjectText = string.format("%s  $%s", egg.name, Config.FormatCash(egg.price))
 		prompt.HoldDuration = 0.35
-		prompt.MaxActivationDistance = 9
+		prompt.MaxActivationDistance = 10
 		prompt.RequiresLineOfSight = false
 		prompt.Parent = shell
 
@@ -652,10 +572,50 @@ function PetService.BuildStand(): Model?
 		end)
 	end
 
-	stand.Parent = workspace
-	return stand
+	--[[
+		Birleştirme makinesi. Prompt SUNUCUDA bir şey yapmıyor; istemci
+		kendi tetiklemesini görüp birleştirme penceresini açıyor
+		(PetPanel.OpenFuse). Asıl işlem PetFuse remote'uyla geliyor ve
+		TryFuse oyuncunun makinenin yanında olduğunu doğruluyor.
+	]]
+	local core = hatchery:FindFirstChild("FuseCore")
+	if core and core:IsA("BasePart") then
+		core.CanQuery = true
+		fuseCore = core
+		local old = core:FindFirstChild("FusePrompt")
+		if old then
+			old:Destroy()
+		end
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "FusePrompt"
+		prompt.ActionText = "Fuse Pets"
+		prompt.ObjectText = "Fuse Machine"
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 12
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = core
+	end
+
+	return true
 end
 
+--[[
+	Oyuncu birleştirme makinesinin yanında mı. Makine yoksa (harita
+	kurulmamış) kısıt uygulanmıyor — yoksa birleştirme hiç yapılamazdı.
+]]
+local function nearFuseMachine(player: Player): boolean
+	if not fuseCore or not fuseCore.Parent then
+		return true
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return false
+	end
+	return (root.Position - fuseCore.Position).Magnitude <= FUSE_RANGE
+end
+
+PetService.NearFuseMachine = nearFuseMachine
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────
 
 --[[
@@ -734,11 +694,10 @@ function PetService.Start()
 
 	RunService.Heartbeat:Connect(stepFollow)
 
-	-- Stand lobiye bağlı; lobi (Decor) yüklenmemişse kurulmuyor ama
-	-- oyunun geri kalanı çalışıyor
-	local ok, err = pcall(PetService.BuildStand)
+	-- Kuluçkahane lobide; harita yoksa atlanıyor, oyun çalışmaya devam ediyor
+	local ok, err = pcall(PetService.WireHatchery)
 	if not ok then
-		warn("[PetService] Yumurta standi kurulamadi: " .. tostring(err))
+		warn("[PetService] Kulucka baglanamadi: " .. tostring(err))
 	end
 end
 

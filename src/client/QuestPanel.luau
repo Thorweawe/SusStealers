@@ -1,27 +1,33 @@
 --!strict
 --[[
-	Görev paneli: 30 dakikalık, 3 saatlik ve günlük hedefler.
+	Görev penceresi: 30 dakikalık, 3 saatlik ve günlük hedefler.
 
 	Sunucu (QuestService) "Quests" remote'uyla vade listesini gönderiyor;
 	burada sadece çiziliyor. İlerleme sunucuda hesaplanıyor, istemci onu
-	değiştiremiyor.
+	değiştiremiyor. Toplama isteği (QuestClaim) de sunucuda doğrulanıyor.
 
-	Yer: sol kenar, sıralama tablosunun altı (y=200). Sol sütunun tam
-	dökümü aşağıda TOP'un yanında.
+	═══ NEDEN PENCERE ══════════════════════════════════════════════════════
 
-	Yükseklik ekrana göre sınırlanıyor ve sığmazsa gövde kayıyor: küçük
-	ekranda (özellikle telefonda) panel alt soldaki ray ve hapların
-	üstüne biniyordu.
+	Eskiden sol kenarda sürekli açık duran bir kutuydu ve iki sorunu vardı:
+	ekranın sol yarısını kaplıyordu (SHOP/INDEX ile üst üste biniyordu) ve
+	oyuncu onu "arka plan" olarak okuyup hiç bakmıyordu.
 
-	Geri sayım istemcide dönüyor: sunucu bitiş anını gönderiyor, saniyede
-	bir paket yollamıyor.
+	Artık SHOP ve INDEX gibi sol raydaki bir düğme. Hazır ödül varsa
+	düğmenin köşesinde kırmızı sayı çıkıyor — görevleri görünür kılan şey
+	sürekli ekranda durmaları değil, o sayı.
 
-	Başlığa tıklayınca katlanıyor. Ekran kalabalıksa oyuncu kapatabilmeli;
-	kapalıyken bile başlıkta kaç görevin bittiği yazıyor.
+	═══ DÜZEN ══════════════════════════════════════════════════════════════
 
-	Kullanım (init.client.luau içinde, screen kurulduktan sonra):
-		local QuestPanel = require(script.QuestPanel)
-		local quests = QuestPanel.Create(screen)
+	Üstte vade sekmeleri (her birinde kendi sayacı ve hazır sayısı),
+	altında o vadenin görevleri kart olarak. Kartın üç hâli var ve üçü de
+	farklı görünüyor:
+
+	    devam ediyor → ilerleme çubuğu + "3 / 5", sağda ödül önizlemesi
+	    hazır        → yeşil CLAIM düğmesi, ödül üstünde yazıyor
+	    toplandı     → yeşil tik, kart sönük
+
+	"Hazır" ile "toplandı" ayrı olmasaydı oyuncu ödülünü alıp almadığını
+	bilemezdi.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,47 +42,15 @@ local UiKit = require(script.Parent.UiKit)
 
 local QuestPanel = {}
 
---[[
-	Renkler ve parçalar UiKit'ten. Her panel kendi kutu tasarımını
-	kurduğunda aynı oyunda beş farklı dil oluyordu; rebirth paneli doğru
-	dili kurdu, hepsi artık onu konuşuyor.
-
-	Vurgu rengi panele özel: görevler GÖREV panelidir, mürettebat
-	tulumunun camgöbeği vizörü burada imza rengi.
-]]
 local INK = UiKit.INK
 local MUTED = UiKit.MUTED
 local ACCENT = UiKit.VISOR
 local GOOD = UiKit.GOOD
+local WARN = UiKit.WARN
 local DIM = UiKit.DIM
 
-local WIDTH = 300
---[[
-	Sol sütun yukarıdan aşağı:
-
-	    20..192   sıralama tablosu
-	    200..     görevler (bu panel, içeriğe göre uzuyor)
-	    ..H-142   SHOP / INDEX rayı
-	    ..H-22    nakit + çalma hızı hapları
-
-	Nakit sol üstten sol alta taşınınca tablo yukarı çıktı ve burası
-	88 piksel yukarı kaydı. Alt tarafta ray ile hapların yeri ayrılıyor;
-	eskiden panel ekranın dibine kadar uzayıp ikisinin üstüne biniyordu.
-]]
-local TOP = 200
--- Bir görev satırı + aralığı. Yükseklik hep bunun katına yuvarlanıyor.
-local ROW = 34
--- Vade başlığının yüksekliği
-local SECTION_HEAD = 18
---[[
-	Alt solda ray + haplara ayrılan yer: kenar 22 + haplar 108 + ara 12 +
-	ray 128 + ara 12. Öğretici kutusu artık hapların SAĞINDA duruyor,
-	o yüzden ayrı bir öğretici payı yok.
-]]
-local BOTTOM_RESERVE = 290
-local MIN_BODY = 90
-
 export type Panel = {
+	Toggle: () -> (),
 	Destroy: () -> (),
 }
 
@@ -98,411 +72,430 @@ type Tier = {
 	entries: { Entry },
 }
 
-function QuestPanel.Create(screen: ScreenGui): Panel
-	local root = UiKit.Shell(screen, "Quests", ACCENT)
-	root.Position = UDim2.new(0, 24, 0, TOP)
-	root.Size = UDim2.new(0, WIDTH, 0, 40)
-	root.ClipsDescendants = true
+local Z = 40
 
-	-- ─── Başlık ─────────────────────────────────────────────────────────────
+--[[
+	`onReady` hazır (toplanmamış) ödül sayısı değişince çağrılıyor; sol
+	raydaki QUESTS düğmesinin rozeti buna bağlı.
+]]
+function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
+	local root = UiKit.Shell(screen, "QuestPanel", ACCENT)
+	root.AnchorPoint = Vector2.new(0.5, 0.5)
+	root.Position = UDim2.fromScale(0.5, 0.5)
+	root.Size = UDim2.fromOffset(520, 470)
+	root.Visible = false
+	root.ZIndex = Z
 
 	--[[
-		Başlıkta küçük bir mürettebat silueti duruyor.
-
-		Panelin ne olduğunu ikonla değil FİGÜRLE söylüyor: oyuncunun
-		sahada oynadığı karakterin aynısı. Oyunun her yerinde aynı üç
-		parça (kapsül, çanta, vizör), o yüzden bakışta tanınıyor ve
-		arayüz oyunun içinden çıkmış gibi duruyor.
+		Üst şerit: vizör renginde bant, ortasında "• QUESTS •". Referanstaki
+		kurdele başlığın karşılığı; panelin ne olduğunu uzaktan söylüyor.
 	]]
+	local band = Instance.new("Frame")
+	band.Size = UDim2.new(1, 0, 0, 52)
+	band.BackgroundColor3 = ACCENT:Lerp(Color3.new(0, 0, 0), 0.55)
+	band.BorderSizePixel = 0
+	band.ZIndex = Z + 1
+	band.Parent = root
+	UiKit.Corner(band, 14)
+
+	-- Bandın alt köşeleri düz: altına yapışık ikinci bir şerit
+	local bandFoot = Instance.new("Frame")
+	bandFoot.Position = UDim2.new(0, 0, 1, -14)
+	bandFoot.Size = UDim2.new(1, 0, 0, 14)
+	bandFoot.BackgroundColor3 = band.BackgroundColor3
+	bandFoot.BorderSizePixel = 0
+	bandFoot.ZIndex = Z + 1
+	bandFoot.Parent = band
+
 	local badge = Instance.new("Frame")
-	badge.Name = "Badge"
-	badge.Position = UDim2.fromOffset(12, 7)
-	badge.Size = UDim2.fromOffset(20, 20)
+	badge.AnchorPoint = Vector2.new(0.5, 0.5)
+	badge.Position = UDim2.new(0.5, -78, 0.5, 0)
+	badge.Size = UDim2.fromOffset(26, 26)
 	badge.BackgroundTransparency = 1
-	badge.Parent = root
-	UiKit.Crewmate(badge, 18, ACCENT)
+	badge.ZIndex = Z + 2
+	badge.Parent = band
+	UiKit.Crewmate(badge, 24, ACCENT)
 
-	local header = Instance.new("TextButton")
-	header.Name = "Header"
-	header.Position = UDim2.fromOffset(36, 0)
-	header.Size = UDim2.new(1, -36, 0, 34)
-	header.BackgroundTransparency = 1
-	header.Font = Enum.Font.GothamBlack
-	header.TextSize = 14
-	header.TextXAlignment = Enum.TextXAlignment.Left
-	header.TextColor3 = ACCENT
-	header.Text = "QUESTS"
-	header.AutoButtonColor = false
-	header.Parent = root
+	local heading = Instance.new("TextLabel")
+	heading.AnchorPoint = Vector2.new(0.5, 0.5)
+	heading.Position = UDim2.fromScale(0.5, 0.5)
+	heading.Size = UDim2.fromOffset(200, 30)
+	heading.BackgroundTransparency = 1
+	heading.Font = Enum.Font.GothamBlack
+	heading.TextSize = 24
+	heading.TextColor3 = Color3.new(1, 1, 1)
+	heading.TextStrokeTransparency = 0.5
+	heading.Text = "• QUESTS •"
+	heading.ZIndex = Z + 2
+	heading.Parent = band
 
-	local headerCount = Instance.new("TextLabel")
-	headerCount.Name = "Count"
-	headerCount.AnchorPoint = Vector2.new(1, 0)
-	headerCount.Position = UDim2.new(1, -14, 0, 0)
-	headerCount.Size = UDim2.new(0, 70, 0, 34)
-	headerCount.BackgroundTransparency = 1
-	headerCount.Font = Enum.Font.GothamMedium
-	headerCount.TextSize = 13
-	headerCount.TextXAlignment = Enum.TextXAlignment.Right
-	headerCount.TextColor3 = MUTED
-	headerCount.Text = ""
-	headerCount.Parent = root
+	local close = UiKit.CloseButton(root)
+	close.ZIndex = Z + 3
 
-	-- ─── Gövde ──────────────────────────────────────────────────────────────
+	-- ─── Vade sekmeleri ─────────────────────────────────────────────────────
 
-	local body = Instance.new("ScrollingFrame")
-	body.Name = "Body"
-	body.Position = UDim2.new(0, 0, 0, 34)
-	body.Size = UDim2.new(1, 0, 0, 0)
-	body.BackgroundTransparency = 1
-	body.BorderSizePixel = 0
-	body.ScrollBarThickness = 3
-	body.ScrollBarImageColor3 = MUTED
-	body.CanvasSize = UDim2.new()
-	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	body.Parent = root
+	local tabs = Instance.new("Frame")
+	tabs.Position = UDim2.fromOffset(14, 62)
+	tabs.Size = UDim2.new(1, -28, 0, 46)
+	tabs.BackgroundTransparency = 1
+	tabs.ZIndex = Z + 1
+	tabs.Parent = root
 
-	local layout = Instance.new("UIListLayout")
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 8)
-	layout.Parent = body
+	local tabLayout = Instance.new("UIListLayout")
+	tabLayout.FillDirection = Enum.FillDirection.Horizontal
+	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	tabLayout.Padding = UDim.new(0, 8)
+	tabLayout.Parent = tabs
 
-	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft = UDim.new(0, 14)
-	padding.PaddingRight = UDim.new(0, 14)
-	padding.PaddingBottom = UDim.new(0, 12)
-	padding.Parent = body
+	type Tab = { button: TextButton, name: TextLabel, timer: TextLabel, dot: TextLabel, stroke: UIStroke }
+	local tabButtons: { [string]: Tab } = {}
 
-	--[[
-		Vade bölümleri yeniden yaratılmıyor, güncelleniyor. Her pakette
-		baştan kurmak, oyuncu tam tıklarken paneli altından çekiyordu.
-	]]
-	type Row = {
-		frame: Frame,
-		label: TextLabel,
-		fill: Frame,
-		track: Frame,
-		claim: TextButton,
-	}
+	local list = Instance.new("ScrollingFrame")
+	list.Position = UDim2.fromOffset(14, 118)
+	list.Size = UDim2.new(1, -28, 1, -160)
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 4
+	list.ScrollBarImageColor3 = MUTED
+	list.CanvasSize = UDim2.new()
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.ZIndex = Z + 1
+	list.Parent = root
 
-	type Section = {
-		frame: Frame,
-		title: TextLabel,
-		timer: TextLabel,
-		rows: { Row },
-	}
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayout.Padding = UDim.new(0, 8)
+	listLayout.Parent = list
+
+	local footer = Instance.new("TextLabel")
+	footer.AnchorPoint = Vector2.new(0, 1)
+	footer.Position = UDim2.new(0, 18, 1, -12)
+	footer.Size = UDim2.new(1, -36, 0, 18)
+	footer.BackgroundTransparency = 1
+	footer.Font = Enum.Font.GothamBold
+	footer.TextSize = 12
+	footer.TextXAlignment = Enum.TextXAlignment.Left
+	footer.TextColor3 = MUTED
+	footer.Text = ""
+	footer.ZIndex = Z + 1
+	footer.Parent = root
+
+	-- ─── Veri ───────────────────────────────────────────────────────────────
 
 	local claimRemote = Net.Get("QuestClaim")
 
-	--[[
-		Hangi düğmenin hangi görevi topladığı burada tutuluyor.
+	local payload: { Tier } = {}
+	local selected: string? = nil
+	local endsAt: { [string]: number } = {}
 
-		Tıklama olayı satır kurulurken BİR KEZ bağlanıyor; her çizimde
-		yeniden bağlansaydı panel her güncellendiğinde bir kat daha olay
-		tetiklenirdi ve tek tıklama birden fazla istek gönderirdi.
-	]]
-	local rowTarget: { [TextButton]: { tier: string, quest: string } } = {}
+	-- Sekme tıklaması yeniden çizmeli ama çizim aşağıda tanımlı; önden bildir
+	local redraw: () -> ()
 
-	local sections: { [string]: Section } = {}
-	local expanded = true
-	local timers: { [string]: number } = {}
+	local function readyIn(tier: Tier): number
+		local n = 0
+		for _, entry in tier.entries do
+			if entry.done and not entry.claimed then
+				n += 1
+			end
+		end
+		return n
+	end
 
-	local function newSection(tier: Tier, order: number): Section
-		local frame = Instance.new("Frame")
-		frame.Name = tier.id
-		frame.LayoutOrder = order
-		frame.Size = UDim2.new(1, 0, 0, 30)
-		frame.BackgroundTransparency = 1
-		frame.Parent = body
+	local function makeTab(tier: Tier, order: number): Tab
+		local button = Instance.new("TextButton")
+		button.Name = tier.id
+		button.LayoutOrder = order
+		button.Size = UDim2.new(1 / 3, -6, 1, 0)
+		button.BackgroundColor3 = UiKit.ROW
+		button.BorderSizePixel = 0
+		button.AutoButtonColor = false
+		button.Text = ""
+		button.ZIndex = Z + 2
+		button.Parent = tabs
+		UiKit.Corner(button, 10)
+		local stroke = UiKit.Stroke(button, ACCENT, 1.6, 1)
 
-		local title = Instance.new("TextLabel")
-		title.Size = UDim2.new(0.6, 0, 0, 18)
-		title.BackgroundTransparency = 1
-		title.Font = Enum.Font.GothamBold
-		title.TextSize = 12
-		title.TextXAlignment = Enum.TextXAlignment.Left
-		title.TextColor3 = MUTED
-		title.Text = string.upper(tier.name)
-		title.Parent = frame
+		local name = Instance.new("TextLabel")
+		name.Position = UDim2.fromOffset(12, 5)
+		name.Size = UDim2.new(1, -40, 0, 18)
+		name.BackgroundTransparency = 1
+		name.Font = Enum.Font.GothamBlack
+		name.TextSize = 13
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		name.TextColor3 = INK
+		name.Text = string.upper(tier.name)
+		name.ZIndex = Z + 3
+		name.Parent = button
 
 		local timer = Instance.new("TextLabel")
-		timer.Name = "Timer"
-		timer.AnchorPoint = Vector2.new(1, 0)
-		timer.Position = UDim2.new(1, 0, 0, 0)
-		timer.Size = UDim2.new(0.4, 0, 0, 18)
+		timer.Position = UDim2.fromOffset(12, 23)
+		timer.Size = UDim2.new(1, -24, 0, 16)
 		timer.BackgroundTransparency = 1
 		timer.Font = Enum.Font.GothamMedium
-		timer.TextSize = 12
-		timer.TextXAlignment = Enum.TextXAlignment.Right
+		timer.TextSize = 11
+		timer.TextXAlignment = Enum.TextXAlignment.Left
 		timer.TextColor3 = MUTED
-		timer.Text = ""
-		timer.Parent = frame
+		timer.ZIndex = Z + 3
+		timer.Parent = button
 
-		return { frame = frame, title = title, timer = timer, rows = {} }
+		-- Hazır ödül sayısı: kırmızı daire, sekmenin sağ üstünde
+		local dot = Instance.new("TextLabel")
+		dot.AnchorPoint = Vector2.new(1, 0)
+		dot.Position = UDim2.new(1, -8, 0, 8)
+		dot.Size = UDim2.fromOffset(20, 20)
+		dot.BackgroundColor3 = UiKit.CREW.RED
+		dot.BorderSizePixel = 0
+		dot.Font = Enum.Font.GothamBlack
+		dot.TextSize = 11
+		dot.TextColor3 = Color3.new(1, 1, 1)
+		dot.Visible = false
+		dot.ZIndex = Z + 4
+		dot.Parent = button
+		UiKit.Corner(dot, 10)
+
+		local id = tier.id
+		button.MouseButton1Click:Connect(function()
+			selected = id
+			redraw()
+		end)
+
+		return { button = button, name = name, timer = timer, dot = dot, stroke = stroke }
 	end
 
-	local function newRow(section: Section, index: number)
-		local frame = Instance.new("Frame")
-		frame.Name = "Row" .. index
-		frame.Position = UDim2.new(0, 0, 0, 18 + (index - 1) * 34)
-		frame.Size = UDim2.new(1, 0, 0, 32)
-		frame.BackgroundTransparency = 1
-		frame.Parent = section.frame
+	local cards: { Instance } = {}
 
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, 0, 0, 18)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamMedium
-		label.TextSize = 13
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = INK
-		label.TextTruncate = Enum.TextTruncate.AtEnd
-		label.Text = ""
-		label.Parent = frame
+	local function makeCard(tier: Tier, entry: Entry, order: number)
+		local ready = entry.done and not entry.claimed
 
-		local track, fill = UiKit.Bar(frame, 5, ACCENT)
-		track.Position = UDim2.new(0, 0, 0, 21)
+		local card = Instance.new("Frame")
+		card.LayoutOrder = order
+		card.Size = UDim2.new(1, -8, 0, 66)
+		card.BackgroundColor3 = UiKit.ROW
+		card.BackgroundTransparency = if entry.claimed then 0.45 else 0
+		card.BorderSizePixel = 0
+		card.ZIndex = Z + 2
+		card.Parent = list
+		UiKit.Corner(card, 12)
+		UiKit.Stroke(card,
+			if ready then GOOD elseif entry.claimed then DIM else ACCENT,
+			if ready then 2 else 1.2,
+			if ready then 0.1 else 0.7)
+		table.insert(cards, card)
 
 		--[[
-			Toplama düğmesi.
-
-			Ödül artık kendiliğinden gelmiyor: oyuncu bunu basıyor. Sebep,
-			otomatik ödülde görevlerin hiç okunmamasıydı — ekranın
-			kenarında bir bildirim geçiyor ve bitiyordu. Toplamak için
-			panele bakmak gerekince görevler görünür hale geliyor.
-
-			Satırın sağında ve yalnızca hazır olduğunda görünüyor; boş
-			dururken satırı kalabalıklaştırmıyor.
+			Sol kutu: durumu tek bakışta söyleyen ikon. Toplanan görevde
+			yeşil tik, hazırda parlayan yıldız, devam edende vade rengindeki
+			mürettebat.
 		]]
-		local claim = Instance.new("TextButton")
-		claim.Name = "Claim"
-		claim.AnchorPoint = Vector2.new(1, 0)
-		claim.Position = UDim2.new(1, 0, 0, 0)
-		claim.Size = UDim2.fromOffset(62, 18)
-		claim.BackgroundColor3 = GOOD
-		claim.BorderSizePixel = 0
-		claim.Font = Enum.Font.GothamBold
-		claim.TextSize = 11
-		claim.TextColor3 = UiKit.SHELL_DEEP
-		claim.Text = "CLAIM"
-		claim.AutoButtonColor = false
-		claim.Visible = false
-		claim.Parent = frame
-		UiKit.Corner(claim, 5)
+		local icon = Instance.new("Frame")
+		icon.Position = UDim2.fromOffset(10, 11)
+		icon.Size = UDim2.fromOffset(44, 44)
+		icon.BackgroundColor3 = if entry.claimed then GOOD:Lerp(Color3.new(0, 0, 0), 0.55)
+			elseif ready then WARN:Lerp(Color3.new(0, 0, 0), 0.5)
+			else UiKit.SHELL_DEEP
+		icon.BorderSizePixel = 0
+		icon.ZIndex = Z + 3
+		icon.Parent = card
+		UiKit.Corner(icon, 10)
 
-		claim.MouseEnter:Connect(function()
-			claim.BackgroundColor3 = GOOD:Lerp(Color3.new(1, 1, 1), 0.35)
-		end)
-		claim.MouseLeave:Connect(function()
-			claim.BackgroundColor3 = GOOD
-		end)
-
-		claim.Activated:Connect(function()
-			local target = rowTarget[claim]
-			if not target then
-				return
-			end
-			-- Basılır basılmaz gizleniyor: sunucu yanıtı gelene kadar
-			-- ikinci kez basılmasın
-			claim.Visible = false
-			claimRemote:FireServer(target.tier, target.quest)
-		end)
-
-		table.insert(section.rows, {
-			frame = frame, label = label, fill = fill, track = track, claim = claim,
-		})
-	end
-
-	--[[
-		Panelin yüksekliği içeriğe göre ama ekrana sığdığı kadar.
-
-		İki kural:
-
-		1. Alt sınır ekrana göre. Sınırsız büyüseydi üç vade × iki görev,
-		   küçük ekranda alt soldaki öğretici kutusunun üstüne binerdi.
-		   Öğretici kapalıyken (bitmiş oyuncu) o yer boşuna ayrılmıyor.
-
-		2. Yükseklik satır katına yuvarlanıyor. Ham piksele kırpınca panel
-		   bir görevin tam ortasından kesiliyordu ve bozuk görünüyordu;
-		   artık ya satırın tamamı görünüyor ya hiç görünmüyor, gerisi
-		   kaydırılıyor.
-	]]
-	local function resize()
-		if not expanded then
-			root.Size = UDim2.new(0, WIDTH, 0, 34)
-			return
+		if entry.claimed or ready then
+			local mark = Instance.new("TextLabel")
+			mark.Size = UDim2.fromScale(1, 1)
+			mark.BackgroundTransparency = 1
+			mark.Font = Enum.Font.GothamBlack
+			mark.TextSize = 24
+			mark.TextColor3 = if entry.claimed then GOOD else WARN
+			mark.Text = if entry.claimed then "✓" else "★"
+			mark.ZIndex = Z + 4
+			mark.Parent = icon
+		else
+			UiKit.Crewmate(icon, 28, ACCENT)
 		end
 
-		local wanted = 12
-		for _, section in sections do
-			if section.frame.Visible then
-				wanted += section.frame.AbsoluteSize.Y + 8
-			end
+		local text = Instance.new("TextLabel")
+		text.Position = UDim2.fromOffset(66, 10)
+		text.Size = UDim2.new(1, -206, 0, 20)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBold
+		text.TextSize = 14
+		text.TextXAlignment = Enum.TextXAlignment.Left
+		text.TextTruncate = Enum.TextTruncate.AtEnd
+		text.TextColor3 = if entry.claimed then MUTED else INK
+		text.Text = entry.text
+		text.ZIndex = Z + 3
+		text.Parent = card
+
+		local shown = if entry.cash then "$" .. Config.FormatCash(entry.value) else tostring(entry.value)
+		local goal = if entry.cash then "$" .. Config.FormatCash(entry.goal) else tostring(entry.goal)
+
+		local progress = Instance.new("TextLabel")
+		progress.AnchorPoint = Vector2.new(1, 0)
+		progress.Position = UDim2.new(1, -140, 0, 32)
+		progress.Size = UDim2.fromOffset(90, 14)
+		progress.BackgroundTransparency = 1
+		progress.Font = Enum.Font.GothamBold
+		progress.TextSize = 11
+		progress.TextXAlignment = Enum.TextXAlignment.Right
+		progress.TextColor3 = MUTED
+		progress.Text = if entry.done then goal .. " / " .. goal else shown .. " / " .. goal
+		progress.ZIndex = Z + 3
+		progress.Parent = card
+
+		local barHolder = Instance.new("Frame")
+		barHolder.Position = UDim2.fromOffset(66, 48)
+		barHolder.Size = UDim2.new(1, -206, 0, 8)
+		barHolder.BackgroundTransparency = 1
+		barHolder.ZIndex = Z + 3
+		barHolder.Parent = card
+		local track, fill = UiKit.Bar(barHolder, 8, if entry.done then GOOD else ACCENT)
+		track.ZIndex = Z + 3
+		fill.ZIndex = Z + 4
+		local ratio = if entry.done then 1 else math.clamp(entry.value / math.max(1, entry.goal), 0, 1)
+		TweenService:Create(fill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.new(ratio, 0, 1, 0) }):Play()
+
+		-- ─── Sağ taraf: ödül / CLAIM / DONE ──────────────────────────────
+		local reward = "+$" .. Config.FormatCash(tier.reward)
+
+		if ready then
+			local holder, claim = UiKit.Raised(card, "Claim", UiKit.CREW.GREEN:Lerp(GOOD, 0.35), UDim2.fromOffset(118, 46), 10)
+			holder.AnchorPoint = Vector2.new(1, 0.5)
+			holder.Position = UDim2.new(1, -10, 0.5, 0)
+			holder.ZIndex = Z + 3
+
+			local claimText = Instance.new("TextLabel")
+			claimText.Position = UDim2.fromOffset(0, 4)
+			claimText.Size = UDim2.new(1, 0, 0, 18)
+			claimText.BackgroundTransparency = 1
+			claimText.Font = Enum.Font.GothamBlack
+			claimText.TextSize = 14
+			claimText.TextColor3 = Color3.new(1, 1, 1)
+			claimText.TextStrokeTransparency = 0.5
+			claimText.Text = "CLAIM"
+			claimText.ZIndex = Z + 6
+			claimText.Parent = claim
+
+			local claimReward = Instance.new("TextLabel")
+			claimReward.Position = UDim2.fromOffset(0, 21)
+			claimReward.Size = UDim2.new(1, 0, 0, 16)
+			claimReward.BackgroundTransparency = 1
+			claimReward.Font = Enum.Font.GothamBold
+			claimReward.TextSize = 12
+			claimReward.TextColor3 = Color3.fromRGB(230, 255, 200)
+			claimReward.TextStrokeTransparency = 0.6
+			claimReward.Text = reward
+			claimReward.ZIndex = Z + 6
+			claimReward.Parent = claim
+
+			local tierId, questId = tier.id, entry.id
+			claim.MouseButton1Click:Connect(function()
+				-- Basılır basılmaz kapanıyor: yanıt gelene kadar ikinci istek gitmesin
+				holder.Visible = false
+				claimRemote:FireServer(tierId, questId)
+			end)
+		else
+			local tag = Instance.new("TextLabel")
+			tag.AnchorPoint = Vector2.new(1, 0.5)
+			tag.Position = UDim2.new(1, -16, 0.5, 0)
+			tag.Size = UDim2.fromOffset(110, 30)
+			tag.BackgroundTransparency = 1
+			tag.Font = Enum.Font.GothamBlack
+			tag.TextSize = 14
+			tag.TextXAlignment = Enum.TextXAlignment.Right
+			tag.TextColor3 = if entry.claimed then DIM else UiKit.CREW.LIME
+			tag.Text = if entry.claimed then "DONE" else reward
+			tag.ZIndex = Z + 3
+			tag.Parent = card
 		end
-
-		local available = screen.AbsoluteSize.Y - TOP - BOTTOM_RESERVE
-		local height = math.min(wanted, available)
-
-		-- Satırın ortasından kesme: sığan tam satır sayısına yuvarla
-		if height < wanted then
-			local usable = height - SECTION_HEAD - 12
-			height = SECTION_HEAD + 12 + math.floor(usable / ROW) * ROW
-		end
-
-		height = math.max(MIN_BODY, height)
-
-		body.Size = UDim2.new(1, 0, 0, height)
-		root.Size = UDim2.new(0, WIDTH, 0, 34 + height)
 	end
 
-	-- Ekran döndüğünde ya da pencere boyutlandığında yeniden ölç
-	local resizeConnection = screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+	redraw = function()
+		for _, card in cards do
+			card:Destroy()
+		end
+		table.clear(cards)
 
-	--[[
-		Öğretici kutusu bitince kapanıyor ve alt solda yer açılıyor; panel
-		o yeri kullanabilsin diye yeniden ölçüyoruz. Kutu henüz yoksa
-		(paneller ayrı ayrı kuruluyor) beklemeye gerek yok, ilk resize
-		zaten öğreticisiz varsayıyor.
-	]]
-	local tutorialWatch: RBXScriptConnection? = nil
-	local existing = screen:FindFirstChild("Tutorial")
-	if existing and existing:IsA("GuiObject") then
-		tutorialWatch = existing:GetPropertyChangedSignal("Visible"):Connect(resize)
-	else
-		tutorialWatch = screen.ChildAdded:Connect(function(child)
-			if child.Name == "Tutorial" and child:IsA("GuiObject") then
-				child:GetPropertyChangedSignal("Visible"):Connect(resize)
-				resize()
-			end
-		end)
-	end
-
-	local function apply(payload: { Tier })
-		local doneCount, totalCount, readyCount = 0, 0, 0
-
+		local totalReady = 0
 		for order, tier in payload do
-			local section = sections[tier.id]
-			if not section then
-				section = newSection(tier, order)
-				sections[tier.id] = section
+			local tab = tabButtons[tier.id]
+			if not tab then
+				tab = makeTab(tier, order)
+				tabButtons[tier.id] = tab
 			end
-
-			section.frame.Visible = true
-			section.title.Text = string.upper(tier.name)
-			timers[tier.id] = os.time() + tier.secondsLeft
-
-			-- Eksik satırları yarat; fazlası gizleniyor
-			while #section.rows < #tier.entries do
-				newRow(section, #section.rows + 1)
-			end
-			for index = #tier.entries + 1, #section.rows do
-				section.rows[index].frame.Visible = false
-			end
-
-			for index, entry in tier.entries do
-				local row = section.rows[index]
-				row.frame.Visible = true
-
-				totalCount += 1
-				if entry.claimed then
-					doneCount += 1
-				end
-				if entry.done and not entry.claimed then
-					readyCount += 1
-				end
-
-				local shown = if entry.cash
-					then Config.FormatCash(entry.value)
-					else tostring(entry.value)
-				local target = if entry.cash
-					then Config.FormatCash(entry.goal)
-					else tostring(entry.goal)
-
-				--[[
-					Üç hâl var ve üçü de farklı görünüyor:
-
-					  devam ediyor  → ilerleme çubuğu, sayaç
-					  hazır          → CLAIM düğmesi, çubuk yok
-					  toplandı       → yeşil tik, düğme yok
-
-					"Hazır" ile "toplandı" ayrı olmasaydı oyuncu ödülünü
-					alıp almadığını bilemezdi.
-				]]
-				rowTarget[row.claim] = { tier = tier.id, quest = entry.id }
-
-				if entry.done and entry.claimed then
-					row.label.Text = "✓  " .. entry.text
-					row.label.TextColor3 = GOOD
-					row.track.Visible = false
-					row.claim.Visible = false
-
-				elseif entry.done then
-					-- Hazır: satır dikkat çekmeli, ödül orada duruyor
-					row.label.Text = entry.text
-					row.label.TextColor3 = UiKit.WARN
-					row.track.Visible = false
-					row.claim.Visible = true
-
-				else
-					row.label.Text = string.format("%s   %s / %s", entry.text, shown, target)
-					row.label.TextColor3 = INK
-					row.fill.BackgroundColor3 = ACCENT
-					row.track.Visible = true
-					row.claim.Visible = false
-				end
-
-				TweenService:Create(
-					row.fill,
-					TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(math.clamp(entry.value / math.max(1, entry.goal), 0, 1), 0, 1, 0) }
-				):Play()
-			end
-
-			section.frame.Size = UDim2.new(1, 0, 0, 18 + #tier.entries * 34)
+			local ready = readyIn(tier)
+			totalReady += ready
+			tab.dot.Visible = ready > 0
+			tab.dot.Text = tostring(ready)
 		end
 
-		-- Sunucudan gelmeyen vadeyi gizle
-		for id, section in sections do
-			local found = false
+		if onReady then
+			onReady(totalReady)
+		end
+
+		-- Seçili vade yoksa: önce hazır ödülü olan, yoksa ilki
+		local current: Tier? = nil
+		for _, tier in payload do
+			if tier.id == selected then
+				current = tier
+			end
+		end
+		if not current then
 			for _, tier in payload do
-				if tier.id == id then
-					found = true
+				if readyIn(tier) > 0 then
+					current = tier
 					break
 				end
 			end
-			section.frame.Visible = found
+			current = current or payload[1]
+			selected = if current then current.id else nil
+		end
+
+		for id, tab in tabButtons do
+			local on = id == selected
+			tab.button.BackgroundColor3 = if on then ACCENT:Lerp(UiKit.ROW, 0.72) else UiKit.ROW
+			tab.stroke.Transparency = if on then 0.1 else 1
+			tab.name.TextColor3 = if on then ACCENT else INK
+		end
+
+		if not current then
+			footer.Text = "Quests are loading…"
+			return
+		end
+
+		for order, entry in current.entries do
+			makeCard(current, entry, order)
+		end
+
+		local claimed = 0
+		for _, entry in current.entries do
+			if entry.claimed then
+				claimed += 1
+			end
 		end
 
 		--[[
-			Başlık toplanmayı bekleyen ödül varsa onu söylüyor. Panel
-			katlanmışken bile görülüyor; oyuncu ödülünü unutmasın.
+			Alt satır vadenin tamamını söylüyor. Günlükte ekstra ödül var
+			(QuestService: hepsi bitince iksir), onu burada hatırlatıyoruz —
+			yoksa oyuncu üçüncü görevi neden bitirmesi gerektiğini bilmiyor.
 		]]
-		if readyCount > 0 then
-			headerCount.Text = string.format("%d READY", readyCount)
-			headerCount.TextColor3 = UiKit.WARN
-		else
-			headerCount.Text = string.format("%d / %d", doneCount, totalCount)
-			headerCount.TextColor3 = if doneCount == totalCount and totalCount > 0 then GOOD else MUTED
-		end
-		resize()
+		local bonus = if current.id == "daily" then "  ·  finish all for a free potion" else ""
+		footer.Text = string.format("%d / %d claimed%s", claimed, #current.entries, bonus)
 	end
 
-	header.Activated:Connect(function()
-		expanded = not expanded
-		body.Visible = expanded
-		header.Text = if expanded then "QUESTS" else "QUESTS  ▸"
-		resize()
-	end)
-
-	local connection = Net.Get("Quests").OnClientEvent:Connect(function(payload)
-		if typeof(payload) == "table" then
-			apply(payload)
+	local connection = Net.Get("Quests").OnClientEvent:Connect(function(data)
+		if typeof(data) ~= "table" then
+			return
 		end
+		payload = data
+		for _, tier in payload do
+			endsAt[tier.id] = os.time() + tier.secondsLeft
+		end
+		redraw()
 	end)
 
 	--[[
-		Geri sayım. Saniyede bir yeter; her karede güncellemek aynı metni
-		altmış kez yazmak olurdu.
+		Sekme sayaçları saniyede bir. Pencere kapalıyken de dönüyor ama
+		yalnızca üç metin; rozet sayısı bundan etkilenmiyor.
 	]]
 	local elapsed = 0
 	local tick = RunService.Heartbeat:Connect(function(delta)
@@ -511,26 +504,35 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			return
 		end
 		elapsed = 0
+		if not root.Visible then
+			return
+		end
 
 		local now = os.time()
-		for id, section in sections do
-			local endsAt = timers[id]
-			if endsAt then
-				local left = math.max(0, endsAt - now)
-				section.timer.Text = Config.FormatDuration(left)
-				section.timer.TextColor3 = if left < 300 then UiKit.WARN else DIM
+		for id, tab in tabButtons do
+			local ends = endsAt[id]
+			if ends then
+				local left = math.max(0, ends - now)
+				tab.timer.Text = "resets in " .. Config.FormatDuration(left)
+				tab.timer.TextColor3 = if left < 300 then WARN else MUTED
 			end
 		end
 	end)
 
+	close.Activated:Connect(function()
+		root.Visible = false
+	end)
+
 	return {
+		Toggle = function()
+			root.Visible = not root.Visible
+			if root.Visible then
+				redraw()
+			end
+		end,
 		Destroy = function()
 			connection:Disconnect()
 			tick:Disconnect()
-			resizeConnection:Disconnect()
-			if tutorialWatch then
-				tutorialWatch:Disconnect()
-			end
 			root:Destroy()
 		end,
 	}

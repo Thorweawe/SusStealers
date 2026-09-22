@@ -3,9 +3,9 @@
 	Sunucu geneli duyurular: sohbette "Summons" sekmesi.
 
 	Ne düşüyor: nadir çıkışlar. Birinin konveyöründe Mythic/Secret belirdi,
-	saatli çağrı geldi ya da gelmek üzere, biri yumurtadan Mythic/Secret
-	pet çıkardı. Bunlar herkesin bilmesi gereken anlar — hırsız hedef
-	seçiyor, sahibi üssüne koşuyor.
+	biri yumurtadan ya da birleştirmeden Mythic/Secret/Cosmic pet çıkardı.
+	Bunlar herkesin bilmesi gereken anlar — hırsız hedef seçiyor, sahibi
+	üssüne koşuyor.
 
 	═══ NEDEN AYRI KANAL ═══════════════════════════════════════════════════
 
@@ -37,14 +37,6 @@ AnnounceService.ChannelName = CHANNEL_NAME
 
 local summonsRemote: RemoteEvent
 local channel: TextChannel? = nil
-
---[[
-	Aynı olayın saniyede birden fazla kez duyurulmasını engelliyor. Saatli
-	çağrı sekiz üsse aynı anda düşüyor; her üs için ayrı satır basmak
-	kanalı sekiz kopya ile dolduruyordu.
-]]
-local recent: { [string]: number } = {}
-local DEDUPE_SECONDS = 3
 
 local function ensureChannel(): TextChannel?
 	if channel and channel.Parent then
@@ -99,19 +91,6 @@ end
 	İstemci metni olduğu gibi kanala yazıyor.
 ]]
 function AnnounceService.Summon(text: string)
-	local now = os.clock()
-	if recent[text] and now - recent[text] < DEDUPE_SECONDS then
-		return
-	end
-	recent[text] = now
-
-	-- Eski kayıtları temizle ki tablo büyümesin
-	for key, at in recent do
-		if now - at > 60 then
-			recent[key] = nil
-		end
-	end
-
 	if summonsRemote then
 		summonsRemote:FireAllClients(text)
 	end

@@ -10,8 +10,8 @@
 	arayüz düğmelerini aradığı yer orası; oyunun kendi paneli araya
 	karışmadan aynı sırada duruyor.
 
-	Ne gizliyor: kalabalık yapanlar (harita, görevler, üs paneli, sıralama,
-	katalog, menü düğmeleri). Ne gizlemiyor: nakit, bildirimler, öğretici
+	Ne gizliyor: kalabalık yapanlar (sıralama tablosu, düğme rayları ve
+	onların açtığı pencereler). Ne gizlemiyor: nakit, bildirimler, öğretici
 	ve taşıma oku — bunlar oyuncunun o an ne yaptığını söyleyen şeyler,
 	gizlenirse oyun anlaşılmaz oluyor.
 
@@ -42,9 +42,7 @@ local PANEL = Color3.fromRGB(18, 20, 28)
 	panel eklerken adını buraya yazmak yeterli.
 ]]
 local CLUTTER = {
-	"Minimap",
-	"Quests",
-	"PlotPanel",
+	"QuestPanel",
 	"Leaderboard",
 	"UnitIndex",
 	"MenuDock",

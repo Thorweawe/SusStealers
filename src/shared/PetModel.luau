@@ -39,6 +39,21 @@ local FORMS: { [string]: string } = {
 	TheEgg = "orb",        VoidShard = "shard",
 }
 
+--[[ Petin siluet adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
+function PetModel.FormOf(petId: string): string
+	return FORMS[petId] or "blob"
+end
+
+--[[
+	Sahadaki ölçek. Pet ilk hâlinde ~1.6 stud'du ve koşarken kayboluyordu;
+	türün petleri oyuncunun beline kadar gelen, bakınca fark edilen
+	yoldaşlar. 1.35 bel hizasını geçmiyor, görüşü kapatmıyor.
+]]
+local SCALE = 1.35
+
+-- Parıltı dokusu Roblox'un kendi içinde (rbxasset), mağaza varlığı değil
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+
 local VISOR = Color3.fromRGB(150, 220, 255)
 local METAL = Color3.fromRGB(198, 206, 214)
 local DARK = Color3.fromRGB(26, 28, 34)
@@ -182,6 +197,37 @@ function PetModel.Build(key: string): Model?
 	end
 
 	--[[
+		Yüz. Blob'un vizörü zaten var; diğer biçimler yüzsüzdü ve "pet"
+		değil "nesne" gibi duruyordu. Türün petlerini sevimli yapan şey
+		gözleri — burada mürettebatın vizörü o işi görüyor. Kristalde yüz
+		yok: o kasten cansız bir parça.
+
+		Adı "Visor": mutasyon boyaması vizörü atlıyor.
+	]]
+	local function face(size: Vector3, cf: CFrame)
+		local visor = newPart("Visor", size, VISOR, Enum.Material.Glass)
+		visor.CFrame = cf
+		visor.Reflectance = 0.3
+		visor.Parent = model
+		-- Vizördeki parlama noktası: camı canlı gösteren küçük beyaz leke
+		local glint = newPart("VisorGlint", Vector3.new(size.X * 0.22, size.Y * 0.3, 0.06), Color3.new(1, 1, 1), Enum.Material.Neon)
+		glint.CFrame = cf * CFrame.new(size.X * 0.24, size.Y * 0.18, -size.Z / 2 - 0.01)
+		glint.Parent = model
+	end
+
+	if form == "orb" then
+		face(Vector3.new(0.8, 0.42, 0.3), CFrame.new(0, 0.95, -0.68))
+	elseif form == "bot" then
+		face(Vector3.new(0.85, 0.4, 0.14), CFrame.new(0, 0.85, -0.53))
+	elseif form == "crab" then
+		face(Vector3.new(0.9, 0.3, 0.2), CFrame.new(0, 0.72, -0.62))
+	elseif form == "blob" then
+		local glint = newPart("VisorGlint", Vector3.new(0.18, 0.14, 0.06), Color3.new(1, 1, 1), Enum.Material.Neon)
+		glint.CFrame = CFrame.new(0.2, 1.3, -0.68)
+		glint.Parent = model
+	end
+
+	--[[
 		═══ NADİRLİK ═════════════════════════════════════════════════════
 
 		UnitModel'deki mantığın aynısı: kademe kafaya takılan şeyden
@@ -253,6 +299,58 @@ function PetModel.Build(key: string): Model?
 	end
 
 	--[[
+		═══ AURA ═════════════════════════════════════════════════════════
+
+		Taç yakından okunuyor; uzaktan okunan şey IŞIK. Kademeler üst üste
+		ekleniyor, yani her üst kademe bir öncekinin hepsini taşıyor:
+
+		  Rare+      ayak altında kademe renginde yarı saydam halka
+		  Epic+      çevresine kademe renginde ışık
+		  Legendary+ gövdeden kopan parıltılar
+
+		Common ve Uncommon'da hiçbiri yok: ışık kazanılan bir şey olmalı.
+		Secret'ın rengi neredeyse siyah olduğu için ışığı ve parıltısı mor.
+	]]
+	local order = rarity.order
+	local glow = if def.rarity == "Secret" then Color3.fromRGB(170, 120, 255) else accent
+
+	if order >= Config.Rarities.Rare.order then
+		local aura = newPart("Aura", Vector3.new(0.08, 2.3, 2.3), glow, Enum.Material.Neon)
+		aura.Shape = Enum.PartType.Cylinder
+		aura.CFrame = CFrame.new(0, 0.04, 0) * CFrame.Angles(0, 0, math.rad(90))
+		aura.Transparency = 0.55
+		aura.Parent = model
+	end
+
+	if order >= Config.Rarities.Epic.order then
+		local light = Instance.new("PointLight")
+		light.Name = "RarityLight"
+		light.Color = glow
+		light.Range = 7
+		light.Brightness = 0.9
+		light.Parent = body
+	end
+
+	if order >= Config.Rarities.Legendary.order then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Name = "Sparkles"
+		sparkles.Texture = SPARKLE
+		sparkles.Color = ColorSequence.new(glow, Color3.new(1, 1, 1))
+		sparkles.LightEmission = 1
+		sparkles.Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.35),
+			NumberSequenceKeypoint.new(1, 0),
+		})
+		sparkles.Transparency = NumberSequence.new(0.1)
+		sparkles.Lifetime = NumberRange.new(0.8, 1.4)
+		-- Mythic ve Secret daha yoğun: kademe farkı uzaktan da seçilsin
+		sparkles.Rate = if order >= Config.Rarities.Mythic.order then 9 else 4
+		sparkles.Speed = NumberRange.new(0.6, 1.4)
+		sparkles.SpreadAngle = Vector2.new(180, 180)
+		sparkles.Parent = body
+	end
+
+	--[[
 		═══ MUTASYON ════════════════════════════════════════════════════
 
 		Taç kademeyi söylüyor, mutasyon GÖVDEYİ değiştiriyor — ikisi farklı
@@ -267,7 +365,7 @@ function PetModel.Build(key: string): Model?
 		Legendary olduğu okunmalı.
 	]]
 	if mutation then
-		local skip = { Visor = true, AntennaTip = true, ShardCore = true, SecretCore = true }
+		local skip = { Visor = true, VisorGlint = true, AntennaTip = true, ShardCore = true, SecretCore = true, Aura = true }
 		for _, part in model:GetChildren() do
 			if not part:IsA("BasePart") or skip[part.Name] then
 				continue
@@ -310,6 +408,10 @@ function PetModel.Build(key: string): Model?
 	tag.Name = "PetId"
 	tag.Value = def.id
 	tag.Parent = model
+
+	-- Ölçek en sonda: bütün ölçüler 1.0'a göre yazıldı, ışık ve parıltı da
+	-- ScaleTo ile birlikte büyüyor
+	model:ScaleTo(SCALE)
 
 	return model
 end

@@ -112,10 +112,16 @@ function Menus.Create(screen: ScreenGui): Menu
 		Adı MenuDock KALIYOR: RebirthPanel düğmesini buraya adıyla takıyor
 		ve HudToggle bu adı gizleme listesinde tutuyor.
 	]]
+	--[[
+		Sağ ALT köşe: haritanın kaldırılmasıyla boşaldı. Sağ üst artık
+		sıralama tablosunun (Roblox oyuncu listesinin yeri); ray oradaydı
+		ve tablo uzadıkça üstüne biniyordu. Sol alttaki haplarla ayna gibi
+		duruyor.
+	]]
 	local dock = Instance.new("Frame")
 	dock.Name = "MenuDock"
-	dock.AnchorPoint = Vector2.new(1, 0)
-	dock.Position = UDim2.new(1, -24, 0, 136)
+	dock.AnchorPoint = Vector2.new(1, 1)
+	dock.Position = UDim2.new(1, -22, 1, -22)
 	-- Dört düğme (unvan, iksir, pet, rebirth) + aralar
 	dock.Size = UDim2.new(0, 64, 0, 4 * 68 + 3 * 8)
 	dock.BackgroundTransparency = 1
@@ -124,6 +130,8 @@ function Menus.Create(screen: ScreenGui): Menu
 	local dockLayout = Instance.new("UIListLayout")
 	dockLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	dockLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	-- Alta yaslı: düğme eklendikçe ray yukarı doğru uzuyor
+	dockLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	dockLayout.Padding = UDim.new(0, 8)
 	dockLayout.Parent = dock
 

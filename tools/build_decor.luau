@@ -2490,6 +2490,274 @@ do
 	end
 
 	--[[
+		═══ KULUÇKAHANE (PET HATCHERY) ═════════════════════════════════════
+
+		Yumurtaların ve birleştirme makinesinin evi. Çarkın KARŞI tarafında,
+		lobinin sağ yarısında: çark solda bir niş, kuluçkahane sağda bir
+		sahne. Lobiye girince iki yan iki hedef — göz ortada ikiye ayrılıyor.
+
+		ÖLÇÜLDÜ (lobi doluluk haritası): sağ tarafta x 195–280, z 287–340
+		tamamen boş. Sağ dolaplar x≈283'te başlıyor, arkadaki heykel kaidesi
+		z≈342'de. Platform x 211–277 × z 308–338: dolaplara 6, kaideye 4
+		stud pay.
+
+		Eskiden PetService çalışma anında çıplak bir tezgâh kuruyordu. Mimari
+		artık burada, haritanın geri kalanıyla aynı dilde (palet, ışık
+		sınıfları, katılık kuralı); PetService sadece ADI belli parçalara
+		prompt, fiyat ve renk bağlıyor:
+
+		    Egg1..4        yumurta kabuğu (prompt buraya)
+		    PodRing1..4    kapsül halkası (yumurtanın kademe rengi)
+		    PodScreen1..4  ön ekran (ad + fiyat)
+		    FuseCore       birleştirme makinesinin çekirdeği (prompt buraya)
+
+		Yumurta sayısı Config.Eggs ile aynı olmalı (dört). Fazlası kurulmaz,
+		eksik kalan kapsül boş durur.
+	]]
+	do
+		local h = group("Hatchery")
+		-- Lobi merkezine göre (180, 320 iken x 211–277, z 308–338)
+		local hx0, hx1 = centerX + 31, centerX + 97
+		local hz0, hz1 = lobbyZ - 12, lobbyZ + 18
+		local hcx = (hx0 + hx1) / 2
+		local PLAT = 1.2                        -- platform üstü
+
+		-- Platform ve önündeki basamak
+		build({ name = "HatchDeck", size = Vector3.new(hx1 - hx0, PLAT, hz1 - hz0),
+			cf = at(hcx, PLAT / 2, (hz0 + hz1) / 2), color = STEEL_DARK,
+			material = Enum.Material.Metal, parent = h })
+		-- Kenar pervazı: platformun üstünden 0.02 aşağıda biter, üst yüzleri
+		-- aynı düzlemde kalıp titremesin
+		build({ name = "HatchDeckEdge", size = Vector3.new(hx1 - hx0 + 0.6, PLAT - 0.02, 0.6),
+			cf = at(hcx, (PLAT - 0.02) / 2, hz0 - 0.3), color = EDGE,
+			material = Enum.Material.Metal, parent = h })
+		--[[ Basamak z 304.5–307.4: önündeki yolun kesikli şeridi 304.45'te
+		     bitiyor, 3 derin basamak onun içine 0.05 giriyordu. ]]
+		build({ name = "HatchStep", size = Vector3.new(44, 0.6, 2.9),
+			cf = at(hcx - 8, 0.3, hz0 - 2.05), color = STEEL_MID,
+			material = Enum.Material.Metal, collide = true, parent = h })
+		-- Basamağın önünde tehlike şeridi (zemin boyası dilinde)
+		build({ name = "HatchStepStripe", size = Vector3.new(44, 0.1, 0.6),
+			cf = at(hcx - 8, 0.6 + LIFT + 0.05, hz0 - 3.15), color = HAZARD,
+			emit = "Paint", parent = h })
+
+		--[[
+			Giriş kemeri: iki pilon ve üstte kiriş. Çarkın portalıyla aynı
+			aile, daha geniş. Kirişin önünde pembe bant — kuluçkahanenin
+			imza rengi (petlerin paneliyle aynı pembe).
+		]]
+		local ARCH_W, ARCH_H = 46, 20
+		-- Pilon ayağı (4.6) platformun içinde kalsın: önden taşarsa havada durur
+		local archZ = hz0 + 2.5
+		local PINK = Color3.fromRGB(238, 84, 187)
+		for _, s in { -1, 1 } do
+			local px = hcx - 8 + s * ARCH_W / 2
+			build({ name = "HatchPylon", size = Vector3.new(3, ARCH_H, 3),
+				cf = at(px, PLAT + ARCH_H / 2, archZ), color = HULL,
+				material = Enum.Material.Metal, parent = h })
+			build({ name = "HatchPylonFoot", size = Vector3.new(4.6, 1, 4.6),
+				cf = at(px, PLAT + 0.5, archZ), color = TRIM,
+				material = Enum.Material.Metal, parent = h })
+			-- Pilonun yüzünde dikey ışık şeridi
+			build({ name = "HatchPylonStrip", size = Vector3.new(0.8, ARCH_H - 4, 0.3),
+				cf = at(px, PLAT + ARCH_H / 2, archZ - 1.65), color = PINK,
+				emit = "Indicator", parent = h })
+		end
+		build({ name = "HatchBeam", size = Vector3.new(ARCH_W + 5, 3.4, 3.4),
+			cf = at(hcx - 8, PLAT + ARCH_H + 1.7, archZ), color = HULL,
+			material = Enum.Material.Metal, parent = h })
+		build({ name = "HatchBeamBand", size = Vector3.new(ARCH_W - 4, 1.2, 0.4),
+			cf = at(hcx - 8, PLAT + ARCH_H + 1.7, archZ - 1.9), color = PINK,
+			emit = "Paint", parent = h })
+		for _, s in { -1, 1 } do
+			local wash = build({ name = "HatchWash", size = Vector3.new(4, 0.4, 1.6),
+				cf = at(hcx - 8 + s * 12, PLAT + ARCH_H - 0.2, archZ + 0.4),
+				color = LAMP, emit = "Fixture", parent = h })
+			glow(wash, LAMP, 18, 0.8)
+		end
+
+		--[[
+			Arka duvar ve tabela. Kapıdan girince uzaktan okunan tek yazı bu;
+			"PET HATCHERY" başlığı ve altında ne yapıldığı. Tabelanın metni
+			SurfaceGui: yüzeye boyalı, derinlikle yarışmıyor.
+		]]
+		local backZ = hz1 - 1
+		local back = build({ name = "HatchBack", size = Vector3.new(hx1 - hx0 - 4, 16, 2),
+			cf = at(hcx, PLAT + 8, backZ), color = STEEL_MID,
+			material = Enum.Material.Metal, parent = h })
+		build({ name = "HatchBackTrim", size = Vector3.new(hx1 - hx0 - 3, 1, 2.6),
+			cf = at(hcx, PLAT + 16.5, backZ), color = EDGE,
+			material = Enum.Material.Metal, parent = h })
+		local panel = build({ name = "HatchSignPanel", size = Vector3.new(34, 7, 0.4),
+			cf = at(hcx - 8, PLAT + 11, backZ - 1.2), color = SHADOW,
+			material = Enum.Material.SmoothPlastic, parent = h })
+		local sign = Instance.new("SurfaceGui")
+		sign.Face = Enum.NormalId.Front
+		sign.CanvasSize = Vector2.new(680, 140)
+		sign.LightInfluence = 0
+		sign.Parent = panel
+		local signTitle = Instance.new("TextLabel")
+		signTitle.Size = UDim2.new(1, 0, 0.62, 0)
+		signTitle.BackgroundTransparency = 1
+		signTitle.Font = Enum.Font.GothamBlack
+		signTitle.TextScaled = true
+		signTitle.TextColor3 = PINK
+		signTitle.Text = "PET HATCHERY"
+		signTitle.Parent = sign
+		local signSub = Instance.new("TextLabel")
+		signSub.Position = UDim2.fromScale(0, 0.64)
+		signSub.Size = UDim2.new(1, 0, 0.3, 0)
+		signSub.BackgroundTransparency = 1
+		signSub.Font = Enum.Font.GothamBold
+		signSub.TextScaled = true
+		signSub.TextColor3 = Color3.fromRGB(200, 210, 214)
+		signSub.Text = "Hatch eggs  ·  Fuse 3 pets into 1"
+		signSub.Parent = sign
+		-- Tabelanın iki yanında kapsül biçimli ışık panelleri
+		for _, s in { -1, 1 } do
+			build({ name = "HatchSignLight", size = Vector3.new(1.2, 5.6, 0.3),
+				cf = at(hcx - 8 + s * 18.5, PLAT + 11, backZ - 1.2), color = PINK,
+				emit = "Indicator", parent = h })
+		end
+		-- Arka duvarın dibinde havalandırma ızgaraları (Skeld dili)
+		for i = -2, 2 do
+			build({ name = "HatchVent", size = Vector3.new(5, 1.6, 0.3),
+				cf = at(hcx + i * 11, PLAT + 1.6, backZ - 1.15), color = SHADOW,
+				material = Enum.Material.Metal, parent = h })
+		end
+
+		--[[
+			Kuluçka kapsülleri. Her yumurta bir kapsülün içinde: yuvarlak
+			kaide, kademe renginde halka, içinde süzülen yumurta, üstünde cam
+			kubbe, önünde küçük ekran. Yumurtayı "satılık bir top" olmaktan
+			çıkarıp "kuluçkadaki bir şey" yapan şey kubbe ve halka.
+
+			Kubbe ve yumurta geçirgen: oyuncu yumurtaya yaklaşıp promptu
+			görebilsin. Kaide katı.
+		]]
+		local POD_GAP = 11
+		local podZ = hz0 + 13
+		for i = 1, 4 do
+			local px = hcx - 8 + (i - 2.5) * POD_GAP
+			build({ name = "PodBase", size = Vector3.new(1.8, 6.4, 6.4),
+				cf = at(px, PLAT + 0.9, podZ) * CFrame.Angles(0, 0, math.rad(90)),
+				color = STEEL_MID, material = Enum.Material.Metal,
+				shape = Enum.PartType.Cylinder, parent = h })
+			-- Halka kaidenin üstünde 0.02 aralıkla (aynı düzlem titremesin)
+			build({ name = "PodRing" .. i, size = Vector3.new(0.3, 6.8, 6.8),
+				cf = at(px, PLAT + 1.8 + 0.17, podZ) * CFrame.Angles(0, 0, math.rad(90)),
+				color = TEAL, emit = "Indicator", shape = Enum.PartType.Cylinder, parent = h })
+			build({ name = "PodPlinth", size = Vector3.new(0.8, 3.6, 3.6),
+				cf = at(px, PLAT + 2.42, podZ) * CFrame.Angles(0, 0, math.rad(90)),
+				color = EDGE, material = Enum.Material.Metal,
+				shape = Enum.PartType.Cylinder, collide = false, parent = h })
+
+			local egg = build({ name = "Egg" .. i, size = Vector3.new(3.2, 4.2, 3.2),
+				cf = at(px, PLAT + 5.1, podZ), color = Color3.fromRGB(236, 228, 210),
+				material = Enum.Material.SmoothPlastic, collide = false, parent = h })
+			local mesh = Instance.new("SpecialMesh")
+			mesh.MeshType = Enum.MeshType.Sphere
+			mesh.Parent = egg
+			-- İstemcide süzülüyor (DecorFX): kubbenin içinde duran değil yüzen yumurta
+			egg:SetAttribute("BobHeight", 0.35)
+			egg:SetAttribute("BobPeriod", 2.6)
+
+			build({ name = "PodDome", size = Vector3.new(6.2, 6.2, 6.2),
+				cf = at(px, PLAT + 5.2, podZ), color = GLASS,
+				material = Enum.Material.Glass, transparency = 0.78,
+				shape = Enum.PartType.Ball, collide = false, parent = h })
+
+			-- Ön ekran: kaideye yaslı, hafif geriye yatık
+			build({ name = "PodScreen" .. i, size = Vector3.new(6, 2.6, 0.4),
+				cf = at(px, PLAT + 1.5, podZ - 4.1) * CFrame.Angles(math.rad(-18), 0, 0),
+				color = SHADOW, material = Enum.Material.SmoothPlastic, parent = h })
+		end
+
+		--[[
+			Birleştirme makinesi. Platformun sağ ucunda, kapsül sırasından
+			ayrı: "burası başka bir iş yapıyor" bilgisi yerleşimden okunuyor.
+
+			Üç giriş tüpü tek bir cam hazneye iniyor — "üç tane girer, bir
+			tane çıkar" makinenin kendisinden okunuyor. Haznenin içindeki
+			çekirdek (FuseCore) promptun bağlandığı parça.
+		]]
+		local fx, fz = hx1 - 9, podZ + 1
+		build({ name = "FuseBase", size = Vector3.new(12, 1.6, 12),
+			cf = at(fx, PLAT + 0.8, fz), color = STEEL_MID,
+			material = Enum.Material.Metal, parent = h })
+		build({ name = "FuseBaseRing", size = Vector3.new(0.3, 9, 9),
+			cf = at(fx, PLAT + 1.6 + 0.17, fz) * CFrame.Angles(0, 0, math.rad(90)),
+			color = PINK, emit = "Indicator", shape = Enum.PartType.Cylinder, parent = h })
+		build({ name = "FuseChamber", size = Vector3.new(8, 5.4, 5.4),
+			cf = at(fx, PLAT + 1.9 + 4, fz) * CFrame.Angles(0, 0, math.rad(90)),
+			color = GLASS, material = Enum.Material.Glass, transparency = 0.7,
+			shape = Enum.PartType.Cylinder, parent = h })
+		build({ name = "FuseCap", size = Vector3.new(1, 6.2, 6.2),
+			cf = at(fx, PLAT + 1.9 + 8.5, fz) * CFrame.Angles(0, 0, math.rad(90)),
+			color = HULL, material = Enum.Material.Metal,
+			shape = Enum.PartType.Cylinder, parent = h })
+		local core = build({ name = "FuseCore", size = Vector3.new(2.4, 2.4, 2.4),
+			cf = at(fx, PLAT + 1.9 + 4, fz), color = PINK,
+			emit = "Screen", shape = Enum.PartType.Ball, parent = h })
+		core.CanCollide = false
+		-- Çekirdek nabız gibi atıyor ve süzülüyor: makine "çalışıyor" görünsün
+		core:SetAttribute("PulsePeriod", 1.8)
+		core:SetAttribute("BobHeight", 0.5)
+		core:SetAttribute("BobPeriod", 3.2)
+
+		-- Üç tüp: kapaktan dışa ve aşağıya, üç ayrı girişe
+		for i = 0, 2 do
+			local a = math.rad(-90 + (i - 1) * 55)
+			-- 5.0: girişler makinenin tabanının içinde kalıyor (5.4'te öndeki taşıyordu)
+			local tipX, tipZ = fx + math.cos(a) * 5.0, fz + math.sin(a) * 5.0
+			local top = Vector3.new(fx + math.cos(a) * 2.2, PLAT + 10.4, fz + math.sin(a) * 2.2)
+			local low = Vector3.new(tipX, PLAT + 3.2, tipZ)
+			local mid = (top + low) / 2
+			build({ name = "FuseTube", size = Vector3.new(0.9, 0.9, (top - low).Magnitude),
+				cf = CFrame.lookAt(mid, top), color = EDGE,
+				material = Enum.Material.Metal, collide = false, parent = h })
+			build({ name = "FuseInlet", size = Vector3.new(1.8, 1.6, 1.8),
+				cf = at(tipX, PLAT + 2.4, tipZ), color = HULL,
+				material = Enum.Material.Metal, parent = h })
+			build({ name = "FuseInletLight", size = Vector3.new(1.4, 0.2, 1.4),
+				cf = at(tipX, PLAT + 3.3, tipZ), color = PINK,
+				emit = "Indicator", parent = h })
+		end
+
+		local fuseSign = build({ name = "FuseSign", size = Vector3.new(7, 1.8, 0.3),
+			cf = at(fx, PLAT + 12.6, fz), color = SHADOW,
+			material = Enum.Material.SmoothPlastic, parent = h })
+		for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+			local g = Instance.new("SurfaceGui")
+			g.Face = face
+			g.CanvasSize = Vector2.new(280, 72)
+			g.LightInfluence = 0
+			g.Parent = fuseSign
+			local t = Instance.new("TextLabel")
+			t.Size = UDim2.fromScale(1, 1)
+			t.BackgroundTransparency = 1
+			t.Font = Enum.Font.GothamBlack
+			t.TextScaled = true
+			t.TextColor3 = PINK
+			t.Text = "FUSE"
+			t.Parent = g
+		end
+		-- Tabelayı kapağa bağlayan direk
+		build({ name = "FuseSignPost", size = Vector3.new(0.5, 1.4, 0.5),
+			cf = at(fx, PLAT + 11.2, fz), color = EDGE,
+			material = Enum.Material.Metal, collide = false, parent = h })
+	end
+
+	--[[
+		Kuluçkahane kolu: ana akstan sağa, çark kolunun aynası. Z kolu
+		basamağın ÖNÜNDE bitiyor (z 304.4); içine uzasaydı boya basamağın
+		içinde kalırdı.
+	]]
+	local hatchX = centerX + 56           -- kemerin ve kapsül sırasının ortası
+	lane((centerX + hatchX) / 2, lobbyZ - 22, hatchX - centerX + 12, 12, "x")
+	lane(hatchX, lobbyZ - 19.4, 7.6, 14, "z")
+
+	--[[
 		Nakliye gemisi oturakları. Among Us'ın lobi ekranındaki sıra sıra
 		koltuklar: sırtlık duvarda, oturak önde, aralarında kolçak. Lobinin
 		iki yan duvarına diziliyorlar — hem boşluğu dolduruyor hem de

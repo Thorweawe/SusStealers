@@ -17,6 +17,8 @@ type Pulser = { part: BasePart, period: number, phase: number }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 -- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
 type Slider = { part: BasePart, speed: number, range: number, base: CFrame }
+-- Kuluçkadaki yumurtalar gibi yerinde süzülenler: aşağı-yukarı + hafif sallanma
+type Bobber = { part: BasePart, height: number, period: number, phase: number, base: CFrame }
 
 export type FX = {
 	Stop: () -> (),
@@ -27,6 +29,7 @@ function DecorFX.Start(): FX
 	local pulsers: { Pulser } = {}
 	local drifters: { Drifter } = {}
 	local sliders: { Slider } = {}
+	local bobbers: { Bobber } = {}
 
 	local decor = workspace:FindFirstChild("Decor")
 	if not decor then
@@ -61,6 +64,19 @@ function DecorFX.Start(): FX
 			end
 
 			-- Bant çıtası: kendi ekseninde değil, bir hat boyunca kayıyor
+			local bob = obj:GetAttribute("BobHeight")
+			local bobPeriod = obj:GetAttribute("BobPeriod")
+			if typeof(bob) == "number" and typeof(bobPeriod) == "number" and bobPeriod > 0 then
+				table.insert(bobbers, {
+					part = obj,
+					height = bob,
+					period = bobPeriod,
+					-- Yan yana yumurtalar aynı anda inip kalkmasın
+					phase = #bobbers * 0.9,
+					base = obj.CFrame,
+				})
+			end
+
 			local slide = obj:GetAttribute("SlideSpeed")
 			local slideRange = obj:GetAttribute("SlideRange")
 			if typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
@@ -128,6 +144,18 @@ function DecorFX.Start(): FX
 		for _, s in sliders do
 			local travelled = (s.speed * elapsed) % s.range
 			s.part.CFrame = s.base * CFrame.new(travelled, 0, 0)
+		end
+
+		--[[
+			Süzülme: sinüsle yukarı-aşağı ve çok hafif sallanma. Sallanma
+			olmasa yumurta asansör gibi dümdüz iniş çıkış yapıyordu; birkaç
+			derecelik eğilme onu "canlı bir şey" yapıyor.
+		]]
+		for _, b in bobbers do
+			local t = elapsed * (2 * math.pi) / b.period + b.phase
+			b.part.CFrame = b.base
+				* CFrame.new(0, math.sin(t) * b.height, 0)
+				* CFrame.Angles(0, 0, math.rad(math.sin(t * 0.5) * 4))
 		end
 	end)
 

@@ -24,6 +24,7 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
 
@@ -208,7 +209,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			vizör ve çanta piksel ölçüsüyle kurulu, gövde tek başına
 			büyüseydi ilk karelerde vizör gövdeden taşardı.
 		]]
-		UiKit.Crewmate(figure, 120, bodyColor)
+		UiKit.PetFigure(figure, 130, PetModel.FormOf(def.id), bodyColor)
 		local grow = Instance.new("UIScale")
 		grow.Scale = 0.15
 		grow.Parent = figure
