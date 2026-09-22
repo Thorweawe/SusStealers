@@ -185,10 +185,10 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	-- Kenar süpürgeliği: levhanın kalınlığı okunsun
 	for _, sz in { -1, 1 } do
 		slab("DeckEdge", Vector3.new(deckW, 1.4, 0.8),
-			Vector3.new(deckCX, deckTop - 0.7, sz * deckZ / 2), TRIM_COLOR)
+			Vector3.new(deckCX, deckTop - 0.78, sz * deckZ / 2), TRIM_COLOR)
 	end
 	slab("DeckEdge", Vector3.new(0.8, 1.4, deckZ),
-		Vector3.new(halfX - 0.4, deckTop - 0.7, 0), TRIM_COLOR)
+		Vector3.new(halfX - 0.4, deckTop - 0.78, 0), TRIM_COLOR)
 
 	--[[
 		── Merdiven ───────────────────────────────────────────────────────
@@ -362,7 +362,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		for j = 0, rowsT - 1 do
 			slab("DeckPlate", Vector3.new(deckW / cols - 0.8, 0.2, deckZ / rowsT - 0.8), Vector3.new(
 				deckX0 + (i + 0.5) * (deckW / cols),
-				deckTop + 0.1,
+				deckTop + 0.16,
 				-deckZ / 2 + (j + 0.5) * (deckZ / rowsT)
 			), if (i + j) % 2 == 0 then DECK_COLOR else Color3.fromRGB(56, 67, 73))
 		end
@@ -576,8 +576,8 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	zone.CanTouch = false
 
 	-- Zeminde alanın nerede olduğunu gösteren soluk halka
-	part("ZoneRing", Vector3.new(ZONE_D, 0.14, ZONE_D), Vector3.new(0, 0.07, -8), ACCENT, false).Transparency = 0.8
-	part("ZoneRingInner", Vector3.new(ZONE_D - 2.4, 0.16, ZONE_D - 2.4), Vector3.new(0, 0.08, -8), DARK, false).Transparency = 0.55
+	part("ZoneRing", Vector3.new(ZONE_D, 0.14, ZONE_D), Vector3.new(0, 0.13, -8), ACCENT, false).Transparency = 0.8
+	part("ZoneRingInner", Vector3.new(ZONE_D - 2.4, 0.16, ZONE_D - 2.4), Vector3.new(0, 0.22, -8), DARK, false).Transparency = 0.55
 
 	--[[
 		═══ SATICI ══════════════════════════════════════════════════════════
@@ -666,7 +666,7 @@ local function buildLockConsole(parent: Instance, origin: Vector3)
 	end
 
 	-- Zeminde uyarı halkası: düğmenin alanı belli olsun
-	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.07, 0), Color3.fromRGB(206, 172, 72), false).Transparency = 0.78
+	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.13, 0), Color3.fromRGB(206, 172, 72), false).Transparency = 0.78
 
 	part("LockBase", Vector3.new(6, 1.2, 6), Vector3.new(0, 0.6, 0), TRIM)
 	part("LockColumn", Vector3.new(3.4, 3.4, 3.4), Vector3.new(0, 2.9, 0), SHELL)

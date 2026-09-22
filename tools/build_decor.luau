@@ -1547,7 +1547,7 @@ do
 
 		-- İsimde numara: istemci bunu üs sahibinin rengine boyuyor
 		build({ name = "DoorGlow" .. index, size = Vector3.new(W - 1, 0.3, 0.4),
-			cf = at(o.X, H - 1.2, z), color = NEON_MID,
+			cf = at(o.X, H - 2.6, z - (if side > 0 then -1.6 else 1.6)), color = NEON_MID,
 			emit = "Paint", parent = f })
 	end
 end
