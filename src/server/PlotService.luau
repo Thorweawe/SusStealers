@@ -495,9 +495,15 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	end
 
 	-- Tezgâh: oyuncunun karşısında, -z tarafında
-	part("Counter", Vector3.new(12, 4, 2.6), Vector3.new(0, 2, -2.6), SHELL)
-	part("CounterTop", Vector3.new(13, 0.6, 4), Vector3.new(0, 4.3, -2.8), TRIM)
-	part("CounterStripe", Vector3.new(12.2, 0.5, 0.3), Vector3.new(0, 3.1, -3.95), ACCENT, false)
+	--[[
+		Genişlik yan duvarların İÇ yüzüne göre: duvarlar x = ±6'da ve 1
+		stud kalın, yani aradaki açıklık 11. Tezgâh 12, tablası 13 genişti;
+		ikisinin de uçları duvarların içine giriyordu ve beyaz tabla gri
+		duvarla çakışıyordu.
+	]]
+	part("Counter", Vector3.new(10.6, 4, 2.6), Vector3.new(0, 2, -2.6), SHELL)
+	part("CounterTop", Vector3.new(10.8, 0.6, 4), Vector3.new(0, 4.3, -2.8), TRIM)
+	part("CounterStripe", Vector3.new(10.4, 0.5, 0.3), Vector3.new(0, 3.1, -3.95), ACCENT, false)
 
 	-- Arka pano ve yan duvarlar: dükkân hissi
 	part("BoothBack", Vector3.new(13, 10, 1), Vector3.new(0, 5, 2.2), SHELL)
@@ -533,7 +539,7 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	end
 
 	-- Tavana gömme lamba
-	local lamp = part("BoothLamp", Vector3.new(10, 0.3, 2), Vector3.new(0, 9.9, -1.4), Color3.fromRGB(255, 244, 222), false)
+	local lamp = part("BoothLamp", Vector3.new(10, 0.3, 2), Vector3.new(0, 9.75, -1.4), Color3.fromRGB(255, 244, 222), false)
 	lamp.Material = Enum.Material.Neon
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(255, 244, 222)

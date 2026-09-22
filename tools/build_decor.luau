@@ -1536,7 +1536,7 @@ do
 		]]
 		local side = if row % 2 == 0 then 1 else -1
 		local plinthHalf = halfZ + 3
-		local z = o.Z + side * (plinthHalf + T)
+		local z = o.Z + side * (plinthHalf + T + 0.6)   -- altlik yuzeyiyle ayni duzlemde olmasin
 
 		for _, sx in { -1, 1 } do
 			build({ name = "DoorJamb", size = Vector3.new(T, H, T * 2),
