@@ -313,6 +313,40 @@ type Opts = {
 	brightness: number?,   -- sadece Fixture: ışık şiddeti
 }
 
+--[[
+	Bir parçanın katı olup olmadığına karar verir.
+
+	Varsayılan KATI. Eskiden geçirgendi ve dekorun tamamı içinden
+	geçilebiliyordu: gemi duvarları, sütunlar, kasalar, korkuluklar. "Katı
+	görünen şey katıdır" bir oyunun en temel beklentisi ve tersi haritayı
+	inandırıcılıktan çıkarıyordu.
+
+	İki istisna otomatik, çünkü ikisi de katı OLMAMALI:
+
+	  - Işık veren yüzeyler (emit). Lamba, parıltı, ışın huzmesi. Bunlar
+	    hacim değil ışık; katı olsalar oyuncu havada takılırdı.
+
+	  - Yere yatık ince kaplamalar (yükseklik <= 0.6). Zemin boyası, şerit,
+	    ok işareti. Katı olsalar zeminin bir tık üstünde yürünür, adım sesi
+	    ve kamera bozulurdu.
+
+	Bunların dışında bir şeyin geçirgen olması gerekiyorsa çağrı yerinde
+	`collide = false` yazılmalı — yani bilinçli bir karar olmalı, unutulmuş
+	bir varsayılan değil.
+]]
+local function isSolid(o: Opts): boolean
+	if o.collide ~= nil then
+		return o.collide
+	end
+	if o.emit ~= nil then
+		return false
+	end
+	if o.size.Y <= 0.6 then
+		return false
+	end
+	return true
+end
+
 local function build(o: Opts): Part
 	local p = Instance.new("Part")
 	p.Name = o.name or "Deco"
@@ -321,7 +355,7 @@ local function build(o: Opts): Part
 	p.Color = o.color
 	p.Material = o.material or Enum.Material.SmoothPlastic
 	p.Anchored = true
-	p.CanCollide = o.collide == true
+	p.CanCollide = isSolid(o)
 	p.CanQuery = false
 	p.CanTouch = false
 	p.Transparency = o.transparency or 0
@@ -657,9 +691,26 @@ do
 			--[[
 				Cam KATI olmalı. İlk halinde CanCollide kapalıydı ve açıklık
 				gerçek bir delikti — oyuncu pencereden dışarı atlayıp boşluğa
-				düşüyordu. Neredeyse tamamen şeffaf ama geçilmez.
+				düşüyordu. Geçilmez ama bakılabilir.
+
+				Saydamlık 0.93'ten 0.72'ye indi. Neredeyse tamamen şeffafken
+				camın kendisi görünmüyordu: dışarısı siyah olduğu için duvarda
+				kara bir boşluk gibi duruyordu, "orada cam var" okunmuyordu.
+				0.72'de yüzey hafifçe yakalıyor ve pencere pencere gibi duruyor.
 			]]
-			place("Glass", center, g, openH, openMid, 0.5, GLASS, Enum.Material.Glass, true, 0.93)
+			place("Glass", center, g, openH, openMid, 0.5, GLASS, Enum.Material.Glass, true, 0.72)
+
+			--[[
+				Camı bölen çıtalar: biri dikey ortada, biri yatay.
+
+				Kenar çıtaları (aşağıdaki WinMullion'lar) zaten vardı ama
+				açıklığın ORTASI tek parça bir levhaydı ve ne kadar büyük
+				olduğu okunmuyordu. Bölünmüş cam ölçeğini kendi veriyor.
+
+				Alt kenardaki neon hat zaten var (WinGlow), tekrarlanmadı.
+			]]
+			place("WinBar", center, 0.5, openH, openMid, 0.7, TRIM, Enum.Material.Metal, true)
+			place("WinTransom", center, g, 0.5, openMid, 0.7, TRIM, Enum.Material.Metal, true)
 
 			place("WinBelow", center, g, openBottom - 3.5, 3.5 + (openBottom - 3.5) / 2, 2.4, HULL, Enum.Material.Metal, true)
 			place("WinAbove", center, g, WALL_H - openTop, openTop + (WALL_H - openTop) / 2, 2.4, HULL, Enum.Material.Metal, true)
@@ -813,9 +864,20 @@ do
 			})
 		end
 
+		--[[
+			Sütunlar üssün KÖŞELERİNDE duruyordu ve oyun alanını yiyordu:
+			bazı üslerde yükseltme kulübesinin önüne denk gelip kapatıyordu.
+
+			Dışarı alındılar. Üssü çerçeveleme işlevi aynen duruyor — hatta
+			daha okunur, çünkü artık sınırı gösteriyorlar — ama içeride
+			kimseyi engellemiyorlar.
+		]]
+		local PILLAR_OUT = 4
+
 		for _, sx in { -1, 1 } do
 			for _, sz in { -1, 1 } do
-				local px, pz = ox + sx * halfX, oz + sz * halfZ
+				local px = ox + sx * (halfX + PILLAR_OUT)
+				local pz = oz + sz * (halfZ + PILLAR_OUT)
 
 				build({ name = "Pillar", size = Vector3.new(PILLAR, PILLAR_H, PILLAR),
 					cf = at(px, topY + PILLAR_H / 2, pz), color = HULL,
@@ -939,10 +1001,43 @@ do
 				material = Enum.Material.Metal, parent = pf })
 		end
 
-		-- Bantın sonundaki durdurucu: karakterler oraya kadar gidiyor
-		build({ name = "BeltStop", size = Vector3.new(0.8, 2.4, 5.6),
-			cf = at(ox + beltLen / 2, topY + 1.2, convZ), color = TRIM,
+		--[[
+			Bandın sonundaki GİRİŞ makinesi.
+
+			Başta yalnızca bir durdurucu vardı ve alınmayan karakter havada
+			yok oluyordu. Karakterin nereden çıktığı belliyse (HatchMouth)
+			nereye gittiği de belli olmalı; yoksa bant bir yere varmayan
+			yürüyen merdiven gibi duruyor.
+
+			Çıkış kapağının aynası: aynı ölçüler, ters yön. İkisi birbirini
+			okutuyor — buradan çıkar, şuraya girer.
+		]]
+		local ix = ox + beltLen / 2 + 1.4
+
+		for _, e in { -1, 1 } do
+			build({ name = "IntakeLeg", size = Vector3.new(1.4, 9, 1.4),
+				cf = at(ix + e * 4.2, topY + 4.5, convZ), color = TRIM,
+				material = Enum.Material.Metal, parent = pf })
+		end
+
+		build({ name = "IntakeHood", size = Vector3.new(11, 2.2, 7),
+			cf = at(ix, topY + 9.8, convZ), color = HULL,
 			material = Enum.Material.Metal, parent = pf })
+		build({ name = "IntakeBack", size = Vector3.new(11, 9, 1.4),
+			cf = at(ix + 1.6, topY + 4.5, convZ), color = HULL_DARK,
+			material = Enum.Material.Metal, parent = pf })
+
+		-- Yutan ağız: çıkıştaki sıcak ışığın tersi, soğuk ve içe çeken
+		local intake = build({ name = "IntakeMouth", size = Vector3.new(0.4, 7, 5.6),
+			cf = at(ix + 0.9, topY + 4.2, convZ), color = TEAL,
+			emit = "Fixture", transparency = 0.25, parent = pf })
+		glow(intake, TEAL, 22, 1.2)
+
+		for _, e in { -1, 1 } do
+			build({ name = "IntakeLip", size = Vector3.new(0.8, 0.5, 6.4),
+				cf = at(ix + 0.2, topY + 4.2 + e * 3.6, convZ), color = HAZARD,
+				emit = "Paint", parent = pf })
+		end
 
 		-- Aynı satırdaki komşuya kemer
 		local col = (index - 1) % COLUMNS
@@ -1620,6 +1715,41 @@ do
 	build({ name = "BridgeUnder", size = Vector3.new(LOBBY_GATE_WIDTH - 4, 2.4, bridgeLen - 6),
 		cf = at(centerX, -2.2, bridgeZ),
 		color = HULL, material = Enum.Material.Metal, parent = f })
+
+	--[[
+		Köprünün iki ucundaki geçiş çerçevesi.
+
+		Köprünün kesiti 36 geniş ve 14 yüksek; istasyonun ve lobinin gövde
+		açıklıkları başka ölçüde. Zeminler bir stud bindiriyor, yani
+		düşülmüyor — ama YUKARIDA, köprü tavanı ile gövde arasında açık bir
+		bant kalıyordu ve içerisi boşluğa bakıyordu.
+
+		Çerçeve o bandı kapatıyor: iki yanda sövme, üstte lento. Aynı zamanda
+		"burada bir geçiş var" diyen mimari bir işaret — köprü artık havada
+		başlayıp bitmiyor, bir kapıdan giriyor.
+	]]
+	local COLLAR_T = 2.5
+	local collarW = LOBBY_GATE_WIDTH + COLLAR_T * 2
+
+	for _, endZ in { bridgeZ - bridgeLen / 2, bridgeZ + bridgeLen / 2 } do
+		-- Üst lento: tavandan gövdenin üstüne kadar
+		build({ name = "BridgeCollarTop", size = Vector3.new(collarW, COLLAR_T + 3, COLLAR_T),
+			cf = at(centerX, WALL_TOP + (COLLAR_T + 3) / 2 - 1, endZ),
+			color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+
+		for _, s2 in { -1, 1 } do
+			-- Yan sövmeler: zeminden tavana
+			build({ name = "BridgeCollarSide",
+				size = Vector3.new(COLLAR_T, WALL_TOP + 2, COLLAR_T),
+				cf = at(centerX + s2 * (LOBBY_GATE_WIDTH + COLLAR_T) / 2, (WALL_TOP + 2) / 2 - 1, endZ),
+				color = HULL, material = Enum.Material.Metal, collide = true, parent = f })
+		end
+
+		-- Çerçeveyi okutan neon hat
+		build({ name = "BridgeCollarGlow", size = Vector3.new(collarW - 1, 0.4, 0.5),
+			cf = at(centerX, WALL_TOP - 0.6, endZ),
+			color = NEON_MID, emit = "Paint", parent = f })
+	end
 
 	for _, s in { -1, 1 } do
 		local wx = centerX + s * LOBBY_GATE_WIDTH / 2
