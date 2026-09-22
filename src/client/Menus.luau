@@ -116,7 +116,8 @@ function Menus.Create(screen: ScreenGui): Menu
 	dock.Name = "MenuDock"
 	dock.AnchorPoint = Vector2.new(1, 0)
 	dock.Position = UDim2.new(1, -24, 0, 136)
-	dock.Size = UDim2.new(0, 64, 0, 240)
+	-- Dört düğme (unvan, iksir, pet, rebirth) + aralar
+	dock.Size = UDim2.new(0, 64, 0, 4 * 68 + 3 * 8)
 	dock.BackgroundTransparency = 1
 	dock.Parent = screen
 

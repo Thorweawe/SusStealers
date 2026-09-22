@@ -72,9 +72,19 @@ local function notify(player: Player, text: string, isError: boolean, kind: stri
 	notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)
 end
 
---[[ Oyuncunun taşıma hızı: yükseltme seviyesine göre. ]]
+--[[
+	Oyuncunun taşıma hızı: yükseltme seviyesi + pet bonusu.
+
+	Pet bonusu nitelikten okunuyor, PetService require edilmiyor —
+	EconomyService'teki gerekçenin aynısı, döngüsel bağımlılık olmasın.
+	Tavan Config'te: taşırken normal hızı geçmek çalmanın riskini silerdi.
+]]
 local function carrySpeedFor(player: Player): number
-	return Config.GetCarryWalkSpeed(UpgradeService.GetLevel(player, "CarrySpeed"))
+	local petBonus = player:GetAttribute("PetSpeedBonus") :: number?
+	return Config.GetCarryWalkSpeed(
+		UpgradeService.GetLevel(player, "CarrySpeed"),
+		math.max(0, petBonus or 0)
+	)
 end
 
 --[[

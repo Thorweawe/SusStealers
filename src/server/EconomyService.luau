@@ -99,6 +99,17 @@ function EconomyService.GetIncome(player: Player): number
 	local multiplier = Config.GetIncomeMultiplier(rebirths)
 		* MonetizationService.GetIncomeMultiplier(player)
 
+	--[[
+		Pet bonusu. PetService'i require ETMİYORUZ: yumurta açmak bu
+		servisin TrySpend'ine muhtaç, yani karşılıklı require döngü olurdu.
+		PetService bonusu niteliğe yazıyor, burası okuyor — tek yönlü.
+
+		Çarpan olarak giriyor, toplama değil: petin değeri oyuncunun
+		gelirinin büyüklüğünden bağımsız aynı oranda kalsın.
+	]]
+	local petBonus = player:GetAttribute("PetIncomeBonus") :: number?
+	multiplier *= 1 + math.max(0, petBonus or 0)
+
 	return math.floor(total * multiplier)
 end
 

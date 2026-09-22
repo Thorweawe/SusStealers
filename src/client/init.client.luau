@@ -42,6 +42,7 @@ local UpgradePanel = require(script.UpgradePanel)
 local RebirthPanel = require(script.RebirthPanel)
 local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
+local PetPanel = require(script.PetPanel)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -387,15 +388,31 @@ refreshCash()
 ]]
 local function refreshSpeed()
 	local level = player:GetAttribute("Upg_CarrySpeed") :: number?
-	local speed = Config.GetCarryWalkSpeed(level or 0)
+	local petBonus = player:GetAttribute("PetSpeedBonus") :: number?
+	local speed = Config.GetCarryWalkSpeed(level or 0, petBonus or 0)
 
 	speedValue.Text = string.format("%.1f", speed)
-	speedSub.Text = if (level or 0) > 0
-		then string.format("STEAL SPEED · Lv %d", level or 0)
+
+	--[[
+		Alt satır katkının NEREDEN geldiğini söylüyor. Tek bir sayı
+		gösterseydik oyuncu taktığı petin bir işe yarayıp yaramadığını
+		göremezdi — pet takmanın tek geri bildirimi bu satır.
+	]]
+	local parts = {}
+	if (level or 0) > 0 then
+		table.insert(parts, string.format("Lv %d", level or 0))
+	end
+	if (petBonus or 0) > 0 then
+		table.insert(parts, string.format("pets +%.2f", petBonus or 0))
+	end
+
+	speedSub.Text = if #parts > 0
+		then "STEAL SPEED · " .. table.concat(parts, " · ")
 		else "STEAL SPEED"
 end
 
 player:GetAttributeChangedSignal("Upg_CarrySpeed"):Connect(refreshSpeed)
+player:GetAttributeChangedSignal("PetSpeedBonus"):Connect(refreshSpeed)
 refreshSpeed()
 
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
@@ -675,8 +692,33 @@ mountPanel("RebirthPanel", function()
 	-- Rayin geri kalaniyla ayni kalip: kare ikon dugmesi, altinda etiket
 	local holder, button, slot =
 		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH")
-	holder.LayoutOrder = 3
+	holder.LayoutOrder = 4
 	UiKit.Flame(slot, 28, Color3.fromRGB(255, 226, 150))
+
+	button.MouseButton1Click:Connect(function()
+		panel.Toggle()
+	end)
+end)
+
+--[[
+	Petler. Duğmesi sag raya, Menus'un dock'una takiliyor (rebirth ile ayni
+	yol). Panel ekranin ortasinda aciliyor.
+
+	Pet bonuslari sunucudan nitelik olarak geliyor ve calma hizi hapi onlari
+	zaten gosteriyor; burasi yalnizca arayuzu kuruyor.
+]]
+mountPanel("PetPanel", function()
+	local panel = PetPanel.Create(screen)
+
+	local dock = screen:WaitForChild("MenuDock", 10)
+	if not dock then
+		return
+	end
+
+	local holder, button, slot =
+		UiKit.IconButton(dock, "Pets", UiKit.CREW.PINK, "PETS")
+	holder.LayoutOrder = 3
+	UiKit.Crewmate(slot, 26, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.55))
 
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()

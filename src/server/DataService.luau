@@ -71,6 +71,20 @@ export type Profile = {
 	potions: { [string]: number },
 	-- Satın alınmış üst kat sayısı (1. kat bedava, sayıya dahil değil)
 	floorsBought: number,
+	--[[
+		Pet envanteri: pet kimliği -> adet.
+
+		Adet tutuluyor çünkü yumurtadan aynı pet tekrar çıkabiliyor ve
+		kopyayı sessizce yakmak "yumurta boşa gitti" hissi veriyordu.
+		İleride birleştirme (fuse) gelirse kopyalar zaten burada duruyor.
+	]]
+	pets: { [string]: number },
+	--[[
+		Takılı petler, SIRALI. Sıra önemli: sahada hangi petin nereye
+		dizileceğini o belirliyor ve oyuncu sıralamayı kendi kuruyor.
+		Uzunluğu Config.PetEquipSlots ile sınırlı.
+	]]
+	equippedPets: { string },
 }
 
 export type QuestEntry = {
@@ -135,6 +149,8 @@ local function newProfile(): Profile
 		quests = {},
 		potions = {},
 		floorsBought = 0,
+		pets = {},
+		equippedPets = {},
 	}
 end
 
@@ -231,6 +247,37 @@ local function sanitize(raw: any): Profile
 				and typeof(count) == "number" and count > 0
 			then
 				profile.potions[id] = math.clamp(math.floor(count), 0, Config.PotionStackLimit)
+			end
+		end
+	end
+
+	--[[
+		Petler. İksirle aynı kalıp: Config'ten kalkmış pet kayıtta durabilir,
+		tanınmayan atlanıyor.
+
+		Takılı liste AYRICA süzülüyor ve sahip olunmayan pet atılıyor — kayıt
+		elle kurcalanmış olsa bile bonus, sahip olunmayan bir petten gelemez.
+	]]
+	if typeof(raw.pets) == "table" then
+		for id, count in raw.pets do
+			if typeof(id) == "string" and Config.GetPet(id)
+				and typeof(count) == "number" and count > 0
+			then
+				profile.pets[id] = math.clamp(math.floor(count), 0, Config.PetStackLimit)
+			end
+		end
+	end
+
+	if typeof(raw.equippedPets) == "table" then
+		for _, id in raw.equippedPets do
+			if #profile.equippedPets >= Config.PetEquipSlots then
+				break
+			end
+			if typeof(id) == "string"
+				and (profile.pets[id] or 0) > 0
+				and not table.find(profile.equippedPets, id)
+			then
+				table.insert(profile.equippedPets, id)
 			end
 		end
 	end
@@ -397,23 +444,43 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	-- Yazarken profil değişebilir; anlık kopya al
 	profile.lastSeen = os.time()
 
-	local snapshot: Profile = {
-		version = profile.version,
-		cash = profile.cash,
-		stolen = profile.stolen,
-		rebirths = profile.rebirths,
-		units = table.clone(profile.units),
-		lastSeen = profile.lastSeen,
-		incomePerSecond = profile.incomePerSecond,
-		receipts = table.clone(profile.receipts),
-		upgrades = table.clone(profile.upgrades),
-		lastSpinAt = profile.lastSpinAt,
-		titles = table.clone(profile.titles),
-		activeTitle = profile.activeTitle,
-		robbed = profile.robbed,
-		caught = profile.caught,
-		maxStreak = profile.maxStreak,
-	}
+	--[[
+		═══ ALANLARI TEK TEK YAZMIYORUZ ═══════════════════════════════════
+
+		Burası bir alan listesiydi ve liste GERİDE KALMIŞTI: tutorialStep,
+		titleManual, bought/sold/spins/earned, quests, potions ve
+		floorsBought snapshot'a hiç girmiyordu. Yani diske yazılmıyorlardı
+		— oyuncu her oturumda öğreticiye sıfırdan başlıyor, iksirlerini ve
+		görev ilerlemesini kaybediyordu. floorsBought'un kaybı
+		görünmüyordu çünkü sanitize onu rebirth sayısından tahmin ediyor.
+
+		Artık profilin TAMAMI kopyalanıyor. Yeni bir alan eklemek için
+		burayı güncellemek gerekmiyor; unutulması mümkün olan adım ortadan
+		kalktı.
+
+		Tablolar ayrıca kopyalanıyor: table.clone sığ, yani iç tabloları
+		paylaşırdık ve UpdateAsync beklerken oyuncu bir iksir içse diske
+		yazılan veri değişirdi.
+	]]
+	local snapshot: Profile = table.clone(profile)
+	snapshot.units = table.clone(profile.units)
+	snapshot.receipts = table.clone(profile.receipts)
+	snapshot.upgrades = table.clone(profile.upgrades)
+	snapshot.titles = table.clone(profile.titles)
+	snapshot.potions = table.clone(profile.potions)
+	snapshot.pets = table.clone(profile.pets)
+	snapshot.equippedPets = table.clone(profile.equippedPets)
+
+	-- Görevler iki kat derin: vade -> entries -> görev
+	local quests: { [string]: QuestSlot } = {}
+	for tierId, slot in profile.quests do
+		local entries: { QuestEntry } = {}
+		for _, entry in slot.entries do
+			table.insert(entries, table.clone(entry))
+		end
+		quests[tierId] = { expiresAt = slot.expiresAt, entries = entries }
+	end
+	snapshot.quests = quests
 
 	local ok, err = pcall(function()
 		(store :: DataStore):UpdateAsync(keyFor(player), function(old: Record?): Record?

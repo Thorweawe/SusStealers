@@ -23,6 +23,7 @@ local TutorialService = require(script.TutorialService)
 local FloorService = require(script.FloorService)
 local PotionService = require(script.PotionService)
 local QuestService = require(script.QuestService)
+local PetService = require(script.PetService)
 
 local started = os.clock()
 
@@ -48,5 +49,6 @@ TutorialService.Start()
 -- PotionService, QuestService'ten önce: günlük bonus envantere iksir koyuyor
 PotionService.Start()
 QuestService.Start()
+PetService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

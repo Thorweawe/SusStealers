@@ -575,6 +575,54 @@ function UiKit.Crate(parent: Instance, size: number, tint: Color3): Frame
 	return box
 end
 
+--[[
+	Yumurta: pet yumurtalarının ikonu.
+
+	Daire değil OVAL — daire madeni parayla karışıyordu ve iki şey aynı
+	panelde yan yana duruyor. Üstteki çatlak çizgisi ikinci işaret:
+	"bu açılacak bir şey" diyor.
+]]
+function UiKit.Egg(parent: Instance, size: number, tint: Color3): Frame
+	local z = baseZ(parent)
+
+	local egg = Instance.new("Frame")
+	egg.Name = "Egg"
+	egg.AnchorPoint = Vector2.new(0.5, 0.5)
+	egg.Position = UDim2.fromScale(0.5, 0.5)
+	egg.Size = UDim2.fromOffset(size * 0.78, size)
+	egg.BackgroundColor3 = tint
+	egg.BorderSizePixel = 0
+	egg.ZIndex = z + 1
+	egg.Parent = parent
+
+	-- Üstü dar, altı geniş: tek yarıçap veremiyoruz, iki katman gerekiyor
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = egg
+
+	local belly = Instance.new("Frame")
+	belly.AnchorPoint = Vector2.new(0.5, 1)
+	belly.Position = UDim2.fromScale(0.5, 1)
+	belly.Size = UDim2.fromScale(1, 0.62)
+	belly.BackgroundColor3 = tint
+	belly.BorderSizePixel = 0
+	belly.ZIndex = z + 1
+	belly.Parent = egg
+	UiKit.Corner(belly, math.floor(size * 0.34))
+
+	local crack = Instance.new("Frame")
+	crack.AnchorPoint = Vector2.new(0.5, 0.5)
+	crack.Position = UDim2.fromScale(0.5, 0.46)
+	crack.Size = UDim2.new(0.78, 0, 0, 2)
+	crack.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.5)
+	crack.BorderSizePixel = 0
+	crack.Rotation = -8
+	crack.ZIndex = z + 2
+	crack.Parent = egg
+
+	return egg
+end
+
 --[[ Madeni para: nakit hapının ikonu. ]]
 function UiKit.Coin(parent: Instance, size: number, tint: Color3): Frame
 	local coin = Instance.new("Frame")

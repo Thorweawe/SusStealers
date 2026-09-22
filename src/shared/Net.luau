@@ -20,6 +20,7 @@ local EVENTS = {
 	"Titles",       -- server -> client (açık unvanlar, takılı olan)
 	"Quests",       -- server -> client (vade -> görev listesi)
 	"Potions",      -- server -> client (envanter + aktif takviye)
+	"Pets",         -- server -> client (sahip olunanlar + takılı sıra)
 	"TutorialSkip", -- client -> server (argümansız)
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
@@ -27,6 +28,8 @@ local EVENTS = {
 	"UpgradeBuy",   -- client -> server (upgradeId: string)
 	"FloorBuy",     -- client -> server (argumansiz)
 	"RebirthBuy",   -- client -> server (argumansiz)
+	"PetHatch",     -- client -> server (eggId: string)
+	"PetEquip",     -- client -> server (petId: string, equip: boolean)
 	"Sprint",       -- client -> server (active: boolean)
 }
 
@@ -59,6 +62,18 @@ local CLIENT_TO_SERVER = {
 	UpgradeBuy = true,
 	FloorBuy = true,
 	RebirthBuy = true,
+	--[[
+		PetHatch oyuncunun KENDİ parasını harcıyor: fiyatı ve çekilişi
+		sunucu yapıyor (PetService.TryHatch), istemci yalnızca hangi
+		yumurta olduğunu söylüyor ve o kimlik Config'de aranıyor.
+		Tanınmayan kimlik reddediliyor.
+
+		PetEquip hiçbir şey vermiyor, zaten SAHİP OLUNAN bir peti takıp
+		çıkarıyor. Sahiplik profilden doğrulanıyor ve slot sayısı
+		sunucuda sınırlanıyor.
+	]]
+	PetHatch = true,
+	PetEquip = true,
 	--[[
 		Sprint yalnızca bir bayrak; hızı sunucu belirliyor ve TAŞIRKEN
 		reddediyor. Roblox'ta oyuncu zaten kendi WalkSpeed'ini istemciden

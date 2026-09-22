@@ -601,6 +601,8 @@ Config.NotifyCues = {
 	quest    = { source = "UiB", startAt = 5.50, length = 0.26, pitch = 0.95, volume = 0.45, repeats = 2, gap = 0.12 },
 	spin     = { source = "UiC", startAt = 8.00, length = 0.24, pitch = 1.30, volume = 0.45, repeats = 2, gap = 0.07 },
 	potion   = { source = "UiD", startAt = 7.00, length = 0.22, pitch = 1.45, volume = 0.40 },
+	-- Yumurta açılışı: yükselen üç vuruş, "çatladı" hissi için hızlı
+	pet      = { source = "UiA", startAt = 3.00, length = 0.20, pitch = 1.35, volume = 0.50, repeats = 3, gap = 0.08 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -875,8 +877,9 @@ end
 	avantaj haline gelir ve çalmanın riski kaybolur. Son seviyede tam
 	tavana ulaşacak şekilde ayarlı.
 ]]
-function Config.GetCarryWalkSpeed(level: number): number
-	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level * 0.2)
+function Config.GetCarryWalkSpeed(level: number, petBonus: number?): number
+	local base = Config.CarryWalkSpeed + level * 0.2 + (petBonus or 0)
+	return math.min(Config.NormalWalkSpeed - 1, base)
 end
 
 --[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]
@@ -1215,6 +1218,234 @@ function Config.RollMutation(rng: Random): MutationDef?
 		end
 	end
 	return nil
+end
+
+-- ─── Petler ─────────────────────────────────────────────────────────────────
+--[[
+	═══ NE İŞE YARIYORLAR ══════════════════════════════════════════════════
+
+	Pet, oyuncunun peşinden gelen küçük bir yoldaş ve iki şeye dokunuyor:
+	GELİR yüzdesi ve TAŞIMA HIZI. İkisi de oyunun iki ana fiiline karşılık
+	geliyor — kaide doldurmak ve çalmak.
+
+	Neden bu iki stat? Çünkü oyuncunun zaten umursadığı sayılar bunlar ve
+	ikisi de HUD'da görünüyor. Üçüncü bir stat eklemek (şans, kilit süresi)
+	peti "bir sürü küçük yüzde" haline getirirdi; bakışta ne yaptığı
+	anlaşılmazdı.
+
+	═══ NEDEN YUMURTA ══════════════════════════════════════════════════════
+
+	Peti doğrudan satmak, parası olanın istediğini alması demek — nadirlik
+	kademesi anlamsızlaşır. Yumurta ise PARAYLA ALINIYOR ama içinden ne
+	çıkacağı şansa bağlı: para sadece daha iyi bir havuza giriş bileti.
+
+	Her yumurtanın kendi kademe ağırlıkları var ve havuzlar üst üste
+	biniyor (Skeld yumurtası hâlâ Uncommon verebiliyor). Bu kasten:
+	pahalı yumurtanın kötü sonucu da olsun ki açmak heyecanlı kalsın.
+
+	═══ DENGE ══════════════════════════════════════════════════════════════
+
+	Üç pet takılabiliyor ve bonuslar TOPLANIYOR. Üç Secret pet +%375 gelir
+	demek — çok gibi duruyor ama Secret yalnızca en pahalı yumurtadan ve
+	%6 ağırlıkla çıkıyor; oraya gelen oyuncu zaten oyunun sonunda.
+
+	Gelir çarpanı rebirth ve gamepass ile ÇARPILIYOR (EconomyService),
+	toplanmıyor. Yani pet her kademede aynı oranda işe yarıyor.
+]]
+export type PetDef = {
+	id: string,
+	name: string,
+	rarity: Rarity,
+	incomeBonus: number,   -- gelire eklenen oran (0.25 = +%25)
+	speedBonus: number,    -- taşıma hızına eklenen stud/s
+	color: Color3,
+}
+
+--[[
+	Kademe başına bonus. Pet tanımları bunu kullanıyor ki aynı kademedeki
+	iki pet aynı gücü versin — fark yalnızca görünüşte olsun.
+
+	Denge değiştirmek isteyen tek yere bakıyor: aşağıdaki dört sayı.
+]]
+local PET_TIER = {
+	Common    = { income = 0.02, speed = 0.05 },
+	Uncommon  = { income = 0.05, speed = 0.10 },
+	Rare      = { income = 0.10, speed = 0.20 },
+	Epic      = { income = 0.20, speed = 0.35 },
+	Legendary = { income = 0.40, speed = 0.55 },
+	Mythic    = { income = 0.75, speed = 0.85 },
+	Secret    = { income = 1.25, speed = 1.20 },
+}
+
+local function pet(id: string, name: string, rarity: Rarity, color: Color3): PetDef
+	local tier = PET_TIER[rarity]
+	return {
+		id = id,
+		name = name,
+		rarity = rarity,
+		incomeBonus = tier.income,
+		speedBonus = tier.speed,
+		color = color,
+	}
+end
+
+--[[
+	Petler. Hepsi Skeld'in kendi eşyalarından: bir görev konsolu, bir
+	yedek kask, havalandırmadan çıkan bir şey. Among Us'tan HAZIR VARLIK
+	kopyalanmıyor — alınan şey mekânın dili.
+]]
+Config.Pets = {
+	-- Common
+	pet("MiniCrew",   "Mini Crew",        "Common",    Color3.fromRGB(197,  17,  17)),
+	pet("Bolt",       "Loose Bolt",       "Common",    Color3.fromRGB(176, 184, 196)),
+	pet("VentRat",    "Vent Rat",         "Common",    Color3.fromRGB(113,  73,  30)),
+
+	-- Uncommon
+	pet("BrainSlug",  "Brain Slug",       "Uncommon",  Color3.fromRGB(238, 132, 195)),
+	pet("SparePod",   "Spare Helmet",     "Uncommon",  Color3.fromRGB(150, 222, 236)),
+	pet("Hamster",    "Cargo Hamster",    "Uncommon",  Color3.fromRGB(226, 186, 120)),
+
+	-- Rare
+	pet("MedDrone",   "Medbay Drone",     "Rare",      Color3.fromRGB( 90, 200, 255)),
+	pet("TaskBot",    "Task Bot",         "Rare",      Color3.fromRGB( 56, 254, 220)),
+	pet("VentCrab",   "Vent Crab",        "Rare",      Color3.fromRGB( 62,  71,  78)),
+
+	-- Epic
+	pet("SusShadow",  "Sus Shadow",       "Epic",      Color3.fromRGB(107,  47, 187)),
+	pet("CoreShard",  "Reactor Shard",    "Epic",      Color3.fromRGB(255, 120,  20)),
+	pet("SecurityCam","Security Cam",     "Epic",      Color3.fromRGB(120, 220, 255)),
+
+	-- Legendary
+	pet("MiniImp",    "Mini Impostor",    "Legendary", Color3.fromRGB(190,   0,  55)),
+	pet("EscapePod",  "Escape Pod",       "Legendary", Color3.fromRGB(215, 224, 240)),
+	pet("SnowPal",    "Polus Snow Pal",   "Legendary", Color3.fromRGB(190, 210, 225)),
+
+	-- Mythic
+	pet("GhostCrew",  "Ejected Ghost",    "Mythic",    Color3.fromRGB(170, 190, 255)),
+	pet("MeetingBell","Emergency Bell",   "Mythic",    Color3.fromRGB(255,  70, 110)),
+
+	-- Secret
+	pet("TheEgg",     "The Egg",          "Secret",    Color3.fromRGB(238, 230, 214)),
+	pet("VoidShard",  "Void Shard",       "Secret",    Color3.fromRGB( 18,  18,  26)),
+} :: { PetDef }
+
+-- Aynı anda takılabilecek pet sayısı. Üç: sıralı bir seçim yapacak kadar
+-- az, "hangisi daha iyi" sorusunu anlamlı kılacak kadar çok.
+Config.PetEquipSlots = 3
+
+--[[
+	Envanter tavanı. Sınırsız olsaydı kayıt dosyası büyür ve arayüz
+	kullanılmaz hale gelirdi. Aynı petten birden fazla tutuluyor (adet),
+	yani tavan ÇEŞİT sayısı değil, kayıt satırı sayısı.
+]]
+Config.PetStackLimit = 99
+
+export type EggDef = {
+	id: string,
+	name: string,
+	price: number,
+	weights: { [string]: number },  -- nadirlik -> ağırlık
+}
+
+--[[
+	Yumurtalar. Fiyatları o kademedeki karakterlerin fiyatına yakın:
+	yumurta, kaideye bir karakter daha koymakla yarışmalı.
+]]
+Config.Eggs = {
+	{ id = "SupplyEgg", name = "Supply Egg", price =         50000,
+		weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 2 } },
+	{ id = "SkeldEgg",  name = "Skeld Egg",  price =       2500000,
+		weights = { Uncommon = 45, Rare = 33, Epic = 17, Legendary = 5 } },
+	{ id = "PolusEgg",  name = "Polus Egg",  price =     150000000,
+		weights = { Rare = 40, Epic = 34, Legendary = 20, Mythic = 6 } },
+	{ id = "VoidEgg",   name = "Void Egg",   price =    9000000000,
+		weights = { Epic = 36, Legendary = 36, Mythic = 22, Secret = 6 } },
+} :: { EggDef }
+
+local petsById: { [string]: PetDef } = {}
+for _, def in Config.Pets do
+	petsById[def.id] = def
+end
+
+function Config.GetPet(id: string): PetDef?
+	return petsById[id]
+end
+
+function Config.GetEgg(id: string): EggDef?
+	for _, def in Config.Eggs do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+--[[
+	Yumurtadan bir pet çeker.
+
+	İki aşamalı: önce KADEME seçiliyor (yumurtanın ağırlıklarıyla), sonra
+	o kademedeki petlerden biri eşit şansla. Tek aşamalı olsaydı kademede
+	üç pet olması o kademeyi üç kat sık yapardı — yani yeni bir pet eklemek
+	dengeyi sessizce bozardı.
+]]
+function Config.RollPet(rng: Random, eggId: string): PetDef?
+	local egg = Config.GetEgg(eggId)
+	if not egg then
+		return nil
+	end
+
+	local total = 0
+	for _, weight in egg.weights do
+		total += weight
+	end
+	if total <= 0 then
+		return nil
+	end
+
+	local roll = rng:NextNumber(0, total)
+	local chosen: string? = nil
+	for rarity, weight in egg.weights do
+		roll -= weight
+		if roll <= 0 then
+			chosen = rarity
+			break
+		end
+	end
+	if not chosen then
+		return nil
+	end
+
+	local pool = {}
+	for _, def in Config.Pets do
+		if def.rarity == chosen then
+			table.insert(pool, def)
+		end
+	end
+	if #pool == 0 then
+		return nil
+	end
+	return pool[rng:NextInteger(1, #pool)]
+end
+
+--[[
+	Takılı petlerin toplam bonusu.
+
+	Bilinmeyen kimlikler sessizce atlanıyor: bir pet Config'den kaldırılırsa
+	eski kayıtlar oyunu kırmasın.
+]]
+function Config.GetPetBonus(equipped: { string }): (number, number)
+	local income, speed = 0, 0
+	for index, id in equipped do
+		if index > Config.PetEquipSlots then
+			break
+		end
+		local def = petsById[id]
+		if def then
+			income += def.incomeBonus
+			speed += def.speedBonus
+		end
+	end
+	return income, speed
 end
 
 --[[ 1234567 -> "1.23M" ]]
