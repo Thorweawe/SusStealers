@@ -134,11 +134,12 @@ local function onPlayerAdded(player: Player)
 	-- Çevrimdışı kazanç profile zaten eklendi; oyuncuya haber ver
 	local earned, seconds = DataService.ConsumeOfflineEarnings(player)
 	if earned > 0 and notifyRemote then
+		-- Çevrimdışı kazanç: girişte bir kez, kendi sesiyle
 		notifyRemote:FireClient(player, string.format(
 			"Welcome back! You earned $%s while away (%d min)",
 			Config.FormatCash(earned),
 			math.floor(seconds / 60)
-		), false)
+		), false, "welcome")
 	end
 end
 

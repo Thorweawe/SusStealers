@@ -52,8 +52,20 @@ local streakAt: { [Player]: number } = {}
 local victimHits: { [Player]: { [Player]: number } } = {}
 local victimBlockedUntil: { [Player]: { [Player]: number } } = {}
 
-local function notify(player: Player, text: string, isError: boolean)
-	notifyRemote:FireClient(player, text, isError)
+--[[
+	Bildirimin TÜRÜ. İstemci buna bakıp hangi sesi çalacağına karar veriyor.
+
+	Eskiden yalnızca metin ve hata bayrağı gidiyordu; istemci de bütün
+	başarılı işlemlerde aynı sesi çalıyordu — satın alma, satma, yükseltme,
+	görev, hepsi tek tınıydı ve hangi işlemin tuttuğu kulaktan anlaşılmıyordu.
+
+	Tür servisin kendi alanı olduğu için sabit; bir çağrı farklı bir şey
+	anlatıyorsa dördüncü argümanla değiştirilebiliyor.
+]]
+local NOTIFY_KIND = "steal"
+
+local function notify(player: Player, text: string, isError: boolean, kind: string?)
+	notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)
 end
 
 --[[ Oyuncunun taşıma hızı: yükseltme seviyesine göre. ]]
@@ -262,7 +274,8 @@ local function setupCatchPrompt(thief: Player, model: Model)
 		streak[thief] = nil
 		thief:SetAttribute("StealStreak", 0)
 
-		notify(catcher, string.format("You stopped %s and got %s back!", thief.DisplayName, unitName), false)
+		-- Yakalama oyunun en tatmin edici anı; kendi sesi olmalı
+		notify(catcher, string.format("You stopped %s and got %s back!", thief.DisplayName, unitName), false, "catch")
 		notify(thief, string.format(
 			"Caught! You cannot steal from %s for %d min",
 			catcher.DisplayName,
@@ -364,7 +377,7 @@ local function tryDeposit(player: Player)
 			Config.FormatCash(payout)
 		), false)
 	else
-		notify(player, string.format("%s added to your base", if def then def.name else carry.unitId), false)
+		notify(player, string.format("%s added to your base", if def then def.name else carry.unitId), false, "deposit")
 	end
 
 	player:SetAttribute("StealStreak", streak[player])
@@ -500,7 +513,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 
 	setupCatchPrompt(thief, model)
 
-	notify(thief, string.format("Stole %s! Run to your base", unitName), false)
+	notify(thief, string.format("Stole %s! Run to your base", unitName), false, "steal")
 	if victim then
 		alertRemote:FireClient(victim, thief.DisplayName, unitName)
 		notify(victim, string.format("%s is carrying your %s - chase and press E to stop them",
@@ -591,7 +604,7 @@ local function setupLockPrompt(plot: Model)
 
 		plot:SetAttribute("Locked", true)
 		plot:SetAttribute("LockUsedAt", os.clock())
-		notify(player, string.format("Base locked for %d s", duration), false)
+		notify(player, string.format("Base locked for %d s", duration), false, "lock")
 
 		task.delay(duration, function()
 			if plot.Parent then

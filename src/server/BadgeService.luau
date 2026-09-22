@@ -27,9 +27,10 @@ local owned: { [Player]: { [string]: boolean } } = {}
 -- Aynı rozet için üst üste ödül isteği gitmesin
 local granting: { [Player]: { [string]: boolean } } = {}
 
+--[[ Rozet kazanma sesi diğerlerinden ayrı; nadir ve kutlama gerektiriyor. ]]
 local function notify(player: Player, text: string)
 	if notifyRemote then
-		notifyRemote:FireClient(player, text, false)
+		notifyRemote:FireClient(player, text, false, "badge")
 	end
 end
 

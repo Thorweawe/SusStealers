@@ -31,9 +31,21 @@ local notifyRemote: RemoteEvent
 local lastUseAt: { [Player]: number } = {}
 local lastSignature: { [Player]: string } = {}
 
-local function notify(player: Player, text: string, isError: boolean)
+--[[
+	Bildirimin TÜRÜ. İstemci buna bakıp hangi sesi çalacağına karar veriyor.
+
+	Eskiden yalnızca metin ve hata bayrağı gidiyordu; istemci de bütün
+	başarılı işlemlerde aynı sesi çalıyordu — satın alma, satma, yükseltme,
+	görev, hepsi tek tınıydı ve hangi işlemin tuttuğu kulaktan anlaşılmıyordu.
+
+	Tür servisin kendi alanı olduğu için sabit; bir çağrı farklı bir şey
+	anlatıyorsa dördüncü argümanla değiştirilebiliyor.
+]]
+local NOTIFY_KIND = "potion"
+
+local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote then
-		notifyRemote:FireClient(player, text, isError)
+		notifyRemote:FireClient(player, text, isError, kind or NOTIFY_KIND)
 	end
 end
 
