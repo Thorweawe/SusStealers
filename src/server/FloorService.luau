@@ -41,49 +41,64 @@ end
 -- ─── Ped ────────────────────────────────────────────────────────────────────
 
 --[[
-	Rampanın alçak ucunun dünya konumu.
+	Merdivenin en alt basamağının dünya konumu.
 
-	Rampa eğik bir parça; iki ucundan hangisinin aşağıda olduğunu Y'den
-	buluyoruz. Rampanın açısı ve yönü PlotService'te türetildiği için
-	burada sabit yön varsaymak kırılgan olurdu.
+	Üs yerleşimi rampadan merdivene geçti (Step / StairSide / Landing).
+	En alçak basamağı seçiyoruz: oyuncunun yukarı çıkmak için bastığı ilk
+	yer orası, yani parayı vereceği yerin de orası olması gerekiyor.
+
+	Basamağı isimle arıyoruz, sayıyla değil: basamak sayısı kat
+	yüksekliğine göre değişiyor ve sabit bir indeks kırılgan olurdu.
 ]]
-local function rampFoot(ramp: BasePart): Vector3
-	local half = ramp.Size.Z / 2
-	local a = (ramp.CFrame * CFrame.new(0, 0, half)).Position
-	local b = (ramp.CFrame * CFrame.new(0, 0, -half)).Position
-	return if a.Y < b.Y then a else b
+local function stairFoot(floorModel: Model): Vector3?
+	local lowest: BasePart? = nil
+
+	for _, part in floorModel:GetChildren() do
+		if part:IsA("BasePart") and part.Name == "Step" then
+			if not lowest or part.Position.Y < lowest.Position.Y then
+				lowest = part
+			end
+		end
+	end
+
+	return if lowest then lowest.Position else nil
 end
 
 --[[
-	Pedin duracağı yer: rampanın dibinden üssün MERKEZİNE doğru birkaç
+	Pedin duracağı yer: merdivenin dibinden üssün MERKEZİNE doğru birkaç
 	stud içeride.
 
-	Önce körlemesine +Z yönüne ittiriyordum ve rampa arka kenardayken ped
-	üssün dışına taşıyordu. Yönü merkezden türetmek, rampa hangi kenarda
-	olursa olsun pedi içeride tutuyor.
+	Önce körlemesine +Z yönüne ittiriyordum ve ped üssün dışına taşıyordu.
+	Yönü merkezden türetmek, merdiven hangi kenarda olursa olsun pedi
+	içeride tutuyor — alt sıradaki dört üs 180° dönük, sabit bir yön
+	hiçbir zaman ikisinde birden doğru olmuyor.
 ]]
 local PAD_INSET = 5
 
-local function padPosition(plot: Model, ramp: BasePart): Vector3
-	local foot = rampFoot(ramp)
-
+local function padPosition(plot: Model, foot: Vector3): Vector3
 	local base = plot:FindFirstChild("Base")
 	if not (base and base:IsA("BasePart")) then
 		return foot + Vector3.new(0, 0.3, 0)
 	end
 
-	-- Yatay düzlemde merkeze doğru; yüksekliği rampanın dibinden alıyoruz
 	local flat = Vector3.new(base.Position.X - foot.X, 0, base.Position.Z - foot.Z)
 	local direction = if flat.Magnitude > 0.1 then flat.Unit else Vector3.new(0, 0, 1)
 
-	return foot + Vector3.new(0, 0.3, 0) + direction * PAD_INSET
+	-- Yükseklik üssün zemininden: basamağın kendi yüksekliği pedi havada
+	-- bırakıyordu
+	local groundY = base.Position.Y + base.Size.Y / 2 + 0.3
+	local spot = foot + direction * PAD_INSET
+	return Vector3.new(spot.X, groundY, spot.Z)
 end
 
-local function findRamp(plot: Model, floor: number): BasePart?
+--[[ Katın merdiven dibi. Kat ya da merdiven yoksa nil. ]]
+local function floorFoot(plot: Model, floor: number): Vector3?
 	local floors = plot:FindFirstChild("Floors")
 	local floorModel = floors and floors:FindFirstChild(string.format("Floor%d", floor))
-	local ramp = floorModel and floorModel:FindFirstChild("Ramp")
-	return if ramp and ramp:IsA("BasePart") then ramp else nil
+	if not (floorModel and floorModel:IsA("Model")) then
+		return nil
+	end
+	return stairFoot(floorModel)
 end
 
 --[[
@@ -92,21 +107,39 @@ end
 	ped koysaydık alınmış katın pedi ortada dururdu.
 ]]
 local function buildPad(plot: Model): BasePart?
-	local ramp = findRamp(plot, 2)
-	if not ramp then
+	local foot = floorFoot(plot, 2)
+	if not foot then
+		warn("[FloorService] " .. plot.Name .. ": merdiven bulunamadi, satin alma pedi kurulamadi")
 		return nil
 	end
 
 	local pad = Instance.new("Part")
 	pad.Name = "FloorPad"
 	pad.Size = Vector3.new(8, 0.4, 6)
-	pad.CFrame = CFrame.new(padPosition(plot, ramp))
+	pad.CFrame = CFrame.new(padPosition(plot, foot))
 	pad.Anchored = true
 	pad.CanCollide = false
 	pad.Material = Enum.Material.Neon
 	pad.Color = Color3.fromRGB(255, 190, 90)
-	pad.Transparency = 0.5
+	pad.Transparency = 0.35
 	pad.Parent = plot
+
+	--[[
+		Pedin üstünde duran ışık sütunu. Ped tek başına yere yapışık
+		duruyordu ve "üst kat alma yeri nerede" sorusu cevapsız kalıyordu;
+		sütun merdivenin dibini uzaktan görünür yapıyor.
+	]]
+	local beacon = Instance.new("Part")
+	beacon.Name = "Beacon"
+	beacon.Size = Vector3.new(1.2, 14, 1.2)
+	beacon.CFrame = pad.CFrame * CFrame.new(0, 7, 0)
+	beacon.Anchored = true
+	beacon.CanCollide = false
+	beacon.CanQuery = false
+	beacon.Material = Enum.Material.Neon
+	beacon.Color = pad.Color
+	beacon.Transparency = 0.75
+	beacon.Parent = pad
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "FloorLabel"
@@ -247,13 +280,15 @@ function FloorService.Refresh(plot: Model)
 	end
 
 	-- Pedi satılan katın rampasının dibine taşı
-	local ramp = findRamp(plot, def.floor)
-	if ramp then
-		pad.CFrame = CFrame.new(padPosition(plot, ramp))
+	local foot = floorFoot(plot, def.floor)
+	if foot then
+		pad.CFrame = CFrame.new(padPosition(plot, foot))
 	end
 
 	pad.Transparency = 0.5
 	prompt.Enabled = true
+
+	local beacon = pad:FindFirstChild("Beacon")
 
 	if profile.rebirths < def.rebirths then
 		-- Kilitli: fiyatı da gösteriyoruz ki oyuncu neye hazırlanacağını bilsin
@@ -271,6 +306,12 @@ function FloorService.Refresh(plot: Model)
 		prompt.ObjectText = string.format("$%s", Config.FormatCash(def.cost))
 		label.TextColor3 = Color3.fromRGB(255, 205, 120)
 		label.Text = string.format("FLOOR %d\n$%s", def.floor, Config.FormatCash(def.cost))
+	end
+
+	if beacon and beacon:IsA("BasePart") then
+		beacon.Color = pad.Color
+		beacon.Transparency = if pad.Transparency >= 1 then 1 else 0.75
+		beacon.CFrame = pad.CFrame * CFrame.new(0, 7, 0)
 	end
 end
 

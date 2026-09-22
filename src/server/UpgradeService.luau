@@ -65,10 +65,23 @@ function UpgradeService.TryUpgrade(player: Player, id: string): boolean
 	end
 
 	local level = profile.upgrades[id] or 0
-	local cost = Config.GetUpgradeCost(id, level)
+	local floors = Config.GetUnlockedFloors(profile.floorsBought)
+	local cost = Config.GetUpgradeCost(id, level, floors)
 
 	if not cost then
-		notify(player, string.format("%s is already maxed", def.name), true)
+		--[[
+			Tavan kat sayısına bağlı. Oyuncu tavana dayandıysa mesaj bunu
+			söylemeli, yoksa "maxed" görüp yükseltmenin bittiğini sanıyor —
+			oysa bir üst kat alınca devamı geliyor.
+		]]
+		if floors < Config.MaxFloors then
+			notify(player, string.format(
+				"%s is maxed for floor %d - buy the next floor to raise the cap",
+				def.name, floors
+			), true)
+		else
+			notify(player, string.format("%s is fully maxed", def.name), true)
+		end
 		return false
 	end
 
@@ -96,9 +109,27 @@ end
 	diyerek okuyor, maliyeti de Config'ten kendisi hesaplıyor.
 ]]
 function UpgradeService.PublishLevels(player: Player)
+	local profile = DataService.Get(player)
+	local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
+
 	for _, def in Config.Upgrades do
 		player:SetAttribute("Upg_" .. def.id, UpgradeService.GetLevel(player, def.id))
 	end
+
+	-- Arayüz tavanı da bilmeli: kaç kutucuk çizeceğini ve "maxed" mi
+	-- diyeceğini buna göre belirliyor
+	player:SetAttribute("UpgradeFloors", floors)
+end
+
+--[[ Oyuncunun o anki yükseltme tavanı. ]]
+function UpgradeService.GetMaxLevel(player: Player, id: string): number
+	local def = Config.GetUpgrade(id)
+	if not def then
+		return 0
+	end
+	local profile = DataService.Get(player)
+	local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
+	return Config.GetUpgradeMaxLevel(def, floors)
 end
 
 

@@ -66,6 +66,41 @@ end
 	hangisi daha iyiyse o geçerli — ikisini de alan iki kat avantaj
 	kazanmasın.
 ]]
+--[[
+	Oyuncunun o anki yürüme hızı.
+
+	Hız üç duruma bağlı ve üçü de burada: taşırken yavaş, shift basılıyken
+	hızlı, normalde normal. Üç ayrı yerde atanıyordu ve koşma eklenince
+	hangisinin kazanacağı belirsiz kalırdı — taşırken koşmak çalmanın
+	riskini tamamen silerdi.
+
+	Koşma bu modülde çünkü taşımayla YARIŞIYOR; ayrı bir servise koymak
+	iki servisin aynı özelliği farklı zamanlarda ezmesi demekti.
+]]
+local sprinting: { [Player]: boolean } = {}
+
+local function applyWalkSpeed(player: Player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	if carrying[player] then
+		humanoid.WalkSpeed = carrySpeedFor(player)
+	elseif sprinting[player] then
+		humanoid.WalkSpeed = Config.SprintWalkSpeed
+	else
+		humanoid.WalkSpeed = Config.NormalWalkSpeed
+	end
+end
+
+--[[ Koşma bayrağını ayarlar. Taşıyan oyuncuda hıza etkisi yok. ]]
+function StealService.SetSprinting(player: Player, active: boolean)
+	sprinting[player] = active or nil
+	applyWalkSpeed(player)
+end
+
 local function lockValuesFor(player: Player): (number, number)
 	local duration, cooldown = Config.GetLockValues(UpgradeService.GetLevel(player, "LockPower"))
 
@@ -113,10 +148,7 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 
 	model.Parent = character
 
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.WalkSpeed = carrySpeedFor(player)
-	end
+	applyWalkSpeed(player)
 
 	return model
 end
@@ -132,11 +164,8 @@ local function stopCarrying(player: Player)
 	end
 	carrying[player] = nil
 
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.WalkSpeed = Config.NormalWalkSpeed
-	end
+	-- Taşıma bitti: koşuyorsa koşu hızına, değilse normale dönsün
+	applyWalkSpeed(player)
 end
 
 --[[ Taşınan karakteri sahibine geri verir (ölüm / çıkış durumunda). ]]
@@ -588,6 +617,17 @@ function StealService.Start()
 		end
 	end
 
+	--[[
+		Koşma isteği. İstemciden gelen tek şey bir bayrak; hızı sunucu
+		belirliyor ve taşıyan oyuncuda yok sayıyor.
+	]]
+	Net.Get("Sprint").OnServerEvent:Connect(function(player, active)
+		if typeof(active) ~= "boolean" then
+			return
+		end
+		StealService.SetSprinting(player, active)
+	end)
+
 	RunService.Heartbeat:Connect(function()
 		for player in carrying do
 			tryDeposit(player)
@@ -597,6 +637,9 @@ function StealService.Start()
 	local function watchCharacter(player: Player)
 		player.CharacterAdded:Connect(function(character)
 			local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+			-- Yeniden doğan karakterde koşma bayrağı düşsün: tuşu bırakmış
+			-- olabilir ve haberimiz olmaz
+			sprinting[player] = nil
 			humanoid.WalkSpeed = Config.NormalWalkSpeed
 			humanoid.Died:Connect(function()
 				returnToVictim(player)
@@ -612,6 +655,7 @@ function StealService.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		returnToVictim(player)
 		carrying[player] = nil
+		sprinting[player] = nil
 		lastStealAt[player] = nil
 		streak[player] = nil
 		streakAt[player] = nil

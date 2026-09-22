@@ -24,6 +24,7 @@ local EVENTS = {
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
 	"UpgradeBuy",   -- client -> server (upgradeId: string)
+	"Sprint",       -- client -> server (active: boolean)
 }
 
 --[[
@@ -47,6 +48,13 @@ local CLIENT_TO_SERVER = {
 	TitleEquip = true,
 	PotionUse = true,
 	UpgradeBuy = true,
+	--[[
+		Sprint yalnızca bir bayrak; hızı sunucu belirliyor ve TAŞIRKEN
+		reddediyor. Roblox'ta oyuncu zaten kendi WalkSpeed'ini istemciden
+		değiştirebiliyor, yani bu remote yeni bir kaçak açmıyor — tersine,
+		koşmayı sunucunun bildiği ve sınırladığı bir şey haline getiriyor.
+	]]
+	Sprint = true,
 }
 
 local Net = {}

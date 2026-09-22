@@ -73,6 +73,18 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 
 	EconomyService.AddCash(player, Config.StartingCash - EconomyService.GetCash(player))
 
+	--[[
+		Yükseltmeler de sıfırlanıyor.
+
+		Kalıcı olsalardı rebirth'ten sonra harcanacak yer yine kalmazdı:
+		tavanı zaten doldurmuş oyuncu için rebirth sadece bir çarpan
+		olurdu. Sıfırlanınca kat başına ikiye katlanan tavan da anlam
+		kazanıyor — yeni katla birlikte baştan ve daha uzun bir yol.
+
+		Satın alınan KAT sıfırlanmıyor; o parayla alındı ve kalıcı.
+	]]
+	profile.upgrades = {}
+
 	profile.rebirths += 1
 	-- Kat artık rebirth ödülü değil, parayla alınıyor. Yine de burada
 	-- çağırıyoruz: satın alınmış katlar sıfırlamadan sağ çıkmalı.

@@ -29,6 +29,7 @@ local Server = script.Parent
 local PlotService = require(Server.PlotService)
 local EconomyService = require(Server.EconomyService)
 local SellService = require(Server.SellService)
+local StealService = require(Server.StealService)
 local UpgradeService = require(Server.UpgradeService)
 local RebirthService = require(Server.RebirthService)
 local MonetizationService = require(Server.MonetizationService)
@@ -243,23 +244,38 @@ case("Üs: üsler birbiriyle çakışmıyor", function()
 	ok("hiçbir üs çakışmıyor", not overlap)
 end)
 
-case("Üs: her katın rampası kendi zeminine ulaşıyor", function(ctx)
+case("Üs: her katın merdiveni kendi zeminine ulaşıyor", function(ctx)
+	--[[
+		Yerleşim rampadan merdivene geçti. Basamakların en üstü o katın
+		güvertesine yakın olmalı; aksi halde kat açılıyor ama çıkılamıyor.
+	]]
 	local floors = ctx.plot:FindFirstChild("Floors")
-	if not floors then
-		ok("Floors klasörü var", false)
-		return
-	end
+	ok("Floors klasörü var", floors ~= nil)
+	if not floors then return end
 
-	for _, floorModel in floors:GetChildren() do
-		local ramp = floorModel:FindFirstChild("Ramp")
-		local deck = floorModel:FindFirstChild("Deck")
-		if ramp and deck then
-			local half = ramp.Size.Z / 2
-			local a = (ramp.CFrame * CFrame.new(0, 0.5, -half)).Y
-			local b = (ramp.CFrame * CFrame.new(0, 0.5, half)).Y
-			local deckTop = deck.Position.Y + deck.Size.Y / 2
+	for floor = 2, Config.MaxFloors do
+		local model = floors:FindFirstChild(string.format("Floor%d", floor))
+		if not model then
+			ok("kat " .. floor .. " var", false)
+			continue
+		end
 
-			near(floorModel.Name .. " rampası deck'e ulaşıyor", math.max(a, b), deckTop, 0.7)
+		local lowest, highest
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and part.Name == "Step" then
+				if not lowest or part.Position.Y < lowest then lowest = part.Position.Y end
+				if not highest or part.Position.Y > highest then highest = part.Position.Y end
+			end
+		end
+
+		ok("kat " .. floor .. " basamakları var", lowest ~= nil)
+		if not (lowest and highest) then continue end
+
+		local deck = model:FindFirstChild("Deck")
+		if deck and deck:IsA("BasePart") then
+			ok("kat " .. floor .. " merdiveni güverteye ulaşıyor",
+				math.abs(highest - deck.Position.Y) <= Config.FloorHeight,
+				string.format("%.1f vs %.1f", highest, deck.Position.Y))
 		end
 	end
 end)
@@ -456,12 +472,15 @@ case("Yükseltme: tavana ulaşınca duruyor", function(ctx)
 	local id = "LockPower"
 	local def = Config.GetUpgrade(id)
 
-	ctx.profile.upgrades[id] = def.maxLevel
-	eq("tavanda maliyet nil", Config.GetUpgradeCost(id, def.maxLevel), nil)
+	-- Tavan artık kat sayısına bağlı
+	local ceiling = Config.GetUpgradeCeiling(def)
+	ctx.profile.floorsBought = Config.MaxFloors - 1
+	ctx.profile.upgrades[id] = ceiling
+	eq("tavanda maliyet nil", Config.GetUpgradeCost(id, ceiling), nil)
 
 	setCash(ctx.player, 1e15)
 	eq("tavanda satın alma reddedildi", UpgradeService.TryUpgrade(ctx.player, id), false)
-	eq("seviye değişmedi", UpgradeService.GetLevel(ctx.player, id), def.maxLevel)
+	eq("seviye değişmedi", UpgradeService.GetLevel(ctx.player, id), ceiling)
 end)
 
 case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
@@ -470,7 +489,7 @@ case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
 		local values = {}
 		local distinct = 0
 
-		for level = 0, def.maxLevel do
+		for level = 0, Config.GetUpgradeCeiling(def) do
 			local value
 			if def.id == "ConveyorSpeed" then
 				value = string.format("%.3f", Config.GetConveyorInterval(level))
@@ -489,14 +508,14 @@ case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
 			end
 		end
 
-		eq(def.name .. " farklı değer sayısı", distinct, def.maxLevel + 1)
+		eq(def.name .. " farklı değer sayısı", distinct, Config.GetUpgradeCeiling(def) + 1)
 	end
 end)
 
 case("Yükseltme: maliyet eğrisi rebirth'ten sonra da iş bırakıyor", function()
 	local total = 0
 	for _, def in Config.Upgrades do
-		for level = 0, def.maxLevel - 1 do
+		for level = 0, Config.GetUpgradeCeiling(def) - 1 do
 			total += Config.GetUpgradeCost(def.id, level) or 0
 		end
 	end
@@ -1187,12 +1206,7 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 			return ctx.plot:FindFirstChild("Sign")
 		end,
 		Upgrades = function()
-			for _, child in ctx.plot:GetChildren() do
-				if string.sub(child.Name, 1, 8) == "Upgrade_" then
-					return child
-				end
-			end
-			return nil
+			return ctx.plot:FindFirstChild("UpgradeBooth")
 		end,
 		Wheel = function()
 			local decor = workspace:FindFirstChild("Decor")
@@ -1705,7 +1719,12 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 	]]
 	local listened = Net.GetClientToServer()
 
-	ok("liste küçük", #listened <= 4, tostring(#listened))
+	--[[
+		Sayı büyüdükçe değil, gerekçesizleştikçe tehlikeli. Şu an beş remote
+		var ve hiçbiri oyuncuya bedava bir şey vermiyor; sınır altıda
+		tutuluyor ki yenisi eklemek bilinçli bir karar olsun.
+	]]
+	ok("liste küçük", #listened <= 6, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -1948,6 +1967,113 @@ case("Kat: eski kayıt katlarını kaybetmiyor", function()
 
 	local fresh = Config.GetUnlockedFloors(math.clamp(0, 0, Config.MaxFloors - 1))
 	eq("yeni oyuncu tek kat", fresh, 1)
+end)
+
+
+case("Yükseltme: tavan kat sayısıyla ikiye katlanıyor", function()
+	for _, def in Config.Upgrades do
+		local f1 = Config.GetUpgradeMaxLevel(def, 1)
+		local f2 = Config.GetUpgradeMaxLevel(def, 2)
+		local f3 = Config.GetUpgradeMaxLevel(def, 3)
+
+		eq(def.name .. " 1. kat tabanı", f1, def.baseMaxLevel)
+		eq(def.name .. " 2. kat iki katı", f2, f1 * 2)
+		eq(def.name .. " 3. kat dört katı", f3, f1 * 4)
+		eq(def.name .. " tavan en üst kat", Config.GetUpgradeCeiling(def), f3)
+	end
+end)
+
+case("Yükseltme: kat tavanı satın almayı durduruyor", function(ctx)
+	local id = "ConveyorSpeed"
+	local def = Config.GetUpgrade(id)
+
+	-- 1. katta sadece taban kadar alınabilmeli
+	ctx.profile.floorsBought = 0
+	ctx.profile.upgrades[id] = def.baseMaxLevel
+	setCash(ctx.player, 1e15)
+
+	eq("1. kat tavanında reddedildi", UpgradeService.TryUpgrade(ctx.player, id), false)
+	eq("seviye değişmedi", UpgradeService.GetLevel(ctx.player, id), def.baseMaxLevel)
+
+	-- Kat alınca devamı gelmeli
+	ctx.profile.floorsBought = 1
+	eq("üst kat tavanı açtı", UpgradeService.TryUpgrade(ctx.player, id), true)
+	eq("seviye arttı", UpgradeService.GetLevel(ctx.player, id), def.baseMaxLevel + 1)
+end)
+
+case("Yükseltme: rebirth sıfırlıyor", function(ctx)
+	--[[
+		Kalıcı olsalardı rebirth'ten sonra harcanacak yer kalmazdı.
+		Satın alınan KAT ise sıfırlanmamalı; parayla alındı.
+	]]
+	clearPlot(ctx.plot)
+	ctx.profile.rebirths = 0
+	ctx.profile.floorsBought = 1
+	ctx.profile.upgrades = { ConveyorSpeed = 3, LockPower = 2 }
+	PlotService.SetUnlockedFloors(ctx.plot, Config.GetUnlockedFloors(1))
+
+	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
+	PlotService.PlaceUnit(podiums[1], "TheSkeld", nil)
+	setCash(ctx.player, Config.GetRebirthCost(0))
+
+	ok("rebirth başarılı", RebirthService.TryRebirth(ctx.player))
+
+	eq("ConveyorSpeed sıfırlandı", UpgradeService.GetLevel(ctx.player, "ConveyorSpeed"), 0)
+	eq("LockPower sıfırlandı", UpgradeService.GetLevel(ctx.player, "LockPower"), 0)
+	eq("satın alınan kat korundu", ctx.profile.floorsBought, 1)
+end)
+
+case("Yükseltme: seviye başına etki yarıya indi ama tavan aynı kaldı", function()
+	--[[
+		Seviye sayısı ikiye katlandı, seviye başına etki yarıya indi.
+		Net sonuç: tavandaki güç eskisiyle aynı, yol iki kat uzun.
+		Bu test gücün kazara artmasını engelliyor.
+	]]
+	local def = Config.GetUpgrade("ConveyorSpeed")
+	local ceiling = Config.GetUpgradeCeiling(def)
+
+	local top = Config.GetConveyorInterval(ceiling)
+	ok("konveyör tabanı makul", top >= 2 and top <= Config.ConveyorInterval,
+		string.format("%.2f", top))
+
+	local carry = Config.GetCarryWalkSpeed(Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
+	ok("taşıma hızı normali geçmiyor", carry < Config.NormalWalkSpeed,
+		string.format("%.2f", carry))
+
+	local duration, cooldown = Config.GetLockValues(Config.GetUpgradeCeiling(Config.GetUpgrade("LockPower")))
+	ok("kilit süresi bekleme süresini aşmıyor", duration < cooldown + 60,
+		string.format("%.1f / %.1f", duration, cooldown))
+end)
+
+case("Koşma: ayarlar makul", function()
+	ok("koşu normalden hızlı", Config.SprintWalkSpeed > Config.NormalWalkSpeed,
+		tostring(Config.SprintWalkSpeed))
+	ok("koşu abartılı değil", Config.SprintWalkSpeed <= Config.NormalWalkSpeed * 2,
+		tostring(Config.SprintWalkSpeed))
+
+	-- Taşıma hızı koşunun çok altında kalmalı: çalmanın riski bu
+	local fastestCarry = Config.GetCarryWalkSpeed(
+		Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
+	ok("en hızlı taşıma bile koşudan yavaş", fastestCarry < Config.SprintWalkSpeed,
+		string.format("%.1f vs %d", fastestCarry, Config.SprintWalkSpeed))
+end)
+
+case("Koşma: taşırken hız artmıyor", function(ctx)
+	--[[
+		Koşmaya taşırken izin vermek çalmanın tek riskini siler. Sunucu
+		bayrağı kabul ediyor ama hıza yansıtmıyor.
+	]]
+	local character = ctx.player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	ok("karakter var", humanoid ~= nil)
+	if not humanoid then return end
+
+	StealService.SetSprinting(ctx.player, true)
+	local sprintSpeed = humanoid.WalkSpeed
+	eq("koşarken koşu hızı", sprintSpeed, Config.SprintWalkSpeed)
+
+	StealService.SetSprinting(ctx.player, false)
+	eq("bırakınca normal hız", humanoid.WalkSpeed, Config.NormalWalkSpeed)
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────

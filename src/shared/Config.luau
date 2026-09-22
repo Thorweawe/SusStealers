@@ -47,6 +47,14 @@ Config.StealCooldown = 18      -- bir çalmadan sonra oyuncunun bekleme süresi
 -- olmalı. 11 fazla hızlıydı, kurban fark ettiğinde yetişemiyordu.
 Config.CarryWalkSpeed = 8      -- karakter taşırken hız
 Config.NormalWalkSpeed = 16
+--[[
+	Shift ile koşma. Karakter TAŞIRKEN çalışmıyor: çalmanın riski taşırken
+	yavaş kalmak, koşmaya izin vermek o riski tamamen siler.
+
+	Hız taşıma tavanının epey üstünde ama abartılı değil; haritayı
+	geçmek hızlansın, kaçış kolaylaşmasın diye.
+]]
+Config.SprintWalkSpeed = 24
 Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınamaz
 
 -- Çalınan karakter, çalındığı yerden üsse taşınırken en az bu oranda
@@ -487,19 +495,24 @@ Config.Tutorial = {
 	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
-		text = "Upgrade boards stand at the back of your base. They cost cash, not Robux.",
-		check = "upgrades", goal = 1, reward = 15000,
+		text = "The upgrade booth sits in your base. Upgrades cost cash, not Robux.",
+		check = "upgrades", goal = 1, reward = 40000,
 	},
 	{
 		id = "Spin", title = "Take your free spin", hint = "Wheel",
 		text = "The wheel gives one free spin every day. Go claim today's.",
-		check = "spins", goal = 1, reward = 15000,
+		check = "spins", goal = 1, reward = 40000,
 	},
 } :: { TutorialStep }
 
 -- Bitirince verilen ek ödül. Adım ödüllerinden büyük ki son adım yarıda
 -- bırakılmasın.
-Config.TutorialFinishBonus = 25000
+--[[
+	Ödüller yükseltme fiyatlarıyla birlikte yükseltildi. Öğreticinin 5.
+	adımı "bir yükseltme al" diyor; en ucuz yükseltme 100 bine çıkınca
+	eski toplam (65 bin) o adımı imkânsız kılıyordu.
+]]
+Config.TutorialFinishBonus = 50000
 
 --[[ Sıra numarasıyla adım. Aralık dışıysa nil. ]]
 function Config.GetTutorialStep(index: number): TutorialStep?
@@ -676,21 +689,54 @@ Config.ReceiptHistoryLimit = 50
 export type UpgradeDef = {
 	id: string,
 	name: string,
-	maxLevel: number,
+	baseMaxLevel: number,  -- 1. katta ulaşılabilen tavan
 	baseCost: number,
 	costGrowth: number,
 }
 
--- Eğri bilerek uzun: ilk seviyeler birkaç dakikada alınıyor ama hepsini
--- maksimuma çekmek rebirth maliyetlerinin toplamından fazla tutuyor.
--- Böylece rebirth'ten sonra da alınacak yükseltme kalıyor; kalıcı gelir
--- çarpanı da üst seviyeleri erişilebilir hale getiriyor.
+--[[
+	Yükseltmeler: pahalı, seviye başına az, ama çok seviyeli.
+
+	Üç kural birlikte çalışıyor:
+
+	1. TAVAN KAT SAYISIYLA İKİYE KATLANIYOR. 1. katta 6 seviye, 2. katta
+	   12, 3. katta 24. Kat açmak yalnızca kaide değil, harcayacak yer de
+	   açıyor.
+
+	2. SEVİYE BAŞINA ETKİ YARIYA İNDİ. Seviye sayısı ikiye katlandığı
+	   için tavandaki güç eskisiyle aynı kalıyor — oyun bozulmuyor, sadece
+	   yol daha uzun ve daha kademeli.
+
+	3. TABAN FİYAT DÖRT KAT. Erken seviyeler artık bedavaya gelmiyor.
+	   Büyüme 2.0'a indi: 2.6 ile 24 seviye matematiksel olarak
+	   ulaşılamazdı, yani ikiye katlanan tavan hiçbir işe yaramazdı.
+
+	Etkilerin hepsi bir tavana yaklaşıyor (çarpımsal ya da clamp'li),
+	doğrusal değil. Böylece ileride tavan yine artarsa oyun kırılmıyor.
+
+	Rebirth yükseltmeleri SIFIRLIYOR (RebirthService). Kalıcı olsalardı
+	rebirth'ten sonra harcanacak yer yine kalmazdı.
+]]
 Config.Upgrades = {
-	{ id = "ConveyorSpeed", name = "Conveyor Speed", maxLevel = 12, baseCost =  25000, costGrowth = 2.6 },
-	{ id = "UnitGuard",     name = "Unit Guard",     maxLevel = 12, baseCost =  60000, costGrowth = 2.6 },
-	{ id = "CarrySpeed",    name = "Carry Speed",    maxLevel = 10, baseCost = 100000, costGrowth = 2.6 },
-	{ id = "LockPower",     name = "Lock Power",     maxLevel = 12, baseCost = 150000, costGrowth = 2.6 },
+	{ id = "ConveyorSpeed", name = "Conveyor Speed", baseMaxLevel = 6, baseCost = 100000, costGrowth = 2.0 },
+	{ id = "UnitGuard",     name = "Unit Guard",     baseMaxLevel = 6, baseCost = 240000, costGrowth = 2.0 },
+	{ id = "CarrySpeed",    name = "Carry Speed",    baseMaxLevel = 5, baseCost = 400000, costGrowth = 2.0 },
+	{ id = "LockPower",     name = "Lock Power",     baseMaxLevel = 6, baseCost = 600000, costGrowth = 2.0 },
 } :: { UpgradeDef }
+
+--[[
+	Açık kat sayısına göre tavan. Her kat tavanı ikiye katlıyor.
+	floors 1 -> baseMaxLevel, 2 -> x2, 3 -> x4.
+]]
+function Config.GetUpgradeMaxLevel(def: UpgradeDef, floors: number): number
+	local unlocked = math.clamp(floors, 1, Config.MaxFloors)
+	return def.baseMaxLevel * 2 ^ (unlocked - 1)
+end
+
+--[[ Oyunda ulaşılabilecek en yüksek tavan. Kayıt kırpması buna bakıyor. ]]
+function Config.GetUpgradeCeiling(def: UpgradeDef): number
+	return Config.GetUpgradeMaxLevel(def, Config.MaxFloors)
+end
 
 local upgradesById: { [string]: UpgradeDef } = {}
 for _, def in Config.Upgrades do
@@ -701,12 +747,23 @@ function Config.GetUpgrade(id: string): UpgradeDef?
 	return upgradesById[id]
 end
 
---[[ Bir sonraki seviyenin maliyeti. Seviye tavandaysa nil döner. ]]
-function Config.GetUpgradeCost(id: string, currentLevel: number): number?
+--[[
+	Bir sonraki seviyenin maliyeti. Seviye o katın tavanındaysa nil döner.
+
+	floors verilmezse en yüksek tavan varsayılıyor; sadece fiyat soran
+	(tavanı ayrıca kontrol eden) çağrılar için.
+]]
+function Config.GetUpgradeCost(id: string, currentLevel: number, floors: number?): number?
 	local def = upgradesById[id]
-	if not def or currentLevel >= def.maxLevel then
+	if not def then
 		return nil
 	end
+
+	local max = if floors then Config.GetUpgradeMaxLevel(def, floors) else Config.GetUpgradeCeiling(def)
+	if currentLevel >= max then
+		return nil
+	end
+
 	return math.floor(def.baseCost * def.costGrowth ^ currentLevel)
 end
 
@@ -718,12 +775,13 @@ end
 	yapmazdı.
 ]]
 function Config.GetConveyorInterval(level: number): number
-	return math.max(2, Config.ConveyorInterval * 0.88 ^ level)
+	-- 0.88 -> 0.94: seviye başına yarı etki, iki kat seviyede aynı taban
+	return math.max(2, Config.ConveyorInterval * 0.94 ^ level)
 end
 
 --[[ Yeni konan karakterin dokunulmazlık süresi. ]]
 function Config.GetSafeSeconds(level: number): number
-	return Config.SafeSeconds + level * 2
+	return Config.SafeSeconds + level * 1
 end
 
 --[[
@@ -732,12 +790,12 @@ end
 	tavana ulaşacak şekilde ayarlı.
 ]]
 function Config.GetCarryWalkSpeed(level: number): number
-	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level * 0.4)
+	return math.min(Config.NormalWalkSpeed - 1, Config.CarryWalkSpeed + level * 0.2)
 end
 
 --[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]
 function Config.GetLockValues(level: number): (number, number)
-	return Config.LockDuration + level * 2.5, math.max(30, Config.LockCooldown - level * 3.5)
+	return Config.LockDuration + level * 1.25, math.max(30, Config.LockCooldown - level * 1.75)
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────

@@ -125,16 +125,8 @@ local function targetFor(player: Player, hint: string): Instance?
 		return plot and plot:FindFirstChild("Sign")
 
 	elseif hint == "Upgrades" then
-		if not plot then
-			return nil
-		end
-		-- İlk yükseltme tablosu yeterli; hepsi yan yana duruyor
-		for _, child in plot:GetChildren() do
-			if string.sub(child.Name, 1, 8) == "Upgrade_" then
-				return child
-			end
-		end
-		return nil
+		-- Yükseltmeler ayrı tabelalardan tek bir kulübeye taşındı
+		return plot and plot:FindFirstChild("UpgradeBooth")
 
 	elseif hint == "Wheel" then
 		local decor = workspace:FindFirstChild("Decor")

@@ -277,7 +277,10 @@ local function sanitize(raw: any): Profile
 		for id, level in raw.upgrades do
 			local def = typeof(id) == "string" and Config.GetUpgrade(id)
 			if def and typeof(level) == "number" and level > 0 then
-				profile.upgrades[id] = math.clamp(math.floor(level), 0, def.maxLevel)
+				-- Tavan kat sayısına bağlı; kayıtta oyunun mutlak tavanına
+				-- kırpıyoruz, kat kontrolü satın alma anında yapılıyor
+				profile.upgrades[id] = math.clamp(
+					math.floor(level), 0, Config.GetUpgradeCeiling(def))
 			end
 		end
 	end

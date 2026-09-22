@@ -35,6 +35,10 @@ local INK = Color3.fromRGB(236, 242, 248)
 local MUTED = Color3.fromRGB(150, 163, 180)
 local GOLD = Color3.fromRGB(226, 190, 96)
 local GOOD = Color3.fromRGB(120, 220, 140)
+-- Kutucuk yuvası sayısı. Tavan bundan büyükse her kutucuk birden fazla
+-- seviyeyi temsil ediyor; 24 ayrı kutucuk çizilecek yer yok.
+local PIP_SLOTS = 12
+
 local DIM = Color3.fromRGB(64, 74, 88)
 
 -- Her yükseltmenin kendi mürettebat rengi: satırlar birbirinden ayrılsın
@@ -219,12 +223,20 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		pipLayout.Padding = UDim.new(0, 3)
 		pipLayout.Parent = pipArea
 
-		for level = 1, def.maxLevel do
+		--[[
+			Tavan artık sabit değil: kat açtıkça ikiye katlanıyor
+			(6 / 12 / 24). Yirmi dört kutucuk çizilemez, birkaç piksel
+			kalırlar. Onun yerine SABİT sayıda kutucuk çiziyoruz ve her
+			biri birden fazla seviyeyi temsil edebiliyor; bakışta
+			ilerlemeyi yine veriyor, sayısı da yazıda duruyor.
+		]]
+		local pipCount = math.min(PIP_SLOTS, Config.GetUpgradeCeiling(def))
+
+		for slot = 1, pipCount do
 			local pip = Instance.new("Frame")
-			pip.Name = "Pip" .. level
-			pip.LayoutOrder = level
-			-- Kutucuklar alanı eşit bölüşüyor; maxLevel değişirse uyuyor
-			pip.Size = UDim2.new(1 / def.maxLevel, -3, 1, 0)
+			pip.Name = "Pip" .. slot
+			pip.LayoutOrder = slot
+			pip.Size = UDim2.new(1 / pipCount, -3, 1, 0)
 			pip.BackgroundColor3 = DIM
 			pip.BorderSizePixel = 0
 			pip.Parent = pipArea
@@ -311,18 +323,36 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 			local level = player:GetAttribute("Upg_" .. row.def.id)
 			level = if typeof(level) == "number" then level else 0
 
+			--[[
+				Tavan oyuncunun açık kat sayısına bağlı. Sunucu onu
+				"UpgradeFloors" niteliğine yazıyor; nitelik replike
+				olduğu için ayrı remote gerekmiyor.
+			]]
+			local floors = player:GetAttribute("UpgradeFloors")
+			floors = if typeof(floors) == "number" then floors else 1
+			local maxLevel = Config.GetUpgradeMaxLevel(row.def, floors)
+
+			-- Kutucuk sayısı sabit, seviye tavanı değişken: doluluk oranla
+			local filled = math.floor(#row.pips * (level / math.max(1, maxLevel)) + 0.0001)
 			for i, pip in row.pips do
-				pip.BackgroundColor3 = if i <= level then (TINT[row.def.id] or GOLD) else DIM
+				pip.BackgroundColor3 = if i <= filled then (TINT[row.def.id] or GOLD) else DIM
 			end
 
-			row.name.Text = string.format("%s  %d/%d", row.def.name, level, row.def.maxLevel)
+			row.name.Text = string.format("%s  %d/%d", row.def.name, level, maxLevel)
 
-			local price = Config.GetUpgradeCost(row.def.id, level)
+			local price = Config.GetUpgradeCost(row.def.id, level, floors)
 			if price then
 				row.button.Text = "$" .. Config.FormatCash(price)
 				row.button.BackgroundColor3 = TINT[row.def.id] or GOLD
 				row.button.Active = true
 				row.cost.Text = "NEXT LEVEL"
+				row.cost.TextColor3 = MUTED
+			elseif floors < Config.MaxFloors then
+				-- Bu katın tavanı doldu ama oyun bitmedi: üst kat devamını açıyor
+				row.button.Text = "LOCKED"
+				row.button.BackgroundColor3 = DIM
+				row.button.Active = false
+				row.cost.Text = "NEXT FLOOR"
 				row.cost.TextColor3 = MUTED
 			else
 				row.button.Text = "MAX"

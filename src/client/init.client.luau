@@ -34,6 +34,7 @@ local TutorialUI = require(script.TutorialUI)
 local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
 local HudToggle = require(script.HudToggle)
+local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
 
 local player = Players.LocalPlayer
@@ -594,6 +595,10 @@ end)
 mountPanel("UpgradePanel", function()
 	local panel = UpgradePanel.Create(screen)
 	upgradePanel = panel
+end)
+
+mountPanel("Sprint", function()
+	Sprint.Create(screen)
 end)
 
 mountPanel("HudToggle", function()

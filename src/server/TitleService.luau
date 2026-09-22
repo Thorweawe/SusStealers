@@ -77,7 +77,9 @@ local function statValue(player: Player, stat: string): number
 	elseif stat == "maxedUpgrades" then
 		local maxed = 0
 		for _, def in Config.Upgrades do
-			if (profile.upgrades[def.id] or 0) >= def.maxLevel then
+			-- Tavan kat sayısıyla değişiyor; sabit maxLevel artık yok
+			local max = Config.GetUpgradeMaxLevel(def, Config.GetUnlockedFloors(profile.floorsBought))
+			if (profile.upgrades[def.id] or 0) >= max then
 				maxed += 1
 			end
 		end
