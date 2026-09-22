@@ -538,44 +538,78 @@ function Config.GetTutorialTotalReward(): number
 end
 
 -- ─── Bildirim sesleri ───────────────────────────────────────────────────────
+--[[
+	Bildirim tınıları.
+
+	İLK DENEMEM YETERSİZDİ: hepsi aynı 0.39 saniyelik örnekten yalnızca
+	perde değiştirilerek türetiliyordu. 1.18 ile 0.92 arasındaki fark o
+	kadar kısa bir seste ayırt edilemiyor — kullanıcı haklı olarak "satın
+	alma, satma ve yükseltme hâlâ aynı" dedi.
+
+	ŞİMDİ FARKLI ÖRNEKLERDEN türetiliyor. Elimizde beş ses var ve üçü uzun,
+	yani içlerinden farklı anlar kesilebiliyor:
+
+	  Success (0.39 sn)  kısa parlak blip
+	  Deny    (0.73 sn)  kısa boğuk red
+	  Machine (1.93 sn)  mekanik uğultu  -> kesilince "tık/güm"
+	  Alarm   (33 sn)    gergin siren    -> kesilince "bip"
+	  Ambient (32 sn)    geniş süzülme   -> kesilince "yükseliş"
+
+	Tımbre farkı perdeden çok daha güçlü bir işaret: mekanik bir "güm" ile
+	parlak bir "ping" aynı perdede bile karıştırılmıyor. Perde ve vuruş
+	sayısı üstüne binen ikincil işaretler.
+
+	source  hangi örnek (yoksa Success)
+	startAt örneğin neresinden başlasın (uzun örnekleri kesmek için)
+	length  kaç saniye çalsın (yoksa sonuna kadar)
+]]
+
 export type NotifyCue = {
-	id: string?,      -- kendi örneği varsa; yoksa taban örnek kullanılıyor
+	source: string?,
+	startAt: number?,
+	length: number?,
 	pitch: number,
 	volume: number,
-	repeats: number?, -- kaç vuruş (kutlama sesleri için)
-	gap: number?,     -- vuruşlar arası saniye
+	repeats: number?,
+	gap: number?,
 }
 
 Config.NotifyCues = {
-	-- Sık tekrarlanan, hafif işlemler: yüksek ve kısa, kulağı yormasın
-	buy      = { pitch = 1.18, volume = 0.55 },
-	sell     = { pitch = 0.92, volume = 0.55 },
-	spin     = { pitch = 1.30, volume = 0.60 },
+	--[[
+		Para işlemleri. Alma ile satma bir oktavdan fazla ayrı: ikisi en sık
+		arka arkaya yapılan işlem, karışmaları en kötüsü.
+	]]
+	buy      = { pitch = 1.45, volume = 0.50 },
+	sell     = { pitch = 0.62, volume = 0.55 },
 
-	-- Çalma döngüsü: kaçarken yüksek ve gergin, bırakınca çözülen alçak
-	steal    = { pitch = 1.42, volume = 0.75 },
-	deposit  = { pitch = 0.78, volume = 0.80, repeats = 2, gap = 0.10 },
-	lock     = { pitch = 0.62, volume = 0.70 },
-	catch    = { pitch = 1.10, volume = 0.85, repeats = 3, gap = 0.07 },
+	-- Yükseltme mekanik bir iş: mekanik bir ses. Perdeyle değil, TIMBRE
+	-- ile ayrılıyor, o yüzden diğer ikisiyle asla karışmıyor.
+	upgrade  = { source = "Machine", startAt = 0.15, length = 0.45, pitch = 0.85, volume = 0.60 },
 
-	-- Kalıcı ve pahalı olanlar: alçak ve ağır, "bu büyük bir şeydi" desin
-	upgrade  = { pitch = 0.84, volume = 0.70 },
-	floor    = { pitch = 0.55, volume = 0.90, repeats = 2, gap = 0.16 },
-	rebirth  = { pitch = 0.48, volume = 1.00, repeats = 3, gap = 0.18 },
-	purchase = { pitch = 0.70, volume = 0.85, repeats = 2, gap = 0.12 },
+	-- Çalma döngüsü. Çalma anı sirenden kesilmiş gergin bir bip; bırakma
+	-- ise ağır ve çözülen, çünkü tehlike bitti.
+	steal    = { source = "Alarm", startAt = 0.10, length = 0.30, pitch = 1.50, volume = 0.60 },
+	deposit  = { source = "Machine", startAt = 0.10, length = 0.50, pitch = 0.70, volume = 0.70, repeats = 2, gap = 0.12 },
+	lock     = { source = "Machine", startAt = 0.00, length = 0.60, pitch = 0.50, volume = 0.70 },
+	catch    = { source = "Alarm", startAt = 0.10, length = 0.25, pitch = 1.20, volume = 0.75, repeats = 3, gap = 0.09 },
 
-	-- Kutlama: çok vuruşlu, yükselen
-	badge    = { pitch = 1.25, volume = 0.85, repeats = 3, gap = 0.09 },
-	title    = { pitch = 1.15, volume = 0.80, repeats = 3, gap = 0.09 },
-	quest    = { pitch = 1.05, volume = 0.70, repeats = 2, gap = 0.10 },
-	potion   = { pitch = 1.35, volume = 0.65, repeats = 2, gap = 0.08 },
+	-- Büyük ve kalıcı alımlar: ağır mekanik, çok vuruşlu
+	floor    = { source = "Machine", startAt = 0.20, length = 0.70, pitch = 0.55, volume = 0.85, repeats = 2, gap = 0.20 },
+	rebirth  = { source = "Ambient", startAt = 2.00, length = 2.50, pitch = 0.70, volume = 0.85 },
+	purchase = { pitch = 1.00, volume = 0.80, repeats = 3, gap = 0.10 },
 
-	-- Bilgilendirme: sessize yakın, araya girmesin
-	tutorial = { pitch = 1.00, volume = 0.45 },
-	welcome  = { pitch = 0.88, volume = 0.60, repeats = 2, gap = 0.14 },
-	plot     = { pitch = 1.00, volume = 0.50 },
-	-- Pasif gelir: en sessiz tını, oyuna karışmasın
-	income   = { pitch = 0.95, volume = 0.32 },
+	-- Kutlamalar: yükselen dizi. Aralarında perde ve vuruş farkı var.
+	badge    = { pitch = 1.30, volume = 0.80, repeats = 3, gap = 0.08 },
+	title    = { pitch = 1.10, volume = 0.75, repeats = 3, gap = 0.12 },
+	quest    = { pitch = 0.95, volume = 0.65, repeats = 2, gap = 0.11 },
+	spin     = { pitch = 1.25, volume = 0.60, repeats = 2, gap = 0.06 },
+	potion   = { pitch = 1.70, volume = 0.50 },
+
+	-- Bilgilendirme: araya girmemeli, en sessizler
+	tutorial = { pitch = 1.05, volume = 0.40 },
+	welcome  = { source = "Ambient", startAt = 5.00, length = 1.80, pitch = 1.00, volume = 0.50 },
+	plot     = { pitch = 0.80, volume = 0.45 },
+	income   = { pitch = 0.90, volume = 0.30 },
 } :: { [string]: NotifyCue }
 
 --[[ Bu türün tanımlı bir sesi var mı. Testler buna bakıyor. ]]

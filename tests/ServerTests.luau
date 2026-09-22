@@ -1836,7 +1836,13 @@ case("Ses: tınılar birbirinden ayırt edilebilir", function()
 		ok(kind .. " seviyesi makul", cue.volume > 0 and cue.volume <= 1,
 			string.format("%.2f", cue.volume))
 
-		local signature = string.format("%.2f/%.2f/%d",
+		--[[
+			İmzaya KAYNAK da dahil: tımbre farkı perdeden güçlü bir işaret
+			ve iki tür aynı perdede olsa bile farklı örnekten geliyorsa
+			karışmıyor. Kaynak yoksa taban örnek (Success).
+		]]
+		local signature = string.format("%s@%.2f/%.2f/%.2f/%d",
+			cue.source or "Success", cue.startAt or 0,
 			cue.pitch, cue.volume, cue.repeats or 1)
 
 		if seen[signature] then
@@ -1847,8 +1853,31 @@ case("Ses: tınılar birbirinden ayırt edilebilir", function()
 
 	ok("aynı tınıya sahip iki tür yok", #clashes == 0, table.concat(clashes, ", "))
 
+	--[[
+		En sık arka arkaya yapılan üçlü. Kullanıcının şikâyeti tam olarak
+		bunların ayırt edilememesiydi, o yüzden burada ayrıca sınanıyorlar:
+		ya farklı örnekten gelmeli ya da perdeleri belirgin ayrı olmalı.
+	]]
+	local core = {}
 	for _, kind in { "buy", "sell", "upgrade" } do
-		ok(kind .. " tanımlı", Config.NotifyCues[kind] ~= nil)
+		local cue = Config.NotifyCues[kind]
+		ok(kind .. " tanımlı", cue ~= nil)
+		if cue then
+			table.insert(core, { kind = kind, cue = cue })
+		end
+	end
+
+	for i = 1, #core do
+		for j = i + 1, #core do
+			local a, b = core[i], core[j]
+			local differentSource = (a.cue.source or "Success") ~= (b.cue.source or "Success")
+			-- Perde oranı: 1.5 kat ~ yedi yarım ses, kulakta net ayrı
+			local ratio = math.max(a.cue.pitch, b.cue.pitch) / math.min(a.cue.pitch, b.cue.pitch)
+
+			ok(string.format("%s ile %s ayırt edilebilir", a.kind, b.kind),
+				differentSource or ratio >= 1.5,
+				string.format("aynı örnek, perde oranı %.2f", ratio))
+		end
 	end
 end)
 

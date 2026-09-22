@@ -75,10 +75,21 @@ function SoundFX.AttachMachineHum(anchor: BasePart)
 		return
 	end
 
-	local s = newSound(ID.Machine, anchor, ambienceGroup, 0.35, true)
+	--[[
+		Uğultu dengesi.
+
+		Önce 0.35 sesle ve 8 stud tam-ses yarıçapıyla çalıyordu. Oyuncu
+		konveyörün BAŞINDA duruyor (orada satın alıyor), yani 1.93 saniyelik
+		kısa bir döngü sürekli tam sesle tepesinde dönüyordu — baş ağrıtıyor.
+
+		Üç değişiklik: ses yarıya indi, tam-ses yarıçapı 8'den 3'e indi
+		(yani yanında bile hafif), duyulma mesafesi 70'ten 42'ye indi
+		(komşu üslerin uğultusu üst üste binmesin).
+	]]
+	local s = newSound(ID.Machine, anchor, ambienceGroup, 0.16, true)
 	s.Name = "MachineHum"
-	s.RollOffMaxDistance = 70
-	s.RollOffMinDistance = 8
+	s.RollOffMaxDistance = 42
+	s.RollOffMinDistance = 3
 	s.RollOffMode = Enum.RollOffMode.InverseTapered
 	s:Play()
 end
@@ -181,18 +192,45 @@ end
 	O yüzden burada her vuruş için ayrı, çalınca kendini silen bir Sound
 	yaratıyoruz — kısa arayüz sesleri için bu maliyet önemsiz.
 ]]
-local function playOnce(id: string, pitch: number, volume: number)
+local function playOnce(cue: Config.NotifyCue, pitch: number)
+	--[[
+		Kaynak örnek. Uzun örneklerden (Machine / Alarm / Ambient) bir kesit
+		almak tımbre farkının asıl kaynağı: mekanik bir "güm" ile parlak bir
+		"ping" aynı perdede bile karıştırılmıyor.
+	]]
+	local id = ID[cue.source or "Success"] or ID.Success
+
 	local s = Instance.new("Sound")
 	s.SoundId = id
-	s.Volume = volume
+	s.Volume = cue.volume
 	s.PlaybackSpeed = pitch
 	s.SoundGroup = effectGroup
 	s.Parent = SoundService
 	s:Play()
 
-	s.Ended:Once(function()
-		s:Destroy()
-	end)
+	if cue.startAt then
+		-- TimePosition yalnızca çalarken uygulanabiliyor
+		s.TimePosition = cue.startAt
+	end
+
+	--[[
+		Kesit süresi. Perde değiştiğinde ses de hızlanıyor, o yüzden gerçek
+		süre perdeye bölünüyor — yoksa alçak perdede kesit uzuyor ve
+		kutlama sesleri birbirine giriyordu.
+	]]
+	local window = cue.length
+	if window then
+		task.delay(window / math.max(0.1, pitch), function()
+			if s.IsPlaying then
+				s:Stop()
+			end
+			s:Destroy()
+		end)
+	else
+		s.Ended:Once(function()
+			s:Destroy()
+		end)
+	end
 
 	-- Ended bazı durumlarda hiç gelmiyor (ses yüklenemezse); sızıntı olmasın
 	game:GetService("Debris"):AddItem(s, 6)
@@ -216,11 +254,10 @@ function SoundFX.Event(kind: string?, isError: boolean)
 		return
 	end
 
-	local id = cue.id or ID.Success
 	local repeats = cue.repeats or 1
 
 	if repeats <= 1 then
-		playOnce(id, cue.pitch, cue.volume)
+		playOnce(cue, cue.pitch)
 		return
 	end
 
@@ -230,7 +267,7 @@ function SoundFX.Event(kind: string?, isError: boolean)
 	]]
 	task.spawn(function()
 		for i = 1, repeats do
-			playOnce(id, cue.pitch * (1 + (i - 1) * 0.09), cue.volume)
+			playOnce(cue, cue.pitch * (1 + (i - 1) * 0.09))
 			if i < repeats then
 				task.wait(cue.gap or 0.1)
 			end
