@@ -14,9 +14,15 @@ local Minimap = {}
 
 local player = Players.LocalPlayer
 
-local PANEL = Color3.fromRGB(18, 20, 28)
-local MUTED = Color3.fromRGB(150, 163, 184)
-local INK = Color3.fromRGB(235, 240, 250)
+--[[
+	Renkler ve kabuk UiKit'ten: bütün paneller aynı dili konuşuyor.
+	Harita da bir panel, kendi kutu tasarımını kurmamalı.
+]]
+local UiKit = require(script.Parent.UiKit)
+
+local PANEL = UiKit.SHELL
+local MUTED = UiKit.MUTED
+local INK = UiKit.INK
 
 local SIZE = 176          -- panelin piksel boyutu
 local PAD = 12            -- kenar payı
@@ -48,26 +54,12 @@ type Cell = {
 }
 
 function Minimap.Create(screen: ScreenGui): Map
-	local holder = Instance.new("Frame")
-	holder.Name = "Minimap"
+	local holder = UiKit.Shell(screen, "Minimap", UiKit.VISOR)
 	holder.AnchorPoint = Vector2.new(1, 1)
 	holder.Position = UDim2.new(1, -24, 1, -24)
 	holder.Size = UDim2.fromOffset(SIZE, SIZE + 22)
-	holder.BackgroundColor3 = PANEL
 	-- Opak: harita hucrelerinin arkasinda dunya gorunuyordu
 	holder.BackgroundTransparency = 0
-	holder.BorderSizePixel = 0
-	holder.Parent = screen
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = holder
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(86, 96, 120)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.35
-	stroke.Parent = holder
 
 	local title = Instance.new("TextLabel")
 	title.Position = UDim2.fromOffset(12, 5)
@@ -160,7 +152,7 @@ function Minimap.Create(screen: ScreenGui): Map
 	route.Name = "Route"
 	route.AnchorPoint = Vector2.new(0, 0.5)
 	route.Size = UDim2.fromOffset(0, 2)
-	route.BackgroundColor3 = Color3.fromRGB(255, 190, 90)
+	route.BackgroundColor3 = UiKit.WARN
 	route.BackgroundTransparency = 0.25
 	route.BorderSizePixel = 0
 	route.ZIndex = 4
@@ -336,7 +328,7 @@ function Minimap.Create(screen: ScreenGui): Map
 				lock.AnchorPoint = Vector2.new(1, 0)
 				lock.Position = UDim2.fromScale(1, 0)
 				lock.Size = UDim2.fromOffset(5, 5)
-				lock.BackgroundColor3 = Color3.fromRGB(255, 176, 40)
+				lock.BackgroundColor3 = UiKit.WARN
 				lock.BorderSizePixel = 0
 				lock.ZIndex = 4
 				lock.Visible = false
@@ -447,7 +439,7 @@ function Minimap.Create(screen: ScreenGui): Map
 		for index, cell in cells do
 			if alerting and alertBay == index then
 				-- Soyulan üs kırmızı yanıp sönüyor
-				cell.frame.BackgroundColor3 = if blink then Color3.fromRGB(255, 50, 60) else Color3.fromRGB(120, 24, 28)
+				cell.frame.BackgroundColor3 = if blink then UiKit.BAD else UiKit.BAD:Lerp(UiKit.SHELL_DEEP, 0.55)
 			end
 
 			-- Alınmamış konveyör karakteri: kendi üssünün numarası parlasın

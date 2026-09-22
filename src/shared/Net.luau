@@ -23,6 +23,7 @@ local EVENTS = {
 	"TutorialSkip", -- client -> server (argümansız)
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
+	"QuestClaim",   -- client -> server (tierId: string, questId: string)
 	"UpgradeBuy",   -- client -> server (upgradeId: string)
 	"FloorBuy",     -- client -> server (argumansiz)
 	"RebirthBuy",   -- client -> server (argumansiz)
@@ -49,6 +50,12 @@ local CLIENT_TO_SERVER = {
 	TutorialSkip = true,
 	TitleEquip = true,
 	PotionUse = true,
+	--[[
+		QuestClaim bedava bir şey vermiyor: yalnızca SUNUCUNUN tamamlanmış
+		saydığı bir görevin ödülünü teslim ediyor. Koşulu istemci değil
+		QuestService.Check belirliyor; burası sadece "aldım" diyor.
+	]]
+	QuestClaim = true,
 	UpgradeBuy = true,
 	FloorBuy = true,
 	RebirthBuy = true,

@@ -127,6 +127,7 @@ local function rollTier(player: Player, tier: Config.QuestTier)
 			goal = math.max(1, Config.GetQuestGoal(def, tier, income)),
 			baseline = statValue(player, def.stat),
 			done = false,
+			claimed = false,
 		})
 	end
 
@@ -182,10 +183,17 @@ end
 
 -- ─── İlerleme ───────────────────────────────────────────────────────────────
 
---[[ Vadedeki bütün görevler bitti mi. ]]
+--[[
+	Vadedeki bütün görevlerin ödülü TESLİM ALINDI mı.
+
+	done değil claimed'e bakıyor: günlük bonus, oyuncu ödüllerini
+	topladığında gelmeli. Sadece koşulların sağlanmasına baksaydı oyuncu
+	panele hiç dokunmadan bonusu alırdı ve "kendi alsın" isteği anlamsız
+	kalırdı.
+]]
 local function tierComplete(slot: DataService.QuestSlot): boolean
 	for _, entry in slot.entries do
-		if not entry.done then
+		if not entry.claimed then
 			return false
 		end
 	end
@@ -213,8 +221,6 @@ function QuestService.Check(player: Player)
 			continue
 		end
 
-		local wasComplete = tierComplete(slot)
-
 		for _, entry in slot.entries do
 			if entry.done then
 				continue
@@ -222,9 +228,10 @@ function QuestService.Check(player: Player)
 
 			local def = Config.GetQuest(entry.id)
 			if not def then
-				-- Config'ten kalkmış görev: tamamlanmış say, oyuncu vadeyi
+				-- Config'ten kalkmış görev: teslim alınmış say, oyuncu vadeyi
 				-- asla bitiremez hale gelmesin
 				entry.done = true
+				entry.claimed = true
 				changed = true
 				continue
 			end
@@ -237,28 +244,21 @@ function QuestService.Check(player: Player)
 			entry.done = true
 			changed = true
 
-			local reward = Config.GetQuestReward(tier, EconomyService.GetIncome(player))
-			EconomyService.AddCash(player, reward)
+			--[[
+				ÖDÜL BURADA VERİLMİYOR. Görev tamamlandı olarak işaretleniyor
+				ve oyuncu panelden kendi topluyor (QuestService.Claim).
+
+				Neden: otomatik ödülde oyuncu görevleri hiç okumuyordu, ekranın
+				kenarında bir bildirim geçiyor ve bitiyordu. Toplamak için
+				panele bakmak gerekince görevler görünür hale geliyor.
+			]]
 			notify(player, string.format(
-				"%s quest done: %s  ·  +$%s",
+				"%s quest ready to claim: %s",
 				tier.name,
-				string.format(def.text, Config.FormatQuestGoal(def, entry.goal)),
-				Config.FormatCash(reward)
+				string.format(def.text, Config.FormatQuestGoal(def, entry.goal))
 			), false)
 		end
 
-		--[[
-			Günlük vadenin tamamını ilk kez bitirme anı. wasComplete kontrolü
-			olmadan her taramada yeniden verilirdi.
-		]]
-		if tier.id == "daily" and not wasComplete and tierComplete(slot) then
-			local granted = grantDailyBonus(player)
-			if granted then
-				notify(player, string.format(
-					"All daily quests complete! Bonus: %s", granted
-				), false)
-			end
-		end
 	end
 
 	-- Süresi biten takviyenin niteliği kalmasın; panel "bitti" yazmasın.
@@ -277,6 +277,76 @@ function QuestService.Check(player: Player)
 	end
 
 	QuestService.Publish(player, changed)
+end
+
+--[[
+	Tamamlanmış bir görevin ödülünü teslim eder.
+
+	Koşulu istemci belirlemiyor: sunucu zaten Check içinde done işaretledi,
+	burası yalnızca "henüz alınmamış mı" diye bakıp ödüyor. İstemciden
+	gelen tek şey hangi vade ve hangi görev.
+
+	Ödül TESLİM ANINDAKİ gelire göre: görev çekilirken hesaplansaydı üç
+	saatte büyüyen oyuncu üç saat önceki gelirine göre ödüllenirdi.
+]]
+function QuestService.Claim(player: Player, tierId: string, questId: string): boolean
+	local profile = DataService.Get(player)
+	if not profile then
+		return false
+	end
+
+	local tier = Config.GetQuestTier(tierId)
+	local slot = profile.quests[tierId]
+	if not (tier and slot) then
+		return false
+	end
+
+	for _, entry in slot.entries do
+		if entry.id ~= questId then
+			continue
+		end
+
+		if not entry.done then
+			notify(player, "That quest is not finished yet", true)
+			return false
+		end
+
+		if entry.claimed then
+			-- Sessiz: çift tıklama ya da gecikmiş paket, hata değil
+			return false
+		end
+
+		entry.claimed = true
+
+		local reward = Config.GetQuestReward(tier, EconomyService.GetIncome(player))
+		EconomyService.AddCash(player, reward)
+
+		local def = Config.GetQuest(questId)
+		notify(player, string.format(
+			"%s  ·  +$%s",
+			if def then string.format(def.text, Config.FormatQuestGoal(def, entry.goal)) else questId,
+			Config.FormatCash(reward)
+		), false)
+
+		--[[
+			Günlük vadenin tamamı teslim alındıysa bonus da burada veriliyor.
+			Check içinde olsaydı oyuncu son ödülü almadan bonusu alırdı.
+		]]
+		if tierId == "daily" and tierComplete(slot) then
+			local granted = grantDailyBonus(player)
+			if granted then
+				notify(player, string.format(
+					"All daily quests claimed! Bonus: %s", granted
+				), false)
+			end
+		end
+
+		DataService.RequestSave(player)
+		QuestService.Publish(player, true)
+		return true
+	end
+
+	return false
 end
 
 -- ─── Yayın ──────────────────────────────────────────────────────────────────
@@ -319,11 +389,14 @@ function QuestService.Publish(player: Player, force: boolean?)
 				value = value,
 				goal = entry.goal,
 				done = entry.done,
+				claimed = entry.claimed,
 				cash = def.incomeSeconds ~= nil,
 			})
 
-			table.insert(signature, string.format("%s%d%s",
-				entry.id, value, if entry.done then "d" else ""))
+			table.insert(signature, string.format("%s%d%s%s",
+				entry.id, value,
+				if entry.done then "d" else "",
+				if entry.claimed then "c" else ""))
 		end
 
 		table.insert(payload, {
@@ -369,6 +442,35 @@ end
 function QuestService.Start()
 	questsRemote = Net.Get("Quests")
 	notifyRemote = Net.Get("Notify")
+
+	--[[
+		Teslim alma isteği. İstemciden gelen iki metin; ikisi de sunucuda
+		aranıyor ve görev tamamlanmamışsa reddediliyor. Sel basmasın diye
+		bekletme var.
+	]]
+	local claimRemote = Net.Get("QuestClaim")
+	local lastClaimAt: { [Player]: number } = {}
+
+	claimRemote.OnServerEvent:Connect(function(player, tierId, questId)
+		if typeof(tierId) ~= "string" or typeof(questId) ~= "string" then
+			return
+		end
+		if #tierId > 32 or #questId > 32 then
+			return
+		end
+
+		local now = os.clock()
+		if now - (lastClaimAt[player] or 0) < 0.2 then
+			return
+		end
+		lastClaimAt[player] = now
+
+		QuestService.Claim(player, tierId, questId)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastClaimAt[player] = nil
+	end)
 
 	local function onPlayerAdded(player: Player)
 		task.spawn(function()

@@ -75,6 +75,7 @@ type Entry = {
 	value: number,
 	goal: number,
 	done: boolean,
+	claimed: boolean,
 	cash: boolean,
 }
 
@@ -165,12 +166,31 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 		Vade bölümleri yeniden yaratılmıyor, güncelleniyor. Her pakette
 		baştan kurmak, oyuncu tam tıklarken paneli altından çekiyordu.
 	]]
+	type Row = {
+		frame: Frame,
+		label: TextLabel,
+		fill: Frame,
+		track: Frame,
+		claim: TextButton,
+	}
+
 	type Section = {
 		frame: Frame,
 		title: TextLabel,
 		timer: TextLabel,
-		rows: { { frame: Frame, label: TextLabel, fill: Frame, track: Frame } },
+		rows: { Row },
 	}
+
+	local claimRemote = Net.Get("QuestClaim")
+
+	--[[
+		Hangi düğmenin hangi görevi topladığı burada tutuluyor.
+
+		Tıklama olayı satır kurulurken BİR KEZ bağlanıyor; her çizimde
+		yeniden bağlansaydı panel her güncellendiğinde bir kat daha olay
+		tetiklenirdi ve tek tıklama birden fazla istek gönderirdi.
+	]]
+	local rowTarget: { [TextButton]: { tier: string, quest: string } } = {}
 
 	local sections: { [string]: Section } = {}
 	local expanded = true
@@ -232,7 +252,54 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 		local track, fill = UiKit.Bar(frame, 5, ACCENT)
 		track.Position = UDim2.new(0, 0, 0, 21)
 
-		table.insert(section.rows, { frame = frame, label = label, fill = fill, track = track })
+		--[[
+			Toplama düğmesi.
+
+			Ödül artık kendiliğinden gelmiyor: oyuncu bunu basıyor. Sebep,
+			otomatik ödülde görevlerin hiç okunmamasıydı — ekranın
+			kenarında bir bildirim geçiyor ve bitiyordu. Toplamak için
+			panele bakmak gerekince görevler görünür hale geliyor.
+
+			Satırın sağında ve yalnızca hazır olduğunda görünüyor; boş
+			dururken satırı kalabalıklaştırmıyor.
+		]]
+		local claim = Instance.new("TextButton")
+		claim.Name = "Claim"
+		claim.AnchorPoint = Vector2.new(1, 0)
+		claim.Position = UDim2.new(1, 0, 0, 0)
+		claim.Size = UDim2.fromOffset(62, 18)
+		claim.BackgroundColor3 = GOOD
+		claim.BorderSizePixel = 0
+		claim.Font = Enum.Font.GothamBold
+		claim.TextSize = 11
+		claim.TextColor3 = UiKit.SHELL_DEEP
+		claim.Text = "CLAIM"
+		claim.AutoButtonColor = false
+		claim.Visible = false
+		claim.Parent = frame
+		UiKit.Corner(claim, 5)
+
+		claim.MouseEnter:Connect(function()
+			claim.BackgroundColor3 = GOOD:Lerp(Color3.new(1, 1, 1), 0.35)
+		end)
+		claim.MouseLeave:Connect(function()
+			claim.BackgroundColor3 = GOOD
+		end)
+
+		claim.Activated:Connect(function()
+			local target = rowTarget[claim]
+			if not target then
+				return
+			end
+			-- Basılır basılmaz gizleniyor: sunucu yanıtı gelene kadar
+			-- ikinci kez basılmasın
+			claim.Visible = false
+			claimRemote:FireServer(target.tier, target.quest)
+		end)
+
+		table.insert(section.rows, {
+			frame = frame, label = label, fill = fill, track = track, claim = claim,
+		})
 	end
 
 	--[[
@@ -305,7 +372,7 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 	end
 
 	local function apply(payload: { Tier })
-		local doneCount, totalCount = 0, 0
+		local doneCount, totalCount, readyCount = 0, 0, 0
 
 		for order, tier in payload do
 			local section = sections[tier.id]
@@ -331,8 +398,11 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 				row.frame.Visible = true
 
 				totalCount += 1
-				if entry.done then
+				if entry.claimed then
 					doneCount += 1
+				end
+				if entry.done and not entry.claimed then
+					readyCount += 1
 				end
 
 				local shown = if entry.cash
@@ -342,18 +412,37 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 					then Config.FormatCash(entry.goal)
 					else tostring(entry.goal)
 
-				if entry.done then
-					-- Tamamlanan görev sönmüyor, YEŞİLE dönüyor: yapılmış
-					-- işi silikleştirmek ilerleme hissini de siliyor
+				--[[
+					Üç hâl var ve üçü de farklı görünüyor:
+
+					  devam ediyor  → ilerleme çubuğu, sayaç
+					  hazır          → CLAIM düğmesi, çubuk yok
+					  toplandı       → yeşil tik, düğme yok
+
+					"Hazır" ile "toplandı" ayrı olmasaydı oyuncu ödülünü
+					alıp almadığını bilemezdi.
+				]]
+				rowTarget[row.claim] = { tier = tier.id, quest = entry.id }
+
+				if entry.done and entry.claimed then
 					row.label.Text = "✓  " .. entry.text
 					row.label.TextColor3 = GOOD
-					row.fill.BackgroundColor3 = GOOD
 					row.track.Visible = false
+					row.claim.Visible = false
+
+				elseif entry.done then
+					-- Hazır: satır dikkat çekmeli, ödül orada duruyor
+					row.label.Text = entry.text
+					row.label.TextColor3 = UiKit.WARN
+					row.track.Visible = false
+					row.claim.Visible = true
+
 				else
 					row.label.Text = string.format("%s   %s / %s", entry.text, shown, target)
 					row.label.TextColor3 = INK
 					row.fill.BackgroundColor3 = ACCENT
 					row.track.Visible = true
+					row.claim.Visible = false
 				end
 
 				TweenService:Create(
@@ -378,8 +467,17 @@ function QuestPanel.Create(screen: ScreenGui): Panel
 			section.frame.Visible = found
 		end
 
-		headerCount.Text = string.format("%d / %d", doneCount, totalCount)
-		headerCount.TextColor3 = if doneCount == totalCount and totalCount > 0 then GOOD else MUTED
+		--[[
+			Başlık toplanmayı bekleyen ödül varsa onu söylüyor. Panel
+			katlanmışken bile görülüyor; oyuncu ödülünü unutmasın.
+		]]
+		if readyCount > 0 then
+			headerCount.Text = string.format("%d READY", readyCount)
+			headerCount.TextColor3 = UiKit.WARN
+		else
+			headerCount.Text = string.format("%d / %d", doneCount, totalCount)
+			headerCount.TextColor3 = if doneCount == totalCount and totalCount > 0 then GOOD else MUTED
+		end
 		resize()
 	end
 

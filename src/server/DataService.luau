@@ -78,6 +78,10 @@ export type QuestEntry = {
 	goal: number,
 	baseline: number,
 	done: boolean,
+	-- Ödül TESLİM ALINDI mı. done koşulun sağlandığını, claimed oyuncunun
+	-- ödülü kendi eliyle aldığını söylüyor; ikisi ayrı çünkü arada
+	-- oyuncunun düğmeye basması var.
+	claimed: boolean,
 }
 
 export type QuestSlot = {
@@ -260,6 +264,15 @@ local function sanitize(raw: any): Profile
 						goal = math.max(1, math.floor(entry.goal)),
 						baseline = math.max(0, math.floor(entry.baseline)),
 						done = entry.done == true,
+						--[[
+							Alan sonradan eklendi. Eski kayıtta done=true olan
+							görevin ödülü ZATEN VERİLMİŞTİ (o zaman otomatikti),
+							yani alınmış saymalıyız — yoksa oyuncu aynı ödülü
+							bir kez daha toplardı.
+						]]
+						claimed = if entry.claimed ~= nil
+							then entry.claimed == true
+							else entry.done == true,
 					})
 				end
 			end

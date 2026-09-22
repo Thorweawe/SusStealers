@@ -1507,13 +1507,12 @@ case("Görev: çekiliyor ve ilerliyor", function(ctx)
 	QuestService.Check(ctx.player)
 
 	ok("eşiğe ulaşınca tamamlandı", slot.entries[1].done)
-	ok("ödül verildi", EconomyService.GetCash(ctx.player) > before,
-		Config.FormatCash(EconomyService.GetCash(ctx.player) - before))
-
-	-- İkinci kez ödül vermemeli
-	local after = EconomyService.GetCash(ctx.player)
-	QuestService.Check(ctx.player)
-	eq("tekrar ödül yok", EconomyService.GetCash(ctx.player), after)
+	--[[
+		Ödül artık Check'te GELMİYOR: oyuncu panelden kendi topluyor.
+		Otomatik ödülde görevler hiç okunmuyordu.
+	]]
+	eq("tamamlanınca ödül verilmedi", EconomyService.GetCash(ctx.player), before)
+	ok("teslim alınmadı olarak duruyor", not slot.entries[1].claimed)
 end)
 
 case("Görev: ilerleme tabana göre, mutlak değere göre değil", function(ctx)
@@ -1565,6 +1564,73 @@ case("Görev: süresi dolan vade yeniden çekiliyor", function(ctx)
 end)
 
 -- ─── S. İksirler ────────────────────────────────────────────────────────────
+
+case("Görev: ödül elle toplanıyor", function(ctx)
+	ctx.profile.quests = {}
+	ctx.profile.stolen = 0
+	QuestService.Check(ctx.player)
+
+	local slot = ctx.profile.quests.short
+	ok("vade var", slot ~= nil)
+	if not slot then return end
+
+	slot.entries = { { id = "Steal", goal = 1, baseline = ctx.profile.stolen, done = false, claimed = false } }
+	setCash(ctx.player, 0)
+
+	-- Bitmemiş görev toplanamaz
+	ok("bitmemiş görev toplanamıyor", not QuestService.Claim(ctx.player, "short", "Steal"))
+	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
+
+	-- Koşulu sağla
+	ctx.profile.stolen += 1
+	QuestService.Check(ctx.player)
+	ok("görev tamamlandı", slot.entries[1].done)
+	eq("ama ödül hâlâ verilmedi", EconomyService.GetCash(ctx.player), 0)
+
+	-- Topla
+	ok("toplama başarılı", QuestService.Claim(ctx.player, "short", "Steal"))
+	ok("ödül geldi", EconomyService.GetCash(ctx.player) > 0,
+		Config.FormatCash(EconomyService.GetCash(ctx.player)))
+	ok("teslim alındı işaretlendi", slot.entries[1].claimed)
+
+	-- İkinci kez toplanamaz
+	local after = EconomyService.GetCash(ctx.player)
+	ok("ikinci toplama reddedildi", not QuestService.Claim(ctx.player, "short", "Steal"))
+	eq("para değişmedi", EconomyService.GetCash(ctx.player), after)
+end)
+
+case("Görev: uydurma toplama isteği reddediliyor", function(ctx)
+	--[[
+		İstemciden gelen iki metin doğrudan aranıyor. Olmayan vade ya da
+		olmayan görev sessizce reddedilmeli; istemciye güvenilmiyor.
+	]]
+	setCash(ctx.player, 0)
+
+	ok("olmayan vade reddedildi", not QuestService.Claim(ctx.player, "yok", "Steal"))
+	ok("olmayan görev reddedildi", not QuestService.Claim(ctx.player, "short", "YokBoyleBirGorev"))
+	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
+end)
+
+case("Görev: eski kayıtta biten görev tekrar toplanamıyor", function(ctx)
+	--[[
+		claimed alanı sonradan eklendi. Eski kayıtta done=true olan
+		görevin ödülü ZATEN verilmişti (o zaman otomatikti). Göç onları
+		teslim alınmış saymalı, yoksa oyuncu aynı ödülü bir kez daha
+		toplardı.
+	]]
+	ctx.profile.quests = {}
+	QuestService.Check(ctx.player)
+
+	local slot = ctx.profile.quests.short
+	if not slot then return end
+
+	-- Göçün ürettiği hâl: done ve claimed birlikte
+	slot.entries = { { id = "Steal", goal = 1, baseline = 0, done = true, claimed = true } }
+	setCash(ctx.player, 0)
+
+	ok("toplanamıyor", not QuestService.Claim(ctx.player, "short", "Steal"))
+	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
+end)
 
 case("İksir: tanımlar tutarlı", function()
 	local kinds = { income = true, steal = true, lock = true }
@@ -1735,6 +1801,23 @@ case("Görev: günlük vadeyi bitirmek iksir veriyor", function(ctx)
 	last.baseline = -1
 
 	QuestService.Check(ctx.player)
+	ok("son görev tamamlandı", last.done)
+
+	--[[
+		Bonus TESLİM ALINCA geliyor, tamamlanınca değil. Oyuncu son
+		ödülünü almadan bonusu alsaydı "kendi alsın" kuralı yarım kalırdı.
+	]]
+	local beforeClaim = 0
+	for _, count in ctx.profile.potions do
+		beforeClaim += count
+	end
+	eq("tamamlanınca iksir gelmedi", beforeClaim, 0)
+
+	-- Diğerlerini teslim alınmış say, sonuncuyu elle topla
+	for index, entry in slot.entries do
+		entry.claimed = index < #slot.entries
+	end
+	ok("son görev toplandı", QuestService.Claim(ctx.player, "daily", last.id))
 
 	local total = 0
 	for _, count in ctx.profile.potions do
@@ -1742,8 +1825,8 @@ case("Görev: günlük vadeyi bitirmek iksir veriyor", function(ctx)
 	end
 	ok("iksir verildi", total > 0, tostring(total))
 
-	-- İkinci taramada tekrar vermemeli
-	QuestService.Check(ctx.player)
+	-- İkinci kez toplanamaz
+	ok("tekrar toplanamıyor", not QuestService.Claim(ctx.player, "daily", last.id))
 	local after = 0
 	for _, count in ctx.profile.potions do
 		after += count
