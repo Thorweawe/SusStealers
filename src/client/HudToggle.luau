@@ -50,6 +50,8 @@ local CLUTTER = {
 	"MenuDock",
 	"MenuOverlay",
 	"TransitPanel",
+	"SideRail",
+	"ShopPanel",
 }
 
 export type Toggle = {

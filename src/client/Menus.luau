@@ -40,7 +40,6 @@ local INK = UiKit.INK
 local MUTED = UiKit.MUTED
 local ACCENT = UiKit.VISOR
 local GOOD = UiKit.GOOD
-local PANEL = UiKit.SHELL
 local ROW = UiKit.ROW
 
 local POTION_ACCENT = Color3.fromRGB(150, 226, 160)
@@ -103,50 +102,54 @@ end
 function Menus.Create(screen: ScreenGui): Menu
 	-- ─── Açma düğmeleri ─────────────────────────────────────────────────────
 
+	--[[
+		Sağ kenar rayı: kare ikon düğmeleri, alt alta.
+
+		Eskiden düz koyu "TITLES / POTIONS" dikdörtgenleriydi ve sahnenin
+		üstünde kayboluyordu. Artık sol kenardaki SHOP/INDEX ile aynı
+		kabartma dilinde — oyuncu iki kenarı tek bir arayüz olarak okuyor.
+
+		Adı MenuDock KALIYOR: RebirthPanel düğmesini buraya adıyla takıyor
+		ve HudToggle bu adı gizleme listesinde tutuyor.
+	]]
 	local dock = Instance.new("Frame")
 	dock.Name = "MenuDock"
 	dock.AnchorPoint = Vector2.new(1, 0)
 	dock.Position = UDim2.new(1, -24, 0, 136)
-	dock.Size = UDim2.new(0, 120, 0, 72)
+	dock.Size = UDim2.new(0, 64, 0, 240)
 	dock.BackgroundTransparency = 1
 	dock.Parent = screen
 
 	local dockLayout = Instance.new("UIListLayout")
 	dockLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	dockLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	dockLayout.Padding = UDim.new(0, 6)
+	dockLayout.Padding = UDim.new(0, 8)
 	dockLayout.Parent = dock
 
-	local function newDockButton(order: number, text: string): TextButton
-		local button = Instance.new("TextButton")
-		button.LayoutOrder = order
-		button.Size = UDim2.new(0, 120, 0, 30)
-		button.BackgroundColor3 = PANEL
-		button.BackgroundTransparency = 0.15
-		button.BorderSizePixel = 0
-		button.Font = Enum.Font.GothamBold
-		button.TextSize = 13
-		button.TextColor3 = INK
-		button.Text = text
-		button.AutoButtonColor = false
-		button.Parent = dock
+	local titlesHolder, titlesButton, titlesSlot =
+		UiKit.IconButton(dock, "Titles", UiKit.CREW.PURPLE, "TITLES")
+	titlesHolder.LayoutOrder = 1
+	UiKit.Crewmate(titlesSlot, 26, UiKit.CREW.PURPLE:Lerp(Color3.new(1, 1, 1), 0.55))
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 8)
-		corner.Parent = button
+	local potionsHolder, potionsButton, potionsSlot =
+		UiKit.IconButton(dock, "Potions", POTION_ACCENT, "POTIONS")
+	potionsHolder.LayoutOrder = 2
+	local potionsLabel = potionsButton:FindFirstChild("Label") :: TextLabel
 
-		button.MouseEnter:Connect(function()
-			button.TextColor3 = ACCENT
-		end)
-		button.MouseLeave:Connect(function()
-			button.TextColor3 = INK
-		end)
-
-		return button
+	--[[
+		İksir ikonu envanterdeki adede göre doluyor; düğme "kaç tane var"
+		bilgisini paneli açmadan veriyor. Boşken şişe sönük kalıyor.
+	]]
+	local function drawPotionIcon(total: number)
+		UiKit.ClearSlot(potionsSlot)
+		UiKit.Vial(
+			potionsSlot, 28,
+			Color3.new(1, 1, 1),
+			total / math.max(1, Config.PotionStackLimit),
+			total > 0
+		)
 	end
-
-	local titlesButton = newDockButton(1, "TITLES")
-	local potionsButton = newDockButton(2, "POTIONS")
+	drawPotionIcon(0)
 
 	-- ─── Üst katman ─────────────────────────────────────────────────────────
 
@@ -311,52 +314,15 @@ function Menus.Create(screen: ScreenGui): Menu
 		kurulmuyor), o yüzden içerik değişince eski figür kalmasın diye
 		temizlik gerekiyor.
 	]]
-	local function clearSlot(slot: Frame)
-		for _, child in slot:GetChildren() do
-			child:Destroy()
-		end
-	end
+	local clearSlot = UiKit.ClearSlot
 
 	--[[
-		İksir şişesi: boyun, gövde ve içindeki sıvı.
-
-		Sıvı seviyesi envanterdeki adede göre doluyor — bakışta "kaç tane
-		var" bilgisini sayı okumadan veriyor. Boşken şişe sönük kalıyor.
+		İksir şişesi. Gövdesi UiKit'te: aynı şişe sağ kenardaki düğmede de
+		çiziliyordu ve iki kopya birbirinden ayrışmaya başlamıştı.
 	]]
 	local function drawVial(slot: Frame, tint: Color3, fillRatio: number, active: boolean)
 		clearSlot(slot)
-
-		local neck = Instance.new("Frame")
-		neck.AnchorPoint = Vector2.new(0.5, 0)
-		neck.Position = UDim2.fromScale(0.5, 0.02)
-		neck.Size = UDim2.fromOffset(8, 7)
-		neck.BackgroundColor3 = if active then tint else UiKit.DIM
-		neck.BorderSizePixel = 0
-		neck.ZIndex = 13
-		neck.Parent = slot
-		UiKit.Corner(neck, 2)
-
-		local body = Instance.new("Frame")
-		body.AnchorPoint = Vector2.new(0.5, 1)
-		body.Position = UDim2.fromScale(0.5, 1)
-		body.Size = UDim2.fromOffset(20, 20)
-		body.BackgroundColor3 = UiKit.SHELL_DEEP
-		body.BorderSizePixel = 0
-		body.ClipsDescendants = true
-		body.ZIndex = 12
-		body.Parent = slot
-		UiKit.Corner(body, 9)
-		UiKit.Stroke(body, if active then tint else UiKit.DIM, 1.2, 0.3)
-
-		local liquid = Instance.new("Frame")
-		liquid.AnchorPoint = Vector2.new(0.5, 1)
-		liquid.Position = UDim2.fromScale(0.5, 1)
-		liquid.Size = UDim2.new(1, 0, math.clamp(fillRatio, 0, 1), 0)
-		liquid.BackgroundColor3 = if active then tint else UiKit.DIM
-		liquid.BackgroundTransparency = if active then 0.15 else 0.6
-		liquid.BorderSizePixel = 0
-		liquid.ZIndex = 13
-		liquid.Parent = body
+		UiKit.Vial(slot, 26, tint, fillRatio, active)
 	end
 
 	local function hideRowsFrom(index: number)
@@ -594,28 +560,21 @@ function Menus.Create(screen: ScreenGui): Menu
 	end)
 
 	--[[
-		Envanterde iksir varken düğme dikkat çeksin: oyuncu ödülü kazandığını
+		Envanterde iksir varken düğme onu göstersin: oyuncu ödülü kazandığını
 		bildirimde görüyor ama nereden içeceğini bilmiyor.
 
-		Bayrak ayrı tutuluyor çünkü fare düğmeden çıkınca rengi geri yazıyor;
-		bayrak olmasa vurgu her imleç hareketinde silinirdi.
+		Sayı etikete, doluluk da ikondaki sıvıya yazılıyor — düğmeye bakınca
+		hem "var" hem "kaç tane" okunuyor.
 	]]
-	local hasPotions = false
-
 	local function refreshPotionBadge()
 		local total = 0
 		for _, row in potionData do
 			total += row.count or 0
 		end
 
-		hasPotions = total > 0
-		potionsButton.Text = if hasPotions then string.format("POTIONS  %d", total) else "POTIONS"
-		potionsButton.TextColor3 = if hasPotions then ACCENT else INK
+		drawPotionIcon(total)
+		potionsLabel.Text = if total > 0 then string.format("POTIONS %d", total) else "POTIONS"
 	end
-
-	potionsButton.MouseLeave:Connect(function()
-		potionsButton.TextColor3 = if hasPotions then ACCENT else INK
-	end)
 
 	local potionsConnection = Net.Get("Potions").OnClientEvent:Connect(function(list)
 		if typeof(list) == "table" then

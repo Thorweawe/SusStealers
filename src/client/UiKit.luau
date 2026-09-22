@@ -45,7 +45,46 @@ UiKit.BAD = Color3.fromRGB(226, 108, 96)
 -- Vizör camgöbeği: Among Us tulumunun tek sabit rengi, temanın imzası
 UiKit.VISOR = Color3.fromRGB(150, 222, 236)
 
+--[[
+	Mürettebat tulumu renkleri. build_decor.luau'daki CREW tablosuyla aynı
+	değerler: heykellerle arayüz aynı paletten konuşsun diye.
+
+	HUD düğmeleri buradan renk alıyor. Rastgele seçilmiyorlar — her düğme
+	işine yakın düşen tulumu giyiyor (mağaza yeşil, indeks camgöbeği,
+	iksir açık yeşil, unvan mor, rebirth turuncu).
+]]
+UiKit.CREW = {
+	RED    = Color3.fromRGB(198,  53,  62),
+	BLUE   = Color3.fromRGB( 19,  46, 209),
+	GREEN  = Color3.fromRGB( 17, 128,  45),
+	PINK   = Color3.fromRGB(238, 132, 195),
+	ORANGE = Color3.fromRGB(240, 125,  13),
+	YELLOW = Color3.fromRGB(245, 245,  87),
+	BLACK  = Color3.fromRGB( 63,  71,  78),
+	WHITE  = Color3.fromRGB(215, 224, 223),
+	PURPLE = Color3.fromRGB(107,  47, 188),
+	BROWN  = Color3.fromRGB(113,  73,  30),
+	CYAN   = Color3.fromRGB( 56, 254, 220),
+	LIME   = Color3.fromRGB( 80, 239,  57),
+}
+
 -- ─── Temel parçalar ─────────────────────────────────────────────────────────
+
+--[[
+	Kapsayıcının katman numarası.
+
+	NEDEN GEREKLİ: ScreenGui'ler Sibling davranışında, yani ZIndex GLOBAL
+	sıralıyor — çocuk olmak üste çıkarmıyor. Bir düğmenin (ZIndex 3) içine
+	varsayılan ZIndex 1 ile ikon çizersen ikon düğmenin ALTINDA kalıyor ve
+	hiç görünmüyor. Bu yüzden her ikon kendi katmanını kapsayıcısından
+	türetiyor.
+]]
+local function baseZ(parent: Instance): number
+	if parent:IsA("GuiObject") then
+		return parent.ZIndex
+	end
+	return 1
+end
 
 function UiKit.Corner(parent: Instance, radius: number)
 	local c = Instance.new("UICorner")
@@ -123,6 +162,8 @@ end
 	getiriyor.
 ]]
 function UiKit.Crewmate(parent: Instance, size: number, color: Color3): Frame
+	local z = baseZ(parent)
+
 	local body = Instance.new("Frame")
 	body.Name = "Crewmate"
 	body.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -130,6 +171,7 @@ function UiKit.Crewmate(parent: Instance, size: number, color: Color3): Frame
 	body.Size = UDim2.fromOffset(size * 0.78, size)
 	body.BackgroundColor3 = color
 	body.BorderSizePixel = 0
+	body.ZIndex = z + 1
 	body.Parent = parent
 	UiKit.Corner(body, math.floor(size * 0.36))
 
@@ -140,7 +182,7 @@ function UiKit.Crewmate(parent: Instance, size: number, color: Color3): Frame
 	pack.Size = UDim2.fromOffset(size * 0.24, size * 0.50)
 	pack.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.22)
 	pack.BorderSizePixel = 0
-	pack.ZIndex = (body.ZIndex or 1) - 1
+	pack.ZIndex = z
 	pack.Parent = body
 	UiKit.Corner(pack, math.floor(size * 0.11))
 
@@ -151,7 +193,7 @@ function UiKit.Crewmate(parent: Instance, size: number, color: Color3): Frame
 	visor.Size = UDim2.fromOffset(size * 0.50, size * 0.26)
 	visor.BackgroundColor3 = UiKit.VISOR
 	visor.BorderSizePixel = 0
-	visor.ZIndex = (body.ZIndex or 1) + 1
+	visor.ZIndex = z + 2
 	visor.Parent = body
 	UiKit.Corner(visor, math.floor(size * 0.12))
 
@@ -218,6 +260,408 @@ function UiKit.HazardBar(parent: Instance, height: number): Frame
 	end
 
 	return bar
+end
+
+-- ─── Kabartma düğmeler ──────────────────────────────────────────────────────
+--[[
+	HUD düğmelerinin ortak gövdesi.
+
+	NEDEN: eskiden hepsi düz, koyu, saydam dikdörtgenlerdi ve sahnenin
+	üstünde kayboluyordu. Bu tür (tycoon) oyunlarda düğme BASILACAK bir
+	nesne gibi duruyor: renkli dolgu, üstten aşağı degrade, üst kenarda
+	ışık, altında gölge. Oyuncu ekrana bakınca nereye dokunacağını
+	aramıyor.
+
+	Üç katman gerekiyor çünkü UIStroke tek renk veriyor; kabartma hissi
+	altta koyu + üstte açık ikilisinden çıkıyor.
+
+	`holder` düzen yuvasını tutuyor (UIListLayout onu sayıyor), düğme
+	onun içinde 4 piksel yukarıda duruyor — gölge o boşlukta görünüyor.
+]]
+function UiKit.Raised(parent: Instance, name: string, tint: Color3, size: UDim2, radius: number): (Frame, TextButton)
+	local holder = Instance.new("Frame")
+	holder.Name = name
+	holder.Size = size
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 0, 1, 0)
+	shadow.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.78)
+	shadow.BorderSizePixel = 0
+	shadow.ZIndex = 2
+	shadow.Parent = holder
+	UiKit.Corner(shadow, radius)
+
+	local button = Instance.new("TextButton")
+	button.Name = "Button"
+	button.Size = UDim2.new(1, 0, 1, -4)
+	button.BackgroundColor3 = tint
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	button.Text = ""
+	button.ZIndex = 3
+	button.Parent = holder
+	UiKit.Corner(button, radius)
+	UiKit.Stroke(button, tint:Lerp(Color3.new(0, 0, 0), 0.55), 2, 0)
+
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Color = ColorSequence.new(
+		tint:Lerp(Color3.new(1, 1, 1), 0.22),
+		tint:Lerp(Color3.new(0, 0, 0), 0.18)
+	)
+	grad.Parent = button
+
+	-- Üst kenardaki ince ışık: yüzeyin dışbükey okunmasını sağlayan tek şey
+	local gloss = Instance.new("Frame")
+	gloss.Name = "Gloss"
+	gloss.Position = UDim2.fromOffset(4, 3)
+	gloss.Size = UDim2.new(1, -8, 0, 3)
+	gloss.BackgroundColor3 = Color3.new(1, 1, 1)
+	gloss.BackgroundTransparency = 0.68
+	gloss.BorderSizePixel = 0
+	gloss.ZIndex = 4
+	gloss.Parent = button
+	UiKit.Corner(gloss, 2)
+
+	--[[
+		Basma geri bildirimi: düğme gölgesinin üstüne oturuyor. AutoButtonColor
+		rengi soldurup kabartmayı düzleştiriyordu, o yüzden kapalı.
+	]]
+	button.MouseButton1Down:Connect(function()
+		button.Position = UDim2.fromOffset(0, 4)
+	end)
+	local function release()
+		button.Position = UDim2.fromOffset(0, 0)
+	end
+	button.MouseButton1Up:Connect(release)
+	button.MouseLeave:Connect(release)
+
+	return holder, button
+end
+
+--[[
+	Sol kenardaki geniş düğme: solda ikon yuvası, yanında kalın etiket.
+	Dönen üçüncü değer ikon yuvası — çağıran içine istediği figürü çiziyor.
+]]
+function UiKit.WideButton(parent: Instance, name: string, tint: Color3, label: string): (Frame, TextButton, Frame)
+	local holder, button = UiKit.Raised(parent, name, tint, UDim2.fromOffset(196, 60), 14)
+
+	local slot = Instance.new("Frame")
+	slot.Name = "Icon"
+	slot.AnchorPoint = Vector2.new(0, 0.5)
+	slot.Position = UDim2.new(0, 10, 0.5, 0)
+	slot.Size = UDim2.fromOffset(40, 40)
+	slot.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.42)
+	slot.BorderSizePixel = 0
+	slot.ZIndex = 4
+	slot.Parent = button
+	UiKit.Corner(slot, 10)
+
+	local text = Instance.new("TextLabel")
+	text.Name = "Label"
+	text.Position = UDim2.new(0, 58, 0, 0)
+	text.Size = UDim2.new(1, -66, 1, 0)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBlack
+	text.TextSize = 22
+	text.TextXAlignment = Enum.TextXAlignment.Left
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextStrokeTransparency = 0.45
+	text.Text = label
+	text.ZIndex = 5
+	text.Parent = button
+
+	return holder, button, slot
+end
+
+--[[
+	Sağ kenardaki kare ikon düğmesi. Etiket ikonun altında küçük; ikon
+	tek başına ne olduğunu söylemiyorsa yazı kurtarıyor ama yer kaplamıyor.
+]]
+function UiKit.IconButton(parent: Instance, name: string, tint: Color3, label: string): (Frame, TextButton, Frame)
+	local holder, button = UiKit.Raised(parent, name, tint, UDim2.fromOffset(64, 68), 14)
+
+	local slot = Instance.new("Frame")
+	slot.Name = "Icon"
+	slot.AnchorPoint = Vector2.new(0.5, 0)
+	slot.Position = UDim2.new(0.5, 0, 0, 8)
+	slot.Size = UDim2.fromOffset(34, 34)
+	slot.BackgroundTransparency = 1
+	slot.ZIndex = 4
+	slot.Parent = button
+
+	local text = Instance.new("TextLabel")
+	text.Name = "Label"
+	text.AnchorPoint = Vector2.new(0.5, 1)
+	text.Position = UDim2.new(0.5, 0, 1, -4)
+	text.Size = UDim2.new(1, -4, 0, 14)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBlack
+	text.TextSize = 11
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextStrokeTransparency = 0.5
+	text.Text = label
+	text.ZIndex = 5
+	text.Parent = button
+
+	return holder, button, slot
+end
+
+--[[
+	Sol alttaki sayaç hapı: solda yuvarlak ikon, yanında kalın sayı ve
+	altında küçük alt satır.
+
+	Nakit ve çalma hızı aynı kalıpta çünkü ikisi de "şu an neyim var"
+	bilgisi; farklı kutularda dursalar göz ikisini ayrı ayrı arardı.
+]]
+function UiKit.StatPill(parent: Instance, name: string, tint: Color3): (Frame, Frame, TextLabel, TextLabel)
+	local pill = Instance.new("Frame")
+	pill.Name = name
+	pill.Size = UDim2.fromOffset(232, 50)
+	pill.BackgroundColor3 = UiKit.SHELL_DEEP
+	pill.BackgroundTransparency = 0.12
+	pill.BorderSizePixel = 0
+	pill.ZIndex = 2
+	pill.Parent = parent
+	UiKit.Corner(pill, 25)
+	UiKit.Stroke(pill, tint, 1.6, 0.55)
+
+	local disc = Instance.new("Frame")
+	disc.Name = "Disc"
+	disc.AnchorPoint = Vector2.new(0, 0.5)
+	disc.Position = UDim2.new(0, 5, 0.5, 0)
+	disc.Size = UDim2.fromOffset(40, 40)
+	disc.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.62)
+	disc.BorderSizePixel = 0
+	disc.ZIndex = 3
+	disc.Parent = pill
+	UiKit.Corner(disc, 20)
+
+	local value = Instance.new("TextLabel")
+	value.Name = "Value"
+	value.Position = UDim2.new(0, 54, 0, 5)
+	value.Size = UDim2.new(1, -64, 0, 26)
+	value.BackgroundTransparency = 1
+	value.Font = Enum.Font.GothamBlack
+	value.TextSize = 22
+	value.TextXAlignment = Enum.TextXAlignment.Left
+	value.TextColor3 = tint
+	value.TextStrokeTransparency = 0.5
+	value.Text = "—"
+	value.ZIndex = 3
+	value.Parent = pill
+
+	local sub = Instance.new("TextLabel")
+	sub.Name = "Sub"
+	sub.Position = UDim2.new(0, 54, 0, 29)
+	sub.Size = UDim2.new(1, -64, 0, 15)
+	sub.BackgroundTransparency = 1
+	sub.Font = Enum.Font.GothamBold
+	sub.TextSize = 12
+	sub.TextXAlignment = Enum.TextXAlignment.Left
+	sub.TextColor3 = UiKit.MUTED
+	sub.Text = ""
+	sub.ZIndex = 3
+	sub.Parent = pill
+
+	return pill, disc, value, sub
+end
+
+-- ─── İkonlar ────────────────────────────────────────────────────────────────
+-- Hepsi Frame'den; dosyanın başındaki "hazır görsel yok" kuralı geçerli.
+
+--[[ Yuvadaki her şeyi siler. İkon değişen yerlerde gerekiyor. ]]
+function UiKit.ClearSlot(slot: Instance)
+	for _, child in slot:GetChildren() do
+		child:Destroy()
+	end
+end
+
+--[[
+	İksir şişesi: boyun, gövde, içinde sıvı.
+
+	Sıvı seviyesi adede göre doluyor — "kaç tane var" bilgisi sayı
+	okunmadan veriliyor. Boşken şişe sönük.
+]]
+function UiKit.Vial(parent: Instance, size: number, tint: Color3, fill: number, active: boolean): Frame
+	local holder = Instance.new("Frame")
+	holder.Name = "Vial"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = baseZ(parent)
+	holder.Parent = parent
+
+	local tone = if active then tint else UiKit.DIM
+
+	local neck = Instance.new("Frame")
+	neck.AnchorPoint = Vector2.new(0.5, 0)
+	neck.Position = UDim2.fromScale(0.5, 0.02)
+	neck.Size = UDim2.fromOffset(size * 0.3, size * 0.24)
+	neck.BackgroundColor3 = tone
+	neck.BorderSizePixel = 0
+	neck.ZIndex = holder.ZIndex + 2
+	neck.Parent = holder
+	UiKit.Corner(neck, math.max(2, math.floor(size * 0.08)))
+
+	local body = Instance.new("Frame")
+	body.AnchorPoint = Vector2.new(0.5, 1)
+	body.Position = UDim2.fromScale(0.5, 1)
+	body.Size = UDim2.fromOffset(size * 0.74, size * 0.74)
+	body.BackgroundColor3 = UiKit.SHELL_DEEP
+	body.BorderSizePixel = 0
+	body.ClipsDescendants = true
+	body.ZIndex = holder.ZIndex + 1
+	body.Parent = holder
+	UiKit.Corner(body, math.floor(size * 0.33))
+	UiKit.Stroke(body, tone, 1.4, 0.25)
+
+	local liquid = Instance.new("Frame")
+	liquid.AnchorPoint = Vector2.new(0.5, 1)
+	liquid.Position = UDim2.fromScale(0.5, 1)
+	liquid.Size = UDim2.new(1, 0, math.clamp(fill, 0, 1), 0)
+	liquid.BackgroundColor3 = tone
+	liquid.BackgroundTransparency = if active then 0.12 else 0.6
+	liquid.BorderSizePixel = 0
+	liquid.ZIndex = holder.ZIndex + 2
+	liquid.Parent = body
+
+	return holder
+end
+
+--[[
+	İkmal sandığı: mağazanın ikonu.
+
+	Alışveriş arabası yerine sandık, çünkü Skeld'de araba yok — üsse gelen
+	her şey kargo sandığında geliyor ve oyunun 3B dünyasında da o sandıklar
+	duruyor (koridordaki Crate).
+]]
+function UiKit.Crate(parent: Instance, size: number, tint: Color3): Frame
+	local box = Instance.new("Frame")
+	box.Name = "Crate"
+	box.AnchorPoint = Vector2.new(0.5, 0.5)
+	box.Position = UDim2.fromScale(0.5, 0.5)
+	box.Size = UDim2.fromOffset(size, size * 0.84)
+	box.BackgroundColor3 = tint
+	box.BorderSizePixel = 0
+	box.ZIndex = baseZ(parent) + 1
+	box.Parent = parent
+	UiKit.Corner(box, math.max(2, math.floor(size * 0.12)))
+
+	-- Kapak şeridi: sandığı düz kareden ayıran tek işaret
+	local lid = Instance.new("Frame")
+	lid.Size = UDim2.new(1, 0, 0, math.max(3, size * 0.22))
+	lid.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.4)
+	lid.BorderSizePixel = 0
+	lid.ZIndex = box.ZIndex + 1
+	lid.Parent = box
+
+	for _, dir in { -1, 1 } do
+		local strap = Instance.new("Frame")
+		strap.AnchorPoint = Vector2.new(0.5, 0.5)
+		strap.Position = UDim2.fromScale(0.5, 0.58)
+		strap.Size = UDim2.fromOffset(size * 1.05, math.max(2, size * 0.13))
+		strap.Rotation = dir * 34
+		strap.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.4)
+		strap.BorderSizePixel = 0
+		strap.ZIndex = box.ZIndex + 1
+		strap.Parent = box
+	end
+
+	return box
+end
+
+--[[ Madeni para: nakit hapının ikonu. ]]
+function UiKit.Coin(parent: Instance, size: number, tint: Color3): Frame
+	local coin = Instance.new("Frame")
+	coin.Name = "Coin"
+	coin.AnchorPoint = Vector2.new(0.5, 0.5)
+	coin.Position = UDim2.fromScale(0.5, 0.5)
+	coin.Size = UDim2.fromOffset(size, size)
+	coin.BackgroundColor3 = tint
+	coin.BorderSizePixel = 0
+	coin.ZIndex = baseZ(parent) + 1
+	coin.Parent = parent
+	UiKit.Corner(coin, math.floor(size / 2))
+	UiKit.Stroke(coin, tint:Lerp(Color3.new(0, 0, 0), 0.45), 2, 0)
+
+	local mark = Instance.new("TextLabel")
+	mark.Size = UDim2.fromScale(1, 1)
+	mark.BackgroundTransparency = 1
+	mark.Font = Enum.Font.GothamBlack
+	mark.TextSize = math.floor(size * 0.66)
+	mark.TextColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.55)
+	mark.Text = "$"
+	mark.ZIndex = coin.ZIndex + 1
+	mark.Parent = coin
+
+	return coin
+end
+
+--[[
+	Bot: çalma hızının ikonu.
+
+	Ayakkabı iki dikdörtgenden — bilek ve taban. Basit ama silueti
+	tanınıyor ve "hareket" dışında bir şey okunmuyor.
+]]
+function UiKit.Boot(parent: Instance, size: number, tint: Color3): Frame
+	local boot = Instance.new("Frame")
+	boot.Name = "Boot"
+	boot.AnchorPoint = Vector2.new(0.5, 0.5)
+	boot.Position = UDim2.fromScale(0.5, 0.42)
+	boot.Size = UDim2.fromOffset(size * 0.42, size * 0.62)
+	boot.BackgroundColor3 = tint
+	boot.BorderSizePixel = 0
+	boot.ZIndex = baseZ(parent) + 1
+	boot.Parent = parent
+	UiKit.Corner(boot, math.max(2, math.floor(size * 0.12)))
+
+	local sole = Instance.new("Frame")
+	sole.AnchorPoint = Vector2.new(0, 1)
+	sole.Position = UDim2.new(0, 0, 1, math.floor(size * 0.3))
+	sole.Size = UDim2.fromOffset(size * 0.78, size * 0.26)
+	sole.BackgroundColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.25)
+	sole.BorderSizePixel = 0
+	sole.ZIndex = boot.ZIndex + 1
+	sole.Parent = boot
+	UiKit.Corner(sole, math.max(2, math.floor(size * 0.1)))
+
+	return boot
+end
+
+--[[ Alev: rebirth ikonu. İç içe iki damla, dıştan içe açılan renk. ]]
+function UiKit.Flame(parent: Instance, size: number, tint: Color3): Frame
+	local outer = Instance.new("Frame")
+	outer.Name = "Flame"
+	outer.AnchorPoint = Vector2.new(0.5, 0.5)
+	outer.Position = UDim2.fromScale(0.5, 0.5)
+	outer.Size = UDim2.fromOffset(size * 0.62, size * 0.9)
+	outer.BackgroundColor3 = tint
+	outer.BorderSizePixel = 0
+	outer.Rotation = 45
+	outer.ZIndex = baseZ(parent) + 1
+	outer.Parent = parent
+
+	local outerCorner = Instance.new("UICorner")
+	-- Üç köşe yuvarlak, biri sivri: alev damlasının silueti
+	outerCorner.CornerRadius = UDim.new(0.5, 0)
+	outerCorner.Parent = outer
+
+	local inner = Instance.new("Frame")
+	inner.AnchorPoint = Vector2.new(0.5, 0.5)
+	inner.Position = UDim2.fromScale(0.5, 0.58)
+	inner.Size = UDim2.fromScale(0.52, 0.52)
+	inner.BackgroundColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.55)
+	inner.BorderSizePixel = 0
+	inner.ZIndex = outer.ZIndex + 1
+	inner.Parent = outer
+	UiKit.Corner(inner, math.floor(size * 0.25))
+
+	return outer
 end
 
 --[[

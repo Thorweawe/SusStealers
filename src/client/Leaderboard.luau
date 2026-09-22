@@ -58,7 +58,8 @@ end
 function Leaderboard.Create(screen: ScreenGui): Board
 	local holder = Instance.new("Frame")
 	holder.Name = "Leaderboard"
-	holder.Position = UDim2.new(0, 24, 0, 104)
+	-- Nakit sayaclari sol ALTA tasindi; tablo artik en uste oturuyor
+	holder.Position = UDim2.new(0, 24, 0, 20)
 	holder.Size = UDim2.new(0, 360, 0, 42 + MAX_ROWS * ROW_HEIGHT + 10)
 	holder.BackgroundColor3 = PANEL
 	-- Opak: arkadaki harita/karakterler tablonun icinden gorunuyordu

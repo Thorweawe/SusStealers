@@ -25,6 +25,7 @@ local RarityFX = require(script.RarityFX)
 local ScreenFX = require(script.ScreenFX)
 local SoundFX = require(script.SoundFX)
 local ThiefTrail = require(script.ThiefTrail)
+local UiKit = require(script.UiKit)
 
 -- Sunucu tarafi hazir olan paneller. Bunlari sunucu sehridi yazdi ama
 -- gorunumleri bu sehride: yerlesim, renk ve animasyonu degistirmek
@@ -39,6 +40,8 @@ local OwnPlot = require(script.OwnPlot)
 local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
 local RebirthPanel = require(script.RebirthPanel)
+local ShopPanel = require(script.ShopPanel)
+local SideRail = require(script.SideRail)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -58,26 +61,39 @@ screen.ResetOnSpawn = false
 screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screen.Parent = playerGui
 
-local function newLabel(name: string, position: UDim2, size: UDim2, textSize: number): TextLabel
-	local label = Instance.new("TextLabel")
-	label.Name = name
-	label.Position = position
-	label.Size = size
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = textSize
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = INK
-	label.TextStrokeTransparency = 0.4
-	label.Parent = screen
-	return label
-end
+--[[
+	Sol alttaki sayaçlar: nakit ve çalma hızı.
 
-local cashLabel = newLabel("Cash", UDim2.new(0, 24, 0, 20), UDim2.new(0, 360, 0, 44), 34)
-cashLabel.TextColor3 = GOOD
+	NEDEN SOL ALT: eskiden sol ÜSTTEydiler ve sıralama tablosunu aşağı
+	itiyorlardı; ekranın üst yarısı üç ayrı şeyle doluyken alt yarısı
+	bomboştu. Tür standardı da burası — oyuncu parasını ekranın altında
+	arıyor.
 
-local incomeLabel = newLabel("Income", UDim2.new(0, 24, 0, 62), UDim2.new(0, 360, 0, 28), 20)
-incomeLabel.TextColor3 = MUTED
+	İkisi aynı hap kalıbında (UiKit.StatPill) çünkü ikisi de "şu an neyim
+	var" bilgisi; farklı kutularda dursalar göz ikisini ayrı ayrı arardı.
+]]
+local statBar = Instance.new("Frame")
+statBar.Name = "StatBar"
+statBar.AnchorPoint = Vector2.new(0, 1)
+statBar.Position = UDim2.new(0, 22, 1, -22)
+statBar.Size = UDim2.fromOffset(232, 108)
+statBar.BackgroundTransparency = 1
+statBar.Parent = screen
+
+local statLayout = Instance.new("UIListLayout")
+statLayout.SortOrder = Enum.SortOrder.LayoutOrder
+statLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+statLayout.Padding = UDim.new(0, 8)
+statLayout.Parent = statBar
+
+local speedPill, speedDisc, speedValue, speedSub = UiKit.StatPill(statBar, "SpeedPill", UiKit.CREW.CYAN)
+speedPill.LayoutOrder = 1
+UiKit.Boot(speedDisc, 26, UiKit.CREW.CYAN)
+speedSub.Text = "STEAL SPEED"
+
+local cashPill, cashDisc, cashValue, cashSub = UiKit.StatPill(statBar, "CashPill", UiKit.CREW.LIME)
+cashPill.LayoutOrder = 2
+UiKit.Coin(cashDisc, 26, UiKit.CREW.LIME)
 
 -- ─── Üs paneli ──────────────────────────────────────────────────────────────
 -- Sağ üstte: kaide doluluğu, kilit durumu ve taşınan karakter.
@@ -353,13 +369,34 @@ local function refreshCash()
 	local cash = player:GetAttribute("Cash") :: number?
 	local income = player:GetAttribute("Income") :: number?
 
-	cashLabel.Text = "$" .. Config.FormatCash(cash or 0)
-	incomeLabel.Text = string.format("+$%s/s", Config.FormatCash(income or 0))
+	cashValue.Text = "$" .. Config.FormatCash(cash or 0)
+	cashSub.Text = string.format("+$%s/s", Config.FormatCash(income or 0))
 end
 
 player:GetAttributeChangedSignal("Cash"):Connect(refreshCash)
 player:GetAttributeChangedSignal("Income"):Connect(refreshCash)
 refreshCash()
+
+--[[
+	Çalma hızı: karakter TAŞIRKEN ki yürüme hızı.
+
+	Oyunun en önemli sayılarından biri ve hiçbir yerde yazmıyordu —
+	oyuncu Carry Speed yükseltmesini alıyor ama bir şeyin değiştiğini
+	göremiyordu. Seviye sunucudan nitelik olarak geliyor (UpgradeService),
+	hızın kendisi de Config'den: iki taraf da aynı formülü kullanıyor.
+]]
+local function refreshSpeed()
+	local level = player:GetAttribute("Upg_CarrySpeed") :: number?
+	local speed = Config.GetCarryWalkSpeed(level or 0)
+
+	speedValue.Text = string.format("%.1f", speed)
+	speedSub.Text = if (level or 0) > 0
+		then string.format("STEAL SPEED · Lv %d", level or 0)
+		else "STEAL SPEED"
+end
+
+player:GetAttributeChangedSignal("Upg_CarrySpeed"):Connect(refreshSpeed)
+refreshSpeed()
 
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
 
@@ -635,27 +672,46 @@ mountPanel("RebirthPanel", function()
 		return
 	end
 
-	local button = Instance.new("TextButton")
-	button.Name = "RebirthButton"
-	button.LayoutOrder = 3
-	button.Size = UDim2.new(0, 120, 0, 30)
-	button.BackgroundColor3 = Color3.fromRGB(58, 34, 26)
-	button.BackgroundTransparency = 0.1
-	button.BorderSizePixel = 0
-	button.Font = Enum.Font.GothamBold
-	button.TextSize = 13
-	button.TextColor3 = Color3.fromRGB(252, 214, 96)
-	button.Text = "REBIRTH"
-	button.AutoButtonColor = false
-	button.Parent = dock
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = button
+	-- Rayin geri kalaniyla ayni kalip: kare ikon dugmesi, altinda etiket
+	local holder, button, slot =
+		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH")
+	holder.LayoutOrder = 3
+	UiKit.Flame(slot, 28, Color3.fromRGB(255, 226, 150))
 
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()
 	end)
+end)
+
+--[[
+	Sol kenar: SHOP ve INDEX.
+
+	Mağaza paneli burada kuruluyor çünkü onu açan tek şey bu ray. İndeks
+	paneli yukarıda zaten var (catalog), ray sadece onu açıp kapatıyor —
+	C tuşu duruyor ama artık tek yol değil.
+
+	Ayrı bir görevde çünkü mağaza açılışta Roblox'a fiyat soruyor; o ağ
+	çağrısı çekirdek HUD'u bekletmemeli.
+]]
+mountPanel("SideRail", function()
+	local shop = ShopPanel.Create(screen)
+
+	SideRail.Create(screen, "SideRail", {
+		{
+			name = "Shop",
+			label = "SHOP",
+			tint = UiKit.CREW.LIME,
+			icon = "crate",
+			onClick = shop.Toggle,
+		},
+		{
+			name = "Index",
+			label = "INDEX",
+			tint = UiKit.CREW.CYAN,
+			icon = "crewmate",
+			onClick = catalog.Toggle,
+		},
+	})
 end)
 
 mountPanel("HudToggle", function()

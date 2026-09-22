@@ -32,6 +32,12 @@ local GAP = 10
 
 export type Catalog = {
 	Update: () -> (),
+	--[[
+		Sol kenardaki INDEX düğmesi bunu çağırıyor. C tuşu kaldı ama artık
+		tek yol değil: dokunmatikte klavye yok ve panelin varlığı hiçbir
+		yerde görünmüyordu.
+	]]
+	Toggle: () -> (),
 }
 
 type Card = {
@@ -280,7 +286,12 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 	end
 
-	return { Update = update }
+	return {
+		Update = update,
+		Toggle = function()
+			holder.Visible = not holder.Visible
+		end,
+	}
 end
 
 return Index
