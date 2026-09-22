@@ -1479,9 +1479,19 @@ do
 	for index = 1, PLOT_COUNT do
 		local o = plotOrigin(index)
 		local row = math.floor((index - 1) / COLUMNS)
-		-- Üs koridora bakıyor; eşik de o tarafta
+		--[[
+			Üs koridora bakıyor; eşik de o tarafta.
+
+			Mesafe altlıktan hesaplanıyor, üs zemininden değil. Altlık
+			üsten 3 stud daha taşıyor (PLOT_SIZE.Z + 6) ve eşik halfZ + 2'de
+			duruyordu: söveler altlığın içine 2.4 stud gömülüyor, kapı
+			blokların içinden çıkıyormuş gibi görünüyordu.
+
+			Artık altlığın dış kenarına dayanıyor, içine girmiyor.
+		]]
 		local side = if row % 2 == 0 then 1 else -1
-		local z = o.Z + side * (halfZ + 2)
+		local plinthHalf = halfZ + 3
+		local z = o.Z + side * (plinthHalf + T)
 
 		for _, sx in { -1, 1 } do
 			build({ name = "DoorJamb", size = Vector3.new(T, H, T * 2),
