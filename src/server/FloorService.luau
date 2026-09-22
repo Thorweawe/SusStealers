@@ -243,6 +243,7 @@ function FloorService.TryBuy(player: Player): boolean
 
 	profile.floorsBought += 1
 	PlotService.SetUnlockedFloors(plot, Config.GetUnlockedFloors(profile.floorsBought))
+	FloorService.Publish(player)
 
 	notify(player, string.format("Floor %d unlocked!", def.floor), false)
 
@@ -329,8 +330,47 @@ end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
 
+--[[
+	Kat ve rebirth sayısını oyuncunun niteliklerine yazar.
+
+	Arayüzün "sıradaki kat hangisi, kaç rebirth istiyor, kaç para" diye
+	göstermesi için bu iki sayı yeterli; gerisini Config'ten kendisi
+	hesaplıyor. Nitelik kullanıldı çünkü kendiliğinden replike oluyor ve
+	sadece sunucu yazabiliyor.
+]]
+function FloorService.Publish(player: Player)
+	local profile = DataService.Get(player)
+	player:SetAttribute("FloorsBought", if profile then profile.floorsBought else 0)
+	player:SetAttribute("Rebirths", if profile then profile.rebirths else 0)
+end
+
 function FloorService.Start()
 	notifyRemote = Net.Get("Notify")
+
+	--[[
+		Katın arayüzden de alınabilmesi.
+
+		Ped merdivenin dibinde duruyor ve oyuncu onu bulamıyordu ("üst floor
+		alma kısmı nerede belli değil"). Yükseltme kulübesi zaten "üssümü
+		geliştirdiğim yer"; kat da oraya, listenin başına eklendi.
+
+		Ped KALDIRILMADI: yanından geçen oyuncuya da göstermeye devam ediyor.
+		İki yol da aynı TryBuy'a çıkıyor, doğrulama tek yerde.
+	]]
+	local lastBuy: { [Player]: number } = {}
+
+	Net.Get("FloorBuy").OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		if now - (lastBuy[player] or 0) < 0.4 then
+			return
+		end
+		lastBuy[player] = now
+		FloorService.TryBuy(player)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastBuy[player] = nil
+	end)
 
 	for _, plot in PlotService.GetAllPlots() do
 		buildPad(plot)
@@ -347,6 +387,11 @@ function FloorService.Start()
 			task.wait(REFRESH_INTERVAL)
 			for _, plot in PlotService.GetAllPlots() do
 				FloorService.Refresh(plot)
+			end
+			-- Rebirth başka serviste değişiyor; arayüzün görmesi için
+			-- nitelikler de aynı turda tazeleniyor
+			for _, player in Players:GetPlayers() do
+				FloorService.Publish(player)
 			end
 		end
 	end)

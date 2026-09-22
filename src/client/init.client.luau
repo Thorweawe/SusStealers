@@ -36,6 +36,7 @@ local Menus = require(script.Menus)
 local HudToggle = require(script.HudToggle)
 local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
+local RebirthPanel = require(script.RebirthPanel)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -233,6 +234,7 @@ local currentPlot: Model? = nil
 -- Yukseltme arayuzu en sonda kuruluyor (asagidaki mountPanel); ana dongu
 -- ona buradan ulasiyor. Kurulmadiysa nil kaliyor ve dongu atliyor.
 local upgradePanel: UpgradePanel.Panel? = nil
+local rebirthPanel: RebirthPanel.Panel? = nil
 
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean)
 	showToast(text, if isError then BAD else GOOD)
@@ -537,6 +539,9 @@ task.spawn(function()
 		if upgradePanel then
 			upgradePanel.Update()
 		end
+		if rebirthPanel then
+			rebirthPanel.Update()
+		end
 	end
 end)
 
@@ -599,6 +604,43 @@ end)
 
 mountPanel("Sprint", function()
 	Sprint.Create(screen)
+end)
+
+--[[
+	Rebirth arayuzu. Sag alttaki dock'a REBIRTH dugmesi ekliyor; panelin
+	kendisi ekranin ortasinda aciliyor. Menus'ten sonra kuruluyor cunku
+	dugmeyi onun dock'una takiyor.
+]]
+mountPanel("RebirthPanel", function()
+	local panel = RebirthPanel.Create(screen)
+	rebirthPanel = panel
+
+	local dock = screen:WaitForChild("MenuDock", 10)
+	if not dock then
+		return
+	end
+
+	local button = Instance.new("TextButton")
+	button.Name = "RebirthButton"
+	button.LayoutOrder = 3
+	button.Size = UDim2.new(0, 120, 0, 30)
+	button.BackgroundColor3 = Color3.fromRGB(58, 34, 26)
+	button.BackgroundTransparency = 0.1
+	button.BorderSizePixel = 0
+	button.Font = Enum.Font.GothamBold
+	button.TextSize = 13
+	button.TextColor3 = Color3.fromRGB(252, 214, 96)
+	button.Text = "REBIRTH"
+	button.AutoButtonColor = false
+	button.Parent = dock
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = button
+
+	button.MouseButton1Click:Connect(function()
+		panel.Toggle()
+	end)
 end)
 
 mountPanel("HudToggle", function()

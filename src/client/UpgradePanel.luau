@@ -101,7 +101,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		yükseltmeyle ekranın ortasında 352 piksellik bir blok oluyordu.
 		380x(76+52n) aynı bilgiyi veriyor, arkasındaki oyunu kapatmadan.
 	]]
-	root.Size = UDim2.fromOffset(380, 76 + #Config.Upgrades * 52)
+	root.Size = UDim2.fromOffset(380, 76 + (#Config.Upgrades + 1) * 52)
 	root.BackgroundColor3 = SHELL
 	root.BorderSizePixel = 0
 	root.Visible = false
@@ -329,9 +329,124 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		})
 	end
 
+	--[[
+		═══ YENİ KAT SATIRI ════════════════════════════════════════════════
+
+		Kat, merdivenin dibindeki bir pedden alınıyordu ve oyuncu onu
+		bulamıyordu ("üst floor alma kısmı nerede belli değil"). Burası
+		zaten "üssümü geliştirdiğim yer"; kat da listenin SONUNA eklendi.
+
+		Ped kaldırılmadı — yanından geçen de alabilir. İkisi de aynı
+		FloorBuy remote'una çıkıyor.
+
+		Satır diğerlerinden ayrı görünüyor (altın çerçeve, kutucuk yok)
+		çünkü seviyeli bir yükseltme değil; tek seferlik bir açılış.
+	]]
+	local floorRow = Instance.new("Frame")
+	floorRow.Name = "NewFloor"
+	floorRow.LayoutOrder = #Config.Upgrades + 1
+	floorRow.Size = UDim2.new(1, 0, 0, 46)
+	floorRow.BackgroundColor3 = SHELL_DARK
+	floorRow.BorderSizePixel = 0
+	floorRow.Parent = list
+	corner(floorRow, 10)
+	stroke(floorRow, GOLD, 1.2, 0.45)
+
+	local floorName = Instance.new("TextLabel")
+	floorName.Position = UDim2.fromOffset(14, 7)
+	floorName.Size = UDim2.new(1, -120, 0, 18)
+	floorName.BackgroundTransparency = 1
+	floorName.Font = Enum.Font.GothamBold
+	floorName.TextSize = 16
+	floorName.TextXAlignment = Enum.TextXAlignment.Left
+	floorName.TextColor3 = GOLD
+	floorName.Text = "NEW FLOOR"
+	floorName.Parent = floorRow
+
+	local floorNote = Instance.new("TextLabel")
+	floorNote.Position = UDim2.fromOffset(14, 25)
+	floorNote.Size = UDim2.new(1, -120, 0, 15)
+	floorNote.BackgroundTransparency = 1
+	floorNote.Font = Enum.Font.GothamMedium
+	floorNote.TextSize = 12
+	floorNote.TextXAlignment = Enum.TextXAlignment.Left
+	floorNote.TextColor3 = MUTED
+	floorNote.Text = ""
+	floorNote.Parent = floorRow
+
+	local floorButton = Instance.new("TextButton")
+	floorButton.AnchorPoint = Vector2.new(1, 0.5)
+	floorButton.Position = UDim2.new(1, -8, 0.5, 0)
+	floorButton.Size = UDim2.fromOffset(98, 30)
+	floorButton.BackgroundColor3 = GOLD
+	floorButton.BorderSizePixel = 0
+	floorButton.AutoButtonColor = false
+	floorButton.Font = Enum.Font.GothamBold
+	floorButton.TextSize = 14
+	floorButton.TextColor3 = Color3.fromRGB(16, 20, 26)
+	floorButton.Text = "—"
+	floorButton.Parent = floorRow
+	corner(floorButton, 8)
+
+	local floorRemote = Net.Get("FloorBuy")
+	floorButton.MouseButton1Click:Connect(function()
+		floorRemote:FireServer()
+	end)
+	floorButton.MouseEnter:Connect(function()
+		floorButton.BackgroundColor3 = GOLD:Lerp(Color3.new(1, 1, 1), 0.25)
+	end)
+	floorButton.MouseLeave:Connect(function()
+		floorButton.BackgroundColor3 = GOLD
+	end)
+
+	--[[
+		Kat satırının durumu. Üç hâl var ve üçü de farklı şey anlatıyor:
+		  • rebirth yetmiyor  → kilitli, kaç rebirth gerektiği yazıyor
+		  • alınabilir        → fiyat yazıyor
+		  • hepsi alınmış     → tamamlandı
+	]]
+	local function refreshFloor()
+		local bought = player:GetAttribute("FloorsBought")
+		bought = if typeof(bought) == "number" then bought else 0
+		local rebirths = player:GetAttribute("Rebirths")
+		rebirths = if typeof(rebirths) == "number" then rebirths else 0
+
+		local def = Config.GetNextFloor(bought)
+		if not def then
+			floorName.Text = "ALL FLOORS OPEN"
+			floorNote.Text = "COMPLETE"
+			floorNote.TextColor3 = GOOD
+			floorButton.Text = "MAX"
+			floorButton.BackgroundColor3 = DIM
+			floorButton.Active = false
+			return
+		end
+
+		floorName.Text = string.format("NEW FLOOR  ·  %d", def.floor)
+
+		if rebirths < def.rebirths then
+			floorNote.Text = string.format(
+				"Needs %d rebirth%s - you have %d",
+				def.rebirths, if def.rebirths == 1 then "" else "s", rebirths
+			)
+			floorNote.TextColor3 = MUTED
+			floorButton.Text = "LOCKED"
+			floorButton.BackgroundColor3 = DIM
+			floorButton.Active = false
+		else
+			floorNote.Text = "Doubles every upgrade cap"
+			floorNote.TextColor3 = MUTED
+			floorButton.Text = "$" .. Config.FormatCash(def.cost)
+			floorButton.BackgroundColor3 = GOLD
+			floorButton.Active = true
+		end
+	end
+
 	-- ─── Güncelleme ─────────────────────────────────────────────────────────
 
 	local function refresh()
+		refreshFloor()
+
 		for _, row in rows do
 			local level = player:GetAttribute("Upg_" .. row.def.id)
 			level = if typeof(level) == "number" then level else 0
