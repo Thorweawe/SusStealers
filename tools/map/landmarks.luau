@@ -161,14 +161,12 @@ return {
 			end
 		end
 
-		for c = 1, M.COLUMNS - 1 do
-			local x = (c - 0.5) * M.PLOT_SPACING
-			vent(x, midZ, 0)
-			vent(x, M.IZ0 + 26, 90)
-			if math.abs(x - M.centerX) > 1 then
-				vent(x, M.IZ1 - 26, 90)
-			end
-		end
+		--[[
+			Üsler arasındaki koridorlarda ve omurgada kapak YOK: yolun
+			ortasındaki koyu ızgaralar uzaktan zeminde delik gibi okunuyordu
+			("önümde boşluklar var"). Yalnızca iki uç köşede, yürüme yolunun
+			dışında birer tane kaldı.
+		]]
 		vent(M.IX0 + 16, M.IZ0 + 24, 90)
 		vent(M.IX1 - 16, M.IZ1 - 24, 90)
 

@@ -257,6 +257,10 @@ end
 	oyuncu bir yere ışınlanınca bir süre duvar/tavan eksik kalıyor, uzay
 	görünüyordu ("göze çarpan boşluklar"). Persistent model oyuncuya
 	girişte tek parça gönderiliyor ve hiç geri alınmıyor.
+
+	LevelOfDetail kapalı: Automatic'te uzaktaki modeller yayınlanmış
+	sürümden pişirilmiş basit bir mesh ile çiziliyor. Harita yeniden
+	kurulunca Play'de uzaktan ESKİ duvarlar görünüyordu, yakında yenisi.
 ]]
 local root = workspace:FindFirstChild("Decor")
 if root and not root:IsA("Model") then
@@ -271,6 +275,7 @@ if not root then
 	root = m
 end
 (root :: Model).ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+;(root :: Model).LevelOfDetail = Enum.ModelLevelOfDetail.Disabled
 K.root = root :: Model
 
 function K.folder(name: string, parent: Instance?): Folder
@@ -343,7 +348,19 @@ function K.part(o: Opts): Part
 	local p = (if isSeat then Instance.new("Seat") else Instance.new("Part")) :: Part
 	p.Name = o.name or "Deco"
 	p.Size = o.size
-	p.CFrame = o.cf
+	--[[
+		Aynalı (sol elli) CFrame'i düzelt. K.wall/K.door çerçevesi içe bakan
+		yöne göre kurulduğu için duvarların yarısında determinant -1 çıkıyor.
+		Studio bunu olduğu gibi çiziyor ama sunucu->istemci aktarımı dönüşü
+		kuaterniyona çevirirken bozuyor: Play'de çapraz duvarlar kendi
+		merkezinde 90° dönmüş görünüyordu (Studio'da düzgün). Kutu Z'de
+		simetrik, Z eksenini çevirmek görüntüyü değiştirmiyor.
+	]]
+	local cf = o.cf
+	if cf.RightVector:Cross(cf.UpVector):Dot(cf.LookVector) > 0 then
+		cf = CFrame.fromMatrix(cf.Position, cf.RightVector, cf.UpVector)
+	end
+	p.CFrame = cf
 	p.Anchored = true
 	p.CanCollide = solid(o) or isSeat
 	--[[

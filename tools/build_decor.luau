@@ -60,6 +60,13 @@ for _, name in SECTIONS do
 	print(string.format("  [%s] %.2fs", name, os.clock() - t0))
 end
 
+-- Alt modeller de uzaktan pişmiş (eski) mesh ile çizilmesin (kit.luau, kök)
+for _, d in K.root:GetDescendants() do
+	if d:IsA("Model") then
+		d.LevelOfDetail = Enum.ModelLevelOfDetail.Disabled
+	end
+end
+
 print(string.format("Decor: %d parca, %.1fs", K.count(K.root), os.clock() - started))
 
 -- Denetim

@@ -244,24 +244,12 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		Vector3.new(stairX, deckTop - 0.5, zTop - landingLen / 2), DECK_COLOR)
 
 	--[[
-		SADECE DIŞ duvar. İç tarafta (güverteye bakan yüz) duvar OLMAMALI.
-
-		İlk sürümde iki yana da duvar konuyordu ve bu kimsenin merdiveni
-		kullanamamasına yol açıyordu: iç duvar sahanlığı güverteden ayırıyor,
-		oyuncu merdivenin tepesine çıkıp orada kapalı kalıyordu. Üstelik 3.
-		kata çıkmak için oyuncunun 2. katın güvertesinden merdiven kuyusuna
-		YANDAN girmesi gerekiyor — iç duvar o girişi de kapatıyordu.
-
-		Kuyunun güverteye bakan yüzü açık; düşme riski yok çünkü orada zaten
-		bir üst basamak var.
+		Merdivenin yanında duvar YOK. İç duvar sahanlığı güverteden
+		ayırıyordu; dış duvar da (StairSide) iki üssün arasındaki koridorda
+		tavana kadar uzanan beyaz bir perde gibi duruyordu ("iki base'in
+		arasındaki duvar"). Dış kenarda korkuluk yeterli: yandan düşen oyuncu
+		zaten alt kattaki koridora iniyor.
 	]]
-	slab("StairSide", Vector3.new(0.8, rise, stairLen + landingLen),
-		Vector3.new(
-			stairX - (stairW / 2 - 0.4),
-			deckTop - rise / 2,
-			zTop + stairLen / 2 - landingLen / 2
-		),
-		TRIM_COLOR)
 
 	--[[
 		Korkuluk: basamak dizisiyle AYNI uzunlukta ve aynı merkezde. Önceki
