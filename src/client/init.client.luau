@@ -44,6 +44,7 @@ local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
 local PetPanel = require(script.PetPanel)
 local HatchFX = require(script.HatchFX)
+local FuseFX = require(script.FuseFX)
 local AutoHatch = require(script.AutoHatch)
 local GearPanel = require(script.GearPanel)
 local Summons = require(script.Summons)
@@ -573,6 +574,20 @@ mountPanel("PetPanel", function()
 	local panel = PetPanel.Create(screen, auto)
 	previews.Pets = panel.Toggle
 	previews.Fuse = panel.OpenFuse
+
+	-- Birleştirme makinede oynuyor: pencere kapanıyor, bitince makine ekranı geri geliyor
+	local fuseWasOpen = false
+	FuseFX.Create({
+		onStart = function()
+			fuseWasOpen = panel.IsFuseOpen()
+			panel.Hide()
+		end,
+		onEnd = function()
+			if fuseWasOpen then
+				panel.OpenFuse()
+			end
+		end,
+	})
 
 	local dock = screen:WaitForChild("MenuDock", 10)
 	if not dock then

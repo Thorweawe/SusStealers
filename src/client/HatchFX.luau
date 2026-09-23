@@ -31,6 +31,7 @@ local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
+local FuseFX = require(script.Parent.FuseFX)
 
 local HatchFX = {}
 
@@ -357,7 +358,11 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		closeRequested = true
 	end)
 
-	local connection = Net.Get("PetHatched").OnClientEvent:Connect(function(keys, source)
+	local connection = Net.Get("PetHatched").OnClientEvent:Connect(function(keys, source, fromKey)
+		-- Birleştirme makinede dünyada oynuyor (FuseFX); kart yalnızca makine yoksa
+		if source == "fuse" and typeof(fromKey) == "string" and FuseFX.Available() then
+			return
+		end
 		local list: { string } = {}
 		if typeof(keys) == "string" then
 			list = { keys }

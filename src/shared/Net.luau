@@ -21,7 +21,7 @@ local EVENTS = {
 	"Quests",       -- server -> client (vade -> görev listesi)
 	"Potions",      -- server -> client (envanter + aktif takviye)
 	"Pets",         -- server -> client (sahip olunanlar + takılı sıra)
-	"PetHatched",   -- server -> client (key: string, source: "egg" | "fuse")
+	"PetHatched",   -- server -> client (keys: {string}, source: "egg" | "fuse", fromKey: string?)
 	"Summons",      -- server -> client (text: string) — Summons sohbet kanalı
 	"Rewards",      -- server -> client (günlük seri + oynama süresi durumu)
 	"TutorialSkip", -- client -> server (argümansız)

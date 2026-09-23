@@ -48,6 +48,9 @@ export type Panel = {
 		o yüzden normal pet ekranında FUSE düğmesi yok.
 	]]
 	OpenFuse: () -> (),
+	-- Birleştirme animasyonu makinede oynarken pencere önünü kapatmasın
+	IsFuseOpen: () -> boolean,
+	Hide: () -> (),
 	Destroy: () -> (),
 }
 
@@ -660,6 +663,12 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 			mode = "fuse"
 			overlay.Visible = true
 			redraw()
+		end,
+		IsFuseOpen = function(): boolean
+			return overlay.Visible and mode == "fuse"
+		end,
+		Hide = function()
+			overlay.Visible = false
 		end,
 		Destroy = function()
 			petsConnection:Disconnect()

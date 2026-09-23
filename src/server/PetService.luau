@@ -543,7 +543,8 @@ function PetService.TryFuse(player: Player, key: string): string?
 
 	notify(player, string.format("Fused into a %s!", displayName(newKey)), false)
 	if hatchedRemote then
-		hatchedRemote:FireClient(player, { newKey }, "fuse")
+		-- Üçüncü argüman yakılan kopya: istemci makinede üçünü birleştirip gösteriyor
+		hatchedRemote:FireClient(player, { newKey }, "fuse", key)
 	end
 	announce(player, newKey, "fused")
 	return newKey
