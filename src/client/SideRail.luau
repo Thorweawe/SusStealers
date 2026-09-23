@@ -58,7 +58,7 @@ end
 --[[
 	Rayı kurar.
 
-	`name` HudToggle'ın gizleme listesindeki adla aynı olmalı; öyle olmazsa
+	`name` Topbar'ın gizleme listesindeki adla aynı olmalı; öyle olmazsa
 	arayüzü gizleme düğmesi bu rayı bulamaz.
 ]]
 function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail

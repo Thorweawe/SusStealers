@@ -95,6 +95,19 @@ export type Profile = {
 		kaidelerin listesiydi.
 	]]
 	discovered: { [string]: boolean },
+	-- Günlük seri: art arda kaç gün toplandı ve en son hangi gün (UTC gün no)
+	dailyStreak: number,
+	lastDailyDay: number,
+	-- Oynama süresi hediyeleri: hangi günün sayacı, o gün kaç saniye
+	-- oynandı ve hangi hediyeler (sıra no) toplandı
+	playtimeDay: number,
+	playtimeSeconds: number,
+	playtimeClaimed: { [string]: boolean },
+	-- İndeks ödülleri: toplanan nadirlik satırları
+	indexClaimed: { [string]: boolean },
+	-- Satın alınmış ekipman (Gear Shop): kimlik -> true. Kalıcı; rebirth'te
+	-- sıfırlanmıyor, bir kez alınan alet hep geliyor.
+	gear: { [string]: boolean },
 }
 
 export type QuestEntry = {
@@ -162,6 +175,13 @@ local function newProfile(): Profile
 		pets = {},
 		equippedPets = {},
 		discovered = {},
+		dailyStreak = 0,
+		lastDailyDay = 0,
+		playtimeDay = 0,
+		playtimeSeconds = 0,
+		playtimeClaimed = {},
+		indexClaimed = {},
+		gear = {},
 	}
 end
 
@@ -396,6 +416,39 @@ local function sanitize(raw: any): Profile
 		profile.discovered[stored.unitId] = true
 	end
 
+	--[[ Ödül sayaçları. Sayılar negatif ya da bozuksa sıfırdan başlıyor:
+	     en kötü ihtimalle oyuncu bir seriyi kaybeder, fazladan ödül almaz. ]]
+	local function count(value: any): number
+		return if typeof(value) == "number" and value == value and value >= 0 then math.floor(value) else 0
+	end
+	profile.dailyStreak = count(raw.dailyStreak)
+	profile.lastDailyDay = count(raw.lastDailyDay)
+	profile.playtimeDay = count(raw.playtimeDay)
+	profile.playtimeSeconds = count(raw.playtimeSeconds)
+
+	if typeof(raw.playtimeClaimed) == "table" then
+		for index, flag in raw.playtimeClaimed do
+			local n = tonumber(index)
+			if n and Config.PlaytimeRewards[n] and flag == true then
+				profile.playtimeClaimed[tostring(n)] = true
+			end
+		end
+	end
+	if typeof(raw.indexClaimed) == "table" then
+		for rarity, flag in raw.indexClaimed do
+			if typeof(rarity) == "string" and Config.IndexRewards[rarity] and flag == true then
+				profile.indexClaimed[rarity] = true
+			end
+		end
+	end
+	if typeof(raw.gear) == "table" then
+		for id, flag in raw.gear do
+			if typeof(id) == "string" and Config.GetGear(id) and flag == true then
+				profile.gear[id] = true
+			end
+		end
+	end
+
 	return profile
 end
 
@@ -498,6 +551,9 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.titles = table.clone(profile.titles)
 	snapshot.potions = table.clone(profile.potions)
 	snapshot.discovered = table.clone(profile.discovered)
+	snapshot.playtimeClaimed = table.clone(profile.playtimeClaimed)
+	snapshot.indexClaimed = table.clone(profile.indexClaimed)
+	snapshot.gear = table.clone(profile.gear)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 

@@ -71,6 +71,8 @@ local PASSES: { Entry } = {
 		icon = "boot",     blurb = "Rip a crewmate off a podium in a lot less time." },
 	{ key = "StrongLock",   kind = "pass", tint = UiKit.CREW.BLUE,
 		icon = "crate",    blurb = "Your base lock holds longer and recharges faster." },
+	{ key = "TripleHatch",  kind = "pass", tint = UiKit.CREW.PINK,
+		icon = "egg",      blurb = "Hatch 3 eggs at once, same wait as one." },
 }
 
 local SUPPLIES: { Entry } = {
@@ -110,13 +112,15 @@ local function drawIcon(slot: Frame, entry: Entry)
 		UiKit.Vial(slot, 32, entry.tint, 0.7, true)
 	elseif entry.icon == "boot" then
 		UiKit.Boot(slot, 30, entry.tint)
+	elseif entry.icon == "egg" then
+		UiKit.Egg(slot, 32, entry.tint)
 	else
 		UiKit.Flame(slot, 32, entry.tint)
 	end
 end
 
 function ShopPanel.Create(screen: ScreenGui): Panel
-	local overlay = UiKit.Shell(screen, "ShopPanel", ACCENT)
+	local overlay = UiKit.Window(screen, "ShopPanel", ACCENT)
 	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
 	overlay.Position = UDim2.fromScale(0.5, 0.5)
 	overlay.Size = UDim2.fromOffset(560, 470)

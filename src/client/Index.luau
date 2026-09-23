@@ -33,6 +33,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Net = require(Shared.Net)
 
 local UiKit = require(script.Parent.UiKit)
 local OwnPlot = require(script.Parent.OwnPlot)
@@ -84,7 +85,7 @@ local function label(parent: Instance, props: { [string]: any }): TextLabel
 end
 
 function Index.Create(screen: ScreenGui): Catalog
-	local root = UiKit.Shell(screen, "UnitIndex", ACCENT)
+	local root = UiKit.Window(screen, "UnitIndex", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
 	root.Size = UDim2.fromOffset(780, 480)
@@ -286,6 +287,10 @@ function Index.Create(screen: ScreenGui): Catalog
 	local cards: { Card } = {}
 	local rowsByTier: { [string]: Frame } = {}
 
+	-- İndeks ödülü denetimleri (satır başına) ve toplama isteği
+	type TierReward = { text: TextLabel, button: TextButton, bonus: number }
+	local tierRewards: { [string]: TierReward } = {}
+
 	local known: { [string]: boolean } = {}
 	local owned: { [string]: number } = {}
 	local selected: Card? = nil
@@ -385,6 +390,40 @@ function Index.Create(screen: ScreenGui): Catalog
 			Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBlack, TextSize = 13,
 			TextColor3 = tone, Text = string.upper(tier), ZIndex = Z + 3,
 		})
+
+		--[[
+			İndeks ödülü: satırın sağında. Satır eksikse "3 / 4 · +2%",
+			tamamsa CLAIM düğmesi, alındıysa yeşil tik. Kalıcı gelir
+			bonusunu sunucu veriyor (RewardService.ClaimIndex).
+		]]
+		local reward = Config.IndexRewards[tier] or 0
+		local progressText = label(row, {
+			AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 0),
+			Size = UDim2.fromOffset(160, 20), TextSize = 11, Font = Enum.Font.GothamBold,
+			TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = UiKit.MUTED, ZIndex = Z + 3,
+		})
+		local claimButton = Instance.new("TextButton")
+		claimButton.AnchorPoint = Vector2.new(1, 0)
+		claimButton.Position = UDim2.new(1, -6, 0, -1)
+		claimButton.Size = UDim2.fromOffset(110, 20)
+		claimButton.BackgroundColor3 = UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35)
+		claimButton.BorderSizePixel = 0
+		claimButton.AutoButtonColor = true
+		claimButton.Font = Enum.Font.GothamBlack
+		claimButton.TextSize = 11
+		claimButton.TextColor3 = Color3.new(1, 1, 1)
+		claimButton.Text = string.format("CLAIM +%d%%", math.floor(reward * 100 + 0.5))
+		claimButton.Visible = false
+		claimButton.ZIndex = Z + 4
+		claimButton.Parent = row
+		UiKit.Corner(claimButton, 6)
+		local rewardTier = tier
+		claimButton.MouseButton1Click:Connect(function()
+			-- Remote tıklama anında alınıyor: indeks ana HUD akışında
+			-- kuruluyor ve orada beklemek (WaitForChild) HUD'u durdururdu
+			Net.Get("RewardClaim"):FireServer("index", rewardTier)
+		end)
+		tierRewards[tier] = { text = progressText, button = claimButton, bonus = reward }
 
 		--[[ Satır yana kayıyor: kademeye ileride pet eklense de satır
 		     taşmıyor, kaydırılıyor. ]]
@@ -578,6 +617,39 @@ function Index.Create(screen: ScreenGui): Catalog
 		discovered.Text = string.format("Discovered %d / %d", found, total)
 		percent.Text = string.format("%d%% complete", math.floor(found / math.max(1, total) * 100 + 0.5))
 		fill.Size = UDim2.new(found / math.max(1, total), 0, 1, 0)
+
+		-- Satır ödülleri: toplananlar "IndexClaimed" niteliğinde (RewardService)
+		local claimedSet: { [string]: boolean } = {}
+		local rawClaimed = player:GetAttribute("IndexClaimed")
+		if typeof(rawClaimed) == "string" then
+			for id in string.gmatch(rawClaimed, "[^,]+") do
+				claimedSet[id] = true
+			end
+		end
+		for tier, reward in tierRewards do
+			local have, need = 0, 0
+			for _, card in cards do
+				if card.def.rarity == tier then
+					need += 1
+					if known[card.def.id] then
+						have += 1
+					end
+				end
+			end
+			local pct = math.floor(reward.bonus * 100 + 0.5)
+			if claimedSet[tier] then
+				reward.button.Visible = false
+				reward.text.Text = string.format("✓ +%d%% income", pct)
+				reward.text.TextColor3 = UiKit.GOOD
+			elseif have >= need and need > 0 then
+				reward.button.Visible = true
+				reward.text.Text = ""
+			else
+				reward.button.Visible = false
+				reward.text.Text = string.format("%d / %d  ·  +%d%% income", have, need, pct)
+				reward.text.TextColor3 = UiKit.MUTED
+			end
+		end
 
 		if selected then
 			showDetail(selected)

@@ -2753,9 +2753,115 @@ do
 		basamağın ÖNÜNDE bitiyor (z 304.4); içine uzasaydı boya basamağın
 		içinde kalırdı.
 	]]
+	--[[
+		Kuluçkahane kolu ana akstan sağa gidiyor ve ekipman dükkânının
+		önüne kadar UZUYOR (x 174–277): ikisi aynı yolun üstünde, biri
+		sağda biri solda. Eskiden kol kuluçkahanede bitiyordu.
+	]]
 	local hatchX = centerX + 56           -- kemerin ve kapsül sırasının ortası
-	lane((centerX + hatchX) / 2, lobbyZ - 22, hatchX - centerX + 12, 12, "x")
+	local laneEnd = centerX + 97
+	--[[
+		Ana aksın SAĞ kenarından başlıyor (centerX + 9). Eskiden aksın içine
+		(centerX - 6) giriyordu ve kesikli şeritleri çark kolunun şeritleriyle
+		aynı yükseklikte üst üste biniyordu — ölçüldü: dört çift titreyen
+		şerit. Aksın kenarına değmesi yolu bağlı gösteriyor.
+	]]
+	local laneStart = centerX + 9
+	lane((laneStart + laneEnd) / 2, lobbyZ - 22, laneEnd - laneStart, 12, "x")
 	lane(hatchX, lobbyZ - 19.4, 7.6, 14, "z")
+
+	--[[
+		═══ EKİPMAN DÜKKÂNI (GEAR SHOP) ════════════════════════════════════
+
+		Yumurtaların KARŞISINDA: kuluçkahane +z'de, dükkân yolun öbür
+		yanında ona bakıyor. Tezgâh, arkasında satıcı mürettebat, tezgâhın
+		üstünde üç aletin vitrini, arka duvarda tabela.
+
+		ÖLÇÜLDÜ: x 245–278 × z 262–290 boş. Sağ banklar x 280.7'de, zemin
+		çerçevesi (LobbyRing) x 234'te bitiyor.
+
+		Adı belli parçalara GearService iş bağlıyor (kuluçkahane düzeni):
+		    GearCounter     prompt ("Open Shop"); istemci pencereyi açıyor
+		    GearPlinth1..3  vitrin modelleri (Config.Gear sırasıyla)
+	]]
+	do
+		local g = group("GearShop")
+		local gx = centerX + 81.5            -- 261.5
+		local gz0, gz1 = lobbyZ - 54, lobbyZ - 36   -- 266..284
+		local gcz = (gz0 + gz1) / 2
+		local DECK = 0.6
+		local ORANGE = Color3.fromRGB(239, 125, 13)
+
+		build({ name = "GearDeck", size = Vector3.new(30, DECK, gz1 - gz0),
+			cf = at(gx, DECK / 2, gcz), color = STEEL_DARK,
+			material = Enum.Material.Metal, collide = true, parent = g })
+		-- Ön kenarda tehlike şeridi, zeminden 0.02 yukarıda
+		build({ name = "GearDeckStripe", size = Vector3.new(29.6, 0.1, 0.6),
+			cf = at(gx, DECK + 0.07, gz1 - 0.5), color = HAZARD,
+			emit = "Paint", parent = g })
+
+		-- Arka duvar ve üstünde gölgelik
+		local wallZ = gz0 + 0.6
+		build({ name = "GearBack", size = Vector3.new(30, 11, 1.2),
+			cf = at(gx, DECK + 5.5, wallZ), color = STEEL_MID,
+			material = Enum.Material.Metal, parent = g })
+		build({ name = "GearCanopy", size = Vector3.new(31, 0.6, 9),
+			cf = at(gx, DECK + 11.3, wallZ + 4.5 - 0.6), color = EDGE,
+			material = Enum.Material.Metal, parent = g })
+		-- Gölgeliğin ön yüzünde (z = wallZ + 8.4) turuncu bant
+		build({ name = "GearCanopyBand", size = Vector3.new(30.4, 0.8, 0.3),
+			cf = at(gx, DECK + 11.3, wallZ + 8.55), color = ORANGE,
+			emit = "Paint", parent = g })
+		for _, s in { -1, 1 } do
+			local wash = build({ name = "GearWash", size = Vector3.new(4, 0.3, 1.4),
+				cf = at(gx + s * 8, DECK + 10.85, wallZ + 5), color = LAMP,
+				emit = "Fixture", parent = g })
+			glow(wash, LAMP, 16, 0.7)
+		end
+
+		-- Tabela: duvarın ÖN yüzü +z'ye bakıyor, SurfaceGui Back yüzünde
+		local panel = build({ name = "GearSignPanel", size = Vector3.new(20, 4, 0.3),
+			cf = at(gx, DECK + 8.3, wallZ + 0.75), color = SHADOW,
+			material = Enum.Material.SmoothPlastic, parent = g })
+		local sign = Instance.new("SurfaceGui")
+		sign.Face = Enum.NormalId.Back
+		sign.CanvasSize = Vector2.new(500, 100)
+		sign.LightInfluence = 0
+		sign.Parent = panel
+		local title = Instance.new("TextLabel")
+		title.Size = UDim2.fromScale(1, 1)
+		title.BackgroundTransparency = 1
+		title.Font = Enum.Font.GothamBlack
+		title.TextScaled = true
+		title.TextColor3 = ORANGE
+		title.Text = "GEAR SHOP"
+		title.Parent = sign
+
+		-- Satıcı: tezgâhın arkasında, yola bakıyor
+		crewStatue(g, gx, wallZ + 5.2, DECK, 1.2, ORANGE, 180)
+
+		-- Tezgâh ve üstü
+		local counterZ = gz1 - 4.3
+		build({ name = "GearCounter", size = Vector3.new(22, 3.4, 2.6),
+			cf = at(gx, DECK + 1.7, counterZ), color = TEAL,
+			material = Enum.Material.SmoothPlastic, parent = g })
+		build({ name = "GearCounterTop", size = Vector3.new(22.6, 0.4, 3.2),
+			cf = at(gx, DECK + 3.6, counterZ), color = EDGE,
+			material = Enum.Material.Metal, parent = g })
+		build({ name = "GearCounterStripe", size = Vector3.new(21.6, 0.5, 0.3),
+			cf = at(gx, DECK + 2.4, counterZ + 1.45), color = ORANGE,
+			emit = "Paint", parent = g })
+
+		-- Vitrin kaideleri: Config.Gear sırasıyla soldan sağa
+		for i = 1, 3 do
+			build({ name = "GearPlinth" .. i, size = Vector3.new(2.4, 0.5, 2.4),
+				cf = at(gx + (i - 2) * 7, DECK + 4.05, counterZ), color = STEEL_DARK,
+				material = Enum.Material.Metal, parent = g })
+		end
+	end
+
+	-- Dükkânın önünden kuluçkahane yoluna kısa bağlantı (z yönlü, yükseltilmiş)
+	lane(centerX + 81.5, lobbyZ - 32, 8, 10, "z")
 
 	--[[
 		Nakliye gemisi oturakları. Among Us'ın lobi ekranındaki sıra sıra

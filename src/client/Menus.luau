@@ -110,7 +110,7 @@ function Menus.Create(screen: ScreenGui): Menu
 		kabartma dilinde — oyuncu iki kenarı tek bir arayüz olarak okuyor.
 
 		Adı MenuDock KALIYOR: RebirthPanel düğmesini buraya adıyla takıyor
-		ve HudToggle bu adı gizleme listesinde tutuyor.
+		ve Topbar bu adı gizleme listesinde tutuyor.
 	]]
 	--[[
 		Sağ ALT köşe: haritanın kaldırılmasıyla boşaldı. Sağ üst artık
@@ -162,7 +162,7 @@ function Menus.Create(screen: ScreenGui): Menu
 
 	-- ─── Üst katman ─────────────────────────────────────────────────────────
 
-	local overlay = UiKit.Shell(screen, "MenuOverlay", ACCENT)
+	local overlay = UiKit.Window(screen, "MenuOverlay", ACCENT)
 	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
 	overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
 	overlay.Size = UDim2.new(0, 440, 0, 420)

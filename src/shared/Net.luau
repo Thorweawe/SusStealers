@@ -23,6 +23,7 @@ local EVENTS = {
 	"Pets",         -- server -> client (sahip olunanlar + takılı sıra)
 	"PetHatched",   -- server -> client (key: string, source: "egg" | "fuse")
 	"Summons",      -- server -> client (text: string) — Summons sohbet kanalı
+	"Rewards",      -- server -> client (günlük seri + oynama süresi durumu)
 	"TutorialSkip", -- client -> server (argümansız)
 	"TitleEquip",   -- client -> server (titleId: string)
 	"PotionUse",    -- client -> server (potionId: string)
@@ -33,6 +34,8 @@ local EVENTS = {
 	"PetHatch",     -- client -> server (eggId: string)
 	"PetEquip",     -- client -> server (key: string, equip: boolean)
 	"PetFuse",      -- client -> server (key: string)
+	"RewardClaim",  -- client -> server (kind: "daily"|"playtime"|"index", arg)
+	"GearBuy",      -- client -> server (gearId: string)
 	"Sprint",       -- client -> server (active: boolean)
 }
 
@@ -82,6 +85,17 @@ local CLIENT_TO_SERVER = {
 	PetHatch = true,
 	PetEquip = true,
 	PetFuse = true,
+	--[[
+		RewardClaim bedava bir şey VERMİYOR: hak sunucudaki sayaçlardan
+		hesaplanıyor (gün numarası, oynanan saniye, keşif listesi) ve
+		toplanan ödül profile işaretleniyor. İstemci yalnızca "şunu
+		topluyorum" diyor; hakkı yoksa reddediliyor (RewardService).
+
+		GearBuy oyuncunun KENDİ parasını harcıyor; fiyat ve sahiplik
+		sunucuda (GearService.TryBuy).
+	]]
+	RewardClaim = true,
+	GearBuy = true,
 	--[[
 		Sprint yalnızca bir bayrak; hızı sunucu belirliyor ve TAŞIRKEN
 		reddediyor. Roblox'ta oyuncu zaten kendi WalkSpeed'ini istemciden

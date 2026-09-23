@@ -112,12 +112,21 @@ local function applyWalkSpeed(player: Player)
 		return
 	end
 
+	--[[
+		Ekipman hızı (Speed Coil) nitelikten okunuyor: GearService yazıyor.
+		Yalnızca TAŞIMIYORKEN sayılıyor — çalınan karakterle kaçarken
+		hızlanmak çalmanın riskini silerdi. Koşuyla üst üste binmiyor,
+		büyüğü geçerli.
+	]]
+	local gearSpeed = player:GetAttribute("GearSpeed")
+	local boost = if typeof(gearSpeed) == "number" then gearSpeed else 0
+
 	if carrying[player] then
 		humanoid.WalkSpeed = carrySpeedFor(player)
 	elseif sprinting[player] then
-		humanoid.WalkSpeed = Config.SprintWalkSpeed
+		humanoid.WalkSpeed = math.max(Config.SprintWalkSpeed, boost)
 	else
-		humanoid.WalkSpeed = Config.NormalWalkSpeed
+		humanoid.WalkSpeed = math.max(Config.NormalWalkSpeed, boost)
 	end
 end
 
@@ -125,6 +134,16 @@ end
 function StealService.SetSprinting(player: Player, active: boolean)
 	sprinting[player] = active or nil
 	applyWalkSpeed(player)
+end
+
+--[[ Hızı yeniden hesaplar (ekipman takılıp çıkarılınca GearService çağırıyor). ]]
+function StealService.RefreshSpeed(player: Player)
+	applyWalkSpeed(player)
+end
+
+--[[ Oyuncu şu an çalınmış bir karakter taşıyor mu. ]]
+function StealService.IsCarrying(player: Player): boolean
+	return carrying[player] ~= nil
 end
 
 local function lockValuesFor(player: Player): (number, number)
@@ -223,6 +242,19 @@ local function returnToVictim(player: Player)
 	end
 
 	stopCarrying(player)
+end
+
+--[[
+	Tokat (Slap Glove): hırsız taşıdığını düşürüyor, karakter kurbanın
+	üssüne geri dönüyor. Yakalama promptuyla aynı sonuç ama başka biri de
+	yapabiliyor — kurbanın arkadaşı da savunabilsin. Taşımıyorsa false.
+]]
+function StealService.KnockDrop(thief: Player): boolean
+	if not carrying[thief] then
+		return false
+	end
+	returnToVictim(thief)
+	return true
 end
 
 -- ─── Yakalama ───────────────────────────────────────────────────────────────

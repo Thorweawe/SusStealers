@@ -28,6 +28,7 @@ local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
+local AutoHatch = require(script.Parent.AutoHatch)
 
 local PetPanel = {}
 
@@ -59,8 +60,8 @@ local CARD_W, CARD_H = 96, 108
 ]]
 local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
 
-function PetPanel.Create(screen: ScreenGui): Panel
-	local overlay = UiKit.Shell(screen, "PetPanel", ACCENT)
+function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
+	local overlay = UiKit.Window(screen, "PetPanel", ACCENT)
 	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
 	overlay.Position = UDim2.fromScale(0.5, 0.5)
 	overlay.Size = UDim2.fromOffset(580, 520)
@@ -110,7 +111,7 @@ function PetPanel.Create(screen: ScreenGui): Panel
 	local eggRow = Instance.new("Frame")
 	eggRow.Name = "Eggs"
 	eggRow.Position = UDim2.fromOffset(14, 60)
-	eggRow.Size = UDim2.new(1, -28, 0, 70)
+	eggRow.Size = UDim2.new(1, -28, 0, 98)
 	eggRow.BackgroundTransparency = 1
 	eggRow.ZIndex = 41
 	eggRow.Parent = overlay
@@ -136,13 +137,43 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		return best
 	end
 
-	type EggCard = { def: Config.EggDef, price: TextLabel, button: TextButton }
+	type EggCard = { def: Config.EggDef, price: TextLabel, button: TextButton, autoChip: TextButton }
 	local eggCards: { EggCard } = {}
+
+	--[[
+		Küçük seçenek düğmesi: yumurta kartının altında x3 ve AUTO. Kartın
+		kendisine basmak tek açılış; seçenekler ayrı, yanlışlıkla üç yumurta
+		parası harcanmasın.
+	]]
+	local function chip(parent: Instance, text: string, x: number, tint: Color3): TextButton
+		local b = Instance.new("TextButton")
+		b.Position = UDim2.fromOffset(x, 70)
+		b.Size = UDim2.fromOffset(62, 24)
+		b.BackgroundColor3 = tint:Lerp(UiKit.ROW, 0.55)
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.Font = Enum.Font.GothamBlack
+		b.TextSize = 11
+		b.TextColor3 = Color3.new(1, 1, 1)
+		b.Text = text
+		b.ZIndex = 44
+		b.Parent = parent
+		UiKit.Corner(b, 8)
+		UiKit.Stroke(b, tint, 1.2, 0.4)
+		return b
+	end
 
 	for index, egg in Config.Eggs do
 		local tint = eggTint(egg)
-		local holder, button = UiKit.Raised(eggRow, egg.id, tint, UDim2.fromOffset(130, 66), 12)
-		holder.LayoutOrder = index
+		local column = Instance.new("Frame")
+		column.Name = egg.id
+		column.LayoutOrder = index
+		column.Size = UDim2.fromOffset(130, 96)
+		column.BackgroundTransparency = 1
+		column.ZIndex = 41
+		column.Parent = eggRow
+
+		local holder, button = UiKit.Raised(column, "Hatch", tint, UDim2.fromOffset(130, 66), 12)
 		holder.ZIndex = 41
 
 		local slot = Instance.new("Frame")
@@ -184,17 +215,44 @@ function PetPanel.Create(screen: ScreenGui): Panel
 
 		local id = egg.id
 		button.MouseButton1Click:Connect(function()
-			hatchRemote:FireServer(id)
+			hatchRemote:FireServer(id, 1, false)
 		end)
 
-		table.insert(eggCards, { def = egg, price = price, button = button })
+		-- x3: Triple Hatch pass'i; yoksa sunucu nedenini bildirimle söylüyor
+		local triple = chip(column, "x3", 0, tint)
+		triple.MouseButton1Click:Connect(function()
+			hatchRemote:FireServer(id, Config.TripleHatchCount, false)
+		end)
+
+		-- AUTO: istemci döngüsü (AutoHatch); grup şartı sunucuda
+		local autoChip = chip(column, "AUTO", 68, UiKit.CREW.PINK)
+		autoChip.MouseButton1Click:Connect(function()
+			if auto then
+				auto.Toggle(id, 1)
+			end
+		end)
+
+		table.insert(eggCards, { def = egg, price = price, button = button, autoChip = autoChip })
+	end
+
+	-- AUTO açık olan yumurtanın düğmesi yanık: hangisinin döndüğü belli olsun
+	local function refreshAuto()
+		local running = if auto then auto.Current() else nil
+		for _, card in eggCards do
+			local on = running == card.def.id
+			card.autoChip.Text = if on then "STOP" else "AUTO"
+			card.autoChip.BackgroundColor3 = if on then UiKit.CREW.RED else UiKit.CREW.PINK:Lerp(UiKit.ROW, 0.55)
+		end
+	end
+	if auto then
+		auto.Changed.Event:Connect(refreshAuto)
 	end
 
 	-- ─── Koleksiyon ─────────────────────────────────────────────────────────
 
 	local list = Instance.new("ScrollingFrame")
-	list.Position = UDim2.fromOffset(14, 138)
-	list.Size = UDim2.new(1, -28, 1, -152)
+	list.Position = UDim2.fromOffset(14, 166)
+	list.Size = UDim2.new(1, -28, 1, -180)
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
 	list.ScrollBarThickness = 4
@@ -246,10 +304,12 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			f'in yalnızca İLK dönüşünü alıyor ve mutasyon hep nil kalıyordu.
 		]]
 		local mutation: Config.PetMutationDef? = nil
+		local size: Config.PetSizeDef? = nil
 		local income, speed = def.incomeBonus, def.speedBonus
 		if key then
-			local _, m = Config.ParsePetKey(key)
+			local _, m, s = Config.ParsePetKey(key)
 			mutation = m
+			size = s
 			income, speed = Config.GetPetKeyBonus(key)
 		end
 
@@ -311,6 +371,27 @@ function PetPanel.Create(screen: ScreenGui): Panel
 		tag.Parent = card
 
 		--[[
+			Boyut rozeti (BIG / HUGE / TITAN): sol üstte, altın zemin. Pet
+			simülatörlerindeki "Huge" etiketinin karşılığı; büyüklük ekranda
+			da bakışta okunsun.
+		]]
+		if size then
+			local sizeChip = Instance.new("TextLabel")
+			sizeChip.Position = UDim2.fromOffset(5, 5)
+			sizeChip.Size = UDim2.fromOffset(0, 14)
+			sizeChip.AutomaticSize = Enum.AutomaticSize.X
+			sizeChip.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
+			sizeChip.BorderSizePixel = 0
+			sizeChip.Font = Enum.Font.GothamBlack
+			sizeChip.TextSize = 10
+			sizeChip.TextColor3 = Color3.fromRGB(40, 30, 10)
+			sizeChip.Text = " " .. string.upper(size.name) .. " "
+			sizeChip.ZIndex = 46
+			sizeChip.Parent = card
+			UiKit.Corner(sizeChip, 4)
+		end
+
+		--[[
 			İstatistik sahip olunmasa da GÖRÜNÜYOR: neyi kaçırdığını
 			bilmeden hedef olmuyor.
 		]]
@@ -364,10 +445,9 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			kazayla yakmak demekti.
 		]]
 		if mode == "fuse" then
-			local nextRarity = Config.GetNextRarity(def.rarity) :: string
-			local nextInfo = Config.Rarities[nextRarity]
+			local nextSize = Config.GetNextPetSize(size) :: Config.PetSizeDef
 			stat.Visible = false
-			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", nextInfo.color, UDim2.new(1, -10, 0, 30), 8)
+			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", Color3.fromRGB(236, 176, 50), UDim2.new(1, -10, 0, 30), 8)
 			fuseHolder.AnchorPoint = Vector2.new(0.5, 1)
 			fuseHolder.Position = UDim2.new(0.5, 0, 1, -6)
 			fuseHolder.ZIndex = 46
@@ -379,7 +459,7 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			fuseText.TextSize = 11
 			fuseText.TextColor3 = Color3.new(1, 1, 1)
 			fuseText.TextStrokeTransparency = 0.5
-			fuseText.Text = "FUSE → " .. string.upper(nextRarity)
+			fuseText.Text = "FUSE → " .. string.upper(nextSize.name)
 			fuseText.TextScaled = true
 			fuseText.ZIndex = 48
 			fuseText.Parent = fuse
@@ -412,14 +492,14 @@ function PetPanel.Create(screen: ScreenGui): Panel
 
 		local fusing = mode == "fuse"
 		eggRow.Visible = not fusing
-		list.Position = UDim2.fromOffset(14, if fusing then 60 else 138)
-		list.Size = UDim2.new(1, -28, 1, if fusing then -74 else -152)
+		list.Position = UDim2.fromOffset(14, if fusing then 60 else 166)
+		list.Size = UDim2.new(1, -28, 1, if fusing then -74 else -180)
 		heading.Text = if fusing then "FUSE MACHINE" else "PETS"
 
 		local slotsUsed = #equipped
 		local income, speed = Config.GetPetBonus(equipped)
 		if fusing then
-			hint.Text = string.format("Pick a pet you have %d of. They become 1 pet of the next rarity (mutation kept).", Config.PetFuseCount)
+			hint.Text = string.format("Fuse %d of the same pet into a bigger one: Big → Huge → Titan.", Config.PetFuseCount)
 		else
 			hint.Text = string.format("%d / %d equipped  ·  click to equip  ·  fuse at the Pet Hatchery", slotsUsed, Config.PetEquipSlots)
 			if slotsUsed > 0 then
@@ -438,10 +518,10 @@ function PetPanel.Create(screen: ScreenGui): Panel
 			local found: { [string]: boolean } = {}
 
 			for key, count in owned do
-				local def = Config.ParsePetKey(key)
+				local def, _, size = Config.ParsePetKey(key)
 				if def and def.rarity == tier and count > 0 then
-					-- Birleştirme modunda yalnızca üç kopyası olan ve üstü olan
-					local fusable = count >= Config.PetFuseCount and Config.GetNextRarity(def.rarity) ~= nil
+					-- Birleştirme modunda yalnızca üç kopyası olan ve daha büyüyebilen
+					local fusable = count >= Config.PetFuseCount and Config.GetNextPetSize(size) ~= nil
 					if not fusing or fusable then
 						table.insert(slots, { def = def, key = key, count = count })
 						anyFusable = anyFusable or fusable
@@ -453,8 +533,14 @@ function PetPanel.Create(screen: ScreenGui): Panel
 				if a.def.id ~= b.def.id then
 					return a.def.name < b.def.name
 				end
-				local _, ma = Config.ParsePetKey(a.key :: string)
-				local _, mb = Config.ParsePetKey(b.key :: string)
+				-- Aynı pet: önce boyut (düz → Titan), sonra mutasyon
+				local _, ma, sa = Config.ParsePetKey(a.key :: string)
+				local _, mb, sb = Config.ParsePetKey(b.key :: string)
+				local ia = if sa then table.find(Config.PetSizes, sa) or 0 else 0
+				local ib = if sb then table.find(Config.PetSizes, sb) or 0 else 0
+				if ia ~= ib then
+					return ia < ib
+				end
 				return (MUTATION_ORDER[if ma then ma.id else ""] or 0) < (MUTATION_ORDER[if mb then mb.id else ""] or 0)
 			end)
 			if not fusing then

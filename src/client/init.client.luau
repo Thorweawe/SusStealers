@@ -33,7 +33,8 @@ local ChatTitles = require(script.ChatTitles)
 local TutorialUI = require(script.TutorialUI)
 local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
-local HudToggle = require(script.HudToggle)
+local Topbar = require(script.Topbar)
+local RewardsPanel = require(script.RewardsPanel)
 local Music = require(script.Music)
 local OwnPlot = require(script.OwnPlot)
 local Sprint = require(script.Sprint)
@@ -43,6 +44,8 @@ local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
 local PetPanel = require(script.PetPanel)
 local HatchFX = require(script.HatchFX)
+local AutoHatch = require(script.AutoHatch)
+local GearPanel = require(script.GearPanel)
 local Summons = require(script.Summons)
 
 local player = Players.LocalPlayer
@@ -453,7 +456,7 @@ end)
 	diğerlerini ve çekirdeği bekletmesin.
 	pcall — biri hata verirse sessizce kaybolmasın, adıyla konsola düşsün.
 
-	Sıra önemsiz: HudToggle gizleyeceği panelleri tıklama anında adıyla
+	Sıra önemsiz: Topbar gizleyeceği panelleri tıklama anında adıyla
 	arıyor, kurulum anında değil.
 ]]
 local function mountPanel(name: string, mount: () -> ())
@@ -532,7 +535,14 @@ end)
 	zaten gosteriyor; burasi yalnizca arayuzu kuruyor.
 ]]
 mountPanel("PetPanel", function()
-	local panel = PetPanel.Create(screen)
+	--[[
+		Açılış animasyonu, otomatik açma döngüsü ve pet penceresi birbirine
+		bağlı: otomatik açma animasyon bitmeden bir sonrakini istemiyor,
+		pencere de hangi yumurtada otomatiğin açık olduğunu gösteriyor.
+	]]
+	local hatchFX = HatchFX.Create(screen)
+	local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
+	local panel = PetPanel.Create(screen, auto)
 
 	local dock = screen:WaitForChild("MenuDock", 10)
 	if not dock then
@@ -555,8 +565,17 @@ mountPanel("PetPanel", function()
 		sunucuda, makineye yakınlık orada doğrulanıyor.
 	]]
 	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
-		if who == player and prompt.Name == "FusePrompt" then
+		if who ~= player then
+			return
+		end
+		if prompt.Name == "FusePrompt" then
 			panel.OpenFuse()
+		elseif prompt.Name == "AutoPrompt" then
+			-- Kuluçkadaki yumurtanın T tuşu: o yumurtada otomatik açmayı aç/kapa
+			local eggId = prompt:GetAttribute("EggId")
+			if typeof(eggId) == "string" then
+				auto.Toggle(eggId, 1)
+			end
 		end
 	end)
 end)
@@ -611,16 +630,35 @@ mountPanel("SideRail", function()
 	end)
 end)
 
--- Yumurta/birlestirme animasyonu: sonucu sunucu gonderiyor, burasi gosteriyor
-mountPanel("HatchFX", function()
-	HatchFX.Create(screen)
+--[[
+	Lobideki ekipman dukkani. Tezgahtaki promptu sunucu kuruyor; pencere
+	istemcinin isi, oyuncunun kendi tetiklemesi burada gorunuyor.
+]]
+mountPanel("GearPanel", function()
+	local gear = GearPanel.Create(screen)
+	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
+		if who == player and prompt.Name == "GearPrompt" then
+			gear.Open()
+		end
+	end)
 end)
 
--- Summons sohbet sekmesi ve ustteki cagri geri sayimi
+-- Summons sohbet sekmesi (nadir cikislar)
 mountPanel("Summons", function()
 	Summons.Create(screen)
 end)
 
-mountPanel("HudToggle", function()
-	HudToggle.Create(screen)
+--[[
+	Üst şerit: Roblox sohbet düğmesinin yanında önce hediye kutusu (ödül
+	penceresi), sonra arayüzü gizleme gözü. Hediyenin rozeti ödül
+	penceresinin saydığı toplanabilir ödül sayısı.
+]]
+mountPanel("Topbar", function()
+	local rewards: RewardsPanel.Panel? = nil
+	local bar = Topbar.Create(screen, function()
+		if rewards then
+			rewards.Toggle()
+		end
+	end)
+	rewards = RewardsPanel.Create(screen, bar.SetGiftBadge)
 end)

@@ -1,37 +1,45 @@
 --!strict
 --[[
-	Peti koddan üretir. UnitModel'in küçük kardeşi: aynı kural, hazır
-	varlık yok, her şey Part'tan.
+	Peti koddan üretir. UnitModel'in küçük kardeşi: hazır varlık yok,
+	her şey Part'tan.
 
-	═══ NEDEN BEŞ BİÇİM ═══════════════════════════════════════════════════
+	═══ NEDEN YENİDEN YAZILDI ══════════════════════════════════════════════
 
-	Yirmi pet için yirmi ayrı model yazmak, yirmi ayrı bakım yükü demek ve
-	hiçbiri birbirine benzemezse oyun "pet koleksiyonu" değil "rastgele
-	nesne çantası" gibi durur.
+	İlk hâli köşeli bloklardan kuruluydu ve "pet" değil "eşya" gibi
+	duruyordu. Roblox'un pet oyunlarındaki petleri sevimli yapan üç şey var
+	ve üçü de burada:
 
-	Bunun yerine beş SİLUET var (blob, orb, bot, crab, shard) ve her pet
-	birine bağlı. Renk petten, taç nadirlikten geliyor. Sonuç: uzaktan
-	bakınca türünü, yakından bakınca kademesini okuyorsun.
+	  1. YUVARLAK GÖVDE — kutu yerine küre/kapsül. Part'ın kendi şekilleri
+	     yetmiyor (Ball her yönde eşit), o yüzden yerleşik ağlar
+	     kullanılıyor: SpecialMesh Sphere (elips) ve Head (kapsül). Bunlar
+	     Roblox'un içinde, mağaza varlığı değil; her yerde yükleniyor.
+	  2. BÜYÜK, PARLAK YÜZ — mürettebatın vizörü büyütüldü, üstünde iki
+	     beyaz parlama noktası var. Robotta ekranda iki göz, yengeçte sap
+	     üstünde gözler.
+	  3. KÜÇÜK GÖVDE, BÜYÜK KAFA — chibi oranı.
 
-	Biçim eşlemesi Config'de DEĞİL burada: hangi petin neye benzediği
-	görsel bir karar, denge tablosunun içinde durmamalı.
+	Tema korunuyor: her pet Skeld'in bir parçası (mini mürettebat, havalan-
+	dırma faresi, görev robotu, acil durum zili...). Tür detayları (kulak,
+	boynuz, hale, kuyruk) pet kimliğine göre ekleniyor.
 
-	═══ ÖLÇÜ ══════════════════════════════════════════════════════════════
+	═══ BOYUT ═════════════════════════════════════════════════════════════
 
-	Pet ~1.6 stud: karakterin (4.2) bel hizasında. Daha büyüğü oyuncunun
-	kendi görüşünü kapatıyordu, daha küçüğü koşarken kayboluyordu.
-	Modelin tabanı y = 0; havada durması çağıranın işi (PetService).
+	Anahtar "pet[:mutasyon][:boyut]" (Config.PetKey). Boyut (Big/Huge/
+	Titan) modeli ölçekliyor; en sonda "Radius" niteliği yazılıyor ki
+	PetService petleri yan yana dizerken birbirinin içine sokmasın.
 ]]
 
 local Config = require(script.Parent.Config)
 
 local PetModel = {}
 
--- Pet -> siluet. Listede olmayan pet "blob" oluyor; yeni pet eklenince
--- model yine de çıkıyor, sadece jenerik görünüyor.
+--[[
+	Pet -> biçim. Listede olmayan pet "blob" oluyor; yeni pet eklenince
+	model yine de çıkıyor, sadece jenerik görünüyor.
+]]
 local FORMS: { [string]: string } = {
-	MiniCrew = "blob",     Bolt = "shard",       VentRat = "crab",
-	BrainSlug = "blob",    SparePod = "orb",     Hamster = "blob",
+	MiniCrew = "blob",     Bolt = "bot",         VentRat = "blob",
+	BrainSlug = "crab",    SparePod = "orb",     Hamster = "blob",
 	MedDrone = "orb",      TaskBot = "bot",      VentCrab = "crab",
 	SusShadow = "blob",    CoreShard = "shard",  SecurityCam = "bot",
 	MiniImp = "blob",      EscapePod = "orb",    SnowPal = "blob",
@@ -39,15 +47,14 @@ local FORMS: { [string]: string } = {
 	TheEgg = "orb",        VoidShard = "shard",
 }
 
---[[ Petin siluet adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
+--[[ Petin biçim adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
 function PetModel.FormOf(petId: string): string
 	return FORMS[petId] or "blob"
 end
 
 --[[
-	Sahadaki ölçek. Pet ilk hâlinde ~1.6 stud'du ve koşarken kayboluyordu;
-	türün petleri oyuncunun beline kadar gelen, bakınca fark edilen
-	yoldaşlar. 1.35 bel hizasını geçmiyor, görüşü kapatmıyor.
+	Sahadaki taban ölçek. Boyut kademesi (Config.PetSizes) bunun üstüne
+	çarpılıyor: Titan ~ oyuncudan büyük.
 ]]
 local SCALE = 1.35
 
@@ -57,34 +64,277 @@ local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 local VISOR = Color3.fromRGB(150, 220, 255)
 local METAL = Color3.fromRGB(198, 206, 214)
 local DARK = Color3.fromRGB(26, 28, 34)
+local WHITE = Color3.fromRGB(250, 252, 255)
+local PINK = Color3.fromRGB(255, 150, 180)
 
-local function newPart(name: string, size: Vector3, color: Color3, material: Enum.Material?): Part
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.Color = color
-	part.Material = material or Enum.Material.SmoothPlastic
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	return part
+type Builder = {
+	model: Model,
+	color: Color3,
+	part: (name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?) -> Part,
+	ellipsoid: (name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?) -> Part,
+	capsule: (name: string, size: Vector3, cf: CFrame, color: Color3) -> Part,
+	cylinder: (name: string, length: number, diameter: number, cf: CFrame, color: Color3, material: Enum.Material?) -> Part,
+}
+
+local function newBuilder(model: Model, color: Color3): Builder
+	local function part(name: string, size: Vector3, cf: CFrame, tint: Color3, material: Enum.Material?): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = cf
+		p.Color = tint
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = model
+		return p
+	end
+
+	--[[ Elips: Sphere ağı parçanın boyutuna uyuyor, yani her eksende
+	     ayrı ölçü verilebiliyor. Ball şekli bunu yapamıyor. ]]
+	local function ellipsoid(name: string, size: Vector3, cf: CFrame, tint: Color3, material: Enum.Material?): Part
+		local p = part(name, size, cf, tint, material)
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = p
+		return p
+	end
+
+	--[[ Kapsül: Head ağı — yuvarlatılmış silindir. Mürettebat gövdesinin
+	     silueti tam olarak bu. ]]
+	local function capsule(name: string, size: Vector3, cf: CFrame, tint: Color3): Part
+		local p = part(name, size, cf, tint)
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Head
+		mesh.Parent = p
+		return p
+	end
+
+	local function cylinder(name: string, length: number, diameter: number, cf: CFrame, tint: Color3, material: Enum.Material?): Part
+		local p = part(name, Vector3.new(length, diameter, diameter), cf, tint, material)
+		p.Shape = Enum.PartType.Cylinder
+		return p
+	end
+
+	return {
+		model = model, color = color, part = part,
+		ellipsoid = ellipsoid, capsule = capsule, cylinder = cylinder,
+	}
 end
+
+--[[
+	Parlak vizör: elips cam + iki beyaz parlama. Parlamalar vizörü
+	"camdan bir yüz" yapıyor; onlarsız düz mavi bir leke gibi duruyor.
+]]
+local function visor(b: Builder, center: Vector3, width: number, height: number, depth: number, tint: Color3?)
+	local v = b.ellipsoid("Visor", Vector3.new(width, height, depth), CFrame.new(center), tint or VISOR, Enum.Material.Glass)
+	v.Reflectance = 0.25
+	local front = center.Z - depth / 2
+	b.ellipsoid("VisorGlint", Vector3.new(width * 0.28, height * 0.26, 0.08),
+		CFrame.new(center.X + width * 0.2, center.Y + height * 0.16, front + 0.02), WHITE, Enum.Material.Neon)
+	b.ellipsoid("VisorGlint", Vector3.new(width * 0.12, height * 0.12, 0.08),
+		CFrame.new(center.X + width * 0.34, center.Y - height * 0.06, front + 0.03), WHITE, Enum.Material.Neon)
+end
+
+--[[ Sapın ucunda göz: beyaz küre + siyah bebek + minik parlama. ]]
+local function eyeBall(b: Builder, at: Vector3, radius: number)
+	b.ellipsoid("EyeWhite", Vector3.new(radius * 2, radius * 2, radius * 2), CFrame.new(at), WHITE)
+	b.ellipsoid("EyePupil", Vector3.new(radius * 1.1, radius * 1.1, radius * 0.6),
+		CFrame.new(at + Vector3.new(0, 0, -radius * 0.78)), DARK)
+	b.ellipsoid("VisorGlint", Vector3.new(radius * 0.4, radius * 0.4, 0.06),
+		CFrame.new(at + Vector3.new(radius * 0.25, radius * 0.3, -radius * 1.02)), WHITE, Enum.Material.Neon)
+end
+
+-- ─── Biçimler ───────────────────────────────────────────────────────────────
+
+--[[
+	Blob: chibi mürettebat. Kapsül gövde (kafa ile gövde bir), iri vizör,
+	kısa bacak, sırtta küçük çanta. Tepesi y ≈ 2.1.
+]]
+local function buildBlob(b: Builder): (Part, number)
+	local body = b.capsule("Body", Vector3.new(1.55, 1.75, 1.45), CFrame.new(0, 1.12, 0), b.color)
+	visor(b, Vector3.new(0.05, 1.45, -0.62), 1.2, 0.62, 0.42)
+	b.capsule("Backpack", Vector3.new(0.9, 0.95, 0.5), CFrame.new(0, 1.0, 0.72), b.color:Lerp(Color3.new(0, 0, 0), 0.18))
+	for index, side in { -0.36, 0.36 } do
+		b.ellipsoid("Leg" .. index, Vector3.new(0.55, 0.5, 0.6), CFrame.new(side, 0.27, -0.02), b.color)
+	end
+	return body, 2.05
+end
+
+--[[ Orb: süzülen küre + eğik halka + vizör. Tepesi y ≈ 1.75. ]]
+local function buildOrb(b: Builder): (Part, number)
+	local body = b.ellipsoid("Body", Vector3.new(1.6, 1.6, 1.6), CFrame.new(0, 0.95, 0), b.color)
+	b.cylinder("Ring", 0.12, 2.35, CFrame.new(0, 0.9, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(16), 0, 0), METAL, Enum.Material.Metal)
+	visor(b, Vector3.new(0, 1.05, -0.64), 0.95, 0.5, 0.36)
+	return body, 1.75
+end
+
+--[[
+	Bot: yuvarlatılmış kutu gövde, önde koyu ekran ve ekranda parlayan iki
+	göz, tepede anten. Göz ekranı robotu "yüzü olan" bir şey yapıyor.
+]]
+local function buildBot(b: Builder): (Part, number)
+	local body = b.capsule("Body", Vector3.new(1.55, 1.3, 1.25), CFrame.new(0, 0.95, 0), b.color)
+	b.part("Screen", Vector3.new(1.05, 0.62, 0.1), CFrame.new(0, 1.0, -0.6), DARK)
+	for _, side in { -0.22, 0.22 } do
+		b.ellipsoid("ScreenEye", Vector3.new(0.2, 0.26, 0.06), CFrame.new(side, 1.02, -0.66), VISOR, Enum.Material.Neon)
+	end
+	b.part("Antenna", Vector3.new(0.08, 0.5, 0.08), CFrame.new(0, 1.8, 0), METAL, Enum.Material.Metal)
+	b.ellipsoid("AntennaTip", Vector3.new(0.24, 0.24, 0.24), CFrame.new(0, 2.08, 0), VISOR, Enum.Material.Neon)
+	for index, side in { -0.45, 0.45 } do
+		b.ellipsoid("Wheel" .. index, Vector3.new(0.34, 0.38, 0.7), CFrame.new(side, 0.26, 0), DARK)
+	end
+	return body, 2.2
+end
+
+--[[
+	Crab: basık elips gövde, saplar üstünde iri gözler, iki kıskaç ve
+	altı bacak. Havalandırmadan çıkan şey.
+]]
+local function buildCrab(b: Builder): (Part, number)
+	local body = b.ellipsoid("Body", Vector3.new(1.8, 0.95, 1.4), CFrame.new(0, 0.72, 0), b.color)
+	for _, side in { -0.32, 0.32 } do
+		b.part("Stalk", Vector3.new(0.09, 0.55, 0.09), CFrame.new(side, 1.32, -0.3), b.color:Lerp(Color3.new(0, 0, 0), 0.2))
+		eyeBall(b, Vector3.new(side, 1.66, -0.34), 0.2)
+	end
+	for _, side in { -1, 1 } do
+		b.ellipsoid("Claw", Vector3.new(0.5, 0.4, 0.45), CFrame.new(side * 1.02, 0.72, -0.45), b.color:Lerp(Color3.new(1, 1, 1), 0.12))
+		for row = -1, 1 do
+			local leg = b.part("Leg", Vector3.new(0.5, 0.1, 0.1),
+				CFrame.new(side * 0.85, 0.3, row * 0.35) * CFrame.Angles(0, 0, math.rad(side * -24)), DARK)
+			leg.Name = "Leg"
+		end
+	end
+	return body, 1.95
+end
+
+--[[ Kristal: eğik blok + parlayan çekirdek + etrafında iki kırık parça. ]]
+local function buildShard(b: Builder): (Part, number)
+	local body = b.part("Body", Vector3.new(0.95, 1.7, 0.95), CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(45), math.rad(10)), b.color, Enum.Material.Glass)
+	body.Transparency = 0.15
+	local core = b.part("ShardCore", Vector3.new(0.4, 0.95, 0.4), body.CFrame, b.color:Lerp(Color3.new(1, 1, 1), 0.6), Enum.Material.Neon)
+	core.Name = "ShardCore"
+	for index, side in { -1, 1 } do
+		b.part("Fragment" .. index, Vector3.new(0.3, 0.5, 0.3),
+			CFrame.new(side * 0.85, 1.25 + side * 0.2, 0.1) * CFrame.Angles(math.rad(30), math.rad(45), 0), b.color, Enum.Material.Glass)
+	end
+	return body, 1.95
+end
+
+-- ─── Tür detayları ──────────────────────────────────────────────────────────
+
+--[[
+	Pet kimliğine göre küçük eklemeler. Biçim kaba silueti veriyor, bu
+	tablo "hangi pet" sorusunu cevaplıyor: fare kulağından, hamster
+	yanağından, hayalet halesinden tanınıyor.
+]]
+local DETAILS: { [string]: (b: Builder, top: number) -> () } = {
+	VentRat = function(b, top)
+		for _, side in { -0.42, 0.42 } do
+			b.ellipsoid("Ear", Vector3.new(0.55, 0.55, 0.14), CFrame.new(side, top - 0.1, 0.05), b.color)
+			b.ellipsoid("EarInner", Vector3.new(0.34, 0.34, 0.06), CFrame.new(side, top - 0.1, -0.03), PINK)
+		end
+		b.part("Tail", Vector3.new(0.09, 0.09, 1.1), CFrame.new(0, 0.5, 1.15) * CFrame.Angles(math.rad(-25), 0, 0), PINK)
+	end,
+	Hamster = function(b, top)
+		for _, side in { -0.45, 0.45 } do
+			b.ellipsoid("Ear", Vector3.new(0.38, 0.38, 0.14), CFrame.new(side, top - 0.2, 0.05), b.color:Lerp(Color3.new(0, 0, 0), 0.12))
+			b.ellipsoid("Cheek", Vector3.new(0.34, 0.24, 0.12), CFrame.new(side * 1.25, 0.98, -0.62), PINK)
+		end
+	end,
+	MiniImp = function(b, top)
+		for _, side in { -1, 1 } do
+			local horn = b.part("Horn", Vector3.new(0.16, 0.45, 0.16),
+				CFrame.new(side * 0.38, top + 0.1, 0) * CFrame.Angles(0, 0, math.rad(side * -20)), DARK)
+			horn.Name = "Horn"
+		end
+	end,
+	GhostCrew = function(b, top)
+		local halo = b.cylinder("Halo", 0.08, 1.1, CFrame.new(0, top + 0.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 236, 150), Enum.Material.Neon)
+		halo.Transparency = 0.1
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name ~= "Halo" and not string.find(p.Name, "Glint") then
+				p.Transparency = math.max(p.Transparency, 0.3)
+			end
+		end
+	end,
+	SnowPal = function(b, _)
+		b.part("Nose", Vector3.new(0.14, 0.14, 0.45), CFrame.new(0, 1.2, -0.95), Color3.fromRGB(255, 140, 40))
+		b.cylinder("Scarf", 0.28, 1.62, CFrame.new(0, 0.85, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 40, 50))
+		for _, side in { -1, 1 } do
+			b.part("Arm", Vector3.new(0.7, 0.07, 0.07),
+				CFrame.new(side * 1.05, 1.0, 0) * CFrame.Angles(0, 0, math.rad(side * 25)), Color3.fromRGB(110, 70, 40))
+		end
+	end,
+	SusShadow = function(b, _)
+		-- Kırmızı vizör: "sus" bakış
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Visor" then
+				p.Color = Color3.fromRGB(255, 60, 70)
+				p.Material = Enum.Material.Neon
+			end
+		end
+	end,
+	MedDrone = function(b, top)
+		b.part("CrossV", Vector3.new(0.16, 0.5, 0.06), CFrame.new(0, 0.55, -0.74), Color3.fromRGB(230, 50, 60))
+		b.part("CrossH", Vector3.new(0.5, 0.16, 0.06), CFrame.new(0, 0.55, -0.74), Color3.fromRGB(230, 50, 60))
+		b.part("PropMast", Vector3.new(0.08, 0.3, 0.08), CFrame.new(0, top + 0.1, 0), METAL)
+		b.part("Prop", Vector3.new(1.4, 0.05, 0.18), CFrame.new(0, top + 0.26, 0), DARK)
+	end,
+	SparePod = function(b, top)
+		local dome = b.ellipsoid("Dome", Vector3.new(1.2, 0.8, 1.2), CFrame.new(0, top - 0.15, 0), VISOR, Enum.Material.Glass)
+		dome.Transparency = 0.45
+	end,
+	EscapePod = function(b, _)
+		for _, side in { -1, 1 } do
+			b.part("Fin", Vector3.new(0.1, 0.6, 0.5), CFrame.new(side * 0.85, 0.6, 0.3), METAL, Enum.Material.Metal)
+		end
+	end,
+	MeetingBell = function(b, top)
+		b.ellipsoid("Button", Vector3.new(0.8, 0.45, 0.8), CFrame.new(0, top - 0.05, 0), Color3.fromRGB(230, 40, 50), Enum.Material.Neon)
+		local cover = b.ellipsoid("Cover", Vector3.new(1.05, 0.7, 1.05), CFrame.new(0, top - 0.05, 0), VISOR, Enum.Material.Glass)
+		cover.Transparency = 0.6
+	end,
+	TheEgg = function(b, _)
+		for i = -2, 2 do
+			local zig = b.part("Crack", Vector3.new(0.34, 0.06, 0.06),
+				CFrame.new(i * 0.3, 1.32, -0.66 - math.abs(i) * -0.04) * CFrame.Angles(0, 0, math.rad(if i % 2 == 0 then 30 else -30)), DARK)
+			zig.Name = "Crack"
+		end
+	end,
+	SecurityCam = function(b, _)
+		-- Ekran yerine lens: kamera "bakıyor"
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Screen" or p.Name == "ScreenEye") then
+				p:Destroy()
+			end
+		end
+		b.cylinder("Lens", 0.35, 0.75, CFrame.new(0, 1.0, -0.72) * CFrame.Angles(0, math.rad(90), 0), DARK)
+		b.ellipsoid("LensGlass", Vector3.new(0.5, 0.5, 0.1), CFrame.new(0, 1.0, -0.9), Color3.fromRGB(255, 60, 70), Enum.Material.Neon)
+	end,
+	BrainSlug = function(b, _)
+		b.ellipsoid("Brain", Vector3.new(1.0, 0.5, 0.8), CFrame.new(0, 1.05, 0.2), PINK:Lerp(Color3.new(1, 1, 1), 0.2))
+	end,
+}
+
+-- ─── Kurulum ────────────────────────────────────────────────────────────────
 
 --[[
 	Pet modelini kurar. PrimaryPart gövdedir, taban y = 0 hizasındadır.
 
-	`key` envanter anahtarı: "MiniCrew" ya da "MiniCrew:Golden"
-	(Config.PetKey). Model adı anahtarın kendisi — PetService sahadaki
-	modelle takılı listeyi adla eşleştiriyor.
+	`key` envanter anahtarı (Config.PetKey). Model adı anahtarın kendisi —
+	PetService sahadaki modelle takılı listeyi adla eşleştiriyor.
 
 	Bilinmeyen anahtar nil döndürüyor, hata atmıyor: eski bir kayıtta
 	kaldırılmış bir pet varsa sunucu düşmemeli.
 ]]
 function PetModel.Build(key: string): Model?
-	local def, mutation = Config.ParsePetKey(key)
+	local def, mutation, size = Config.ParsePetKey(key)
 	if not def then
 		return nil
 	end
@@ -92,234 +342,59 @@ function PetModel.Build(key: string): Model?
 	local model = Instance.new("Model")
 	model.Name = key
 
+	local b = newBuilder(model, def.color)
 	local form = FORMS[def.id] or "blob"
+
 	local body: Part
-
-	--[[
-		Tacın oturacağı yükseklik. Her biçimin tepesi farklı yerde; tek
-		bir sabit kullanınca taç blob'un kafasının İÇİNDE kalıyordu.
-	]]
-	local headTop = 1.6
-
+	local top: number
 	if form == "orb" then
-		--[[ Havada duran küre: tek parça gövde + etrafında halka. En sade
-		     siluet, o yüzden halka olmadan diğerlerinden ayrılmıyordu. ]]
-		body = newPart("Body", Vector3.new(1.5, 1.5, 1.5), def.color)
-		body.Shape = Enum.PartType.Ball
-		body.CFrame = CFrame.new(0, 0.85, 0)
-		body.Parent = model
-
-		headTop = 1.62
-
-		local ring = newPart("Ring", Vector3.new(2.1, 0.12, 2.1), METAL)
-		ring.CFrame = CFrame.new(0, 0.85, 0) * CFrame.Angles(math.rad(18), 0, 0)
-		ring.Parent = model
-
+		body, top = buildOrb(b)
 	elseif form == "bot" then
-		--[[ Kutu gövde + anten. Görev konsollarının küçük hâli. ]]
-		body = newPart("Body", Vector3.new(1.25, 1.2, 1.0), def.color)
-		body.CFrame = CFrame.new(0, 0.7, 0)
-		body.Parent = model
-
-		headTop = 1.32
-
-		local mast = newPart("Antenna", Vector3.new(0.12, 0.7, 0.12), METAL)
-		mast.CFrame = CFrame.new(0, 1.6, 0.15)
-		mast.Parent = model
-
-		local tip = newPart("AntennaTip", Vector3.new(0.26, 0.26, 0.26), VISOR, Enum.Material.Neon)
-		tip.Shape = Enum.PartType.Ball
-		tip.CFrame = CFrame.new(0, 1.98, 0.15)
-		tip.Parent = model
-
-		for index, side in { -0.42, 0.42 } do
-			local tread = newPart("Tread" .. index, Vector3.new(0.3, 0.3, 1.1), DARK)
-			tread.CFrame = CFrame.new(side, 0.16, 0)
-			tread.Parent = model
-		end
-
+		body, top = buildBot(b)
 	elseif form == "crab" then
-		--[[ Alçak ve geniş: havalandırmadan çıkan şey. Bacaklar dışa
-		     açık, böylece yandan bakınca gövdeden ayrılıyor. ]]
-		body = newPart("Body", Vector3.new(1.5, 0.75, 1.2), def.color)
-		body.CFrame = CFrame.new(0, 0.62, 0)
-		body.Parent = model
-
-		headTop = 1.02
-
-		for index = 1, 6 do
-			local side = if index % 2 == 0 then 1 else -1
-			local row = math.floor((index - 1) / 2) - 1
-			local leg = newPart("Leg" .. index, Vector3.new(0.5, 0.14, 0.14), DARK)
-			leg.CFrame = CFrame.new(side * 0.9, 0.26, row * 0.42)
-				* CFrame.Angles(0, 0, math.rad(side * -22))
-			leg.Parent = model
-		end
-
+		body, top = buildCrab(b)
 	elseif form == "shard" then
-		--[[ Açılı kristal. Tek eğik blok; koleksiyondaki tek keskin
-		     siluet, o yüzden envanterde hemen ayırt ediliyor. ]]
-		body = newPart("Body", Vector3.new(0.9, 1.6, 0.9), def.color)
-		body.CFrame = CFrame.new(0, 0.9, 0) * CFrame.Angles(0, math.rad(45), math.rad(12))
-		body.Parent = model
-
-		headTop = 1.74
-
-		local core = newPart("ShardCore", Vector3.new(0.4, 0.9, 0.4), def.color:Lerp(Color3.new(1, 1, 1), 0.6), Enum.Material.Neon)
-		core.CFrame = body.CFrame
-		core.Parent = model
-
+		body, top = buildShard(b)
 	else
-		--[[ Blob: mürettebatın minyatürü. Gövde + vizör + iki ayak.
-		     Varsayılan biçim, çünkü oyunun geri kalanının dili bu. ]]
-		body = newPart("Body", Vector3.new(1.15, 1.3, 1.15), def.color)
-		body.Shape = Enum.PartType.Cylinder
-		body.CFrame = CFrame.new(0, 0.75, 0) * CFrame.Angles(0, 0, math.rad(90))
-		body.Parent = model
-
-		headTop = 1.8
-
-		local head = newPart("Head", Vector3.new(1.15, 1.15, 1.15), def.color)
-		head.Shape = Enum.PartType.Ball
-		head.CFrame = CFrame.new(0, 1.2, 0)
-		head.Parent = model
-
-		local visor = newPart("Visor", Vector3.new(0.8, 0.48, 0.32), VISOR, Enum.Material.Glass)
-		visor.CFrame = CFrame.new(0, 1.22, -0.5)
-		visor.Reflectance = 0.25
-		visor.Parent = model
-
-		for index, side in { -0.32, 0.32 } do
-			local leg = newPart("Leg" .. index, Vector3.new(0.4, 0.34, 0.5), def.color)
-			leg.CFrame = CFrame.new(side, 0.17, 0)
-			leg.Parent = model
-		end
+		body, top = buildBlob(b)
 	end
 
-	--[[
-		Yüz. Blob'un vizörü zaten var; diğer biçimler yüzsüzdü ve "pet"
-		değil "nesne" gibi duruyordu. Türün petlerini sevimli yapan şey
-		gözleri — burada mürettebatın vizörü o işi görüyor. Kristalde yüz
-		yok: o kasten cansız bir parça.
-
-		Adı "Visor": mutasyon boyaması vizörü atlıyor.
-	]]
-	local function face(size: Vector3, cf: CFrame)
-		local visor = newPart("Visor", size, VISOR, Enum.Material.Glass)
-		visor.CFrame = cf
-		visor.Reflectance = 0.3
-		visor.Parent = model
-		-- Vizördeki parlama noktası: camı canlı gösteren küçük beyaz leke
-		local glint = newPart("VisorGlint", Vector3.new(size.X * 0.22, size.Y * 0.3, 0.06), Color3.new(1, 1, 1), Enum.Material.Neon)
-		glint.CFrame = cf * CFrame.new(size.X * 0.24, size.Y * 0.18, -size.Z / 2 - 0.01)
-		glint.Parent = model
+	local detail = DETAILS[def.id]
+	if detail then
+		detail(b, top)
 	end
 
-	if form == "orb" then
-		face(Vector3.new(0.8, 0.42, 0.3), CFrame.new(0, 0.95, -0.68))
-	elseif form == "bot" then
-		face(Vector3.new(0.85, 0.4, 0.14), CFrame.new(0, 0.85, -0.53))
-	elseif form == "crab" then
-		face(Vector3.new(0.9, 0.3, 0.2), CFrame.new(0, 0.72, -0.62))
-	elseif form == "blob" then
-		local glint = newPart("VisorGlint", Vector3.new(0.18, 0.14, 0.06), Color3.new(1, 1, 1), Enum.Material.Neon)
-		glint.CFrame = CFrame.new(0.2, 1.3, -0.68)
-		glint.Parent = model
-	end
-
-	--[[
-		═══ NADİRLİK ═════════════════════════════════════════════════════
-
-		UnitModel'deki mantığın aynısı: kademe kafaya takılan şeyden
-		okunuyor. Burada daha küçük ve daha az parça — pet zaten küçük,
-		kafasına beş parçalık taç koyarsak taç peti yutar.
-
-		Common'da hiçbir şey yok. Bu kasten: bir şeyin olmaması da bir
-		işaret ve "en alt kademe" mesajını bedavaya veriyor.
-	]]
 	local rarity = Config.Rarities[def.rarity]
-	local accent = rarity.color
-	local topY = headTop
+	local order = rarity.order
+	local glow = if def.rarity == "Secret" then Color3.fromRGB(170, 120, 255) else rarity.color
 
-	local function crown(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?)
-		local part = newPart(name, size, color, material)
-		part.CFrame = cf
-		part.Parent = model
-	end
-
-	if def.rarity == "Uncommon" then
-		crown("Band", Vector3.new(1.0, 0.14, 1.0), CFrame.new(0, topY - 0.1, 0), accent)
-
-	elseif def.rarity == "Rare" then
-		crown("Cap", Vector3.new(0.95, 0.3, 0.95), CFrame.new(0, topY, 0), accent)
-		crown("CapBrim", Vector3.new(0.85, 0.1, 0.6), CFrame.new(0, topY - 0.14, -0.5), accent)
-
-	elseif def.rarity == "Epic" then
-		crown("Dome", Vector3.new(1.15, 1.15, 1.15), CFrame.new(0, topY + 0.02, 0), accent)
-		crown("DomeRim", Vector3.new(1.2, 0.1, 1.2), CFrame.new(0, topY - 0.3, 0), DARK)
-		local dome = model:FindFirstChild("Dome") :: Part
-		dome.Shape = Enum.PartType.Ball
-		dome.Transparency = 0.45
-
-	elseif def.rarity == "Legendary" then
-		for index = 1, 4 do
-			local angle = (index - 1) * math.pi / 2
-			crown("Spike" .. index,
-				Vector3.new(0.14, 0.5, 0.14),
-				CFrame.new(math.sin(angle) * 0.42, topY + 0.18, math.cos(angle) * 0.42),
-				accent)
-		end
-		crown("CrownBand", Vector3.new(1.0, 0.16, 1.0), CFrame.new(0, topY - 0.05, 0), accent)
-
-	elseif def.rarity == "Mythic" then
-		for index = 1, 6 do
-			local angle = (index - 1) * math.pi / 3
-			crown("Spike" .. index,
-				Vector3.new(0.14, 0.7, 0.14),
-				CFrame.new(math.sin(angle) * 0.46, topY + 0.3, math.cos(angle) * 0.46),
-				accent)
-		end
-		crown("CrownBand", Vector3.new(1.05, 0.2, 1.05), CFrame.new(0, topY - 0.02, 0), accent)
-		crown("Gem", Vector3.new(0.3, 0.3, 0.3), CFrame.new(0, topY + 0.6, 0), accent, Enum.Material.Neon)
-
-	elseif def.rarity == "Secret" then
-		--[[ Secret'ta taç YOK, bunun yerine petin kendisi yarı saydam ve
-		     etrafında dönen bir çekirdek var. Diğer kademeler "daha çok
-		     şey takmak" üzerine kurulu; Secret o merdivenden çıkıyor ve
-		     bu yüzden hemen fark ediliyor. ]]
-		for _, part in model:GetChildren() do
-			if part:IsA("BasePart") then
-				part.Transparency = 0.35
-				part.Material = Enum.Material.Glass
+	--[[
+		Secret: gövde yarı saydam cam, içinde parlayan bir çekirdek. Diğer
+		kademeler "daha çok ışık" üzerine kurulu; Secret o merdivenden
+		çıkıyor ve bu yüzden hemen fark ediliyor.
+	]]
+	if def.rarity == "Secret" then
+		for _, p in model:GetChildren() do
+			if p:IsA("BasePart") and p.Color == def.color then
+				p.Transparency = math.max(p.Transparency, 0.3)
+				p.Material = Enum.Material.Glass
 			end
 		end
-		crown("SecretCore", Vector3.new(0.45, 0.45, 0.45), CFrame.new(0, topY - 0.2, 0), accent, Enum.Material.Neon)
-		local core = model:FindFirstChild("SecretCore") :: Part
-		core.Shape = Enum.PartType.Ball
+		b.ellipsoid("SecretCore", Vector3.new(0.5, 0.5, 0.5), CFrame.new(0, top * 0.5, 0), glow, Enum.Material.Neon)
 	end
 
 	--[[
 		═══ AURA ═════════════════════════════════════════════════════════
 
-		Taç yakından okunuyor; uzaktan okunan şey IŞIK. Kademeler üst üste
-		ekleniyor, yani her üst kademe bir öncekinin hepsini taşıyor:
-
+		Uzaktan okunan şey IŞIK. Kademeler üst üste ekleniyor:
 		  Rare+      ayak altında kademe renginde yarı saydam halka
 		  Epic+      çevresine kademe renginde ışık
 		  Legendary+ gövdeden kopan parıltılar
-
 		Common ve Uncommon'da hiçbiri yok: ışık kazanılan bir şey olmalı.
-		Secret'ın rengi neredeyse siyah olduğu için ışığı ve parıltısı mor.
 	]]
-	local order = rarity.order
-	local glow = if def.rarity == "Secret" then Color3.fromRGB(170, 120, 255) else accent
-
 	if order >= Config.Rarities.Rare.order then
-		local aura = newPart("Aura", Vector3.new(0.08, 2.3, 2.3), glow, Enum.Material.Neon)
-		aura.Shape = Enum.PartType.Cylinder
-		aura.CFrame = CFrame.new(0, 0.04, 0) * CFrame.Angles(0, 0, math.rad(90))
+		local aura = b.cylinder("Aura", 0.08, 2.4, CFrame.new(0, 0.04, 0) * CFrame.Angles(0, 0, math.rad(90)), glow, Enum.Material.Neon)
 		aura.Transparency = 0.55
-		aura.Parent = model
 	end
 
 	if order >= Config.Rarities.Epic.order then
@@ -353,46 +428,31 @@ function PetModel.Build(key: string): Model?
 	--[[
 		═══ MUTASYON ════════════════════════════════════════════════════
 
-		Taç kademeyi söylüyor, mutasyon GÖVDEYİ değiştiriyor — ikisi farklı
-		eksenler, farklı yerlerde okunmalı.
+		Aura kademeyi söylüyor, mutasyon GÖVDEYİ değiştiriyor:
+		  Golden  — altın ve metalik
+		  Crystal — camgöbeği cam; Polus kristallerinin rengi
+		  Cosmic  — mor neon ve etrafında ışık; uzaktan parlayan tek pet
 
-		  Golden  — gövde altın ve metalik. En sık mutasyon, en sade işaret.
-		  Crystal — gövde camgöbeği cam; Polus kristallerinin rengi.
-		  Cosmic  — gövde mor neon ve etrafında ışık. En nadiri, uzaktan
-		            parlayan tek pet o.
-
-		Taç ve vizör olduğu gibi kalıyor: mutasyonlu Legendary'nin hâlâ
-		Legendary olduğu okunmalı.
+		Yalnızca petin KENDİ renginde boyanmış parçalar gövde sayılıyor:
+		vizör, gözler, aura ve metal aksam farklı renkte kurulduğu için
+		ayrıca listelemeye gerek kalmıyor.
 	]]
 	if mutation then
-		local skip = { Visor = true, VisorGlint = true, AntennaTip = true, ShardCore = true, SecretCore = true, Aura = true }
-		for _, part in model:GetChildren() do
-			if not part:IsA("BasePart") or skip[part.Name] then
+		for _, p in model:GetChildren() do
+			if not p:IsA("BasePart") or p.Color ~= def.color then
 				continue
 			end
-			--[[
-				Yalnızca petin KENDİ renginde boyanmış parçalar gövde sayılıyor.
-				Taç (nadirlik rengi), metal aksam ve koyu bacaklar farklı
-				renkte kurulduğu için ayrıca listelemeye gerek kalmıyor.
-			]]
-			if part.Color ~= def.color then
-				continue
-			end
-
+			p.Color = mutation.tint
 			if mutation.id == "Golden" then
-				part.Color = mutation.tint
-				part.Material = Enum.Material.Metal
-				part.Reflectance = 0.2
+				p.Material = Enum.Material.Metal
+				p.Reflectance = 0.2
 			elseif mutation.id == "Crystal" then
-				part.Color = mutation.tint
-				part.Material = Enum.Material.Glass
-				part.Transparency = math.max(part.Transparency, 0.25)
+				p.Material = Enum.Material.Glass
+				p.Transparency = math.max(p.Transparency, 0.25)
 			else
-				part.Color = mutation.tint
-				part.Material = Enum.Material.Neon
+				p.Material = Enum.Material.Neon
 			end
 		end
-
 		if mutation.id == "Cosmic" then
 			local light = Instance.new("PointLight")
 			light.Color = mutation.tint
@@ -409,9 +469,21 @@ function PetModel.Build(key: string): Model?
 	tag.Value = def.id
 	tag.Parent = model
 
-	-- Ölçek en sonda: bütün ölçüler 1.0'a göre yazıldı, ışık ve parıltı da
-	-- ScaleTo ile birlikte büyüyor
-	model:ScaleTo(SCALE)
+	--[[
+		Ölçek en sonda: bütün ölçüler 1.0'a göre yazıldı. Işık ve parıltı da
+		ScaleTo ile birlikte büyüyor. Titan oyuncudan büyük — adının hakkı.
+	]]
+	model:ScaleTo(SCALE * (if size then size.scale else 1))
+
+	--[[
+		Takip için iki ölçü (PetService okuyor):
+		  Radius — yan yana dizerken aralık; Titan komşusunun içine girmesin
+		  Lift   — gövde merkezinin modelin en altından yüksekliği; büyük pet
+		           yerin içine gömülmesin diye o kadar yukarıda tutuluyor
+	]]
+	local boxCf, extents = model:GetBoundingBox()
+	model:SetAttribute("Radius", math.max(extents.X, extents.Z) / 2)
+	model:SetAttribute("Lift", body.Position.Y - (boxCf.Position.Y - extents.Y / 2))
 
 	return model
 end

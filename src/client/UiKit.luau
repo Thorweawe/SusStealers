@@ -102,6 +102,40 @@ function UiKit.Stroke(parent: Instance, color: Color3, thickness: number, transp
 end
 
 --[[
+	═══ TEK PENCERE KURALI ═══════════════════════════════════════════════
+
+	Ekranın ortasında açılan pencereler (mağaza, indeks, görevler, petler,
+	yükseltme...) aynı anda yalnızca BİR tane açık olabilir. Eskiden SHOP
+	açıkken INDEX'e basınca ikisi üst üste açık kalıyor, INDEX kapanınca
+	altında SHOP duruyordu.
+
+	Her pencere kaydını kendisi yaptırıyor; bir tanesi görünür olduğu an
+	diğerleri kapanıyor. Pencereler birbirini tanımak zorunda değil — kural
+	tek yerde, Visible değişimine bağlı.
+]]
+local exclusive: { GuiObject } = {}
+
+function UiKit.Exclusive(frame: GuiObject)
+	table.insert(exclusive, frame)
+	frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not frame.Visible then
+			return
+		end
+		for _, other in exclusive do
+			if other ~= frame and other.Visible then
+				other.Visible = false
+			end
+		end
+	end)
+	frame.Destroying:Connect(function()
+		local index = table.find(exclusive, frame)
+		if index then
+			table.remove(exclusive, index)
+		end
+	end)
+end
+
+--[[
 	Panel kabuğu: köşeleri yuvarlak, vurgu renginde ince kenarlıklı kutu.
 	Bütün paneller bundan başlıyor, böylece hepsi aynı ağırlıkta duruyor.
 ]]
@@ -113,6 +147,17 @@ function UiKit.Shell(parent: Instance, name: string, accent: Color3): Frame
 	root.Parent = parent
 	UiKit.Corner(root, 14)
 	UiKit.Stroke(root, accent, 1.4, 0.45)
+	return root
+end
+
+--[[
+	Ortada açılan pencere: Shell + tek pencere kuralı. Pencere panelleri
+	bunu kullanıyor; HUD'da sürekli duran kutular (sıralama tablosu gibi)
+	düz Shell kullanıyor.
+]]
+function UiKit.Window(parent: Instance, name: string, accent: Color3): Frame
+	local root = UiKit.Shell(parent, name, accent)
+	UiKit.Exclusive(root)
 	return root
 end
 
@@ -777,6 +822,167 @@ function UiKit.Badge(parent: GuiObject): TextLabel
 	UiKit.Corner(dot, 12)
 	UiKit.Stroke(dot, Color3.new(1, 1, 1), 2, 0)
 	return dot
+end
+
+--[[
+	Hediye kutusu: ödüllerin ikonu. Gövde + daha geniş kapak + dikey kurdele
+	+ tepede iki yapraklı fiyonk. Fiyonk olmadan düz bir sandıkla
+	karışıyordu (mağazanın ikonu sandık).
+]]
+function UiKit.Gift(parent: Instance, size: number, tint: Color3, ribbon: Color3?): Frame
+	local z = baseZ(parent)
+	local band = ribbon or Color3.fromRGB(255, 230, 120)
+
+	local holder = Instance.new("Frame")
+	holder.Name = "Gift"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = z
+	holder.Parent = parent
+
+	local function box(pos: UDim2, sz: UDim2, color: Color3, zOff: number, radius: number?, rot: number?): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = pos
+		f.Size = sz
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		f.Rotation = rot or 0
+		f.ZIndex = z + zOff
+		f.Parent = holder
+		if radius then
+			UiKit.Corner(f, radius)
+		end
+		return f
+	end
+
+	box(UDim2.fromScale(0.5, 0.64), UDim2.fromScale(0.72, 0.5), tint, 1, math.max(2, math.floor(size * 0.06)))
+	box(UDim2.fromScale(0.5, 0.38), UDim2.fromScale(0.86, 0.2), tint:Lerp(Color3.new(1, 1, 1), 0.15), 2, math.max(2, math.floor(size * 0.05)))
+	box(UDim2.fromScale(0.5, 0.58), UDim2.fromScale(0.16, 0.62), band, 3)
+	box(UDim2.fromScale(0.36, 0.2), UDim2.fromScale(0.26, 0.18), band, 3, math.max(2, math.floor(size * 0.08)), -28)
+	box(UDim2.fromScale(0.64, 0.2), UDim2.fromScale(0.26, 0.18), band, 3, math.max(2, math.floor(size * 0.08)), 28)
+	box(UDim2.fromScale(0.5, 0.26), UDim2.fromScale(0.14, 0.14), band:Lerp(Color3.new(0, 0, 0), 0.15), 4, math.max(2, math.floor(size * 0.07)))
+	return holder
+end
+
+--[[
+	Göz: arayüzü gizle/göster düğmesinin ikonu. Emoji yerine çizim, çünkü
+	emoji her cihazda farklı çıkıyor (bazılarında kutu). Gizliyken üstünde
+	çapraz çizgi.
+]]
+function UiKit.EyeIcon(parent: Instance, size: number, crossed: boolean): Frame
+	local z = baseZ(parent)
+
+	local holder = Instance.new("Frame")
+	holder.Name = "Eye"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = z
+	holder.Parent = parent
+
+	local white = Instance.new("Frame")
+	white.AnchorPoint = Vector2.new(0.5, 0.5)
+	white.Position = UDim2.fromScale(0.5, 0.5)
+	white.Size = UDim2.fromScale(0.92, 0.56)
+	white.BackgroundColor3 = Color3.new(1, 1, 1)
+	white.BorderSizePixel = 0
+	white.ZIndex = z + 1
+	white.Parent = holder
+	local c1 = Instance.new("UICorner")
+	c1.CornerRadius = UDim.new(0.5, 0)
+	c1.Parent = white
+
+	local iris = Instance.new("Frame")
+	iris.AnchorPoint = Vector2.new(0.5, 0.5)
+	iris.Position = UDim2.fromScale(0.5, 0.5)
+	iris.Size = UDim2.fromOffset(size * 0.42, size * 0.42)
+	iris.BackgroundColor3 = UiKit.VISOR:Lerp(Color3.new(0, 0, 0), 0.35)
+	iris.BorderSizePixel = 0
+	iris.ZIndex = z + 2
+	iris.Parent = holder
+	UiKit.Corner(iris, math.floor(size * 0.21))
+
+	local pupil = Instance.new("Frame")
+	pupil.AnchorPoint = Vector2.new(0.5, 0.5)
+	pupil.Position = UDim2.fromScale(0.5, 0.5)
+	pupil.Size = UDim2.fromOffset(size * 0.2, size * 0.2)
+	pupil.BackgroundColor3 = Color3.fromRGB(16, 18, 24)
+	pupil.BorderSizePixel = 0
+	pupil.ZIndex = z + 3
+	pupil.Parent = holder
+	UiKit.Corner(pupil, math.floor(size * 0.1))
+
+	if crossed then
+		local slash = Instance.new("Frame")
+		slash.AnchorPoint = Vector2.new(0.5, 0.5)
+		slash.Position = UDim2.fromScale(0.5, 0.5)
+		slash.Size = UDim2.new(1.05, 0, 0, math.max(2, size * 0.1))
+		slash.Rotation = -40
+		slash.BackgroundColor3 = UiKit.CREW.RED
+		slash.BorderSizePixel = 0
+		slash.ZIndex = z + 4
+		slash.Parent = holder
+		UiKit.Stroke(slash, Color3.new(0, 0, 0), 1, 0.5)
+	end
+
+	return holder
+end
+
+--[[
+	Ekipman ikonu: Gear Shop'taki aletin 2B hâli (GearModel ile aynı renkler).
+	  SlapGlove   — kırmızı el: avuç + dört parmak + başparmak
+	  GravityCoil — mor yay, SpeedCoil — kırmızı-mavi yay
+]]
+function UiKit.GearIcon(parent: Instance, size: number, id: string): Frame
+	local z = baseZ(parent)
+	local holder = Instance.new("Frame")
+	holder.Name = "GearIcon"
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = UDim2.fromScale(0.5, 0.5)
+	holder.Size = UDim2.fromOffset(size, size)
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = z
+	holder.Parent = parent
+
+	local function blob(pos: UDim2, sz: UDim2, color: Color3, zOff: number, rot: number?): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Position = pos
+		f.Size = sz
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		f.Rotation = rot or 0
+		f.ZIndex = z + zOff
+		f.Parent = holder
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0.5, 0)
+		c.Parent = f
+		return f
+	end
+
+	if id == "SlapGlove" then
+		local red = Color3.fromRGB(220, 50, 60)
+		blob(UDim2.fromScale(0.5, 0.62), UDim2.fromScale(0.58, 0.46), red, 1)
+		for i = 0, 3 do
+			blob(UDim2.fromScale(0.3 + i * 0.13, 0.3), UDim2.fromScale(0.13, 0.36), red, 2)
+		end
+		blob(UDim2.fromScale(0.2, 0.62), UDim2.fromScale(0.14, 0.3), red, 2, 35)
+		blob(UDim2.fromScale(0.5, 0.9), UDim2.fromScale(0.4, 0.14), Color3.fromRGB(240, 240, 245), 1)
+	else
+		local tint = if id == "SpeedCoil" then Color3.fromRGB(220, 50, 60) else Color3.fromRGB(150, 80, 240)
+		local accent = if id == "SpeedCoil" then Color3.fromRGB(50, 120, 245) else Color3.fromRGB(230, 205, 255)
+		local rings = if id == "SpeedCoil" then 6 else 5
+		for i = 1, rings do
+			local y = 0.8 - (i - 1) * (0.62 / (rings - 1))
+			blob(UDim2.fromScale(0.5, y), UDim2.fromScale(0.7, 0.13), if i % 2 == 0 then accent else tint, 1)
+		end
+		blob(UDim2.fromScale(0.5, 0.1), UDim2.fromScale(0.2, 0.2), accent, 2)
+	end
+	return holder
 end
 
 --[[ Madeni para: nakit hapının ikonu. ]]

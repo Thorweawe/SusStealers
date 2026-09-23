@@ -22,6 +22,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+-- Yalnızca tek pencere kuralı için (UiKit.Exclusive)
+local UiKit = require(script.Parent.UiKit)
+
 local RebirthPanel = {}
 
 local player = Players.LocalPlayer
@@ -185,6 +188,8 @@ function RebirthPanel.Create(screen: ScreenGui): Panel
 	root.Visible = false
 	root.ZIndex = 12
 	root.Parent = screen
+	-- Açılınca diğer pencereleri kapatır (mağaza, indeks...)
+	UiKit.Exclusive(root)
 	corner(root, 16)
 	stroke(root, EMBER, 1.6, 0.35)
 

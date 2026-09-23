@@ -55,6 +55,7 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local AnnounceService = require(script.Parent.AnnounceService)
 local PromptGuard = require(script.Parent.PromptGuard)
+local MonetizationService = require(script.Parent.MonetizationService)
 
 local PetService = {}
 
@@ -217,6 +218,17 @@ local function stepFollow(delta: number)
 			continue
 		end
 
+		--[[
+			Petler büyüdükçe (Big/Huge/Titan) araları da açılıyor: sabit
+			aralıkla Titan komşusunun içine giriyordu. Her modelin yarıçapı
+			kurulurken "Radius" niteliğine yazılıyor (PetModel).
+		]]
+		local widest = 0
+		for _, model in models do
+			local r = model:GetAttribute("Radius")
+			widest = math.max(widest, if typeof(r) == "number" then r else 1.5)
+		end
+
 		local count = #models
 		for index, model in models do
 			local primary = model.PrimaryPart
@@ -231,14 +243,27 @@ local function stepFollow(delta: number)
 				end
 			end
 
+			local radius = model:GetAttribute("Radius")
+			radius = if typeof(radius) == "number" then radius else 1.5
+
 			-- Yay: tek pet tam arkada, üç pet -1/0/+1 sütunlarda
 			local spread = if count > 1 then (index - 1) / (count - 1) - 0.5 else 0
-			local offset = Vector3.new(spread * 5.5, 0, 4.2 + math.abs(spread) * 1.2)
+			local gap = math.max(5.5, widest * 2 * 1.25 + 1)
+			local offset = Vector3.new(spread * gap, 0, 2.8 + radius + math.abs(spread) * 1.2)
+
+			--[[
+				Yükseklik: normal pet bel hizasında süzülüyor (1.4). Büyük
+				pet aynı yükseklikte dursa gövdesi yerin içine gömülürdü;
+				gövdesinin tabanı yine bel hizasına gelecek kadar yukarı.
+			]]
+			local lift = model:GetAttribute("Lift")
+			lift = if typeof(lift) == "number" then lift else 1.5
+			local rise = 1.4 + math.max(0, lift - 1.5)
 
 			-- Her pet kendi fazında süzülüyor; aynı anda inip kalkarlarsa
 			-- tek bir nesnenin kopyaları gibi duruyorlar
 			local bob = math.sin(now * 2.4 + index * 1.7) * 0.22
-			local target = root.CFrame * CFrame.new(offset) + Vector3.new(0, 1.4 + bob, 0)
+			local target = root.CFrame * CFrame.new(offset) + Vector3.new(0, rise + bob, 0)
 			local goal = CFrame.new(target.Position, target.Position + root.CFrame.LookVector)
 
 			model:PivotTo(primary.CFrame:Lerp(goal, alpha))
@@ -273,26 +298,23 @@ local function grant(player: Player, key: string): boolean
 	return true
 end
 
---[[ "Golden Mini Crew" gibi okunur ad. ]]
-local function displayName(key: string): string
-	local def, mutation = Config.ParsePetKey(key)
-	if not def then
-		return key
-	end
-	return if mutation then mutation.name .. " " .. def.name else def.name
-end
+local displayName = Config.PetDisplayName
 
 --[[
-	Nadir sonuçları Summons kanalına yazar. Kademe VE mutasyon ayrı
-	ayrı sayılıyor: Cosmic bir Common da en nadir mutasyon, duyurulmaya
-	değer.
+	Nadir sonuçları Summons kanalına yazar: yüksek kademe, en nadir
+	mutasyon (Cosmic) ya da büyük boyut (Huge, Titan). Üçü de sunucunun
+	geri kalanının bilmesi gereken anlar.
 ]]
+local ANNOUNCE_SIZES = { Huge = true, Titan = true }
+
 local function announce(player: Player, key: string, verb: string)
-	local def, mutation = Config.ParsePetKey(key)
+	local def, mutation, size = Config.ParsePetKey(key)
 	if not def then
 		return
 	end
-	local rare = ANNOUNCE_RARITIES[def.rarity] or (mutation ~= nil and mutation.id == "Cosmic")
+	local rare = ANNOUNCE_RARITIES[def.rarity]
+		or (mutation ~= nil and mutation.id == "Cosmic")
+		or (size ~= nil and ANNOUNCE_SIZES[size.id] == true)
 	if not rare then
 		return
 	end
@@ -301,14 +323,66 @@ local function announce(player: Player, key: string, verb: string)
 		player.DisplayName, verb, AnnounceService.Paint(displayName(key), rarity.color)))
 end
 
---[[
-	Yumurta açar. Başarılıysa envanter anahtarını döndürür.
+-- ─── Açılış hakları ─────────────────────────────────────────────────────────
 
-	Çekiliş ÖNCE, harcama SONRA. Tersi olsaydı çekiliş nil dönen bir
-	yapılandırma hatasında ya da tavana çarpan bir sonuçta oyuncunun
-	parası hiçbir şey vermeden yanardı.
+--[[
+	Açılış bekleme süresi: oyuncu -> ne zamana kadar meşgul (os.clock).
+
+	Bir yumurta açılırken ikincisi açılamıyor. Eskiden art arda basınca
+	animasyonlar üst üste biniyor, sonuçlar kaçıyordu; üstelik bekleme
+	olmadığı için otomatik açma sınırsız hızda çalışırdı.
 ]]
-function PetService.TryHatch(player: Player, eggId: string): string?
+local busyUntil: { [Player]: number } = {}
+
+-- Grup üyeliği ağ çağrısı; oturum boyunca bir kez soruluyor
+local groupCache: { [Player]: boolean } = {}
+
+--[[
+	Otomatik açma gruba katılanlara açık (Config.GroupId). Grup henüz
+	kurulmadıysa (0) kapalı. Studio'da şart aranmıyor ki geliştirici
+	denemek için grup kurmak zorunda kalmasın.
+]]
+function PetService.CanAutoHatch(player: Player): boolean
+	if RunService:IsStudio() then
+		return true
+	end
+	if Config.GroupId == 0 then
+		return false
+	end
+	local cached = groupCache[player]
+	if cached ~= nil then
+		return cached
+	end
+	local ok, inGroup = pcall(function()
+		return player:IsInGroup(Config.GroupId)
+	end)
+	-- Hata olursa önbelleğe yazmıyoruz: geçici bir ağ sorunu yüzünden
+	-- oturum boyunca kilitli kalmasın
+	if not ok then
+		return false
+	end
+	groupCache[player] = inGroup
+	return inGroup
+end
+
+--[[ Üçlü açma gamepass'e bağlı; Studio'da deneme için açık. ]]
+function PetService.CanTripleHatch(player: Player): boolean
+	return RunService:IsStudio() or MonetizationService.HasPass(player, "TripleHatch")
+end
+
+--[[
+	Yumurta açar. Başarılıysa çıkan anahtarların listesini döndürür.
+
+	`count` 1 ya da 3 (üçlü açma). `auto` istemcinin otomatik açma döngüsünden
+	geliyorsa true — grup şartı ona bakıyor. Döngünün kendisi istemcide;
+	sunucu her isteği aynı bekleme süresiyle sınırladığı için otomatik açma
+	elle basmaktan hızlı olamıyor.
+
+	Çekiliş ÖNCE, harcama SONRA: çekiliş nil dönen bir yapılandırma
+	hatasında ya da tavana çarpan bir sonuçta oyuncunun parası hiçbir şey
+	vermeden yanmasın.
+]]
+function PetService.TryHatch(player: Player, eggId: string, count: number?, auto: boolean?): { string }?
 	local egg = Config.GetEgg(eggId)
 	if not egg then
 		notify(player, "That egg does not exist", true)
@@ -320,42 +394,98 @@ function PetService.TryHatch(player: Player, eggId: string): string?
 		return nil
 	end
 
-	local def = Config.RollPet(rng, eggId)
-	if not def then
-		notify(player, "That egg is empty", true)
+	-- Bir önceki açılış bitmeden yenisi yok; sessizce, yoksa basılı tutan
+	-- oyuncu bildirim yağmuruna tutulurdu
+	local now = os.clock()
+	if (busyUntil[player] or 0) > now then
 		return nil
 	end
 
-	local mutation = Config.RollPetMutation(rng)
-	local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
-
-	if (profile.pets[key] or 0) >= Config.PetStackLimit then
-		notify(player, string.format("You already have %d %s", Config.PetStackLimit, displayName(key)), true)
+	local amount = if count == Config.TripleHatchCount then Config.TripleHatchCount else 1
+	if amount > 1 and not PetService.CanTripleHatch(player) then
+		notify(player, "Triple Hatch needs the Triple Hatch pass (Shop)", true)
+		return nil
+	end
+	if auto and not PetService.CanAutoHatch(player) then
+		notify(player, "Join the group to unlock Auto Hatch", true)
 		return nil
 	end
 
-	if not EconomyService.TrySpend(player, egg.price) then
-		notify(player, "Not enough cash for that egg", true)
+	local keys: { string } = {}
+	local pending: { [string]: number } = {}
+	for _ = 1, amount do
+		local def = Config.RollPet(rng, eggId)
+		if not def then
+			notify(player, "That egg is empty", true)
+			return nil
+		end
+		local mutation = Config.RollPetMutation(rng)
+		local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
+		pending[key] = (pending[key] or 0) + 1
+		if (profile.pets[key] or 0) + pending[key] > Config.PetStackLimit then
+			notify(player, string.format("You already have %d %s", Config.PetStackLimit, displayName(key)), true)
+			return nil
+		end
+		table.insert(keys, key)
+	end
+
+	if not EconomyService.TrySpend(player, egg.price * amount) then
+		notify(player, if amount > 1 then "Not enough cash for 3 eggs" else "Not enough cash for that egg", true)
 		return nil
 	end
 
-	grant(player, key)
+	busyUntil[player] = now + Config.HatchDuration
+
+	for _, key in keys do
+		grant(player, key)
+	end
 	apply(player)
 
-	notify(player, string.format("%s hatched a %s!", egg.name, displayName(key)), false)
-	if hatchedRemote then
-		hatchedRemote:FireClient(player, key, "egg")
+	if amount == 1 then
+		notify(player, string.format("%s hatched a %s!", egg.name, displayName(keys[1])), false)
+	else
+		notify(player, string.format("%s x%d hatched!", egg.name, amount), false)
 	end
-	announce(player, key, "hatched")
+	if hatchedRemote then
+		hatchedRemote:FireClient(player, keys, "egg")
+	end
+	for _, key in keys do
+		announce(player, key, "hatched")
+	end
+	return keys
+end
+
+--[[
+	Bedava yumurta açılışı: günlük seri ve oynama süresi ödülleri için.
+	Para almıyor, bekleme süresine takılmıyor (ödül toplamak yumurta
+	açmayı engellememeli) ama animasyon ve duyuru normal açılışla aynı.
+]]
+function PetService.GiveEggRoll(player: Player, eggId: string): string?
+	local egg = Config.GetEgg(eggId)
+	local profile = DataService.Get(player)
+	if not (egg and profile) then
+		return nil
+	end
+	local def = Config.RollPet(rng, eggId)
+	if not def then
+		return nil
+	end
+	local mutation = Config.RollPetMutation(rng)
+	local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
+	if not grant(player, key) then
+		return nil
+	end
+	apply(player)
+	if hatchedRemote then
+		hatchedRemote:FireClient(player, { key }, "egg")
+	end
+	announce(player, key, "got")
 	return key
 end
 
 --[[
-	Üç kopyayı bir üst kademeye birleştirir. Başarılıysa yeni anahtarı
-	döndürür.
-
-	Mutasyon KORUNUYOR: üç Golden Common -> bir Golden Uncommon. Böylece
-	mutasyonlu kopya biriktirmenin de bir karşılığı var.
+	Üç kopyayı bir üst BOYUTA birleştirir: normal -> Big -> Huge -> Titan.
+	Tür ve mutasyon aynı kalıyor. Başarılıysa yeni anahtarı döndürür.
 
 	Kopyalar yandıktan sonra elde kalmayan anahtar takılıysa çıkarılıyor;
 	yoksa bonus artık sahip olunmayan bir petten gelmeye devam ederdi.
@@ -366,7 +496,7 @@ function PetService.TryFuse(player: Player, key: string): string?
 		return nil
 	end
 
-	local def, mutation = Config.ParsePetKey(key)
+	local def, mutation, size = Config.ParsePetKey(key)
 	if not def then
 		return nil
 	end
@@ -387,18 +517,13 @@ function PetService.TryFuse(player: Player, key: string): string?
 		return nil
 	end
 
-	local nextRarity = Config.GetNextRarity(def.rarity)
-	if not nextRarity then
-		notify(player, "Secret pets are already the top tier", true)
+	local nextSize = Config.GetNextPetSize(size)
+	if not nextSize then
+		notify(player, "Titan is already the biggest size", true)
 		return nil
 	end
 
-	local result = Config.RollPetOfRarity(rng, nextRarity)
-	if not result then
-		return nil
-	end
-
-	local newKey = Config.PetKey(result.id, if mutation then mutation.id else nil)
+	local newKey = Config.PetKey(def.id, if mutation then mutation.id else nil, nextSize.id)
 	if (profile.pets[newKey] or 0) >= Config.PetStackLimit then
 		notify(player, string.format("You already have %d %s", Config.PetStackLimit, displayName(newKey)), true)
 		return nil
@@ -418,12 +543,11 @@ function PetService.TryFuse(player: Player, key: string): string?
 
 	notify(player, string.format("Fused into a %s!", displayName(newKey)), false)
 	if hatchedRemote then
-		hatchedRemote:FireClient(player, newKey, "fuse")
+		hatchedRemote:FireClient(player, { newKey }, "fuse")
 	end
 	announce(player, newKey, "fused")
 	return newKey
 end
-
 --[[
 	Peti takar ya da çıkarır. Dönen değer işlemin tuttuğu.
 
@@ -553,23 +677,46 @@ function PetService.WireHatchery(): boolean
 			screenLabel(screen, string.upper(egg.name), tint, "$" .. Config.FormatCash(egg.price))
 		end
 
-		local old = shell:FindFirstChild("HatchPrompt")
-		if old then
-			old:Destroy()
+		for _, child in shell:GetChildren() do
+			if child:IsA("ProximityPrompt") then
+				child:Destroy()
+			end
 		end
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "HatchPrompt"
-		prompt.ActionText = "Hatch"
-		prompt.ObjectText = string.format("%s  $%s", egg.name, Config.FormatCash(egg.price))
-		prompt.HoldDuration = 0.35
-		prompt.MaxActivationDistance = 10
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = shell
+
+		--[[
+			Üç prompt, üç tuş — türün alışılmış düzeni:
+			  E  Hatch      tek yumurta
+			  R  Hatch x3   üçlü (Triple Hatch pass'i)
+			  T  Auto       otomatik açma (grup); İSTEMCİDE işleniyor, döngü
+			                orada — sunucu yalnızca her isteği sınırlıyor
+		]]
+		local function makePrompt(name: string, action: string, key: Enum.KeyCode, order: number): ProximityPrompt
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = name
+			prompt.ActionText = action
+			prompt.ObjectText = string.format("%s  $%s", egg.name, Config.FormatCash(egg.price))
+			prompt.KeyboardKeyCode = key
+			prompt.HoldDuration = 0.25
+			prompt.MaxActivationDistance = 10
+			prompt.RequiresLineOfSight = false
+			prompt.UIOffset = Vector2.new(0, (order - 1) * 72)
+			prompt.Parent = shell
+			return prompt
+		end
 
 		local eggId = egg.id
-		PromptGuard.Connect(prompt, function(player)
-			PetService.TryHatch(player, eggId)
+		local single = makePrompt("HatchPrompt", "Hatch", Enum.KeyCode.E, 1)
+		PromptGuard.Connect(single, function(player)
+			PetService.TryHatch(player, eggId, 1, false)
 		end)
+
+		local triple = makePrompt("TriplePrompt", "Hatch x3", Enum.KeyCode.R, 2)
+		PromptGuard.Connect(triple, function(player)
+			PetService.TryHatch(player, eggId, Config.TripleHatchCount, false)
+		end)
+
+		local autoPrompt = makePrompt("AutoPrompt", "Auto Hatch", Enum.KeyCode.T, 3)
+		autoPrompt:SetAttribute("EggId", eggId)
 	end
 
 	--[[
@@ -648,10 +795,13 @@ function PetService.Start()
 	petsRemote = Net.Get("Pets")
 	hatchedRemote = Net.Get("PetHatched")
 
-	Net.Get("PetHatch").OnServerEvent:Connect(function(player, eggId)
-		if typeof(eggId) == "string" then
-			PetService.TryHatch(player, eggId)
+	-- (eggId, count, auto): count yalnızca 1 ya da 3 kabul ediliyor
+	Net.Get("PetHatch").OnServerEvent:Connect(function(player, eggId, count, auto)
+		if typeof(eggId) ~= "string" then
+			return
 		end
+		local amount = if count == Config.TripleHatchCount then Config.TripleHatchCount else 1
+		PetService.TryHatch(player, eggId, amount, auto == true)
 	end)
 
 	Net.Get("PetEquip").OnServerEvent:Connect(function(player, key, equip)
@@ -690,6 +840,8 @@ function PetService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		clearSpawned(player)
+		busyUntil[player] = nil
+		groupCache[player] = nil
 	end)
 
 	RunService.Heartbeat:Connect(stepFollow)

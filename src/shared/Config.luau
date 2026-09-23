@@ -603,6 +603,10 @@ Config.NotifyCues = {
 	potion   = { source = "UiD", startAt = 7.00, length = 0.22, pitch = 1.45, volume = 0.40 },
 	-- Yumurta açılışı: yükselen üç vuruş, "çatladı" hissi için hızlı
 	pet      = { source = "UiA", startAt = 3.00, length = 0.20, pitch = 1.35, volume = 0.50, repeats = 3, gap = 0.08 },
+	-- Günlük/oynama/indeks ödülü: hediye kutusu açılışı, parlak ve kısa
+	reward   = { source = "UiD", startAt = 2.50, length = 0.22, pitch = 1.25, volume = 0.50, repeats = 2, gap = 0.10 },
+	-- Ekipman satın alma: metalik tek vuruş
+	gear     = { source = "UiB", startAt = 3.50, length = 0.26, pitch = 0.95, volume = 0.50 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -734,7 +738,28 @@ Config.GamePasses = {
 	ExtraPodiums = { id = 0, name = "+2 Podiums Per Floor" },
 	FastSteal    = { id = 0, name = "Fast Steal" },
 	StrongLock   = { id = 0, name = "Strong Lock" },
+	-- Yumurtayı tek seferde üç kez açar (üç kat fiyat, tek bekleme)
+	TripleHatch  = { id = 0, name = "Triple Hatch" },
 } :: { [string]: GamePassDef }
+
+--[[
+	Oyunun Roblox grubu. OTOMATİK YUMURTA AÇMA gruba katılanlara açık:
+	oyuncu grubu büyütüyor, grup da güncelleme bildirimleriyle oyuncuyu
+	geri getiriyor.
+
+	0 = grup henüz kurulmadı: otomatik açma kapalı. Studio'da test için
+	grup şartı aranmıyor (PetService). Grup kurulunca ID buraya yazılacak.
+]]
+Config.GroupId = 0
+
+--[[
+	Yumurta açılışının süresi (saniye). Bir yumurta açılırken ikincisi
+	açılamıyor — sunucu bu süreyi bekletiyor, istemcideki animasyon da bu
+	süreye göre ayarlı (HatchFX). Eskiden art arda basınca animasyonlar
+	kuyruğa giriyor ve sonuçlar kaçıyordu.
+]]
+Config.HatchDuration = 3.5
+Config.TripleHatchCount = 3
 
 -- Gamepass etkileri. Tek yerde dursun ki denge değiştirmek kolay olsun.
 Config.PassDoubleIncomeMultiplier = 2
@@ -1389,75 +1414,133 @@ function Config.RollPetMutation(rng: Random): PetMutationDef?
 end
 
 --[[
-	═══ ENVANTER ANAHTARI ══════════════════════════════════════════════════
+	═══ BOYUT KADEMELERİ (BİRLEŞTİRME) ═════════════════════════════════════
 
-	Envanter "pet kimliği -> adet" tablosu. Mutasyon gelince aynı petin
-	Golden'ı ile düzü AYRI satır olmalı, ama tabloyu iç içe yapmak kayıt
-	biçimini ve bütün okuyucuları değiştirirdi.
+	Birleştirme petin NADİRLİĞİNİ değil BOYUTUNU büyütüyor: aynı petten
+	üç tane -> o petin BIG hâli; üç BIG -> HUGE; üç HUGE -> TITAN. Tür ve
+	mutasyon aynı kalıyor, sahadaki model de gözle görülür şekilde büyüyor.
 
-	Çözüm: anahtar "MiniCrew" ya da "MiniCrew:Golden". Mutasyonsuz pet
-	eski biçimle birebir aynı, yani mevcut kayıtlar olduğu gibi okunuyor.
+	Eskiden üç kopya bir üst kademeden RASTGELE bir pete dönüşüyordu; en
+	sevdiğin peti birleştirince elinde başka bir pet kalıyordu ve Secret
+	hiç birleştirilemiyordu.
+
+	Çarpan petin bonusuna uygulanıyor (mutasyonla ÇARPILARAK):
+
+	    Big x2.5 (3 kopya) · Huge x5 (9) · Titan x10 (27)
+
+	Üç kopyanın ham toplamı x3; Big x2.5 ondan biraz AZ ama tek slota
+	sığıyor — slot üç tane, yani birleştirme slot verimliliği. Titan için
+	aynı petten 27 tane gerekiyor: oyunun sonundaki hedef bu.
 ]]
-function Config.PetKey(petId: string, mutationId: string?): string
-	if mutationId and mutationId ~= "" then
-		return petId .. ":" .. mutationId
-	end
-	return petId
-end
+export type PetSizeDef = {
+	id: string,
+	name: string,
+	multiplier: number,
+	scale: number,       -- sahadaki model ölçeği (PetModel)
+}
 
---[[
-	Anahtarı çözer. Pet ya da mutasyon tanınmıyorsa pet nil döner —
-	çağıran o satırı atlamalı (Config'ten kalkmış bir şey kayıtta
-	kalmış olabilir).
-]]
-function Config.ParsePetKey(key: string): (PetDef?, PetMutationDef?)
-	local petId, mutationId = string.match(key, "^([^:]+):?(.*)$")
-	if not petId then
-		return nil, nil
-	end
+Config.PetSizes = {
+	{ id = "Big",   name = "Big",   multiplier = 2.5, scale = 1.5 },
+	{ id = "Huge",  name = "Huge",  multiplier = 5,   scale = 2.2 },
+	{ id = "Titan", name = "Titan", multiplier = 10,  scale = 3.2 },
+} :: { PetSizeDef }
 
-	-- Config.GetPet aşağıda tanımlı; çağrı anında çözülüyor
-	local def = Config.GetPet(petId)
-	if not def then
-		return nil, nil
-	end
-
-	if mutationId == nil or mutationId == "" then
-		return def, nil
-	end
-
-	local mutation = Config.GetPetMutation(mutationId)
-	if not mutation then
-		-- Tanınmayan mutasyon: peti de geçersiz sayıyoruz, sessizce
-		-- mutasyonsuz yapmak oyuncunun elinden bir şey almak olurdu
-		return nil, nil
-	end
-	return def, mutation
-end
-
---[[
-	═══ BİRLEŞTİRME ════════════════════════════════════════════════════════
-
-	Aynı anahtardan üç kopya -> bir üst kademeden rastgele bir pet, aynı
-	mutasyonla. Secret birleştirilemiyor (üstü yok).
-
-	Hesap: Supply yumurtasından bir Uncommon ortalama ~$180K'ya çıkıyor,
-	üç Common ~$150K. Birleştirme doğrudan açmaktan biraz ucuz — kopyaları
-	biriktirmenin ödülü bu. Mythic -> Secret'ta aynı oran: üç Mythic
-	~$123B, doğrudan Secret ~$150B.
-]]
-Config.PetFuseCount = 3
-
-local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
-
-function Config.GetNextRarity(rarity: string): string?
-	local index = table.find(RARITY_LADDER, rarity)
-	if not index or index >= #RARITY_LADDER then
+function Config.GetPetSize(id: string?): PetSizeDef?
+	if not id or id == "" then
 		return nil
 	end
-	return RARITY_LADDER[index + 1]
+	for _, def in Config.PetSizes do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
 end
 
+--[[ Bir sonraki boyut. Normal -> Big -> Huge -> Titan -> nil. ]]
+function Config.GetNextPetSize(current: PetSizeDef?): PetSizeDef?
+	if not current then
+		return Config.PetSizes[1]
+	end
+	local index = table.find(Config.PetSizes, current)
+	return if index then Config.PetSizes[index + 1] else nil
+end
+
+--[[
+	═══ ENVANTER ANAHTARI ══════════════════════════════════════════════════
+
+	Envanter "anahtar -> adet" tablosu. Aynı petin Golden'ı, Huge'ı ve
+	düzü AYRI satır olmalı, ama tabloyu iç içe yapmak kayıt biçimini ve
+	bütün okuyucuları değiştirirdi.
+
+	Anahtar: pet kimliği, ardından sırayla isteğe bağlı mutasyon ve boyut.
+
+	    "MiniCrew"   "MiniCrew:Golden"   "MiniCrew:Huge"   "MiniCrew:Golden:Huge"
+
+	Mutasyon ve boyut kimlikleri birbirinden farklı olduğu için hangisinin
+	hangisi olduğu adından anlaşılıyor. Düz pet eski biçimle birebir aynı,
+	yani mevcut kayıtlar olduğu gibi okunuyor.
+]]
+function Config.PetKey(petId: string, mutationId: string?, sizeId: string?): string
+	local key = petId
+	if mutationId and mutationId ~= "" then
+		key ..= ":" .. mutationId
+	end
+	if sizeId and sizeId ~= "" then
+		key ..= ":" .. sizeId
+	end
+	return key
+end
+
+--[[
+	Anahtarı çözer: (pet, mutasyon?, boyut?). Pet, mutasyon ya da boyut
+	tanınmıyorsa pet nil döner — çağıran o satırı atlamalı (Config'ten
+	kalkmış bir şey kayıtta kalmış olabilir). Tanınmayanı sessizce atmak
+	oyuncunun elinden bir şey almak olurdu.
+]]
+function Config.ParsePetKey(key: string): (PetDef?, PetMutationDef?, PetSizeDef?)
+	local parts = string.split(key, ":")
+	-- Config.GetPet aşağıda tanımlı; çağrı anında çözülüyor
+	local def = Config.GetPet(parts[1])
+	if not def or #parts > 3 then
+		return nil, nil, nil
+	end
+
+	local mutation: PetMutationDef? = nil
+	local size: PetSizeDef? = nil
+	for i = 2, #parts do
+		local part = parts[i]
+		local m = Config.GetPetMutation(part)
+		local s = Config.GetPetSize(part)
+		if m and not mutation and not size then
+			mutation = m
+		elseif s and not size then
+			size = s
+		else
+			return nil, nil, nil
+		end
+	end
+	return def, mutation, size
+end
+
+--[[ "Golden Huge Mini Crew" gibi okunur ad. ]]
+function Config.PetDisplayName(key: string): string
+	local def, mutation, size = Config.ParsePetKey(key)
+	if not def then
+		return key
+	end
+	local name = def.name
+	if size then
+		name = size.name .. " " .. name
+	end
+	if mutation then
+		name = mutation.name .. " " .. name
+	end
+	return name
+end
+
+-- Aynı anahtardan kaç kopya bir üst boyuta birleşiyor
+Config.PetFuseCount = 3
 --[[ Verilen kademeden eşit şansla bir pet. Yumurta çekilişinin ikinci aşaması. ]]
 function Config.RollPetOfRarity(rng: Random, rarity: string): PetDef?
 	local pool = {}
@@ -1551,14 +1634,14 @@ function Config.RollPet(rng: Random, eggId: string): PetDef?
 end
 
 --[[
-	Tek bir envanter anahtarının bonusu: petin kademe bonusu x mutasyon.
+	Tek bir envanter anahtarının bonusu: petin kademe bonusu x mutasyon x boyut.
 ]]
 function Config.GetPetKeyBonus(key: string): (number, number)
-	local def, mutation = Config.ParsePetKey(key)
+	local def, mutation, size = Config.ParsePetKey(key)
 	if not def then
 		return 0, 0
 	end
-	local mul = if mutation then mutation.multiplier else 1
+	local mul = (if mutation then mutation.multiplier else 1) * (if size then size.multiplier else 1)
 	return def.incomeBonus * mul, def.speedBonus * mul
 end
 
@@ -1580,6 +1663,119 @@ function Config.GetPetBonus(equipped: { string }): (number, number)
 		speed += s
 	end
 	return income, speed
+end
+
+-- ─── Ekipman (lobideki Gear Shop) ───────────────────────────────────────────
+--[[
+	Oyun içi parayla bir kez alınan, kalıcı aletler. Her doğuşta sırt
+	çantasına geliyor. Steal a Brainrot'u sürükleyici yapan şey bu katman:
+	kilit dışında AKTİF bir savunma (tokat) ve hareket araçları.
+
+	Güç sınırları bilinçli:
+	  - Speed Coil yalnızca TAŞIMIYORKEN işe yarıyor: çalınan karakterle
+	    kaçarken hızlanmak çalmanın riskini silerdi.
+	  - Gravity Coil zıplamayı iki katına çıkarıyor ama emniyet duvarları
+	    40-70 stud; haritadan çıkılamıyor. Kilit fiziksel bir duvar değil,
+	    zıplayarak atlatılamıyor.
+	  - Slap Glove'un bekleme süresi var; hırsızı durdurur, öldürmez.
+]]
+export type GearDef = {
+	id: string,
+	name: string,
+	price: number,
+	blurb: string,
+	walkSpeed: number?,    -- Speed Coil: elde tutarken yürüme hızı
+	jumpHeight: number?,   -- Gravity Coil: elde tutarken zıplama yüksekliği
+	cooldown: number?,     -- Slap Glove: iki tokat arası saniye
+	range: number?,        -- Slap Glove: menzil (stud)
+}
+
+Config.Gear = {
+	{ id = "SlapGlove",   name = "Slap Glove",   price =    250000, cooldown = 5, range = 8,
+		blurb = "Slap a thief and they drop what they stole." },
+	{ id = "GravityCoil", name = "Gravity Coil", price =    800000, jumpHeight = 15,
+		blurb = "Jump twice as high while holding it." },
+	{ id = "SpeedCoil",   name = "Speed Coil",   price =   1500000, walkSpeed = 27,
+		blurb = "Run faster while holding it (not while carrying)." },
+} :: { GearDef }
+
+function Config.GetGear(id: string): GearDef?
+	for _, def in Config.Gear do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+-- ─── Ödüller: günlük seri, oynama süresi, indeks ────────────────────────────
+--[[
+	═══ NEDEN ═══════════════════════════════════════════════════════════════
+
+	İkisi de oyuncuyu GERİ getiren şeyler, oyunu değiştirenler değil:
+	  - Günlük seri: her gün girip toplayan oyuncunun ödülü büyüyor, bir
+	    gün kaçırınca seri başa dönüyor. "Yarın da gireyim" sebebi.
+	  - Oynama süresi hediyeleri: oturumun 5., 10., 20. ... dakikasında
+	    birer kutu. "Biraz daha kalayım" sebebi. Gün değişince sıfırlanıyor
+	    (oturum değil) — çıkıp girerek aynı kutuyu tekrar almak olmasın.
+
+	Nakit ödüller oyuncunun GELİRİNE göre (kaç saniyelik gelir) ve bir
+	tabanı var: 1B kazanan oyuncuya $5K vermek anlamsız, yeni oyuncuya
+	saatlik gelir vermek de dengeyi bozar.
+
+	Ödül türleri:
+	  cash   — `seconds` saniyelik gelir, en az `minimum`
+	  potion — rastgele bir iksir (envantere), `count` kadar
+	  egg    — bedava bir yumurta açılışı (`egg`), animasyonuyla
+]]
+export type RewardDef = {
+	kind: string,
+	seconds: number?,
+	minimum: number?,
+	count: number?,
+	egg: string?,
+	minutes: number?,   -- yalnızca oynama süresi hediyelerinde
+}
+
+Config.DailyRewards = {
+	{ kind = "cash",   seconds = 60,  minimum = 5000 },
+	{ kind = "potion", count = 1 },
+	{ kind = "cash",   seconds = 300, minimum = 25000 },
+	{ kind = "egg",    egg = "SupplyEgg" },
+	{ kind = "cash",   seconds = 900, minimum = 100000 },
+	{ kind = "potion", count = 2 },
+	-- Yedinci gün büyük: seriyi tamamlamanın hedefi bu
+	{ kind = "egg",    egg = "SkeldEgg" },
+} :: { RewardDef }
+
+Config.PlaytimeRewards = {
+	{ minutes = 5,  kind = "cash",   seconds = 60,  minimum = 2000 },
+	{ minutes = 10, kind = "potion", count = 1 },
+	{ minutes = 20, kind = "cash",   seconds = 240, minimum = 10000 },
+	{ minutes = 30, kind = "egg",    egg = "SupplyEgg" },
+	{ minutes = 45, kind = "cash",   seconds = 600, minimum = 50000 },
+	{ minutes = 60, kind = "egg",    egg = "SkeldEgg" },
+} :: { RewardDef }
+
+--[[
+	İndeks ödülü: bir nadirliğin BÜTÜN karakterleri keşfedilince toplanan
+	kalıcı gelir bonusu. Toplam +%42; tamamlanmış bir indeks bir gamepass
+	kadar değerli değil ama her satır ayrı bir hedef.
+	Rebirth'te sıfırlanmıyor — keşif de sıfırlanmıyor.
+]]
+Config.IndexRewards = {
+	Common = 0.02, Uncommon = 0.03, Rare = 0.04, Epic = 0.05,
+	Legendary = 0.07, Mythic = 0.09, Secret = 0.12,
+} :: { [string]: number }
+
+--[[ Nakit ödülünün tutarı: gelirin `seconds` katı, en az `minimum`. ]]
+function Config.GetRewardCash(reward: RewardDef, incomePerSecond: number): number
+	return math.max(reward.minimum or 0, math.floor(incomePerSecond * (reward.seconds or 0)))
+end
+
+--[[ UTC gün numarası. Günlük seri ve oynama süresi bununla sıfırlanıyor. ]]
+function Config.DayIndex(now: number): number
+	return math.floor(now / 86400)
 end
 
 --[[ 1234567 -> "1.23M" ]]

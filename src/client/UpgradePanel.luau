@@ -1,14 +1,27 @@
 --!strict
--- Yükseltme arayüzü. Üssündeki kulübenin önüne basınca açılıyor.
---
--- Eskiden her yükseltme için üsse fiziksel bir tabela dikiliyordu ve her
--- biri ayrı ProximityPrompt istiyordu: dört tabela, dört "basılı tut",
--- üssün etrafı kalabalık. Şimdi kulübenin önünde görünmez bir alan var;
--- oyuncu oraya basınca bütün liste tek seferde açılıyor.
---
--- Seviyeler oyuncunun niteliklerinden okunuyor (UpgradeService yazıyor),
--- maliyet Config'ten hesaplanıyor. Satın alma UpgradeBuy remote'una
--- gidiyor; doğrulamanın tamamı sunucuda.
+--[[
+	Yükseltme penceresi. Üssündeki kulübenin önüne basınca açılıyor,
+	uzaklaşınca kapanıyor.
+
+	Seviyeler oyuncunun niteliklerinden okunuyor (UpgradeService yazıyor),
+	maliyet ve etki Config'ten hesaplanıyor. Satın alma UpgradeBuy
+	remote'una gidiyor; doğrulamanın tamamı sunucuda.
+
+	═══ NEDEN YENİDEN YAZILDI ══════════════════════════════════════════════
+
+	Görsel hatalar vardı:
+	  - "NEXT LEVEL / NEXT FLOOR" yazısı düğmeyle AYNI yere konmuştu; fiyatın
+	    arkasında soluk bir yazı, "LOCKED"ın üstünde "NEXT FLOOR" okunuyordu.
+	  - Düğme her tıklamada ilk boyutundan büyük bir boyuta tweenleniyordu
+	    ve bir daha küçülmüyordu.
+	  - Panel açılış animasyonu içeriğin tasarlandığı genişlikten farklı
+	    bir genişliğe gidiyordu.
+
+	Artık diğer pencerelerle aynı dilde (UiKit): başlık bandı, kart
+	satırlar, kabartma düğmeler. Her satır yükseltmenin NE YAPTIĞINI
+	sayıyla söylüyor ("8.8 → 9.0"); eskiden yalnızca adı vardı ve oyuncu
+	neye para verdiğini bilmiyordu.
+]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,43 +31,61 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local UiKit = require(script.Parent.UiKit)
+
 local UpgradePanel = {}
 
 local player = Players.LocalPlayer
 
---[[
-	Palet. Among Us'ın kendi arayüzü: koyu mavi-gri gövde, açık gri kenar,
-	dolgu için mürettebat renkleri. Referans olarak bakılan Roblox
-	yükseltme arayüzleri parlak mavi/kırmızıydı; o ton haritanın geri
-	kalanıyla çakışıyordu.
-]]
-local SHELL = Color3.fromRGB(38, 46, 56)
-local SHELL_DARK = Color3.fromRGB(27, 33, 41)
-local EDGE = Color3.fromRGB(150, 164, 178)
-local INK = Color3.fromRGB(236, 242, 248)
-local MUTED = Color3.fromRGB(150, 163, 180)
-local GOLD = Color3.fromRGB(226, 190, 96)
-local GOOD = Color3.fromRGB(120, 220, 140)
--- Kutucuk yuvası sayısı. Tavan bundan büyükse her kutucuk birden fazla
--- seviyeyi temsil ediyor; 24 ayrı kutucuk çizilecek yer yok.
+local GOLD = Color3.fromRGB(236, 196, 92)
 local PIP_SLOTS = 12
-
-local DIM = Color3.fromRGB(64, 74, 88)
+local Z = 30
 
 -- Her yükseltmenin kendi mürettebat rengi: satırlar birbirinden ayrılsın
 local TINT: { [string]: Color3 } = {
-	ConveyorSpeed = Color3.fromRGB(56, 200, 190),
-	UnitGuard = Color3.fromRGB(120, 180, 90),
-	CarrySpeed = Color3.fromRGB(226, 150, 70),
-	LockPower = Color3.fromRGB(190, 110, 210),
+	ConveyorSpeed = UiKit.CREW.CYAN:Lerp(Color3.fromRGB(40, 60, 70), 0.25),
+	UnitGuard = UiKit.CREW.GREEN:Lerp(UiKit.CREW.LIME, 0.35),
+	CarrySpeed = UiKit.CREW.ORANGE,
+	LockPower = UiKit.CREW.PURPLE:Lerp(UiKit.CREW.PINK, 0.3),
 }
 
 --[[
-	Tetik alanının yarıçapı.
+	Etki metni: şimdiki değer → sonraki seviyedeki değer. Config'teki
+	formüller sunucunun kullandıklarıyla aynı, yani yazan sayı gerçek.
+]]
+type Effect = { label: string, value: (level: number) -> string }
 
-	11 studda panel kulübenin epey uzağından açılıyordu: oyuncu yanından
-	geçerken ekranın yarısı doluyor, kapatmak için geri çekilmek
-	gerekiyordu. 6'da kulübenin önüne GELMEK gerekiyor — açılması bir
+local EFFECT: { [string]: Effect } = {
+	ConveyorSpeed = {
+		label = "New crewmate every",
+		value = function(level)
+			return string.format("%.1fs", Config.GetConveyorInterval(level))
+		end,
+	},
+	UnitGuard = {
+		label = "New crewmates safe for",
+		value = function(level)
+			return string.format("%ds", Config.GetSafeSeconds(level))
+		end,
+	},
+	CarrySpeed = {
+		label = "Carry speed",
+		value = function(level)
+			return string.format("%.1f", Config.GetCarryWalkSpeed(level))
+		end,
+	},
+	LockPower = {
+		label = "Lock / cooldown",
+		value = function(level)
+			local duration, cooldown = Config.GetLockValues(level)
+			return string.format("%ds / %ds", math.floor(duration), math.floor(cooldown))
+		end,
+	},
+}
+
+--[[
+	Tetik alanının yarıçapı. 11 studda panel kulübenin epey uzağından
+	açılıyordu; 6'da kulübenin önüne GELMEK gerekiyor — açılması bir
 	niyet, kaza değil.
 ]]
 local REACH = 6
@@ -65,116 +96,93 @@ export type Panel = {
 }
 
 type Row = {
-	frame: Frame,
-	name: TextLabel,
-	cost: TextLabel,
-	button: TextButton,
-	pips: { Frame },
 	def: Config.UpgradeDef,
+	level: TextLabel,
+	effect: TextLabel,
+	pips: { Frame },
+	holder: Frame,
+	button: TextButton,
+	price: TextLabel,
+	tint: Color3,
 }
 
-local function corner(parent: Instance, radius: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius)
-	c.Parent = parent
-end
-
-local function stroke(parent: Instance, color: Color3, thickness: number, transparency: number)
-	local s = Instance.new("UIStroke")
-	s.Color = color
-	s.Thickness = thickness
-	s.Transparency = transparency
-	s.Parent = parent
-end
+local ROW_H = 64
+local WIDTH = 460
 
 function UpgradePanel.Create(screen: ScreenGui): Panel
-	--[[
-		Kök çerçeve ekranın ortasında ama biraz aşağıda: üstte nakit ve üs
-		paneli var, ortayı tam kaplarsa oyuncu kendi karakterini göremiyor.
-	]]
-	local root = Instance.new("Frame")
-	root.Name = "UpgradePanel"
+	local rowCount = #Config.Upgrades + 1
+	local height = 64 + rowCount * (ROW_H + 8) + 8
+
+	local root = UiKit.Window(screen, "UpgradePanel", GOLD)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
-	root.Position = UDim2.new(0.5, 0, 0.56, 0)
-	--[[
-		Panel 460 genişti ve satır başına 64 piksel ayırıyordu; dört
-		yükseltmeyle ekranın ortasında 352 piksellik bir blok oluyordu.
-		380x(76+52n) aynı bilgiyi veriyor, arkasındaki oyunu kapatmadan.
-	]]
-	root.Size = UDim2.fromOffset(380, 76 + (#Config.Upgrades + 1) * 52)
-	root.BackgroundColor3 = SHELL
-	root.BorderSizePixel = 0
+	root.Position = UDim2.new(0.5, 0, 0.55, 0)
+	root.Size = UDim2.fromOffset(WIDTH, height)
 	root.Visible = false
-	root.Parent = screen
-	corner(root, 14)
-	stroke(root, EDGE, 1.5, 0.4)
+	root.ZIndex = Z
 
-	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 14)
-	padding.PaddingBottom = UDim.new(0, 14)
-	padding.PaddingLeft = UDim.new(0, 16)
-	padding.PaddingRight = UDim.new(0, 16)
-	padding.Parent = root
+	-- Açılış animasyonu ölçeği; boyuta dokunmuyor, içerik hep aynı düzende
+	local pop = Instance.new("UIScale")
+	pop.Parent = root
 
-	-- ─── Başlık ─────────────────────────────────────────────────────────────
+	-- ─── Başlık bandı ───────────────────────────────────────────────────────
 
-	local header = Instance.new("Frame")
-	header.Name = "Header"
-	header.Size = UDim2.new(1, 0, 0, 38)
-	header.BackgroundTransparency = 1
-	header.Parent = root
+	local band = Instance.new("Frame")
+	band.Size = UDim2.new(1, 0, 0, 52)
+	band.BackgroundColor3 = GOLD:Lerp(Color3.new(0, 0, 0), 0.62)
+	band.BorderSizePixel = 0
+	band.ZIndex = Z + 1
+	band.Parent = root
+	UiKit.Corner(band, 14)
+	local bandFoot = Instance.new("Frame")
+	bandFoot.Position = UDim2.new(0, 0, 1, -14)
+	bandFoot.Size = UDim2.new(1, 0, 0, 14)
+	bandFoot.BackgroundColor3 = band.BackgroundColor3
+	bandFoot.BorderSizePixel = 0
+	bandFoot.ZIndex = Z + 1
+	bandFoot.Parent = band
 
-	--[[
-		Başlıktaki küçük mürettebat rozeti. Tezgâhın arkasındaki satıcıyla
-		aynı renk; arayüzün "o adamdan alıyorum" olduğunu anlatıyor.
-	]]
+	--[[ Başlıktaki mürettebat: tezgâhın arkasındaki satıcıyla aynı renk,
+	     "o adamdan alıyorum" bilgisini veriyor. ]]
 	local badge = Instance.new("Frame")
-	badge.Size = UDim2.fromOffset(28, 32)
-	badge.Position = UDim2.fromOffset(0, 6)
-	badge.BackgroundColor3 = Color3.fromRGB(122, 112, 148)
-	badge.BorderSizePixel = 0
-	badge.Parent = header
-	corner(badge, 12)
-
-	local visor = Instance.new("Frame")
-	visor.Size = UDim2.fromOffset(16, 8)
-	visor.Position = UDim2.fromOffset(9, 8)
-	visor.BackgroundColor3 = Color3.fromRGB(240, 226, 150)
-	visor.BorderSizePixel = 0
-	visor.Parent = badge
-	corner(visor, 4)
+	badge.Position = UDim2.fromOffset(14, 10)
+	badge.Size = UDim2.fromOffset(32, 32)
+	badge.BackgroundTransparency = 1
+	badge.ZIndex = Z + 2
+	badge.Parent = band
+	UiKit.Crewmate(badge, 30, Color3.fromRGB(122, 112, 148))
 
 	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Position = UDim2.fromOffset(40, 2)
-	title.Size = UDim2.new(1, -40, 0, 26)
+	title.Position = UDim2.fromOffset(56, 6)
+	title.Size = UDim2.new(1, -100, 0, 26)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
+	title.Font = Enum.Font.GothamBlack
 	title.TextSize = 22
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextColor3 = GOLD
+	title.TextStrokeTransparency = 0.6
 	title.Text = "UPGRADES"
-	title.Parent = header
+	title.ZIndex = Z + 2
+	title.Parent = band
 
 	local hint = Instance.new("TextLabel")
-	hint.Name = "Hint"
-	hint.Position = UDim2.fromOffset(40, 26)
-	hint.Size = UDim2.new(1, -40, 0, 16)
+	hint.Position = UDim2.fromOffset(56, 30)
+	hint.Size = UDim2.new(1, -100, 0, 16)
 	hint.BackgroundTransparency = 1
 	hint.Font = Enum.Font.GothamMedium
-	hint.TextSize = 13
+	hint.TextSize = 12
 	hint.TextXAlignment = Enum.TextXAlignment.Left
-	hint.TextColor3 = MUTED
-	hint.Text = "Permanent. Step away to close."
-	hint.Parent = header
+	hint.TextColor3 = UiKit.MUTED
+	hint.Text = "Reset on rebirth · each new floor doubles every cap"
+	hint.ZIndex = Z + 2
+	hint.Parent = band
 
 	-- ─── Satırlar ───────────────────────────────────────────────────────────
 
 	local list = Instance.new("Frame")
-	list.Name = "List"
-	list.Position = UDim2.fromOffset(0, 52)
-	list.Size = UDim2.new(1, 0, 1, -44)
+	list.Position = UDim2.fromOffset(12, 62)
+	list.Size = UDim2.new(1, -24, 1, -70)
 	list.BackgroundTransparency = 1
+	list.ZIndex = Z + 1
 	list.Parent = root
 
 	local layout = Instance.new("UIListLayout")
@@ -182,322 +190,296 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	layout.Padding = UDim.new(0, 8)
 	layout.Parent = list
 
+	local buyRemote = Net.Get("UpgradeBuy")
 	local rows: { Row } = {}
+
+	local function makeCard(order: number, accent: Color3): Frame
+		local card = Instance.new("Frame")
+		card.LayoutOrder = order
+		card.Size = UDim2.new(1, 0, 0, ROW_H)
+		card.BackgroundColor3 = accent:Lerp(UiKit.ROW, 0.86)
+		card.BorderSizePixel = 0
+		card.ZIndex = Z + 2
+		card.Parent = list
+		UiKit.Corner(card, 12)
+		UiKit.Stroke(card, accent, 1.2, 0.6)
+		return card
+	end
+
+	local function makeButton(card: Frame, tint: Color3): (Frame, TextButton, TextLabel)
+		local holder, button = UiKit.Raised(card, "Buy", tint, UDim2.fromOffset(112, 42), 10)
+		holder.AnchorPoint = Vector2.new(1, 0.5)
+		holder.Position = UDim2.new(1, -10, 0.5, 0)
+		holder.ZIndex = Z + 3
+
+		local price = Instance.new("TextLabel")
+		price.Size = UDim2.fromScale(1, 1)
+		price.BackgroundTransparency = 1
+		price.Font = Enum.Font.GothamBlack
+		price.TextSize = 15
+		price.TextColor3 = Color3.new(1, 1, 1)
+		price.TextStrokeTransparency = 0.5
+		price.Text = "—"
+		price.ZIndex = Z + 6
+		price.Parent = button
+		return holder, button, price
+	end
 
 	for index, def in Config.Upgrades do
 		local tint = TINT[def.id] or GOLD
+		local card = makeCard(index, tint)
 
-		local frame = Instance.new("Frame")
-		frame.Name = def.id
-		frame.LayoutOrder = index
-		frame.Size = UDim2.new(1, 0, 0, 46)
-		frame.BackgroundColor3 = SHELL_DARK
-		frame.BorderSizePixel = 0
-		frame.Parent = list
-		corner(frame, 10)
-
-		-- Sol kenarda renk şeridi: satırları bir bakışta ayırıyor
-		local stripe = Instance.new("Frame")
-		stripe.Size = UDim2.new(0, 4, 1, -12)
-		stripe.Position = UDim2.fromOffset(0, 6)
-		stripe.BackgroundColor3 = tint
-		stripe.BorderSizePixel = 0
-		stripe.Parent = frame
-		corner(stripe, 2)
+		local icon = Instance.new("Frame")
+		icon.Position = UDim2.fromOffset(10, 10)
+		icon.Size = UDim2.fromOffset(44, 44)
+		icon.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.55)
+		icon.BorderSizePixel = 0
+		icon.ZIndex = Z + 3
+		icon.Parent = card
+		UiKit.Corner(icon, 10)
+		if def.id == "CarrySpeed" then
+			UiKit.Boot(icon, 30, tint:Lerp(Color3.new(1, 1, 1), 0.4))
+		elseif def.id == "ConveyorSpeed" then
+			UiKit.Crate(icon, 28, tint:Lerp(Color3.new(1, 1, 1), 0.4))
+		else
+			UiKit.Crewmate(icon, 30, tint:Lerp(Color3.new(1, 1, 1), 0.4))
+		end
 
 		local name = Instance.new("TextLabel")
-		name.Name = "Name"
-		name.Position = UDim2.fromOffset(16, 8)
-		name.Size = UDim2.new(1, -120, 0, 18)
+		name.Position = UDim2.fromOffset(64, 7)
+		name.Size = UDim2.new(1, -200, 0, 18)
 		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 16
+		name.Font = Enum.Font.GothamBlack
+		name.TextSize = 15
 		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextColor3 = INK
+		name.TextColor3 = UiKit.INK
 		name.Text = def.name
-		name.Parent = frame
+		name.ZIndex = Z + 3
+		name.Parent = card
+
+		-- Seviye adın sağında, kendi renginde; adla aynı etikette değil ki
+		-- uzun adda kesilmesin
+		local level = Instance.new("TextLabel")
+		level.AnchorPoint = Vector2.new(1, 0)
+		level.Position = UDim2.new(1, -132, 0, 7)
+		level.Size = UDim2.fromOffset(60, 18)
+		level.BackgroundTransparency = 1
+		level.Font = Enum.Font.GothamBlack
+		level.TextSize = 13
+		level.TextXAlignment = Enum.TextXAlignment.Right
+		level.TextColor3 = tint
+		level.ZIndex = Z + 3
+		level.Parent = card
+
+		local effect = Instance.new("TextLabel")
+		effect.Position = UDim2.fromOffset(64, 25)
+		effect.Size = UDim2.new(1, -200, 0, 15)
+		effect.BackgroundTransparency = 1
+		effect.Font = Enum.Font.GothamMedium
+		effect.TextSize = 11
+		effect.TextXAlignment = Enum.TextXAlignment.Left
+		effect.TextTruncate = Enum.TextTruncate.AtEnd
+		effect.TextColor3 = UiKit.MUTED
+		effect.RichText = true
+		effect.ZIndex = Z + 3
+		effect.Parent = card
 
 		--[[
-			Seviye çubuğu tek bir dolgu değil, seviye başına bir KUTUCUK.
-			Referans arayüzlerde de öyle: "12 seviyeden 4'ü" bilgisini
-			saymadan, bakışta veriyor. Tek dolgulu çubukta oyuncu kaç
-			seviye kaldığını bilemiyor.
+			Seviye kutucukları: "12 seviyeden 4'ü" bilgisi saymadan okunuyor.
+			Tavan kat açtıkça iki katına çıkıyor (6/12/24); yirmi dört kutucuk
+			sığmaz, o yüzden sabit sayıda kutucuk ve her biri oransal.
 		]]
-		local pips: { Frame } = {}
 		local pipArea = Instance.new("Frame")
-		pipArea.Name = "Pips"
-		pipArea.Position = UDim2.fromOffset(16, 32)
-		pipArea.Size = UDim2.new(1, -132, 0, 9)
+		pipArea.Position = UDim2.fromOffset(64, 44)
+		pipArea.Size = UDim2.new(1, -200, 0, 9)
 		pipArea.BackgroundTransparency = 1
-		pipArea.Parent = frame
-
+		pipArea.ZIndex = Z + 3
+		pipArea.Parent = card
 		local pipLayout = Instance.new("UIListLayout")
 		pipLayout.FillDirection = Enum.FillDirection.Horizontal
 		pipLayout.Padding = UDim.new(0, 3)
 		pipLayout.Parent = pipArea
 
-		--[[
-			Tavan artık sabit değil: kat açtıkça ikiye katlanıyor
-			(6 / 12 / 24). Yirmi dört kutucuk çizilemez, birkaç piksel
-			kalırlar. Onun yerine SABİT sayıda kutucuk çiziyoruz ve her
-			biri birden fazla seviyeyi temsil edebiliyor; bakışta
-			ilerlemeyi yine veriyor, sayısı da yazıda duruyor.
-		]]
+		local pips: { Frame } = {}
 		local pipCount = math.min(PIP_SLOTS, Config.GetUpgradeCeiling(def))
-
 		for slot = 1, pipCount do
 			local pip = Instance.new("Frame")
-			pip.Name = "Pip" .. slot
 			pip.LayoutOrder = slot
 			pip.Size = UDim2.new(1 / pipCount, -3, 1, 0)
-			pip.BackgroundColor3 = DIM
+			pip.BackgroundColor3 = UiKit.DIM
 			pip.BorderSizePixel = 0
+			pip.ZIndex = Z + 4
 			pip.Parent = pipArea
-			corner(pip, 3)
+			UiKit.Corner(pip, 3)
 			table.insert(pips, pip)
 		end
 
-		local button = Instance.new("TextButton")
-		button.Name = "Buy"
-		button.AnchorPoint = Vector2.new(1, 0.5)
-		button.Position = UDim2.new(1, -10, 0.5, 0)
-		button.Size = UDim2.fromOffset(92, 30)
-		button.BackgroundColor3 = tint
-		button.BorderSizePixel = 0
-		button.AutoButtonColor = false
-		button.Font = Enum.Font.GothamBold
-		button.TextSize = 15
-		button.TextColor3 = Color3.fromRGB(16, 20, 26)
-		button.Text = "—"
-		button.Parent = frame
-		corner(button, 8)
-
-		local cost = Instance.new("TextLabel")
-		cost.Name = "Cost"
-		cost.AnchorPoint = Vector2.new(1, 0)
-		cost.Position = UDim2.new(1, -10, 0, 6)
-		cost.Size = UDim2.fromOffset(110, 14)
-		cost.BackgroundTransparency = 1
-		cost.Font = Enum.Font.GothamMedium
-		cost.TextSize = 12
-		cost.TextXAlignment = Enum.TextXAlignment.Right
-		cost.TextColor3 = MUTED
-		cost.Text = ""
-		cost.Parent = frame
+		local holder, button, price = makeButton(card, tint)
 
 		--[[
-			Tıklama doğrudan remote'a gidiyor, istemci hiçbir şey
-			doğrulamıyor. Buton "yeterli paran yok" diye kapatılmıyor
-			bilerek: sunucu zaten reddediyor ve oyuncuya fiyatı söyleyen
-			bir bildirim basıyor. İstemcide kapatmak, fiyatı okumayan
-			oyuncuya hiçbir şey anlatmıyor.
+			Tıklama doğrudan remote'a gidiyor. Parası yetmeyen oyuncuda da
+			düğme kapanmıyor: sunucu reddedip fiyatı söyleyen bir bildirim
+			basıyor, istemcide susmak oyuncuya hiçbir şey anlatmaz.
 		]]
-		local buyRemote = Net.Get("UpgradeBuy")
+		local id = def.id
 		button.MouseButton1Click:Connect(function()
-			buyRemote:FireServer(def.id)
-
-			-- Küçük basma geri bildirimi
-			local press = TweenService:Create(
-				button,
-				TweenInfo.new(0.08, Enum.EasingStyle.Quad),
-				{ Size = UDim2.fromOffset(104, 32) }
-			)
-			press:Play()
-			press.Completed:Connect(function()
-				TweenService:Create(
-					button,
-					TweenInfo.new(0.12, Enum.EasingStyle.Quad),
-					{ Size = UDim2.fromOffset(110, 36) }
-				):Play()
-			end)
-		end)
-
-		button.MouseEnter:Connect(function()
-			button.BackgroundColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.25)
-		end)
-		button.MouseLeave:Connect(function()
-			button.BackgroundColor3 = tint
+			if button.Active then
+				buyRemote:FireServer(id)
+			end
 		end)
 
 		table.insert(rows, {
-			frame = frame,
-			name = name,
-			cost = cost,
-			button = button,
-			pips = pips,
-			def = def,
+			def = def, level = level, effect = effect, pips = pips,
+			holder = holder, button = button, price = price, tint = tint,
 		})
 	end
 
+	-- ─── Yeni kat satırı ────────────────────────────────────────────────────
 	--[[
-		═══ YENİ KAT SATIRI ════════════════════════════════════════════════
-
-		Kat, merdivenin dibindeki bir pedden alınıyordu ve oyuncu onu
-		bulamıyordu ("üst floor alma kısmı nerede belli değil"). Burası
-		zaten "üssümü geliştirdiğim yer"; kat da listenin SONUNA eklendi.
-
-		Ped kaldırılmadı — yanından geçen de alabilir. İkisi de aynı
-		FloorBuy remote'una çıkıyor.
-
-		Satır diğerlerinden ayrı görünüyor (altın çerçeve, kutucuk yok)
-		çünkü seviyeli bir yükseltme değil; tek seferlik bir açılış.
+		Kat artık YALNIZCA burada alınıyor. Üslerdeki satın alma pedi
+		kaldırıldı ("FLOOR 3 · Needs 2 rebirth" tabelası her üste bir ışık
+		sütunu ve yazı koyuyordu).
 	]]
-	local floorRow = Instance.new("Frame")
-	floorRow.Name = "NewFloor"
-	floorRow.LayoutOrder = #Config.Upgrades + 1
-	floorRow.Size = UDim2.new(1, 0, 0, 46)
-	floorRow.BackgroundColor3 = SHELL_DARK
-	floorRow.BorderSizePixel = 0
-	floorRow.Parent = list
-	corner(floorRow, 10)
-	stroke(floorRow, GOLD, 1.2, 0.45)
+	local floorCard = makeCard(#Config.Upgrades + 1, GOLD)
+	local floorIcon = Instance.new("Frame")
+	floorIcon.Position = UDim2.fromOffset(10, 10)
+	floorIcon.Size = UDim2.fromOffset(44, 44)
+	floorIcon.BackgroundColor3 = GOLD:Lerp(Color3.new(0, 0, 0), 0.55)
+	floorIcon.BorderSizePixel = 0
+	floorIcon.ZIndex = Z + 3
+	floorIcon.Parent = floorCard
+	UiKit.Corner(floorIcon, 10)
+	-- Kat ikonu: üst üste üç levha
+	for i = 0, 2 do
+		local slab = Instance.new("Frame")
+		slab.AnchorPoint = Vector2.new(0.5, 0.5)
+		slab.Position = UDim2.new(0.5, 0, 0.5, 10 - i * 9)
+		slab.Size = UDim2.fromOffset(28 - i * 4, 6)
+		slab.BackgroundColor3 = GOLD:Lerp(Color3.new(1, 1, 1), 0.2 + i * 0.15)
+		slab.BorderSizePixel = 0
+		slab.ZIndex = Z + 4
+		slab.Parent = floorIcon
+		UiKit.Corner(slab, 2)
+	end
 
 	local floorName = Instance.new("TextLabel")
-	floorName.Position = UDim2.fromOffset(14, 7)
-	floorName.Size = UDim2.new(1, -120, 0, 18)
+	floorName.Position = UDim2.fromOffset(64, 10)
+	floorName.Size = UDim2.new(1, -200, 0, 20)
 	floorName.BackgroundTransparency = 1
-	floorName.Font = Enum.Font.GothamBold
-	floorName.TextSize = 16
+	floorName.Font = Enum.Font.GothamBlack
+	floorName.TextSize = 15
 	floorName.TextXAlignment = Enum.TextXAlignment.Left
 	floorName.TextColor3 = GOLD
-	floorName.Text = "NEW FLOOR"
-	floorName.Parent = floorRow
+	floorName.ZIndex = Z + 3
+	floorName.Parent = floorCard
 
 	local floorNote = Instance.new("TextLabel")
-	floorNote.Position = UDim2.fromOffset(14, 25)
-	floorNote.Size = UDim2.new(1, -120, 0, 15)
+	floorNote.Position = UDim2.fromOffset(64, 32)
+	floorNote.Size = UDim2.new(1, -200, 0, 16)
 	floorNote.BackgroundTransparency = 1
 	floorNote.Font = Enum.Font.GothamMedium
-	floorNote.TextSize = 12
+	floorNote.TextSize = 11
 	floorNote.TextXAlignment = Enum.TextXAlignment.Left
-	floorNote.TextColor3 = MUTED
-	floorNote.Text = ""
-	floorNote.Parent = floorRow
+	floorNote.TextColor3 = UiKit.MUTED
+	floorNote.ZIndex = Z + 3
+	floorNote.Parent = floorCard
 
-	local floorButton = Instance.new("TextButton")
-	floorButton.AnchorPoint = Vector2.new(1, 0.5)
-	floorButton.Position = UDim2.new(1, -8, 0.5, 0)
-	floorButton.Size = UDim2.fromOffset(98, 30)
-	floorButton.BackgroundColor3 = GOLD
-	floorButton.BorderSizePixel = 0
-	floorButton.AutoButtonColor = false
-	floorButton.Font = Enum.Font.GothamBold
-	floorButton.TextSize = 14
-	floorButton.TextColor3 = Color3.fromRGB(16, 20, 26)
-	floorButton.Text = "—"
-	floorButton.Parent = floorRow
-	corner(floorButton, 8)
-
+	local _, floorButton, floorPrice = makeButton(floorCard, GOLD)
 	local floorRemote = Net.Get("FloorBuy")
 	floorButton.MouseButton1Click:Connect(function()
-		floorRemote:FireServer()
-	end)
-	floorButton.MouseEnter:Connect(function()
-		floorButton.BackgroundColor3 = GOLD:Lerp(Color3.new(1, 1, 1), 0.25)
-	end)
-	floorButton.MouseLeave:Connect(function()
-		floorButton.BackgroundColor3 = GOLD
-	end)
-
-	--[[
-		Kat satırının durumu. Üç hâl var ve üçü de farklı şey anlatıyor:
-		  • rebirth yetmiyor  → kilitli, kaç rebirth gerektiği yazıyor
-		  • alınabilir        → fiyat yazıyor
-		  • hepsi alınmış     → tamamlandı
-	]]
-	local function refreshFloor()
-		local bought = player:GetAttribute("FloorsBought")
-		bought = if typeof(bought) == "number" then bought else 0
-		local rebirths = player:GetAttribute("Rebirths")
-		rebirths = if typeof(rebirths) == "number" then rebirths else 0
-
-		local def = Config.GetNextFloor(bought)
-		if not def then
-			floorName.Text = "ALL FLOORS OPEN"
-			floorNote.Text = "COMPLETE"
-			floorNote.TextColor3 = GOOD
-			floorButton.Text = "MAX"
-			floorButton.BackgroundColor3 = DIM
-			floorButton.Active = false
-			return
+		if floorButton.Active then
+			floorRemote:FireServer()
 		end
+	end)
 
-		floorName.Text = string.format("NEW FLOOR  ·  %d", def.floor)
-
-		if rebirths < def.rebirths then
-			floorNote.Text = string.format(
-				"Needs %d rebirth%s - you have %d",
-				def.rebirths, if def.rebirths == 1 then "" else "s", rebirths
-			)
-			floorNote.TextColor3 = MUTED
-			floorButton.Text = "LOCKED"
-			floorButton.BackgroundColor3 = DIM
-			floorButton.Active = false
-		else
-			floorNote.Text = "Doubles every upgrade cap"
-			floorNote.TextColor3 = MUTED
-			floorButton.Text = "$" .. Config.FormatCash(def.cost)
-			floorButton.BackgroundColor3 = GOLD
-			floorButton.Active = true
+	-- Düğmenin hâli: renk + yazı + tıklanabilirlik tek yerde
+	local function setButton(button: TextButton, price: TextLabel, text: string, tint: Color3?)
+		price.Text = text
+		button.BackgroundColor3 = tint or UiKit.DIM
+		button.Active = tint ~= nil
+		-- Kabartmanın degradesi ve kenarı da aynı renge dönsün (UiKit.Raised)
+		local base = tint or UiKit.DIM
+		local grad = button:FindFirstChildOfClass("UIGradient")
+		if grad then
+			grad.Color = ColorSequence.new(base:Lerp(Color3.new(1, 1, 1), 0.22), base:Lerp(Color3.new(0, 0, 0), 0.18))
+		end
+		local edge = button:FindFirstChildOfClass("UIStroke")
+		if edge then
+			edge.Color = base:Lerp(Color3.new(0, 0, 0), 0.55)
 		end
 	end
 
 	-- ─── Güncelleme ─────────────────────────────────────────────────────────
 
+	local function number(name: string, default: number): number
+		local value = player:GetAttribute(name)
+		return if typeof(value) == "number" then value else default
+	end
+
 	local function refresh()
-		refreshFloor()
+		local floors = number("UpgradeFloors", 1)
+		local cash = number("Cash", 0)
 
 		for _, row in rows do
-			local level = player:GetAttribute("Upg_" .. row.def.id)
-			level = if typeof(level) == "number" then level else 0
-
-			--[[
-				Tavan oyuncunun açık kat sayısına bağlı. Sunucu onu
-				"UpgradeFloors" niteliğine yazıyor; nitelik replike
-				olduğu için ayrı remote gerekmiyor.
-			]]
-			local floors = player:GetAttribute("UpgradeFloors")
-			floors = if typeof(floors) == "number" then floors else 1
+			local lvl = number("Upg_" .. row.def.id, 0)
 			local maxLevel = Config.GetUpgradeMaxLevel(row.def, floors)
 
-			-- Kutucuk sayısı sabit, seviye tavanı değişken: doluluk oranla
-			local filled = math.floor(#row.pips * (level / math.max(1, maxLevel)) + 0.0001)
+			row.level.Text = string.format("Lv %d/%d", lvl, maxLevel)
+
+			local filled = math.floor(#row.pips * (lvl / math.max(1, maxLevel)) + 0.0001)
 			for i, pip in row.pips do
-				pip.BackgroundColor3 = if i <= filled then (TINT[row.def.id] or GOLD) else DIM
+				pip.BackgroundColor3 = if i <= filled then row.tint else UiKit.DIM
 			end
 
-			row.name.Text = string.format("%s  %d/%d", row.def.name, level, maxLevel)
+			local effect = EFFECT[row.def.id]
+			local price = Config.GetUpgradeCost(row.def.id, lvl, floors)
+			if effect then
+				if price then
+					-- Şimdi → sonraki: yeşil ok ve sonraki değer
+					row.effect.Text = string.format('%s %s  <font color="#80E096">→ %s</font>',
+						effect.label, effect.value(lvl), effect.value(lvl + 1))
+				else
+					row.effect.Text = effect.label .. " " .. effect.value(lvl)
+				end
+			end
 
-			local price = Config.GetUpgradeCost(row.def.id, level, floors)
 			if price then
-				row.button.Text = "$" .. Config.FormatCash(price)
-				row.button.BackgroundColor3 = TINT[row.def.id] or GOLD
-				row.button.Active = true
-				row.cost.Text = "NEXT LEVEL"
-				row.cost.TextColor3 = MUTED
+				-- Parası yetmiyorsa düğme sönük ama tıklanabilir: sunucu fiyatı söylüyor
+				setButton(row.button, row.price, "$" .. Config.FormatCash(price), row.tint)
+				row.button.BackgroundTransparency = if cash >= price then 0 else 0.35
 			elseif floors < Config.MaxFloors then
-				-- Bu katın tavanı doldu ama oyun bitmedi: üst kat devamını açıyor
-				row.button.Text = "LOCKED"
-				row.button.BackgroundColor3 = DIM
-				row.button.Active = false
-				row.cost.Text = "NEXT FLOOR"
-				row.cost.TextColor3 = MUTED
+				setButton(row.button, row.price, "NEXT FLOOR", nil)
+				row.button.BackgroundTransparency = 0
 			else
-				row.button.Text = "MAX"
-				row.button.BackgroundColor3 = DIM
-				row.button.Active = false
-				row.cost.Text = "COMPLETE"
-				row.cost.TextColor3 = GOOD
+				setButton(row.button, row.price, "MAX", nil)
+				row.button.BackgroundTransparency = 0
 			end
+		end
+
+		-- Kat satırı: rebirth yetmiyor / alınabilir / hepsi alınmış
+		local bought = number("FloorsBought", 0)
+		local rebirths = number("Rebirths", 0)
+		local nextFloor = Config.GetNextFloor(bought)
+		if not nextFloor then
+			floorName.Text = "ALL FLOORS OPEN"
+			floorNote.Text = "Every upgrade cap is at its highest"
+			setButton(floorButton, floorPrice, "MAX", nil)
+		elseif rebirths < nextFloor.rebirths then
+			floorName.Text = string.format("NEW FLOOR %d", nextFloor.floor)
+			floorNote.Text = string.format("Needs %d rebirth%s (you have %d)",
+				nextFloor.rebirths, if nextFloor.rebirths == 1 then "" else "s", rebirths)
+			setButton(floorButton, floorPrice, "LOCKED", nil)
+		else
+			floorName.Text = string.format("NEW FLOOR %d", nextFloor.floor)
+			floorNote.Text = "More podiums + doubles every upgrade cap"
+			setButton(floorButton, floorPrice, "$" .. Config.FormatCash(nextFloor.cost), GOLD)
 		end
 	end
 
 	--[[
-		Kendi üssümüzün tetik alanına yakın mıyız?
-
-		Sadece KENDİ üssümüzdeki alan sayılıyor: rakibin kulübesine basınca
-		açılırsa oyuncu onun yükseltmelerini alıyormuş gibi görünüyor, ki
-		sunucu zaten reddediyor ama arayüz yalan söylemiş oluyor.
+		Kendi üssümüzün tetik alanına yakın mıyız? Yalnızca KENDİ üssümüzdeki
+		alan sayılıyor: rakibin kulübesinde açılsa arayüz yalan söylerdi
+		(sunucu zaten reddediyor).
 	]]
 	local function nearOwnBooth(): boolean
 		local char = player.Character
@@ -505,21 +487,18 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		if not (rootPart and rootPart:IsA("BasePart")) then
 			return false
 		end
-
 		local plots = workspace:FindFirstChild("Plots")
 		local assigned = player:GetAttribute("Plot")
 		if not (plots and typeof(assigned) == "string") then
 			return false
 		end
-
 		local plot = plots:FindFirstChild(assigned)
 		local booth = plot and plot:FindFirstChild("UpgradeBooth")
 		local zone = booth and booth:FindFirstChild("UpgradeZone")
 		if not (zone and zone:IsA("BasePart")) then
 			return false
 		end
-
-		-- Yükseklik farkını yok sayıyoruz: üst kattan bakarken açılmasın
+		-- Yükseklik farkı büyükse (üst kattan bakıyor) açılmasın
 		local delta = rootPart.Position - zone.Position
 		if math.abs(delta.Y) > 12 then
 			return false
@@ -531,22 +510,17 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	local function update()
 		local near = nearOwnBooth()
-
 		if near ~= shown then
 			shown = near
 			root.Visible = near
 			if near then
-				-- Açılırken küçükten büyüyor: pencerenin nereden geldiği belli
-				root.Size = UDim2.fromOffset(440, 86 + #Config.Upgrades * 64)
-				TweenService:Create(
-					root,
-					TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-					{ Size = UDim2.fromOffset(460, 96 + #Config.Upgrades * 64) }
-				):Play()
+				-- Küçükten büyüyor; boyut değil ölçek, düzen bozulmuyor
+				pop.Scale = 0.9
+				TweenService:Create(pop, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Scale = 1 }):Play()
 			end
 		end
-
-		if near then
+		if near and root.Visible then
 			refresh()
 		end
 	end

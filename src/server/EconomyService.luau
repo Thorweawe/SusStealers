@@ -110,6 +110,11 @@ function EconomyService.GetIncome(player: Player): number
 	local petBonus = player:GetAttribute("PetIncomeBonus") :: number?
 	multiplier *= 1 + math.max(0, petBonus or 0)
 
+	-- İndeks ödülleri: tamamlanan nadirlik satırlarının kalıcı bonusu.
+	-- Aynı gerekçeyle nitelikten (RewardService yazıyor)
+	local indexBonus = player:GetAttribute("IndexBonus") :: number?
+	multiplier *= 1 + math.max(0, indexBonus or 0)
+
 	return math.floor(total * multiplier)
 end
 

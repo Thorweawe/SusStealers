@@ -43,6 +43,9 @@ local TutorialService = require(Server.TutorialService)
 local QuestService = require(Server.QuestService)
 local PotionService = require(Server.PotionService)
 local FloorService = require(Server.FloorService)
+local PetService = require(Server.PetService)
+local RewardService = require(Server.RewardService)
+local GearService = require(Server.GearService)
 
 local ServerTests = {}
 
@@ -1845,16 +1848,18 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 	--[[
 		Sayı büyüdükçe değil, gerekçesizleştikçe tehlikeli.
 
-		Şu an yedi remote var: TutorialSkip, TitleEquip, PotionUse,
-		UpgradeBuy, Sprint, FloorBuy, RebirthBuy. Hiçbiri oyuncuya bedava
-		bir şey VERMİYOR — hepsi ya oyuncunun kendi parasını kendi üssünde
-		harcıyor ya da zaten kazanılmış bir şeyi kullanıyor. Doğrulama da
-		istemcide değil, ilgili servisin kendi TryX fonksiyonunda.
+		Şu an on üç remote var: TutorialSkip, TitleEquip, PotionUse,
+		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
+		PetEquip, PetFuse, RewardClaim, GearBuy. Hiçbiri oyuncuya bedava
+		bir şey VERMİYOR — ya oyuncunun kendi parasını harcıyor, ya zaten
+		kazanılmış bir şeyi kullanıyor, ya da hakkı sunucudaki sayaçlardan
+		hesaplanan bir ödülü topluyor. Gerekçeleri Net.luau'da tek tek yazılı;
+		doğrulama istemcide değil, ilgili servisin TryX/Claim fonksiyonunda.
 
-		Sınır sekizde: yenisi eklemek bilinçli bir karar olsun, kazara
-		büyümesin.
+		Sınır on üçte: yenisi eklemek bilinçli bir karar olsun (Net.luau'da
+		gerekçesiyle birlikte), kazara büyümesin.
 	]]
-	ok("liste küçük", #listened <= 8, tostring(#listened))
+	ok("liste bilinçli", #listened <= 13, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2166,55 +2171,19 @@ case("Kat: satın alınan kat rebirth'ten sağ çıkıyor", function(ctx)
 	eq("kat hâlâ açık", ctx.plot:GetAttribute("UnlockedFloors"), 2)
 end)
 
-case("Kat: pedi dünyada kurulu ve promptu var", function(ctx)
-	local pad = ctx.plot:FindFirstChild("FloorPad")
-	ok("ped var", pad ~= nil)
-	if not (pad and pad:IsA("BasePart")) then return end
-
-	local prompt = pad:FindFirstChild("FloorPrompt")
-	ok("prompt var", prompt ~= nil)
-	if prompt and prompt:IsA("ProximityPrompt") then
-		ok("basılı tutma istiyor", prompt.HoldDuration > 0, tostring(prompt.HoldDuration))
-		ok("menzil makul", prompt.MaxActivationDistance <= 20,
-			tostring(prompt.MaxActivationDistance))
-	end
-
-	local gui = pad:FindFirstChild("FloorLabel")
-	ok("etiket var", gui ~= nil)
-
-	-- Ped üssün içinde durmalı, başka üssün üstüne taşmamalı
-	local base = ctx.plot:FindFirstChild("Base")
-	if base and base:IsA("BasePart") then
-		local delta = pad.Position - base.Position
-		ok("ped üs sınırları içinde",
-			math.abs(delta.X) <= Config.PlotSize.X / 2
-			and math.abs(delta.Z) <= Config.PlotSize.Z / 2,
-			string.format("%.1f, %.1f", delta.X, delta.Z))
+case("Kat: üslerde satın alma pedi ve tabelası yok", function()
+	--[[
+		Ped kaldırıldı: her üste "FLOOR 3 · Needs 2 rebirth" yazan bir tabela
+		ve ışık sütunu koyuyordu, rakiplerin üslerinde de görünüyordu. Kat
+		artık yalnızca yükseltme kulübesinden (FloorBuy) alınıyor. Biri pedi
+		geri eklerse bu test yakalar.
+	]]
+	for _, plot in PlotService.GetAllPlots() do
+		ok(plot.Name .. " pedsiz", plot:FindFirstChild("FloorPad") == nil)
+		local label = plot:FindFirstChild("FloorLabel", true)
+		ok(plot.Name .. " kat tabelası yok", label == nil)
 	end
 end)
-
-case("Kat: hepsi alınınca ped gizleniyor", function(ctx)
-	ctx.profile.floorsBought = Config.MaxFloors - 1
-	FloorService.Refresh(ctx.plot)
-
-	local pad = ctx.plot:FindFirstChild("FloorPad")
-	if not (pad and pad:IsA("BasePart")) then return end
-
-	local prompt = pad:FindFirstChild("FloorPrompt")
-	ok("ped görünmez", pad.Transparency >= 1, tostring(pad.Transparency))
-	if prompt and prompt:IsA("ProximityPrompt") then
-		ok("prompt kapalı", not prompt.Enabled)
-	end
-
-	-- Alınacak kat varken geri gelmeli
-	ctx.profile.floorsBought = 0
-	FloorService.Refresh(ctx.plot)
-	ok("ped geri geldi", pad.Transparency < 1, tostring(pad.Transparency))
-	if prompt and prompt:IsA("ProximityPrompt") then
-		ok("prompt açık", prompt.Enabled)
-	end
-end)
-
 case("Kat: eski kayıt katlarını kaybetmiyor", function()
 	--[[
 		Katlar eskiden doğrudan rebirth ödülüydü. floorsBought alanı
@@ -2336,6 +2305,130 @@ case("Koşma: taşırken hız artmıyor", function(ctx)
 	eq("bırakınca normal hız", humanoid.WalkSpeed, Config.NormalWalkSpeed)
 end)
 
+-- ─── U. Petler, ödüller, ekipman ────────────────────────────────────────────
+
+case("Pet: anahtar pet/mutasyon/boyut çözülüyor, bozuk anahtar reddediliyor", function()
+	local def, mutation, size = Config.ParsePetKey("MiniCrew:Golden:Huge")
+	ok("pet", def ~= nil and def.id == "MiniCrew")
+	ok("mutasyon", mutation ~= nil and mutation.id == "Golden")
+	ok("boyut", size ~= nil and size.id == "Huge")
+	ok("yalnızca boyut", (Config.ParsePetKey("MiniCrew:Titan")) ~= nil)
+	ok("bilinmeyen parça", (Config.ParsePetKey("MiniCrew:Nope")) == nil)
+	ok("iki boyut", (Config.ParsePetKey("MiniCrew:Big:Huge")) == nil)
+	eq("anahtar kurma", Config.PetKey("MiniCrew", "Golden", "Huge"), "MiniCrew:Golden:Huge")
+	local plain = Config.GetPetKeyBonus("MiniCrew")
+	local titan = Config.GetPetKeyBonus("MiniCrew:Titan")
+	near("Titan çarpanı", titan / plain, 10, 0.001)
+end)
+
+case("Pet: birleştirme boyutu büyütüyor, türü ve mutasyonu koruyor", function(ctx)
+	--[[
+		Makine yanında olma şartı var; test karakteri makineye taşımak
+		yerine mesafe kontrolünü geçici olarak açıyor.
+	]]
+	local original = PetService.NearFuseMachine
+	PetService.NearFuseMachine = function() return true end
+
+	ctx.profile.pets = { ["VoidShard:Cosmic"] = 3 }
+	ctx.profile.equippedPets = { "VoidShard:Cosmic" }
+	local key = PetService.TryFuse(ctx.player, "VoidShard:Cosmic")
+	eq("Secret da birleşiyor, Big oluyor", key, "VoidShard:Cosmic:Big")
+	eq("kopyalar yandı", ctx.profile.pets["VoidShard:Cosmic"], nil)
+	ok("takılı liste temizlendi", table.find(ctx.profile.equippedPets, "VoidShard:Cosmic") == nil)
+
+	ctx.profile.pets = { ["MiniCrew:Titan"] = 3 }
+	eq("Titan'ın üstü yok", PetService.TryFuse(ctx.player, "MiniCrew:Titan"), nil)
+	ctx.profile.pets = { MiniCrew = 2 }
+	eq("iki kopya yetmiyor", PetService.TryFuse(ctx.player, "MiniCrew"), nil)
+
+	PetService.NearFuseMachine = original
+	-- Test oyuncusu kendi üssünde duruyor, lobideki makineden uzakta
+	ctx.profile.pets = { MiniCrew = 3 }
+	eq("uzaktan birleşmiyor", PetService.TryFuse(ctx.player, "MiniCrew"), nil)
+end)
+
+case("Pet: açılış bitmeden ikinci yumurta açılmıyor", function(ctx)
+	ctx.profile.pets = {}
+	ctx.profile.equippedPets = {}
+	setCash(ctx.player, 10000000)
+	local first = PetService.TryHatch(ctx.player, "SupplyEgg", 1, false)
+	ok("ilki açıldı", first ~= nil and #first == 1)
+	local second = PetService.TryHatch(ctx.player, "SupplyEgg", 1, false)
+	eq("ikincisi bekletildi", second, nil)
+end)
+
+case("Ödül: günlük seri günde bir kez, dün alındıysa devam ediyor", function(ctx)
+	local today = Config.DayIndex(os.time())
+	ctx.profile.dailyStreak = 3
+	ctx.profile.lastDailyDay = today - 1
+	setCash(ctx.player, 0)
+	ok("toplandı", RewardService.ClaimDaily(ctx.player))
+	eq("seri arttı", ctx.profile.dailyStreak, 4)
+	ok("aynı gün ikinci kez yok", not RewardService.ClaimDaily(ctx.player))
+
+	ctx.profile.lastDailyDay = today - 3
+	ok("kaçırılan günden sonra toplandı", RewardService.ClaimDaily(ctx.player))
+	eq("seri başa döndü", ctx.profile.dailyStreak, 1)
+end)
+
+case("Ödül: oynama hediyesi süresi dolmadan alınmıyor, bir kez alınıyor", function(ctx)
+	ctx.profile.playtimeDay = Config.DayIndex(os.time())
+	ctx.profile.playtimeClaimed = {}
+	ctx.profile.playtimeSeconds = 60
+	ok("5 dk dolmadan yok", not RewardService.ClaimPlaytime(ctx.player, 1))
+	ctx.profile.playtimeSeconds = 5 * 60
+	ok("5 dk dolunca var", RewardService.ClaimPlaytime(ctx.player, 1))
+	ok("ikinci kez yok", not RewardService.ClaimPlaytime(ctx.player, 1))
+end)
+
+case("Ödül: indeks satırı tamamlanmadan bonus yok, tamamlanınca kalıcı", function(ctx)
+	ctx.profile.indexClaimed = {}
+	ctx.profile.discovered = {}
+	ok("eksikken yok", not RewardService.ClaimIndex(ctx.player, "Common"))
+	for _, unit in Config.Units do
+		if unit.rarity == "Common" then
+			ctx.profile.discovered[unit.id] = true
+		end
+	end
+	ok("tamamlanınca var", RewardService.ClaimIndex(ctx.player, "Common"))
+	near("bonus niteliği", ctx.player:GetAttribute("IndexBonus") or 0, Config.IndexRewards.Common, 0.0001)
+	ok("ikinci kez yok", not RewardService.ClaimIndex(ctx.player, "Common"))
+	ctx.profile.indexClaimed = {}
+	ctx.player:SetAttribute("IndexBonus", 0)
+end)
+
+case("Ekipman: parası yetmeden alınmıyor, alınca kalıcı ve çantaya geliyor", function(ctx)
+	ctx.profile.gear = {}
+	setCash(ctx.player, 0)
+	ok("parasız yok", not GearService.TryBuy(ctx.player, "SlapGlove"))
+	setCash(ctx.player, 1000000)
+	ok("alındı", GearService.TryBuy(ctx.player, "SlapGlove"))
+	ok("profilde", ctx.profile.gear.SlapGlove == true)
+	ok("ikinci kez yok", not GearService.TryBuy(ctx.player, "SlapGlove"))
+	local backpack = ctx.player:FindFirstChildOfClass("Backpack")
+	local found = false
+	for _, container in { backpack, ctx.player.Character } do
+		if container then
+			for _, item in container:GetChildren() do
+				if item:IsA("Tool") and item:GetAttribute("GearId") == "SlapGlove" then
+					found = true
+				end
+			end
+		end
+	end
+	ok("çantada", found)
+	-- Temizlik: test aletini bırakma
+	for _, container in { backpack, ctx.player.Character } do
+		if container then
+			for _, item in container:GetChildren() do
+				if item:IsA("Tool") and item:GetAttribute("GearId") == "SlapGlove" then
+					item:Destroy()
+				end
+			end
+		end
+	end
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -2381,8 +2474,35 @@ function ServerTests.Run(player: Player?): number
 		sold = profile.sold,
 		spins = profile.spins,
 		earned = profile.earned,
+		-- Sonradan eklenen alanlar: testler bunlara da dokunuyor
+		pets = table.clone(profile.pets),
+		equippedPets = table.clone(profile.equippedPets),
+		discovered = table.clone(profile.discovered),
+		dailyStreak = profile.dailyStreak,
+		lastDailyDay = profile.lastDailyDay,
+		playtimeDay = profile.playtimeDay,
+		playtimeSeconds = profile.playtimeSeconds,
+		playtimeClaimed = table.clone(profile.playtimeClaimed),
+		indexClaimed = table.clone(profile.indexClaimed),
+		gear = table.clone(profile.gear),
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
+
+	--[[
+		Gelir çarpanına giren nitelikler (takılı petler, indeks ödülü).
+		Testler taban geliri ölçüyor; oyuncunun kendi petleri sayılara
+		karışınca gelir testleri %35 fazla ölçüyordu. Koşu boyunca sıfır,
+		sonunda geri.
+	]]
+	local backupAttributes = {
+		PetIncomeBonus = player:GetAttribute("PetIncomeBonus"),
+		PetSpeedBonus = player:GetAttribute("PetSpeedBonus"),
+		IndexBonus = player:GetAttribute("IndexBonus"),
+		IndexClaimed = player:GetAttribute("IndexClaimed"),
+	}
+	player:SetAttribute("PetIncomeBonus", 0)
+	player:SetAttribute("PetSpeedBonus", 0)
+	player:SetAttribute("IndexBonus", 0)
 
 	local ctx = { player = player, plot = plot, profile = profile }
 
@@ -2452,9 +2572,24 @@ function ServerTests.Run(player: Player?): number
 	profile.sold = backup.sold
 	profile.spins = backup.spins
 	profile.earned = backup.earned
+	profile.pets = backup.pets
+	profile.equippedPets = backup.equippedPets
+	profile.discovered = backup.discovered
+	profile.dailyStreak = backup.dailyStreak
+	profile.lastDailyDay = backup.lastDailyDay
+	profile.playtimeDay = backup.playtimeDay
+	profile.playtimeSeconds = backup.playtimeSeconds
+	profile.playtimeClaimed = backup.playtimeClaimed
+	profile.indexClaimed = backup.indexClaimed
+	profile.gear = backup.gear
+	for name, value in backupAttributes do
+		player:SetAttribute(name, value)
+	end
+	-- Petler geri yüklendi: bonusu ve sahadaki modelleri gerçek profile göre kur
+	PetService.Apply(player)
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
-	FloorService.Refresh(plot)
+	FloorService.Publish(player)
 	clearPlot(plot)
 
 	print("═══════════════════════════════════")

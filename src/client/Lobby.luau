@@ -1,5 +1,5 @@
 --!strict
--- Lobi işlevleri: ışınlanma arayüzü ve sıralama panoları.
+-- Lobi işlevleri: ışınlanma arayüzü. (Sıralama panolarını sunucu dolduruyor.)
 --
 -- Ped yerine arayüz: üstüne basınca ışınlanan bir ped, yanından geçerken
 -- kazara tetikleniyor ve sinir bozucu oluyor. Kürsüye yaklaşınca açılan
@@ -31,50 +31,10 @@ local WARN = Color3.fromRGB(255, 190, 90)
 	demek, yani gerçekten yanına gelmek gerekiyor.
 ]]
 local REACH = 11
-local BOARD_ROWS = 6
 
 export type Hub = {
 	Update: () -> (),
 }
-
-local function cashOf(p: Player): number
-	local v = p:GetAttribute("Cash")
-	return if typeof(v) == "number" then v else 0
-end
-
-local function incomeOf(p: Player): number
-	local v = p:GetAttribute("Income")
-	return if typeof(v) == "number" then v else 0
-end
-
-local function stolenOf(p: Player): number
-	local stats = p:FindFirstChild("leaderstats")
-	local v = stats and stats:FindFirstChild("Stolen")
-	if v and v:IsA("IntValue") then
-		return v.Value
-	end
-	return 0
-end
-
---[[ Panoyu dolduran metni üretir: sıra, isim, değer. ]]
-local function boardText(score: (Player) -> number, format: (number) -> string): string
-	local list = Players:GetPlayers()
-	table.sort(list, function(a, b)
-		return score(a) > score(b)
-	end)
-
-	local lines = {}
-	for i = 1, math.min(#list, BOARD_ROWS) do
-		local p = list[i]
-		local mark = if p == player then " <" else ""
-		table.insert(lines, string.format("%d.  %-14s %s%s", i, string.sub(p.DisplayName, 1, 14), format(score(p)), mark))
-	end
-
-	if #lines == 0 then
-		return "no players"
-	end
-	return table.concat(lines, "\n")
-end
 
 function Lobby.Create(screen: ScreenGui): Hub
 	-- ─── Işınlanma paneli ───────────────────────────────────────────────────
@@ -166,19 +126,6 @@ function Lobby.Create(screen: ScreenGui): Hub
 		note.Text = ""
 	end)
 
-	-- ─── Panolar ────────────────────────────────────────────────────────────
-
-	local function fillBoard(index: number, text: string)
-		local decor = workspace:FindFirstChild("Decor")
-		local boards = decor and decor:FindFirstChild("Boards")
-		local screenPart = boards and boards:FindFirstChild("BoardScreen" .. index)
-		local surface = screenPart and screenPart:FindFirstChild("Display")
-		local body = surface and surface:FindFirstChild("Body")
-		if body and body:IsA("TextLabel") then
-			body.Text = text
-		end
-	end
-
 	-- ─── Döngü ──────────────────────────────────────────────────────────────
 
 	local function update()
@@ -201,16 +148,7 @@ function Lobby.Create(screen: ScreenGui): Hub
 		else
 			panel.Visible = false
 		end
-
-		fillBoard(1, boardText(cashOf, function(v)
-			return "$" .. Config.FormatCash(v)
-		end))
-		fillBoard(2, boardText(stolenOf, function(v)
-			return tostring(math.floor(v))
-		end))
-		fillBoard(3, boardText(incomeOf, function(v)
-			return "+$" .. Config.FormatCash(v) .. "/s"
-		end))
+		-- Panoları artık sunucu dolduruyor (GlobalBoardService, küresel)
 	end
 
 	return { Update = update }

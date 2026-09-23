@@ -25,6 +25,9 @@ local FloorService = require(script.FloorService)
 local PotionService = require(script.PotionService)
 local QuestService = require(script.QuestService)
 local PetService = require(script.PetService)
+local RewardService = require(script.RewardService)
+local GearService = require(script.GearService)
+local GlobalBoardService = require(script.GlobalBoardService)
 
 local started = os.clock()
 
@@ -52,5 +55,8 @@ TutorialService.Start()
 PotionService.Start()
 QuestService.Start()
 PetService.Start()
+RewardService.Start()
+GearService.Start()
+GlobalBoardService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

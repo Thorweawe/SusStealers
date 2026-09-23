@@ -79,7 +79,7 @@ local Z = 40
 	raydaki QUESTS düğmesinin rozeti buna bağlı.
 ]]
 function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
-	local root = UiKit.Shell(screen, "QuestPanel", ACCENT)
+	local root = UiKit.Window(screen, "QuestPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
 	root.Size = UDim2.fromOffset(520, 470)
