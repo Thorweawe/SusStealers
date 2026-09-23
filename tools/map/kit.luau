@@ -338,14 +338,22 @@ local function solid(o: Opts): boolean
 end
 
 function K.part(o: Opts): Part
-	local p = Instance.new("Part")
+	-- Oturulabilir koltuk: Seat sınıfı ve dokunma açık (oturma dokunmayla tetikleniyor)
+	local isSeat = (o :: any).seat == true
+	local p = (if isSeat then Instance.new("Seat") else Instance.new("Part")) :: Part
 	p.Name = o.name or "Deco"
 	p.Size = o.size
 	p.CFrame = o.cf
 	p.Anchored = true
-	p.CanCollide = solid(o)
-	p.CanQuery = false
-	p.CanTouch = false
+	p.CanCollide = solid(o) or isSeat
+	--[[
+		Katı parçalar sorgulanabilir: kameranın engel kontrolü ışın atıyor ve
+		CanQuery kapalı parçaları görmüyor. Kapalıyken kamera duvardan ve
+		tavandan geçip dışarı çıkıyor, oyuncu "duvar yok, her yer boşluk"
+		görüyordu (özellikle üst katlarda).
+	]]
+	p.CanQuery = p.CanCollide
+	p.CanTouch = isSeat
 	p.CastShadow = true
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
@@ -823,11 +831,8 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		for _, sd in (if spec.twoSided then { 1, -1 } else { 1 }) do
 			piece(tag .. "Kick", mid, 1.3, sd * (T / 2 + 0.25), w, 2.6, 0.5, C.wallKick)
 			piece(tag .. "Rail", mid, rail + 0.6, sd * (T / 2 + 0.35), w, 1.2, 0.7, C.wallRail, { collide = false })
-			-- Dikey derzler: alt panelde ölçek veren ince çıtalar
-			local seams = math.floor(w / 12)
-			for k = 1, seams - 1 do
-				piece(tag .. "Seam", s0 + k * (w / seams), 2.6 + (rail - 2.6) / 2, sd * (T / 2 + 0.08), 0.45, rail - 2.6, 0.16, C.wallSeam, { collide = false })
-			end
+			-- Dikey derz çıtaları kaldırıldı: her duvarda koyu "demir çizgiler"
+			-- gibi okunuyor, sahneyi kalabalıklaştırıyordu.
 		end
 		-- Tavana yakın ışık bandı
 		if not spec.noCove then

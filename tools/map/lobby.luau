@@ -261,7 +261,8 @@ return {
 					local look = CFrame.lookAt(Vector3.new(px, FLOOR, pz), Vector3.new(tx, FLOOR, tz))
 					local seg = 2 * radius * math.sin(math.rad(10)) + 0.25
 					K.boxAt(parent, "BenchLeg", look * CFrame.new(0, 0.8, 0), Vector3.new(seg - 0.6, 1.6, 2.2), C.frameDark)
-					K.boxAt(parent, "BenchSeat", look * CFrame.new(0, 2.0, 0), Vector3.new(seg, 0.8, 2.9), C.bench)
+					-- Oturulabilir (Seat): oyuncu masaya dönük oturuyor
+				K.boxAt(parent, "BenchSeat", look * CFrame.new(0, 2.0, 0), Vector3.new(seg, 0.8, 2.9), C.bench, { seat = true })
 				end
 			end
 		end

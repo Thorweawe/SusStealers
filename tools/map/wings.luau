@@ -132,7 +132,8 @@ return {
 				egg:SetAttribute("BobPeriod", 2.9 - i * 0.2)
 
 				if i >= 2 then
-					halo(i, px, pz, FLOOR + 9.2, 5.3, 30 + i * 12, 10)
+					-- Halkalar camın İÇİNDE (cam yarıçapı 4.2, yumurta 2.3)
+					halo(i, px, pz, FLOOR + 9.2, 3.4, 30 + i * 12, 10)
 				end
 				if i >= 3 then
 					local beam = K.vcyl(h, "PodBeam", px, (FLOOR + 14.9 + H) / 2, pz, H - FLOOR - 15.1, 3.2, C.cyan,
@@ -147,18 +148,19 @@ return {
 					emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
 					emitter.Lifetime = NumberRange.new(0.9, 1.6)
 					emitter.Rate = if i >= 4 then 14 else 6
-					emitter.Speed = NumberRange.new(1, 2.2)
+					-- Yavaş: zerreler camın içinde kalsın
+					emitter.Speed = NumberRange.new(0.5, 1.1)
 					emitter.SpreadAngle = Vector2.new(180, 180)
 					emitter.Parent = spark
 				end
 				if i >= 4 then
-					halo(i, px, pz, FLOOR + 12, 5.8, -(40 + i * 10), 12)
+					halo(i, px, pz, FLOOR + 11.6, 3.2, -(40 + i * 10), 10)
 					-- Yörüngede dönen kristaller
-					local center = Vector3.new(px, FLOOR + 8, pz)
+					local center = Vector3.new(px, FLOOR + 5.2, pz)
 					for k = 0, 2 do
 						local a = k / 3 * math.pi * 2
-						local shard = K.boxAt(h, "PodShard", CFrame.new(center + Vector3.new(math.cos(a) * 7, (k - 1) * 1.2, math.sin(a) * 7))
-							* CFrame.Angles(math.rad(45), 0, math.rad(45)), Vector3.new(0.9, 0.9, 0.9), C.cyan, { emit = "Fixture", collide = false })
+						local shard = K.boxAt(h, "PodShard", CFrame.new(center + Vector3.new(math.cos(a) * 3.3, (k - 1) * 0.5, math.sin(a) * 3.3))
+							* CFrame.Angles(math.rad(45), 0, math.rad(45)), Vector3.new(0.7, 0.7, 0.7), C.cyan, { emit = "Fixture", collide = false })
 						shard.CastShadow = false
 						shard:SetAttribute("SpinSpeed", 60)
 						shard:SetAttribute("SpinCenter", center)
@@ -199,9 +201,11 @@ return {
 			core.CanCollide = true
 			K.vcyl(h, "ScanPad", sx, FLOOR + 1.35, sz, 0.12, 9, C.green, { emit = "Screen", collide = false })
 			-- Tarama halkası: aşağı yukarı gidip geliyor (DecorFX bob)
-			local ring = K.vcyl(h, "ScanRing", sx, FLOOR + 5.5, sz, 0.35, 11.6, C.green, { emit = "Fixture", transparency = 0.2, collide = false })
+			-- Halka ışık sütununun (çap 10.5) içinde kalıyor, sallanmadan yalnızca inip çıkıyor
+			local ring = K.vcyl(h, "ScanRing", sx, FLOOR + 5.5, sz, 0.35, 9.8, C.green, { emit = "Fixture", transparency = 0.2, collide = false })
 			ring:SetAttribute("BobHeight", 3.8)
 			ring:SetAttribute("BobPeriod", 3)
+			ring:SetAttribute("BobWobble", 0)
 			ring.CastShadow = false
 			local beam = K.vcyl(h, "ScanBeam", sx, FLOOR + 7.2, sz, 12, 10.5, C.green, { emit = "Screen", transparency = 0.88, collide = false })
 			beam.CastShadow = false
@@ -328,7 +332,8 @@ return {
 			-- Topçu koltuğu ve önündeki konsol (promptun bağlandığı parça)
 			local seat = CFrame.lookAt(Vector3.new(mx, FLOOR, tz - 13), Vector3.new(mx, FLOOR, tz))
 			K.boxAt(g, "GunnerPost", seat * CFrame.new(0, 1.2, 0), Vector3.new(1, 2.4, 1), C.metalDark)
-			K.boxAt(g, "GunnerSeat", seat * CFrame.new(0, 2.7, 0), Vector3.new(4, 0.8, 4), C.red)
+			-- Oturulabilir topçu koltuğu (Seat), ekrana bakıyor
+			K.boxAt(g, "GunnerSeat", seat * CFrame.new(0, 2.7, 0), Vector3.new(4, 0.8, 4), C.red, { seat = true })
 			K.boxAt(g, "GunnerBack", seat * CFrame.new(0, 5.2, 1.9), Vector3.new(4, 4.2, 0.8), C.red)
 			local desk = seat * CFrame.new(0, 0, -4.5)
 			local console = K.boxAt(g, "AsteroidConsole", desk * CFrame.new(0, 2, 0), Vector3.new(8, 4, 3), C.metal)

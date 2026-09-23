@@ -15,10 +15,6 @@ return {
 
 	build = function(K: any)
 		local M, C = K.M, K.C
-		local T = 2                      -- bölme duvarı kalınlığı
-		local H = M.PART_WALL_H
-
-		local parts = K.folder("Partitions")
 		local plotsF = K.folder("Plots")
 
 		for i = 1, M.PLOT_COUNT do
@@ -27,59 +23,11 @@ return {
 			local flip = K.plotFlip(i)
 			local facing = K.plotFacing(i)
 			local th = K.theme(i)
-			local r = K.roomRect(i)
-			local zFront = if facing > 0 then r[4] else r[2]
-			local zWall = if facing > 0 then M.IZ0 else M.IZ1
-
-			-- ─── Bölme duvarları ────────────────────────────────────────────
 			--[[
-				Yan duvarlar arka duvardan odanın önüne kadar; ortada 18'lik
-				kapı (üssün tam yanına açılıyor). Ön taraf koridora açık,
-				köşelerde yalnızca kısa birer ayak var — oda çerçevelensin
-				ama geçiş kapanmasın.
-			]]
-			local pf = K.folder("Room" .. i, parts)
-			-- Duvar gövdenin 0.3 içinden başlıyor: uç yüzü süpürgelikle aynı düzlemde kalmasın
-			zWall -= facing * 0.3
-			local doorU = math.abs(oz - zWall)
-			local wspec = {
-				h = H, t = T, windows = false, winBottom = H, winTop = H, noCove = true,
-				twoSided = true, cap = C.wallCap, lowColor = C.wallLow,
-				inset0 = 1.6, inset1 = 1.6,
-				-- Kapı 10.5: lentonun üstü korkuluk bandının üstüyle aynı hizaya düşmesin
-				doors = { { u0 = doorU - 9, u1 = doorU + 9, h = 10.5 } },
-				name = "Side",
-			}
-			for _, sx in { -1, 1 } do
-				local x = ox + sx * M.ROOM_HX
-				local a = Vector2.new(x, zWall)
-				local b = Vector2.new(x, zFront + facing * T / 2)
-				-- iç taraf odaya bakıyor (kapı lambası ve söveler iki yüzlü)
-				local inside = if sx < 0 then -facing else facing
-				K.wall(pf, a, b, inside, wspec)
-				K.door(pf, a, b, inside, doorU - 9, doorU + 9, 10.5, T)
-			end
-
-			-- Ön köşe ayakları
-			for _, sx in { -1, 1 } do
-				-- Ayak yan duvarın içinden başlıyor (uç yüzü görünmesin)
-				local x0 = ox + sx * (M.ROOM_HX + 0.3)
-				local x1 = ox + sx * (M.ROOM_HX - T / 2 - 7)
-				local inside = if sx < 0 then facing else -facing
-				K.wall(pf, Vector2.new(x0, zFront), Vector2.new(x1, zFront), inside, {
-					h = H, t = T, windows = false, winBottom = H, winTop = H, noCove = true,
-					twoSided = true, cap = C.wallCap, inset0 = 0.6, inset1 = 0.6, name = "Stub",
-				})
-				-- Ayağın ucunda tema renginde dikey şerit: odanın rengi koridordan okunsun
-				K.box(pf, "StubAccent", x1 + sx * 0.0, H / 2, zFront, 0.5, H - 3, T + 0.3, th.accent, { emit = "Screen" })
-			end
-
-			--[[
-				TABELA YOK. Odaların üstünde sarkan ad tabelaları ve koridordaki
-				üs pedleri vardı; sahneyi kalabalıklaştırıyordu ("overwhelming").
-				Oda kimliği artık zemin rengi ve odanın eşyalarından okunuyor —
-				Among Us'ta da odalar tabelayla değil görünüşüyle tanınıyor.
-				OwnerColors DoorGlow/BayPad bulamazsa sessizce atlıyor.
+				BÖLME DUVARI YOK. Odaların yan duvarları, kapıları ve köşe
+				ayakları vardı; üsler arası geçişi bölüyor ve sahneyi
+				kalabalıklaştırıyordu. Oda kimliği zemin rengi ve arka duvardaki
+				eşyalardan okunuyor; tabela ve koridor pedi de yok.
 			]]
 
 			-- ─── Üssün kendi süslemesi ──────────────────────────────────────
@@ -114,14 +62,20 @@ return {
 				K.hazard(plot, ox, topY + 0.06 + M.LIFT, convZ + e * 3.2, beltLen + 4, 0.7, "x", 2.4)
 			end
 
-			-- Bant çıtaları: kapaktan girişe akıyor
+			--[[
+				Bant çıtaları: kapaktan girişe akıyor. Hepsi bandın BAŞINDAN
+				başlıyor, aralarındaki mesafe faz (SlidePhase) olarak veriliyor.
+				Eskiden her çıta kendi yerinden bir bant boyu daha kayıyordu ve
+				bandın dışına, üssün arkasına kadar uzanan gri çizgiler oluyordu.
+			]]
 			local SLATS = 8
 			local gap = beltLen / SLATS
 			local dx = ox - flip * beltLen / 2
 			for k = 0, SLATS - 1 do
-				local slat = K.box(plot, "BeltSlat", dx + flip * k * gap, beltY + 0.09 + M.LIFT, convZ, 0.9, 0.18, 4.4, C.metalDark)
+				local slat = K.box(plot, "BeltSlat", dx, beltY + 0.09 + M.LIFT, convZ, 0.9, 0.18, 4.4, C.metalDark)
 				slat:SetAttribute("SlideSpeed", 5 * flip)
 				slat:SetAttribute("SlideRange", beltLen)
+				slat:SetAttribute("SlidePhase", k * gap)
 			end
 
 			--[[

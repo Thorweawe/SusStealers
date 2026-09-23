@@ -169,16 +169,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 	dot.Position = UDim2.fromScale(0.5, 0.5)
 	dot.Size = UDim2.fromOffset(5, 5)
 
-	-- Top: sağ alt köşede, lazer buradan çıkıyor
-	local cannon = frame(canvas, UiKit.CREW.WHITE, Z + 4, true)
-	cannon.AnchorPoint = Vector2.new(0.5, 0.5)
-	cannon.Position = UDim2.new(1, -18, 1, -18)
-	cannon.Size = UDim2.fromOffset(44, 44)
-	UiKit.Stroke(cannon, UiKit.SHELL_DEEP, 3, 0)
-	local barrel = frame(cannon, UiKit.CREW.RED, Z + 5, true)
-	barrel.AnchorPoint = Vector2.new(0.5, 0.5)
-	barrel.Position = UDim2.fromScale(0.5, 0.5)
-	barrel.Size = UDim2.fromOffset(18, 18)
+	-- Lazer ekranın alt ortasından çıkıyor (ayrı bir top çizimi yok)
 
 	-- Tamamlandı yazısı
 	local banner = Instance.new("TextLabel")
@@ -242,7 +233,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 	-- Toptan hedefe lazer: kısa süre görünüp sönüyor
 	local function laser(target: Vector2)
 		local size = canvas.AbsoluteSize
-		local from = Vector2.new(size.X - 18, size.Y - 18)
+		local from = Vector2.new(size.X / 2, size.Y)
 		local delta = target - from
 		local beam = frame(canvas, UiKit.CREW.RED:Lerp(Color3.new(1, 1, 1), 0.3), Z + 3)
 		beam.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -408,7 +399,23 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 		end
 	end)
 
+	--[[
+		Ödül 20 dakikada bir (sunucu AsteroidReadyAt niteliğini yazıyor).
+		Beklerken oyun oynanabiliyor; alt başlık kalan süreyi söylüyor ki
+		oyuncu ödülsüz bittiğine şaşırmasın.
+	]]
+	local localPlayer = game:GetService("Players").LocalPlayer
+	local function rewardHint(): string
+		local readyAt = localPlayer:GetAttribute("AsteroidReadyAt")
+		local left = if typeof(readyAt) == "number" then readyAt - os.time() else 0
+		if left > 0 then
+			return string.format("Practice run — next reward in %d:%02d. Destroy %d.", left // 60, left % 60, rules.goal)
+		end
+		return string.format("Click the asteroids before they pass the ship. Destroy %d for a reward!", rules.goal)
+	end
+
 	local function open()
+		hint.Text = rewardHint()
 		clearRocks()
 		destroyed = 0
 		finished = false

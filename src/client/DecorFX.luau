@@ -17,9 +17,10 @@ type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string, cent
 type Pulser = { part: BasePart, period: number, phase: number }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 -- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
-type Slider = { part: BasePart, speed: number, range: number, base: CFrame }
+type Slider = { part: BasePart, speed: number, range: number, phase: number, base: CFrame }
 -- Kuluçkadaki yumurtalar gibi yerinde süzülenler: aşağı-yukarı + hafif sallanma
-type Bobber = { part: BasePart, height: number, period: number, phase: number, base: CFrame }
+-- wobble: sallanma açısı (derece); 0 ise yalnızca yukarı-aşağı (MedBay tarama halkası)
+type Bobber = { part: BasePart, height: number, period: number, phase: number, wobble: number, base: CFrame }
 
 export type FX = {
 	Stop: () -> (),
@@ -80,6 +81,7 @@ function DecorFX.Start(): FX
 					period = bobPeriod,
 					-- Yan yana yumurtalar aynı anda inip kalkmasın
 					phase = #bobbers * 0.9,
+					wobble = if typeof(obj:GetAttribute("BobWobble")) == "number" then obj:GetAttribute("BobWobble") else 4,
 					base = obj.CFrame,
 				})
 			end
@@ -87,10 +89,12 @@ function DecorFX.Start(): FX
 			local slide = obj:GetAttribute("SlideSpeed")
 			local slideRange = obj:GetAttribute("SlideRange")
 			if typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
+				local phase = obj:GetAttribute("SlidePhase")
 				table.insert(sliders, {
 					part = obj,
 					speed = slide,
 					range = slideRange,
+					phase = if typeof(phase) == "number" then phase else 0,
 					base = obj.CFrame,
 				})
 			end
@@ -179,9 +183,15 @@ function DecorFX.Start(): FX
 			konveyör hangi yöne dönükse çıta da o yöne akıyor — dünya eksenine
 			bağlamak üsler döndüğünde ters yöne akmalarına yol açardı.
 		]]
+		--[[
+			Yol hep [0, range] içinde; hız negatifse aynı yol ters yönde
+			(taban noktasından -x'e). Eskiden negatif hızda parça tabandan
+			+x'e bir menzil boyu taşıyordu.
+		]]
 		for _, s in sliders do
-			local travelled = (s.speed * elapsed) % s.range
-			s.part.CFrame = s.base * CFrame.new(travelled, 0, 0)
+			local travelled = (s.phase + math.abs(s.speed) * elapsed) % s.range
+			local sign = if s.speed < 0 then -1 else 1
+			s.part.CFrame = s.base * CFrame.new(travelled * sign, 0, 0)
 		end
 
 		--[[
@@ -191,9 +201,10 @@ function DecorFX.Start(): FX
 		]]
 		for _, b in bobbers do
 			local t = elapsed * (2 * math.pi) / b.period + b.phase
-			b.part.CFrame = b.base
-				* CFrame.new(0, math.sin(t) * b.height, 0)
-				* CFrame.Angles(0, 0, math.rad(math.sin(t * 0.5) * 4))
+			-- Yükseklik DÜNYA yukarısında: dik duran (döndürülmüş) silindirde
+			-- yerel Y yatay kalıyordu ve halka yana kayıyordu
+			b.part.CFrame = (b.base + Vector3.new(0, math.sin(t) * b.height, 0))
+				* CFrame.Angles(0, 0, math.rad(math.sin(t * 0.5) * b.wobble))
 		end
 	end)
 

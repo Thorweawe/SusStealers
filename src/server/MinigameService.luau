@@ -87,6 +87,10 @@ function MinigameService.TryComplete(player: Player, now: number?): number?
 	end
 	local last = lastReward[player]
 	if last and t - last < rules.cooldown then
+		-- Gerçekten oynanmış bir oyun: ödül yok ama ne zaman geleceğini söyle
+		startedAt[player] = nil
+		local left = math.ceil(rules.cooldown - (t - last))
+		notify(player, string.format("Asteroids cleared! Next reward in %d:%02d", left // 60, left % 60))
 		return nil
 	end
 
@@ -96,6 +100,8 @@ function MinigameService.TryComplete(player: Player, now: number?): number?
 
 	startedAt[player] = nil
 	lastReward[player] = t
+	-- İstemci pencerede kalan süreyi gösterebilsin (duvar saati)
+	player:SetAttribute("AsteroidReadyAt", os.time() + rules.cooldown)
 	local reward = MinigameService.RewardFor(player)
 	EconomyService.AddCash(player, reward)
 	notify(player, string.format("Asteroids cleared! +$%s", Config.FormatCash(reward)))
@@ -106,6 +112,7 @@ end
 function MinigameService._Reset(player: Player)
 	startedAt[player] = nil
 	lastReward[player] = nil
+	player:SetAttribute("AsteroidReadyAt", nil)
 end
 
 --[[

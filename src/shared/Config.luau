@@ -82,8 +82,8 @@ end
 	aynısı): topçu konsoluna gel, ekrandan geçen asteroitleri vur.
 
 	Ödül gelirle ölçekleniyor ki her aşamada anlamlı kalsın ama çalmanın
-	yerini tutmasın: 45 saniyelik gelir, en az $500. Bekleme süresi
-	sayesinde dakikada birden fazla alınamıyor; en kısa süre de oyunu
+	yerini tutmasın: 3 dakikalık gelir, en az $1000. Ödül 20 dakikada bir
+	alınabiliyor (arada oyun oynanabiliyor, ödülsüz); en kısa süre de oyunu
 	gerçekten oynamayı gerektiriyor (20 asteroit 8 saniyeden hızlı
 	vurulamıyor — daha hızlı gelen istek sahte sayılıyor).
 ]]
@@ -91,9 +91,9 @@ Config.AsteroidTask = {
 	goal = 20,            -- vurulacak asteroit
 	minSeconds = 8,       -- bundan hızlı bitirilemez (sahte istek)
 	maxSeconds = 240,     -- konsoldan başlanan oyun bu kadar geçerli
-	cooldown = 90,        -- iki ödül arası
-	rewardSeconds = 45,   -- ödül = saniyelik gelir × bu
-	minReward = 500,
+	cooldown = 1200,      -- iki ödül arası (20 dk)
+	rewardSeconds = 180,  -- ödül = saniyelik gelir × bu
+	minReward = 1000,
 	range = 45,           -- bitirirken konsola en fazla bu kadar uzak
 }
 
