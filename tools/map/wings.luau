@@ -87,22 +87,98 @@ return {
 				{ xa + 26, wz0 + 15, 1 }, { xa + 50, wz0 + 15, 1 },
 				{ xa + 26, wz1 - 15, -1 }, { xa + 50, wz1 - 15, -1 },
 			}
+			--[[
+				Kapsül efektleri yumurtanın FİYATIYLA büyüyor (1 en ucuz, 4 en
+				pahalı). Aynı görünen dört kapsülde pahalı yumurtanın değeri
+				okunmuyordu. Kademeler üst üste ekleniyor:
+				  1  kaide halkası ve lamba
+				  2+ yumurtanın çevresinde dönen ışık halkası, renkli lamba
+				  3+ tavana uzanan ışık sütunu, parıltı zerreleri
+				  4  ters dönen ikinci halka, yörüngede dönen kristaller,
+				     zemine yayılan ışıma
+				Renkleri sunucu boyuyor: "PodTint" niteliği taşıyan her parça
+				(ve içindeki ışık/zerre) o yumurtanın rengini alıyor
+				(PetService.WireHatchery) — fiyat ve renk Config'ten gelsin diye.
+			]]
+			local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+			local function tinted(p: Instance, i: number): Instance
+				p:SetAttribute("PodTint", i)
+				return p
+			end
+			local function halo(i: number, px: number, pz: number, y: number, radius: number, speed: number, count: number)
+				local center = Vector3.new(px, y, pz)
+				for k = 0, count - 1 do
+					local a = k / count * math.pi * 2
+					local seg = K.boxAt(h, "PodHalo", CFrame.new(center + Vector3.new(math.cos(a) * radius, 0, math.sin(a) * radius))
+						* CFrame.Angles(0, -(a + math.pi / 2), 0), Vector3.new(radius * 0.36, 0.34, 0.34), C.cyan, { emit = "Fixture", collide = false })
+					seg.CastShadow = false
+					seg:SetAttribute("SpinSpeed", speed)
+					seg:SetAttribute("SpinCenter", center)
+					seg:SetAttribute("SpinAxisVec", Vector3.yAxis)
+					tinted(seg, i)
+				end
+			end
+
 			for i, p in pods do
 				local px, pz, face = p[1], p[2], p[3]
 				K.vcyl(h, "PodBase", px, FLOOR + 0.8, pz, 1.6, 10.4, C.frame)
 				local ring = K.vcyl(h, "PodRing" .. i, px, FLOOR + 1.75, pz, 0.5, 10.9, C.cyan, { emit = "Screen" })
 				ring.CastShadow = false
 				K.vcyl(h, "PodPedestal", px, FLOOR + 2.8, pz, 1.8, 5, C.metal)
-				K.vcyl(h, "PodCradle", px, FLOOR + 3.85, pz, 0.3, 4.4, C.cyan, { emit = "Indicator", collide = false })
+				tinted(K.vcyl(h, "PodCradle", px, FLOOR + 3.85, pz, 0.3, 4.4, C.cyan, { emit = "Indicator", collide = false }), i)
 				local egg = K.ellipsoid(h, "Egg" .. i, CFrame.new(px, FLOOR + 7.4, pz), Vector3.new(4.6, 6, 4.6), rgb(236, 228, 210), { collide = false })
-				egg:SetAttribute("BobHeight", 0.35)
-				egg:SetAttribute("BobPeriod", 2.6)
+				-- Pahalı yumurta daha hareketli süzülüyor
+				egg:SetAttribute("BobHeight", 0.25 + i * 0.12)
+				egg:SetAttribute("BobPeriod", 2.9 - i * 0.2)
+
+				if i >= 2 then
+					halo(i, px, pz, FLOOR + 9.2, 5.3, 30 + i * 12, 10)
+				end
+				if i >= 3 then
+					local beam = K.vcyl(h, "PodBeam", px, (FLOOR + 14.9 + H) / 2, pz, H - FLOOR - 15.1, 3.2, C.cyan,
+						{ emit = "Fixture", transparency = 0.8, collide = false })
+					beam.CastShadow = false
+					tinted(beam, i)
+					local spark = K.box(h, "PodSparkle", px, FLOOR + 7.4, pz, 1, 1, 1, C.cyan, { transparency = 1, collide = false })
+					tinted(spark, i)
+					local emitter = Instance.new("ParticleEmitter")
+					emitter.Texture = SPARKLE
+					emitter.LightEmission = 1
+					emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+					emitter.Lifetime = NumberRange.new(0.9, 1.6)
+					emitter.Rate = if i >= 4 then 14 else 6
+					emitter.Speed = NumberRange.new(1, 2.2)
+					emitter.SpreadAngle = Vector2.new(180, 180)
+					emitter.Parent = spark
+				end
+				if i >= 4 then
+					halo(i, px, pz, FLOOR + 12, 5.8, -(40 + i * 10), 12)
+					-- Yörüngede dönen kristaller
+					local center = Vector3.new(px, FLOOR + 8, pz)
+					for k = 0, 2 do
+						local a = k / 3 * math.pi * 2
+						local shard = K.boxAt(h, "PodShard", CFrame.new(center + Vector3.new(math.cos(a) * 7, (k - 1) * 1.2, math.sin(a) * 7))
+							* CFrame.Angles(math.rad(45), 0, math.rad(45)), Vector3.new(0.9, 0.9, 0.9), C.cyan, { emit = "Fixture", collide = false })
+						shard.CastShadow = false
+						shard:SetAttribute("SpinSpeed", 60)
+						shard:SetAttribute("SpinCenter", center)
+						shard:SetAttribute("SpinAxisVec", Vector3.yAxis)
+						tinted(shard, i)
+					end
+					local aura = K.vcyl(h, "PodAura", px, FLOOR + 0.05 + M.LIFT, pz, 0.1, 17, C.cyan,
+						{ emit = "Screen", transparency = 0.55, collide = false })
+					aura.CastShadow = false
+					tinted(aura, i)
+				end
 				local glass = K.vcyl(h, "PodGlass", px, FLOOR + 7.9, pz, 11.6, 8.4, C.glass,
 					{ material = Enum.Material.Glass, transparency = 0.78 })
 				glass.CastShadow = false
 				K.vcyl(h, "PodCap", px, FLOOR + 14.3, pz, 1.2, 9.6, C.frame)
 				local lamp = K.vcyl(h, "PodLamp", px, FLOOR + 13.6, pz, 0.2, 5, C.lamp, { emit = "Fixture" })
-				K.light(lamp, C.lamp, 10, 0.8)
+				K.light(lamp, C.lamp, 8 + i * 3, 0.6 + i * 0.25)
+				if i >= 2 then
+					tinted(lamp, i)
+				end
 				-- Kaide ile kapak arası dikmeler
 				for k = 0, 2 do
 					local a = math.rad(90 + k * 120)
@@ -195,13 +271,6 @@ return {
 				crate.CastShadow = true
 				K.box(g, "CrateBand", p[1], FLOOR + p[3] + s / 2, p[2], s + 0.1, 0.6, s + 0.1, rgb(70, 110, 70), { collide = false })
 			end
-			-- Arkada silah rafı
-			K.box(g, "Rack", xb + T / 2 + 0.5, 12, wcz, 1.4, 10, 26, C.metalDark)
-			for k = -2, 2 do
-				local z = wcz + k * 5
-				K.box(g, "Blaster", xb + T / 2 + 1.5, 12 + (k % 2) * 1.5, z, 0.8, 1.6, 4, C.frame, { collide = false })
-				K.box(g, "BlasterTip", xb + T / 2 + 1.5, 12 + (k % 2) * 1.5, z - 2.4, 0.9, 0.8, 1, C.red, { collide = false })
-			end
 			local shopPos = Vector3.new(xb + T / 2 + 0.8, 22.5, wcz)
 			local shopSign = CFrame.lookAt(shopPos, shopPos + Vector3.xAxis)
 			K.sign(g, "ShopSign", shopSign, 22, 4, "GEAR SHOP", C.orange)
@@ -230,22 +299,49 @@ return {
 				sl.Parent = spot
 			end
 
-			-- Asteroit hedef ekranı ve topçu koltuğu (güney)
+			--[[
+				═══ CLEAR ASTEROIDS ════════════════════════════════════════════
+				Among Us'taki görev: topçu koltuğu, önünde konsol, duvarda hedef
+				ekranı. Konsolun ("AsteroidConsole") promptunu sunucu kuruyor
+				(MinigameService); basınca oyun açılıyor. Ekrandaki asteroitler
+				boşta da süzülüyor — oyuncu uzaktan "burada bir şey oynanıyor"
+				görsün.
+			]]
 			local tz = wz1 - T / 2 - 0.6
 			K.box(g, "TargetScreen", mx, 11, tz, 26, 12, 0.6, rgb(10, 16, 30))
 			K.box(g, "TargetFrame", mx, 11, tz + 0.3, 27.6, 13.6, 1.0, C.frame)
-			for k, p in { { -8, 13, 3 }, { 5, 9, 2.2 }, { 9, 14, 1.6 }, { -3, 8, 1.8 } } do
-				K.ball(g, "Asteroid" .. k, mx + p[1], p[2], tz - 0.5, p[3], rgb(150, 138, 124), { collide = false })
+			--[[
+				Süzülen asteroitler: odadan bakana göre sağdan sola. Bakış +z
+				yönünde olduğu için sol = +x; başlangıç ekranın -x ucu, hız
+				pozitif.
+			]]
+			for k, p in { { 13, 3, 4.2 }, { 9, 2.2, 3.1 }, { 14.5, 1.6, 5.4 }, { 7.5, 1.8, 3.6 } } do
+				local rock = K.ball(g, "Asteroid" .. k, mx - 11.5, p[1], tz - 0.55, p[2], rgb(150, 138, 124), { collide = false })
+				rock:SetAttribute("SlideSpeed", p[3])
+				rock:SetAttribute("SlideRange", 23)
 			end
-			K.box(g, "CrossH", mx, 11, tz - 0.4, 6, 0.3, 0.1, C.red, { emit = "Indicator", collide = false })
-			K.box(g, "CrossV", mx, 11, tz - 0.4, 0.3, 6, 0.1, C.red, { emit = "Indicator", collide = false })
-			local seat = CFrame.lookAt(Vector3.new(mx, FLOOR, tz - 12), Vector3.new(mx, FLOOR, tz))
+			K.box(g, "CrossH", mx, 11, tz - 0.4, 26, 0.12, 0.1, C.green, { emit = "Indicator", collide = false })
+			K.box(g, "CrossV", mx, 11, tz - 0.4, 0.12, 12, 0.1, C.green, { emit = "Indicator", collide = false })
+			local label = K.box(g, "TaskLabel", mx, 18.9, tz - 0.2, 20, 2.4, 0.4, C.shadow, { collide = false })
+			K.text(label, Enum.NormalId.Front, "CLEAR ASTEROIDS", C.green, { h = 0.8, y = 0.1 })
+
+			-- Topçu koltuğu ve önündeki konsol (promptun bağlandığı parça)
+			local seat = CFrame.lookAt(Vector3.new(mx, FLOOR, tz - 13), Vector3.new(mx, FLOOR, tz))
 			K.boxAt(g, "GunnerPost", seat * CFrame.new(0, 1.2, 0), Vector3.new(1, 2.4, 1), C.metalDark)
 			K.boxAt(g, "GunnerSeat", seat * CFrame.new(0, 2.7, 0), Vector3.new(4, 0.8, 4), C.red)
 			K.boxAt(g, "GunnerBack", seat * CFrame.new(0, 5.2, 1.9), Vector3.new(4, 4.2, 0.8), C.red)
+			local desk = seat * CFrame.new(0, 0, -4.5)
+			local console = K.boxAt(g, "AsteroidConsole", desk * CFrame.new(0, 2, 0), Vector3.new(8, 4, 3), C.metal)
+			console.CanQuery = true
+			K.boxAt(g, "ConsoleTop", desk * CFrame.new(0, 4.3, 0.2) * CFrame.Angles(math.rad(-25), 0, 0), Vector3.new(8.4, 0.5, 3.6), C.frame)
+			local panel = K.boxAt(g, "ConsoleScreen", desk * CFrame.new(0, 4.62, 0.05) * CFrame.Angles(math.rad(-25), 0, 0),
+				Vector3.new(4.6, 0.12, 2.4), rgb(20, 60, 36), { emit = "Screen", collide = false })
+			panel.CastShadow = false
 			for _, s in { -1, 1 } do
-				K.boxAt(g, "Stick", seat * CFrame.new(s * 2.6, 4, -1.6), Vector3.new(0.4, 2.4, 0.4), C.metalDark, { collide = false })
-				K.boxAt(g, "StickTop", seat * CFrame.new(s * 2.6, 5.3, -1.6), Vector3.new(0.7, 0.7, 0.7), C.red, { shape = Enum.PartType.Ball, collide = false })
+				K.boxAt(g, "Stick", desk * CFrame.new(s * 3, 5.4, 0.6), Vector3.new(0.35, 1.8, 0.35), C.metalDark, { collide = false })
+				local knob = K.boxAt(g, "StickTop", desk * CFrame.new(s * 3, 6.4, 0.6), Vector3.new(0.8, 0.8, 0.8), C.red,
+					{ shape = Enum.PartType.Ball, emit = "Indicator", collide = false })
+				knob:SetAttribute("PulsePeriod", 1.6)
 			end
 		end
 	end,

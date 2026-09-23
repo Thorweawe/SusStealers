@@ -77,6 +77,26 @@ function Config.GetBayRoom(index: number): BayRoom
 	return Config.BayRooms[(index - 1) % #Config.BayRooms + 1]
 end
 
+--[[
+	Weapons odasındaki "Clear Asteroids" görevi (Among Us'taki görevin
+	aynısı): topçu konsoluna gel, ekrandan geçen asteroitleri vur.
+
+	Ödül gelirle ölçekleniyor ki her aşamada anlamlı kalsın ama çalmanın
+	yerini tutmasın: 45 saniyelik gelir, en az $500. Bekleme süresi
+	sayesinde dakikada birden fazla alınamıyor; en kısa süre de oyunu
+	gerçekten oynamayı gerektiriyor (20 asteroit 8 saniyeden hızlı
+	vurulamıyor — daha hızlı gelen istek sahte sayılıyor).
+]]
+Config.AsteroidTask = {
+	goal = 20,            -- vurulacak asteroit
+	minSeconds = 8,       -- bundan hızlı bitirilemez (sahte istek)
+	maxSeconds = 240,     -- konsoldan başlanan oyun bu kadar geçerli
+	cooldown = 90,        -- iki ödül arası
+	rewardSeconds = 45,   -- ödül = saniyelik gelir × bu
+	minReward = 500,
+	range = 45,           -- bitirirken konsola en fazla bu kadar uzak
+}
+
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
 Config.IncomeInterval = 1

@@ -60,14 +60,8 @@ return {
 				end
 			end
 
-			-- Koridora bakan tabela
-			local look = CFrame.lookAt(Vector3.new(r[3] + 1, 43, cz), Vector3.new(r[3] + 2, 43, cz))
-			local board = K.sign(f, "ReactorSign", look, 26, 6, "REACTOR")
-			K.text(board, Enum.NormalId.Back, "REACTOR", C.white, { h = 0.78, y = 0.08, guiName = "LabelBack" })
-			for _, s in { -1, 1 } do
-				K.box(f, "SignRod", r[3] + 1, 46 + (M.WALL_H - 46) / 2, cz + s * 9, 0.5, M.WALL_H - 46, 0.5, C.frameDark, { collide = false })
-			end
-			-- Platformun kenarında uyarı şeridi
+			-- Tabela yok: reaktör kendini anlatıyor (sarkan tabela boruların
+			-- arkasında kalıp yarım okunuyordu). Platformun kenarında uyarı şeridi
 			K.hazard(f, r[3] - 0.6, FLOOR + 0.07 + M.LIFT, cz, r[4] - r[2] - 2, 0.9, "z", 2.4)
 		end
 
@@ -130,26 +124,14 @@ return {
 			K.vcyl(f, "Stick", r[1] + 13, FLOOR + 2, midZ, 4, 0.5, C.metalDark, { collide = false })
 			K.ball(f, "StickKnob", r[1] + 13, FLOOR + 4.2, midZ, 1.1, C.red, { collide = false })
 
-			local look = CFrame.lookAt(Vector3.new(r[1] - 1, 43, midZ), Vector3.new(r[1] - 2, 43, midZ))
-			local board = K.sign(f, "NavSign", look, 30, 6, "NAVIGATION")
-			K.text(board, Enum.NormalId.Back, "NAVIGATION", C.white, { h = 0.78, y = 0.08, guiName = "LabelBack" })
-			for _, s in { -1, 1 } do
-				K.box(f, "SignRod", r[1] - 1, 46 + (M.WALL_H - 46) / 2, midZ + s * 10, 0.5, M.WALL_H - 46, 0.5, C.frameDark, { collide = false })
-			end
 			K.hazard(f, r[1] + 0.6, FLOOR + 0.07 + M.LIFT, midZ, r[4] - r[2] - 2, 0.9, "z", 2.4)
 		end
 
 		-- ─── Yön tabelası: kafeteryaya giden koridor ────────────────────────
 		do
 			local f = K.folder("Wayfinding", lm)
-			local z = M.SPINE_Z1
-			local look = CFrame.lookAt(Vector3.new(M.centerX, 30, z), Vector3.new(M.centerX, 30, z - 1))
-			local board = K.sign(f, "CafSign", look, 30, 5, "▼  CAFETERIA  ▼", K.rgb(90, 150, 212))
-			K.text(board, Enum.NormalId.Back, "CAFETERIA", C.white, { h = 0.78, y = 0.08, guiName = "LabelBack" })
-			for _, s in { -1, 1 } do
-				K.box(f, "SignRod", M.centerX + s * 11, 32.5 + (M.WALL_H - 32.5) / 2, z, 0.5, M.WALL_H - 32.5, 0.5, C.frameDark, { collide = false })
-			end
-			-- Kapının üstünde (istasyon içinden)
+			-- Kapının üstünde (istasyon içinden). Koridorda sarkan ikinci
+			-- tabela kalabalık yaptığı için kaldırıldı.
 			local over = CFrame.lookAt(Vector3.new(M.centerX, M.GATE_H + 6.5, M.IZ1 - 1.2), Vector3.new(M.centerX, M.GATE_H + 6.5, M.IZ1 - 2.2))
 			K.sign(f, "GateSign", over, 30, 5, "CAFETERIA · EGGS · SHOP", K.rgb(90, 150, 212))
 		end

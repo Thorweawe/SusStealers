@@ -1,18 +1,16 @@
 --!strict
 --[[
-	Odalar (üs bölgeleri): alçak bölme duvarları, yan kapılar, koridora
-	bakan oda tabelası, üssün kendi süslemesi (kaide pedleri, çerçeve,
-	konveyör kapakları) ve koridordaki üs işareti.
+	Odalar (üs bölgeleri): alçak bölme duvarları, yan kapılar ve üssün
+	kendi süslemesi (kaide pedleri, çerçeve, konveyör kapakları).
 
 	Adı sabit parçalar (istemci/test bunlara bakıyor):
 	  Plots.PlotN.PodiumPad      — kaidelerin altında (test hizayı ölçüyor)
-	  Plots.PlotN.FrameX/FrameZ/PillarBand — sahibin rengine boyanıyor
+	  Plots.PlotN.FrameX/FrameZ  — sahibin rengine boyanıyor
 	  Plots.PlotN.HatchHood      — makine uğultusu buraya bağlanıyor
-	  Doorways.DoorGlowN         — oda tabelasının altındaki şerit (sahip rengi)
-	  BayMarkers.BayPadN         — koridordaki zemin işareti (sahip rengi)
 ]]
 
 return {
+	-- Doorways/BayMarkers eski sürümün klasörleri: yeniden kurulumda silinsin
 	folders = { "Partitions", "Plots", "Doorways", "BayMarkers" },
 
 	build = function(K: any)
@@ -22,8 +20,6 @@ return {
 
 		local parts = K.folder("Partitions")
 		local plotsF = K.folder("Plots")
-		local doorways = K.folder("Doorways")
-		local markers = K.folder("BayMarkers")
 
 		for i = 1, M.PLOT_COUNT do
 			local o = K.plotOrigin(i)
@@ -78,29 +74,13 @@ return {
 				K.box(pf, "StubAccent", x1 + sx * 0.0, H / 2, zFront, 0.5, H - 3, T + 0.3, th.accent, { emit = "Screen" })
 			end
 
-			-- ─── Oda tabelası ───────────────────────────────────────────────
 			--[[
-				Tavandan sarkan, iki yüzlü. Yüksekte (y 43): 2. ve 3. kattaki
-				oyuncuların koridora bakışını kapatmasın. Among Us'ın oda
-				etiketleri gibi beyaz, konturlu.
+				TABELA YOK. Odaların üstünde sarkan ad tabelaları ve koridordaki
+				üs pedleri vardı; sahneyi kalabalıklaştırıyordu ("overwhelming").
+				Oda kimliği artık zemin rengi ve odanın eşyalarından okunuyor —
+				Among Us'ta da odalar tabelayla değil görünüşüyle tanınıyor.
+				OwnerColors DoorGlow/BayPad bulamazsa sessizce atlıyor.
 			]]
-			local dw = K.folder("Door" .. i, doorways)
-			local signY = 43
-			local look = CFrame.lookAt(Vector3.new(ox, signY, zFront), Vector3.new(ox, signY, zFront + facing))
-			local board = K.sign(dw, "RoomSign", look, 36, 6, th.name, nil)
-			K.text(board, Enum.NormalId.Back, th.name, C.white, { h = 0.78, y = 0.08, guiName = "LabelBack" })
-			for _, sx in { -1, 1 } do
-				K.box(dw, "SignRod", ox + sx * 13, signY + 3 + (M.WALL_H - signY - 3) / 2, zFront, 0.5, M.WALL_H - signY - 3, 0.5, C.frameDark, { collide = false })
-			end
-			-- Sahip rengi şeridi (istemci boyuyor)
-			K.box(dw, "DoorGlow" .. i, ox, signY - 3.9, zFront, 32, 0.6, 0.6, C.frameDark, { emit = "Screen" })
-
-			-- ─── Koridordaki üs işareti ─────────────────────────────────────
-			local mz = zFront + facing * 5
-			K.box(markers, "BayPad" .. i, ox, M.TILE_TOP + 0.06 + M.LIFT, mz, 18, 0.12, 6, C.hallLane)
-			for _, s in { -1, 1 } do
-				K.hazard(markers, ox, M.TILE_TOP + 0.07 + M.LIFT, mz + s * 3.5, 18, 0.8, "x", 2)
-			end
 
 			-- ─── Üssün kendi süslemesi ──────────────────────────────────────
 			local plot = K.folder("Plot" .. i, plotsF)
@@ -124,16 +104,6 @@ return {
 				K.box(plot, "FrameZ", ox, fy, oz + s * M.halfZ, M.PLOT_SIZE.X, 0.25, 0.8, C.frameDark, { emit = "Screen" })
 			end
 
-			-- Köşe dikmeleri: kısa, geçirgen; bandı sahibin renginde
-			for _, sx in { -1, 1 } do
-				for _, sz in { -1, 1 } do
-					local px = ox + sx * (M.halfX + 2.4)
-					local pz = oz + sz * (M.halfZ + 2.4)
-					K.box(plot, "Bollard", px, M.TILE_TOP + 2, pz, 1.6, 4, 1.6, C.metal, { collide = false })
-					K.box(plot, "PillarBand", px, M.TILE_TOP + 2.8, pz, 1.8, 0.6, 1.8, C.frameDark, { emit = "Screen" })
-					K.box(plot, "BollardCap", px, M.TILE_TOP + 4.2, pz, 2, 0.4, 2, C.frame, { collide = false })
-				end
-			end
 
 			-- ─── Konveyör sahnesi ───────────────────────────────────────────
 			local convZ = oz + flip * (M.halfZ - 5)

@@ -48,6 +48,7 @@ local AutoHatch = require(script.AutoHatch)
 local GearPanel = require(script.GearPanel)
 local Summons = require(script.Summons)
 local Hotbar = require(script.Hotbar)
+local AsteroidGame = require(script.AsteroidGame)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -690,6 +691,21 @@ end)
 -- Ekipman çubuğu: Roblox'un gri hazır çubuğunun yerine (pencerelerin altında kalıyor)
 mountPanel("Hotbar", function()
 	Hotbar.Create(screen)
+end)
+
+--[[
+	Weapons odasındaki "Clear Asteroids" oyunu. Konsolun promptunu sunucu
+	kuruyor ve başlangıç zamanını orada yazıyor; burası oyuncunun kendi
+	tetiklemesini görüp oyunu açıyor. Ödülü sunucu veriyor.
+]]
+mountPanel("AsteroidGame", function()
+	local asteroids = AsteroidGame.Create(screen)
+	previews.Asteroids = asteroids.Open
+	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
+		if who == player and prompt.Name == "AsteroidPrompt" then
+			asteroids.Open()
+		end
+	end)
 end)
 
 --[[

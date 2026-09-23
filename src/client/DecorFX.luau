@@ -32,15 +32,18 @@ function DecorFX.Start(): FX
 	local sliders: { Slider } = {}
 	local bobbers: { Bobber } = {}
 
-	local decor = workspace:FindFirstChild("Decor")
-	if not decor then
-		-- Dekor henüz kurulmamış olabilir; sessizce çık
-		return { Stop = function() end }
-	end
-
-	-- Bütün dekoru tarıyoruz: hareketli parçalar tek bir klasörde değil,
-	-- hangi niteliği taşıyorsa ona göre davranıyor.
-	for _, obj in decor:GetDescendants() do
+	--[[
+		Hareketli parçalar tek bir klasörde değil; hangi niteliği taşıyorsa
+		ona göre davranıyor. Parça SONRADAN da gelebilir (yerleşimde
+		StreamingEnabled açık): eskiden yalnızca açılış anında taranıyordu ve
+		o an henüz gelmemiş çark, kapsül, alev hiç hareket etmiyordu.
+	]]
+	local registered: { [Instance]: boolean } = {}
+	local function register(obj: Instance)
+		if registered[obj] then
+			return
+		end
+		registered[obj] = true
 		if obj:IsA("BasePart") then
 			local speed = obj:GetAttribute("SpinSpeed")
 			if typeof(speed) == "number" then
@@ -95,16 +98,34 @@ function DecorFX.Start(): FX
 		elseif obj:IsA("Model") then
 			local drift = obj:GetAttribute("DriftSpeed")
 			local range = obj:GetAttribute("DriftRange")
-			if typeof(drift) == "number" and typeof(range) == "number" and obj.PrimaryPart then
-				table.insert(drifters, {
-					model = obj,
-					speed = drift,
-					range = range,
-					base = obj:GetPivot(),
-				})
+			if typeof(drift) == "number" and typeof(range) == "number" then
+				-- Model parça parça gelebilir: gövdesi oturunca kaydet
+				task.defer(function()
+					if obj.PrimaryPart then
+						table.insert(drifters, {
+							model = obj,
+							speed = drift,
+							range = range,
+							base = obj:GetPivot(),
+						})
+					end
+				end)
 			end
 		end
 	end
+
+	-- Dekoru beklemek çekirdek HUD'u bekletmesin: ayrı görevde
+	local added: RBXScriptConnection? = nil
+	task.spawn(function()
+		local decor = workspace:FindFirstChild("Decor") or workspace:WaitForChild("Decor", 30)
+		if not decor then
+			return
+		end
+		added = decor.DescendantAdded:Connect(register)
+		for _, obj in decor:GetDescendants() do
+			register(obj)
+		end
+	end)
 
 	local elapsed = 0
 	local connection = RunService.RenderStepped:Connect(function(dt: number)
@@ -179,6 +200,9 @@ function DecorFX.Start(): FX
 	return {
 		Stop = function()
 			connection:Disconnect()
+			if added then
+				added:Disconnect()
+			end
 		end,
 	}
 end

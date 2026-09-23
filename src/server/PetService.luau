@@ -618,6 +618,19 @@ local function eggTint(egg: Config.EggDef): Color3
 	return best
 end
 
+--[[
+	Işık ve yazı için okunur ton. Secret'ın rengi neredeyse siyah (30,30,40):
+	Void yumurtasının ekrandaki adı koyu ekranın üstünde okunmuyor, halkası
+	ve ışıkları sönük görünüyordu. Çok koyu renk "boşluk moru"na dönüyor
+	(petlerde Secret parıltısı da bu renk).
+]]
+local VOID_GLOW = Color3.fromRGB(170, 120, 255)
+
+local function readable(tint: Color3): Color3
+	local luminance = 0.2126 * tint.R + 0.7152 * tint.G + 0.0722 * tint.B
+	return if luminance < 0.3 then VOID_GLOW else tint
+end
+
 local function screenLabel(part: BasePart, title: string, titleColor: Color3, sub: string)
 	local old = part:FindFirstChild("Label")
 	if old then
@@ -637,6 +650,8 @@ local function screenLabel(part: BasePart, title: string, titleColor: Color3, su
 	top.Font = Enum.Font.GothamBlack
 	top.TextScaled = true
 	top.TextColor3 = titleColor
+	top.TextStrokeColor3 = Color3.new(0, 0, 0)
+	top.TextStrokeTransparency = 0.3
 	top.Text = title
 	top.Parent = gui
 
@@ -667,14 +682,37 @@ function PetService.WireHatchery(): boolean
 			continue
 		end
 
-		local tint = eggTint(egg)
-		shell.Color = tint:Lerp(Color3.new(1, 1, 1), 0.35)
+		local raw = eggTint(egg)
+		local tint = readable(raw)
+		-- Kabuk: açık tonlu; koyu (Void) yumurta koyu mor kalıyor ki "boşluk" gibi dursun
+		shell.Color = if raw == tint then tint:Lerp(Color3.new(1, 1, 1), 0.35) else Color3.fromRGB(64, 40, 104)
 		shell.CanQuery = true
 		if ring and ring:IsA("BasePart") then
 			ring.Color = tint
 		end
 		if screen and screen:IsA("BasePart") then
 			screenLabel(screen, string.upper(egg.name), tint, "$" .. Config.FormatCash(egg.price))
+		end
+
+		--[[
+			Kapsülün efekt parçaları (dönen halka, ışık sütunu, kristaller,
+			zerreler) haritada "PodTint" niteliğiyle işaretli; burada
+			yumurtanın rengine boyanıyor. Efektin KAÇ tane olduğu harita
+			kodunda (fiyat sırasına göre artıyor), rengi burada.
+		]]
+		for _, d in hatchery:GetDescendants() do
+			if d:GetAttribute("PodTint") == index then
+				if d:IsA("BasePart") then
+					d.Color = tint
+				end
+				for _, child in d:GetChildren() do
+					if child:IsA("ParticleEmitter") then
+						child.Color = ColorSequence.new(tint, Color3.new(1, 1, 1))
+					elseif child:IsA("Light") then
+						child.Color = tint
+					end
+				end
+			end
 		end
 
 		for _, child in shell:GetChildren() do

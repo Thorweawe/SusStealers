@@ -204,7 +204,14 @@ return {
 		end
 
 		-- ─── Duvarlar ───────────────────────────────────────────────────────
-		local ws = { h = H, winBottom = 18, winTop = 34, winW = 12, winGap = 8, rail = 15, exterior = C.hullOut }
+		--[[
+		inset: süpürgelik/korkuluk/ışık bandı köşeden 5 stud önce bitiyor.
+		135° birleşimlerde iki duvarın bantları uca kadar uzanınca birbirinin
+		içinden geçiyor, köşeler "kırık" görünüyordu. Aradaki boşluğu kalın
+		köşe sütunu kapatıyor.
+	]]
+	local ws = { h = H, winBottom = 18, winTop = 34, winW = 12, winGap = 8, rail = 15, exterior = C.hullOut,
+		inset0 = T + 2.6, inset1 = T + 2.6 }
 		local doorN = { u0 = (cx - x0 - ch) - M.GATE_W / 2, u1 = (cx - x0 - ch) + M.GATE_W / 2, h = 24 }
 		local wingDoor = { u0 = (cz - z0 - ch) - 18, u1 = (cz - z0 - ch) + 18, h = 22 }
 
@@ -233,9 +240,11 @@ return {
 				K.door(wf, ea, eb, 1, w[4].u0 + 0.5, w[4].u1 + 0.5, w[4].h)
 			end
 		end
-		-- Köşe dikmeleri
+		-- Köşe sütunları: birleşimi ve bantların uçlarını örtüyor
 		for _, v in V do
-			K.vcyl(wf, "CornerPost", v.X, H / 2, v.Y, H, T + 1.2, C.frameDark)
+			K.vcyl(wf, "CornerPost", v.X, H / 2, v.Y, H, T + 3.4, C.wallHigh)
+			K.vcyl(wf, "CornerFoot", v.X, 1.4, v.Y, 2.8, T + 4.2, C.wallKick)
+			K.vcyl(wf, "CornerBand", v.X, 15.3, v.Y, 1.2, T + 4, C.wallRail, { collide = false })
 		end
 		-- Tavan
 		local ceilY = H + 0.6
@@ -413,7 +422,9 @@ return {
 				K.boxAt(wheel, "WheelLeg", W(s * 7.2, 5 + (hubY - 5) / 2, -1) * CFrame.Angles(0, 0, math.rad(-s * 10)),
 					Vector3.new(2.2, hubY - 3, 2.2), C.frame)
 			end
-			K.boxAt(wheel, "WheelBacking", W(0, hubY, -2.2), Vector3.new(R * 2 + 5, R * 2 + 5, 0.8), rgb(40, 58, 80))
+			-- Arka levha yuvarlak: kare levha duvarın önünde koyu bir kutu gibi duruyordu
+			K.boxAt(wheel, "WheelBacking", W(0, hubY, -2.2) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.8, R * 2 + 6, R * 2 + 6),
+				rgb(40, 58, 80), { shape = Enum.PartType.Cylinder })
 			local BULBS = 24
 			for i = 1, BULBS do
 				local ang = (i - 1) * (math.pi * 2 / BULBS)

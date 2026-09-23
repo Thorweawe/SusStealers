@@ -37,6 +37,7 @@ local EVENTS = {
 	"RewardClaim",  -- client -> server (kind: "daily"|"playtime"|"index", arg)
 	"GearBuy",      -- client -> server (gearId: string)
 	"Sprint",       -- client -> server (active: boolean)
+	"AsteroidsDone", -- client -> server (argumansiz) — Weapons görevi bitti
 }
 
 --[[
@@ -103,6 +104,20 @@ local CLIENT_TO_SERVER = {
 		koşmayı sunucunun bildiği ve sınırladığı bir şey haline getiriyor.
 	]]
 	Sprint = true,
+	--[[
+		AsteroidsDone küçük bir ödül veriyor ve sonucu istemci söylüyor —
+		bu yüzden bütün sınırlar sunucuda (MinigameService.TryComplete):
+		  - oyun SUNUCUDA başlamış olmalı: konsoldaki prompt tetiklenince
+		    başlangıç zamanı sunucuda yazılıyor, istemci başlatamıyor
+		  - en kısa süre (20 asteroit 8 sn'den hızlı vurulamaz)
+		  - başlangıçtan en fazla 4 dk geçmiş olmalı
+		  - iki ödül arası bekleme süresi (90 sn)
+		  - oyuncu konsolun yakınında olmalı
+		Ödül gelirle ölçekli ve küçük (45 sn'lik gelir); sahte istek en
+		fazla bekleme süresi başına bir kez işe yarar, o da oyunu oynamakla
+		aynı kazanç.
+	]]
+	AsteroidsDone = true,
 }
 
 local Net = {}

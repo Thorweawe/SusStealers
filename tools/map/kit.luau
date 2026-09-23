@@ -251,13 +251,27 @@ end
 
 -- ─── Klasörler ──────────────────────────────────────────────────────────────
 
+--[[
+	Dekor kökü KALICI bir Model. Yerleşimde StreamingEnabled açık: klasör
+	içindeki parçalar oyuncuya yakınlığına göre parça parça geliyordu ve
+	oyuncu bir yere ışınlanınca bir süre duvar/tavan eksik kalıyor, uzay
+	görünüyordu ("göze çarpan boşluklar"). Persistent model oyuncuya
+	girişte tek parça gönderiliyor ve hiç geri alınmıyor.
+]]
 local root = workspace:FindFirstChild("Decor")
-if not root then
-	root = Instance.new("Folder")
-	root.Name = "Decor"
-	root.Parent = workspace
+if root and not root:IsA("Model") then
+	root:Destroy()
+	root = nil
 end
-K.root = root :: Folder
+if not root then
+	local m = Instance.new("Model")
+	m.Name = "Decor"
+	m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	m.Parent = workspace
+	root = m
+end
+(root :: Model).ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+K.root = root :: Model
 
 function K.folder(name: string, parent: Instance?): Folder
 	local p = parent or K.root
@@ -764,7 +778,6 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 
 	-- ── Pencereler ────────────────────────────────────────────────────────
 	local FW = 1.3       -- çerçeve genişliği
-	local CH = 2.2       -- köşe pahı
 	for _, win in windowsAt do
 		local w0, w1 = win[1], win[2]
 		local wc = (w0 + w1) / 2
@@ -781,13 +794,11 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 			piece(tag .. "WinFrame", w0 - FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame, { collide = false })
 			piece(tag .. "WinFrame", w1 + FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame, { collide = false })
 		end
-		-- Pahlı köşeler: açıklığı sekizgene çeviriyor (yuvarlak pencere hissi)
-		for _, cu in { w0, w1 } do
-			for _, cy in { wb, wt } do
-				K.boxAt(parent, tag .. "WinCorner", frame * CFrame.new(cu, cy, 0) * CFrame.Angles(0, 0, math.rad(45)),
-					Vector3.new(CH * 1.414, CH * 1.414, T - 0.12), C.frame, { collide = false })
-			end
-		end
+		--[[
+			Köşe pahları kaldırıldı: her pencerenin dört köşesinde çerçevenin
+			dışına taşan dörtgenler vardı ve duvar boyunca yüzlerce küçük
+			çıkıntı sahneyi kalabalıklaştırıyordu. Düz çerçeve daha sakin.
+		]]
 		-- Pencere altı pervaz (iç)
 		piece(tag .. "Sill", wc, wb - FW - 0.25, T / 2 + 0.55, (w1 - w0) + FW * 2 + 0.6, 0.5, 1.1, C.frameDark, { collide = false })
 	end

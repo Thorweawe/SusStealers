@@ -46,6 +46,7 @@ local CLUTTER = {
 	"GearPanel",
 	"TransitPanel",
 	"Hotbar",
+	"AsteroidGame",
 }
 
 local BUTTON = 44

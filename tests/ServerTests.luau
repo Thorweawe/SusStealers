@@ -46,6 +46,7 @@ local FloorService = require(Server.FloorService)
 local PetService = require(Server.PetService)
 local RewardService = require(Server.RewardService)
 local GearService = require(Server.GearService)
+local MinigameService = require(Server.MinigameService)
 
 local ServerTests = {}
 
@@ -1848,18 +1849,20 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 	--[[
 		Sayı büyüdükçe değil, gerekçesizleştikçe tehlikeli.
 
-		Şu an on üç remote var: TutorialSkip, TitleEquip, PotionUse,
+		Şu an on dört remote var: TutorialSkip, TitleEquip, PotionUse,
 		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
-		PetEquip, PetFuse, RewardClaim, GearBuy. Hiçbiri oyuncuya bedava
-		bir şey VERMİYOR — ya oyuncunun kendi parasını harcıyor, ya zaten
-		kazanılmış bir şeyi kullanıyor, ya da hakkı sunucudaki sayaçlardan
-		hesaplanan bir ödülü topluyor. Gerekçeleri Net.luau'da tek tek yazılı;
-		doğrulama istemcide değil, ilgili servisin TryX/Claim fonksiyonunda.
+		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone. Hiçbiri
+		oyuncuya bedava bir şey VERMİYOR — ya oyuncunun kendi parasını
+		harcıyor, ya zaten kazanılmış bir şeyi kullanıyor, ya da hakkı
+		sunucudaki sayaçlardan hesaplanan bir ödülü topluyor. AsteroidsDone
+		küçük bir ödül veriyor ama oyunun başlangıcı, süresi ve bekleme
+		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
+		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on üçte: yenisi eklemek bilinçli bir karar olsun (Net.luau'da
+		Sınır on dörtte: yenisi eklemek bilinçli bir karar olsun (Net.luau'da
 		gerekçesiyle birlikte), kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 13, tostring(#listened))
+	ok("liste bilinçli", #listened <= 14, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2427,6 +2430,47 @@ case("Ekipman: parası yetmeden alınmıyor, alınca kalıcı ve çantaya geliyo
 			end
 		end
 	end
+end)
+
+case("Görev: asteroit ödülü sunucuda doğrulanıyor", function(ctx)
+	--[[
+		Sonucu istemci söylüyor; bu test sunucunun sahte isteği nerelerde
+		durdurduğunu sabitliyor: başlamamış, çok hızlı, çok eski, bekleme
+		süresi dolmamış, konsoldan uzak.
+	]]
+	local rules = Config.AsteroidTask
+	local original = MinigameService.NearConsole
+	MinigameService.NearConsole = function()
+		return true
+	end
+	MinigameService._Reset(ctx.player)
+	setCash(ctx.player, 0)
+	local T = 10000
+
+	eq("başlamadan ödül yok", MinigameService.TryComplete(ctx.player, T), nil)
+	MinigameService.Begin(ctx.player, T)
+	eq("çok hızlı reddedildi", MinigameService.TryComplete(ctx.player, T + rules.minSeconds - 1), nil)
+	eq("çok eski reddedildi", MinigameService.TryComplete(ctx.player, T + rules.maxSeconds + 1), nil)
+
+	local reward = MinigameService.TryComplete(ctx.player, T + rules.minSeconds + 1)
+	ok("geçerli bitiş ödül veriyor", reward ~= nil and reward >= rules.minReward, tostring(reward))
+	eq("nakit eklendi", EconomyService.GetCash(ctx.player), reward or -1)
+	eq("aynı oyun ikinci kez ödemiyor", MinigameService.TryComplete(ctx.player, T + rules.minSeconds + 2), nil)
+
+	-- Bekleme süresi içinde yeni oyun ödemiyor, dolunca ödüyor
+	local t2 = T + rules.minSeconds + 5
+	MinigameService.Begin(ctx.player, t2)
+	eq("bekleme süresinde yok", MinigameService.TryComplete(ctx.player, t2 + rules.minSeconds + 1), nil)
+	local t3 = T + rules.minSeconds + 1 + rules.cooldown + 1
+	MinigameService.Begin(ctx.player, t3 - rules.minSeconds - 1)
+	ok("bekleme dolunca var", MinigameService.TryComplete(ctx.player, t3) ~= nil)
+
+	-- Konsoldan uzak: test oyuncusu kendi üssünde, lobideki konsoldan uzakta
+	MinigameService.NearConsole = original
+	MinigameService._Reset(ctx.player)
+	MinigameService.Begin(ctx.player, T)
+	eq("uzaktan ödül yok", MinigameService.TryComplete(ctx.player, T + rules.minSeconds + 1), nil)
+	MinigameService._Reset(ctx.player)
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
