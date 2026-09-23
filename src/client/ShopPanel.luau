@@ -66,11 +66,11 @@ local PASSES: { Entry } = {
 	{ key = "DoubleIncome", kind = "pass", tint = UiKit.CREW.LIME,
 		icon = "coin",     blurb = "Every crewmate on your podiums earns double, forever." },
 	{ key = "ExtraPodiums", kind = "pass", tint = UiKit.CREW.CYAN,
-		icon = "crewmate", blurb = "Two extra podium slots on every floor you own." },
+		icon = "podium",   blurb = "Two extra podium slots on every floor you own." },
 	{ key = "FastSteal",    kind = "pass", tint = UiKit.CREW.RED,
-		icon = "boot",     blurb = "Rip a crewmate off a podium in a lot less time." },
+		icon = "bolt",     blurb = "Rip a crewmate off a podium in a lot less time." },
 	{ key = "StrongLock",   kind = "pass", tint = UiKit.CREW.BLUE,
-		icon = "crate",    blurb = "Your base lock holds longer and recharges faster." },
+		icon = "lock",     blurb = "Your base lock holds longer and recharges faster." },
 	{ key = "TripleHatch",  kind = "pass", tint = UiKit.CREW.PINK,
 		icon = "egg",      blurb = "Hatch 3 eggs at once, same wait as one." },
 }
@@ -87,7 +87,7 @@ local SUPPLIES: { Entry } = {
 	{ key = "LuckyRoll",      kind = "product", tint = UiKit.CREW.PURPLE,
 		icon = "vial",  blurb = "Your next crewmate spawns mutated, guaranteed." },
 	{ key = "ExtraSpin",      kind = "product", tint = UiKit.CREW.YELLOW,
-		icon = "vial",  blurb = "One more spin on the wheel." },
+		icon = "wheel", blurb = "One more spin on the wheel." },
 	{ key = "InstantRebirth", kind = "product", tint = UiKit.CREW.ORANGE,
 		icon = "flame", blurb = "Rebirth now without meeting the cash requirement." },
 }
@@ -102,21 +102,7 @@ end
 --[[ Yuvaya ikonu çizer. Hepsi UiKit'ten; hazır görsel yok. ]]
 local function drawIcon(slot: Frame, entry: Entry)
 	UiKit.ClearSlot(slot)
-	if entry.icon == "crewmate" then
-		UiKit.Crewmate(slot, 30, entry.tint)
-	elseif entry.icon == "crate" then
-		UiKit.Crate(slot, 30, entry.tint)
-	elseif entry.icon == "coin" then
-		UiKit.Coin(slot, 30, entry.tint)
-	elseif entry.icon == "vial" then
-		UiKit.Vial(slot, 32, entry.tint, 0.7, true)
-	elseif entry.icon == "boot" then
-		UiKit.Boot(slot, 30, entry.tint)
-	elseif entry.icon == "egg" then
-		UiKit.Egg(slot, 32, entry.tint)
-	else
-		UiKit.Flame(slot, 32, entry.tint)
-	end
+	UiKit.Icon(slot, entry.icon, 32, entry.tint)
 end
 
 function ShopPanel.Create(screen: ScreenGui): Panel
@@ -133,7 +119,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	badge.BackgroundTransparency = 1
 	badge.ZIndex = 41
 	badge.Parent = overlay
-	UiKit.Crate(badge, 26, ACCENT)
+	UiKit.Bag(badge, 28, ACCENT)
 
 	local heading = Instance.new("TextLabel")
 	heading.Position = UDim2.fromOffset(56, 12)

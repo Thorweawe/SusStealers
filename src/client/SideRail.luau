@@ -23,7 +23,7 @@ export type Spec = {
 	name: string,
 	label: string,
 	tint: Color3,
-	icon: string,      -- crate | crewmate | coin | vial | boot | flame | clipboard
+	icon: string,      -- UiKit.Icon adı: bag | book | clipboard | coin | ...
 	onClick: () -> (),
 }
 
@@ -35,24 +35,10 @@ export type Rail = {
 local BUTTON_H = 60
 local GAP = 8
 
---[[ Yuvaya ikonu çizer. ]]
+--[[ Yuvaya ikonu çizer (UiKit.Icon: aynı ad her yerde aynı resim). ]]
 local function drawIcon(slot: Frame, icon: string, tint: Color3)
 	UiKit.ClearSlot(slot)
-	if icon == "crate" then
-		UiKit.Crate(slot, 26, tint)
-	elseif icon == "crewmate" then
-		UiKit.Crewmate(slot, 26, tint)
-	elseif icon == "coin" then
-		UiKit.Coin(slot, 26, tint)
-	elseif icon == "vial" then
-		UiKit.Vial(slot, 28, tint, 0.7, true)
-	elseif icon == "boot" then
-		UiKit.Boot(slot, 26, tint)
-	elseif icon == "clipboard" then
-		UiKit.Clipboard(slot, 28, tint)
-	else
-		UiKit.Flame(slot, 28, tint)
-	end
+	UiKit.Icon(slot, icon, 30, tint)
 end
 
 --[[

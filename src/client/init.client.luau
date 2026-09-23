@@ -47,6 +47,7 @@ local HatchFX = require(script.HatchFX)
 local AutoHatch = require(script.AutoHatch)
 local GearPanel = require(script.GearPanel)
 local Summons = require(script.Summons)
+local Hotbar = require(script.Hotbar)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -272,13 +273,12 @@ end)
 --[[
 	TEŞHİS TUŞU (K): çalınma efektlerini yerel olarak tetikler.
 
-	Çalınma efektleri test sırasında hiç görünmedi ve sebebi iki yerden biri
-	olabilir: ya sunucu bildirimi ulaşmıyor ya da efektlerin kendisi bozuk.
-	Bu tuş efektleri olaydan bağımsız çalıştırıyor, böylece hangisi olduğu
-	kesinleşiyor. Sebep bulununca kaldırılacak.
+	Yalnızca Studio'da: canlı oyunda K'ye basan oyuncunun ekranında "TEST"
+	bildirimi çıkıyor ve alarm çalıyordu — oyuncuya sızmış bir geliştirici
+	aracıydı.
 ]]
 game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
-	if processed or input.KeyCode ~= Enum.KeyCode.K then
+	if processed or input.KeyCode ~= Enum.KeyCode.K or not RunService:IsStudio() then
 		return
 	end
 
@@ -468,6 +468,26 @@ local function mountPanel(name: string, mount: () -> ())
 	end)
 end
 
+--[[
+	STUDIO ÖNİZLEMESİ: pencereleri koddan açmak için. Studio testinde sunucu
+	oyuncuya "UiPreview" niteliği yazıyor, burası adı geçen pencereyi
+	açıyor — arayüz elle tıklanmadan tek tek incelenebiliyor. Canlı oyunda
+	hiç bağlanmıyor.
+]]
+local previews: { [string]: () -> () } = {}
+if RunService:IsStudio() then
+	player:GetAttributeChangedSignal("UiPreview"):Connect(function()
+		local name = player:GetAttribute("UiPreview")
+		local open = if typeof(name) == "string" then previews[name] else nil
+		if open then
+			local ok, err = pcall(open)
+			if not ok then
+				warn("[UiPreview] " .. tostring(err))
+			end
+		end
+	end)
+end
+
 -- Sohbet unvanlari: TextChatService.OnIncomingMessage yalnizca istemcide
 -- calisiyor, o yuzden burada.
 mountPanel("ChatTitles", function()
@@ -480,7 +500,13 @@ end)
 
 
 mountPanel("Menus", function()
-	Menus.Create(screen)
+	local menu = Menus.Create(screen)
+	previews.Titles = function()
+		menu.Open("titles")
+	end
+	previews.Potions = function()
+		menu.Open("potions")
+	end
 end)
 
 --[[
@@ -510,6 +536,7 @@ end)
 mountPanel("RebirthPanel", function()
 	local panel = RebirthPanel.Create(screen)
 	rebirthPanel = panel
+	previews.Rebirth = panel.Toggle
 
 	local dock = screen:WaitForChild("MenuDock", 10)
 	if not dock then
@@ -520,7 +547,7 @@ mountPanel("RebirthPanel", function()
 	local holder, button, slot =
 		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH")
 	holder.LayoutOrder = 4
-	UiKit.Flame(slot, 28, Color3.fromRGB(255, 226, 150))
+	UiKit.Rebirth(slot, 30, Color3.fromRGB(255, 236, 190))
 
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()
@@ -543,6 +570,8 @@ mountPanel("PetPanel", function()
 	local hatchFX = HatchFX.Create(screen)
 	local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
 	local panel = PetPanel.Create(screen, auto)
+	previews.Pets = panel.Toggle
+	previews.Fuse = panel.OpenFuse
 
 	local dock = screen:WaitForChild("MenuDock", 10)
 	if not dock then
@@ -552,7 +581,8 @@ mountPanel("PetPanel", function()
 	local holder, button, slot =
 		UiKit.IconButton(dock, "Pets", UiKit.CREW.PINK, "PETS")
 	holder.LayoutOrder = 3
-	UiKit.Crewmate(slot, 26, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.55))
+	-- Pati izi: unvan düğmesindeki mürettebatla karışmasın, "pet" olduğu hemen okunsun
+	UiKit.Paw(slot, 30, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.6))
 
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()
@@ -602,14 +632,14 @@ mountPanel("SideRail", function()
 			name = "Shop",
 			label = "SHOP",
 			tint = UiKit.CREW.LIME,
-			icon = "crate",
+			icon = "bag",
 			onClick = shop.Toggle,
 		},
 		{
 			name = "Index",
 			label = "INDEX",
 			tint = UiKit.CREW.CYAN,
-			icon = "crewmate",
+			icon = "book",
 			onClick = catalog.Toggle,
 		},
 		{
@@ -628,6 +658,14 @@ mountPanel("SideRail", function()
 	quests = QuestPanel.Create(screen, function(ready)
 		rail.SetBadge("Quests", ready)
 	end)
+
+	previews.Shop = shop.Toggle
+	previews.Index = catalog.Toggle
+	previews.Quests = function()
+		if quests then
+			quests.Toggle()
+		end
+	end
 end)
 
 --[[
@@ -636,6 +674,7 @@ end)
 ]]
 mountPanel("GearPanel", function()
 	local gear = GearPanel.Create(screen)
+	previews.Gear = gear.Open
 	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
 		if who == player and prompt.Name == "GearPrompt" then
 			gear.Open()
@@ -646,6 +685,11 @@ end)
 -- Summons sohbet sekmesi (nadir cikislar)
 mountPanel("Summons", function()
 	Summons.Create(screen)
+end)
+
+-- Ekipman çubuğu: Roblox'un gri hazır çubuğunun yerine (pencerelerin altında kalıyor)
+mountPanel("Hotbar", function()
+	Hotbar.Create(screen)
 end)
 
 --[[
@@ -661,4 +705,9 @@ mountPanel("Topbar", function()
 		end
 	end)
 	rewards = RewardsPanel.Create(screen, bar.SetGiftBadge)
+	previews.Rewards = function()
+		if rewards then
+			rewards.Toggle()
+		end
+	end
 end)

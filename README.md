@@ -407,6 +407,35 @@ adını `CLUTTER` listesine yaz.
 
 ---
 
+## Harita (The Skeld)
+
+Harita tamamen koddan kuruluyor: `tools/build_decor.luau` yükleyici,
+bölümler `tools/map/*.luau` (station, bays, rooms, landmarks, exterior,
+lobby, wings, finish). Ortak ölçüler, palet ve Skeld duvarı/kapısı
+`tools/map/kit.luau` içinde. Oda renkleri ve adları `Config.BayRooms`
+(PlotService üs zeminini de aynı renge boyuyor).
+
+Sync sunucusu açıkken Studio'da (run_code):
+
+```lua
+-- _G.MAP_ONLY = { "lobby" }   -- yalnızca bir bölümü yeniden kurmak için
+local src = game:GetService("HttpService"):GetAsync("http://127.0.0.1:8788/tools/build_decor.luau")
+loadstring(src)()
+_G.MAP_ONLY = nil
+```
+
+Kurulumun sonunda `tools/map/check.luau` ölçerek denetim yapıyor: aynı
+düzlemde çakışan yüzler (titreme) ve üslerin oyun alanına giren katı
+parçalar. Rapor `cakisan yuz: 0 | oyun alani ihlali: 0` olmalı.
+
+Kodun adıyla aradığı parçalar (değiştirirken koru): `Hatchery.Egg1..4 /
+PodRing / PodScreen / FuseCore`, `GearShop.GearCounter / GearPlinth1..3`,
+`Wheel` (Model) `.WheelHub`, `TeleportPad.PadColumn`, `Boards.BoardScreenN.Display`,
+`Lobby.LobbyDeck`, `Plots.PlotN.PodiumPad / FrameX / FrameZ / PillarBand / HatchHood`,
+`Doorways.DoorGlowN`, `BayMarkers.BayPadN`.
+
+---
+
 ## Denge ayarları
 
 Hepsi `src/shared/Config.luau` içinde, tek yerde:

@@ -114,7 +114,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 	badge.BackgroundTransparency = 1
 	badge.ZIndex = Z + 2
 	badge.Parent = band
-	UiKit.Crewmate(badge, 24, ACCENT)
+	UiKit.Clipboard(badge, 26, ACCENT)
 
 	local heading = Instance.new("TextLabel")
 	heading.AnchorPoint = Vector2.new(0.5, 0.5)

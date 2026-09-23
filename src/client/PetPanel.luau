@@ -74,7 +74,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 	badge.BackgroundTransparency = 1
 	badge.ZIndex = 41
 	badge.Parent = overlay
-	UiKit.Crewmate(badge, 24, ACCENT)
+	UiKit.Paw(badge, 26, ACCENT)
 
 	local heading = Instance.new("TextLabel")
 	heading.Position = UDim2.fromOffset(56, 12)

@@ -12,7 +12,8 @@ local RunService = game:GetService("RunService")
 
 local DecorFX = {}
 
-type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string }
+-- center/axisVec verilmişse ortak bir eksen etrafında döner (çarkın dilimleri)
+type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string, center: Vector3?, axisVec: Vector3?, angle: number? }
 type Pulser = { part: BasePart, period: number, phase: number }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 -- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
@@ -54,6 +55,9 @@ function DecorFX.Start(): FX
 					speed = speed,
 					base = obj.CFrame,
 					axis = if typeof(axis) == "string" then axis else "Y",
+					-- Ortak eksen (çark): parçalar kendi merkezinde değil göbekte dönüyor
+					center = if typeof(obj:GetAttribute("SpinCenter")) == "Vector3" then obj:GetAttribute("SpinCenter") else nil,
+					axisVec = if typeof(obj:GetAttribute("SpinAxisVec")) == "Vector3" then (obj:GetAttribute("SpinAxisVec") :: Vector3).Unit else nil,
 				})
 			end
 
@@ -107,11 +111,24 @@ function DecorFX.Start(): FX
 		elapsed += dt
 
 		for _, s in spinners do
-			local a = math.rad(s.speed * elapsed)
-			local rot = if s.axis == "Z" then CFrame.Angles(0, 0, a)
-				elseif s.axis == "X" then CFrame.Angles(a, 0, 0)
-				else CFrame.Angles(0, a, 0)
-			s.part.CFrame = s.base * rot
+			--[[
+				Hız her karede okunuyor: SpinService çevirme sırasında
+				niteliği 14 katına çıkarıyor. Açı birikimli tutuluyor ki hız
+				değişince parça sıçramasın.
+			]]
+			local live = s.part:GetAttribute("SpinSpeed")
+			local speed = if typeof(live) == "number" then live else s.speed
+			s.angle = (s.angle or 0) + speed * dt
+			local a = math.rad(s.angle)
+			if s.center and s.axisVec then
+				local pivot = CFrame.new(s.center)
+				s.part.CFrame = pivot * CFrame.fromAxisAngle(s.axisVec, a) * pivot:Inverse() * s.base
+			else
+				local rot = if s.axis == "Z" then CFrame.Angles(0, 0, a)
+					elseif s.axis == "X" then CFrame.Angles(a, 0, 0)
+					else CFrame.Angles(0, a, 0)
+				s.part.CFrame = s.base * rot
+			end
 		end
 
 		for _, p in pulsers do

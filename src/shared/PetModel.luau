@@ -132,6 +132,13 @@ end
 	"camdan bir yüz" yapıyor; onlarsız düz mavi bir leke gibi duruyor.
 ]]
 local function visor(b: Builder, center: Vector3, width: number, height: number, depth: number, tint: Color3?)
+	--[[
+		Arkada koyu çerçeve: Among Us vizörünün kalın konturu. Onsuz vizör
+		gövdeden ayrılmıyor, yandan bakınca öne uzamış bir gaga gibi
+		okunuyordu.
+	]]
+	b.ellipsoid("VisorRim", Vector3.new(width + 0.14, height + 0.14, depth * 0.7),
+		CFrame.new(center + Vector3.new(0, 0, depth * 0.2)), b.color:Lerp(Color3.new(0, 0, 0), 0.45))
 	local v = b.ellipsoid("Visor", Vector3.new(width, height, depth), CFrame.new(center), tint or VISOR, Enum.Material.Glass)
 	v.Reflectance = 0.25
 	local front = center.Z - depth / 2
@@ -158,7 +165,8 @@ end
 ]]
 local function buildBlob(b: Builder): (Part, number)
 	local body = b.capsule("Body", Vector3.new(1.55, 1.75, 1.45), CFrame.new(0, 1.12, 0), b.color)
-	visor(b, Vector3.new(0.05, 1.45, -0.62), 1.2, 0.62, 0.42)
+	-- Vizör gövdeye yaslı: önü gövde yüzeyinden yalnızca bir tık önde
+	visor(b, Vector3.new(0.05, 1.45, -0.56), 1.16, 0.6, 0.4)
 	b.capsule("Backpack", Vector3.new(0.9, 0.95, 0.5), CFrame.new(0, 1.0, 0.72), b.color:Lerp(Color3.new(0, 0, 0), 0.18))
 	for index, side in { -0.36, 0.36 } do
 		b.ellipsoid("Leg" .. index, Vector3.new(0.55, 0.5, 0.6), CFrame.new(side, 0.27, -0.02), b.color)
@@ -213,17 +221,27 @@ local function buildCrab(b: Builder): (Part, number)
 	return body, 1.95
 end
 
---[[ Kristal: eğik blok + parlayan çekirdek + etrafında iki kırık parça. ]]
+--[[
+	Kristal yaratık: yuvarlak cam gövde, içinde parlayan çekirdek, sırtında
+	üç kristal diken ve iri iki göz. İlk hâli yüzü olmayan eğik bloklardı
+	ve pet değil maden parçası gibi duruyordu; artık bir canlı.
+]]
 local function buildShard(b: Builder): (Part, number)
-	local body = b.part("Body", Vector3.new(0.95, 1.7, 0.95), CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(45), math.rad(10)), b.color, Enum.Material.Glass)
-	body.Transparency = 0.15
-	local core = b.part("ShardCore", Vector3.new(0.4, 0.95, 0.4), body.CFrame, b.color:Lerp(Color3.new(1, 1, 1), 0.6), Enum.Material.Neon)
+	local body = b.ellipsoid("Body", Vector3.new(1.5, 1.3, 1.35), CFrame.new(0, 0.82, 0), b.color, Enum.Material.Glass)
+	body.Transparency = 0.18
+	local core = b.ellipsoid("ShardCore", Vector3.new(0.62, 0.62, 0.62), CFrame.new(0, 0.82, 0.05), b.color:Lerp(Color3.new(1, 1, 1), 0.55), Enum.Material.Neon)
 	core.Name = "ShardCore"
-	for index, side in { -1, 1 } do
-		b.part("Fragment" .. index, Vector3.new(0.3, 0.5, 0.3),
-			CFrame.new(side * 0.85, 1.25 + side * 0.2, 0.1) * CFrame.Angles(math.rad(30), math.rad(45), 0), b.color, Enum.Material.Glass)
+	-- Kristal dikenler: 45° dönmüş, sırta doğru yatık bloklar
+	for index, spec in { { 0, 1.55, 0.12, 0, 0.95 }, { -0.42, 1.38, 0.18, -28, 0.7 }, { 0.42, 1.38, 0.18, 28, 0.7 } } do
+		local spike = b.part("Spike" .. index, Vector3.new(0.34, spec[5], 0.34),
+			CFrame.new(spec[1], spec[2], spec[3]) * CFrame.Angles(math.rad(-12), 0, math.rad(spec[4])) * CFrame.Angles(0, math.rad(45), 0),
+			b.color, Enum.Material.Glass)
+		spike.Transparency = 0.1
 	end
-	return body, 1.95
+	for _, side in { -0.28, 0.28 } do
+		eyeBall(b, Vector3.new(side, 0.95, -0.52), 0.19)
+	end
+	return body, 2.0
 end
 
 -- ─── Tür detayları ──────────────────────────────────────────────────────────
@@ -357,6 +375,18 @@ function PetModel.Build(key: string): Model?
 		body, top = buildShard(b)
 	else
 		body, top = buildBlob(b)
+	end
+
+	--[[
+		Gövde parlaması: sol üstte küçük beyaz benek. Pet oyunlarındaki
+		petleri "oyuncak" gibi gösteren şey bu cilalı parıltı; mat gövde
+		plastik bir blok gibi duruyordu. Cam gövdeli kristalde gerek yok.
+	]]
+	if form ~= "shard" then
+		local s = body.Size
+		b.ellipsoid("BodyGlint", Vector3.new(s.X * 0.2, s.Y * 0.13, 0.05),
+			CFrame.new(body.Position + Vector3.new(-s.X * 0.28, s.Y * 0.26, -s.Z * 0.34)) * CFrame.Angles(0, math.rad(-30), math.rad(25)),
+			WHITE, Enum.Material.Neon).Transparency = 0.35
 	end
 
 	local detail = DETAILS[def.id]

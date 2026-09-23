@@ -57,6 +57,23 @@ end
 
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
 
+--[[
+	GÖRÜNÜM: harita The Skeld (tools/map). Üs, içinde durduğu odanın rengini
+	alıyor (Config.BayRooms); gövde parçaları haritayla aynı açık, düz
+	renkli çizgi film paleti. Eskiden koyu gri beton ve metal dokuydu,
+	renkli odaların ortasında sönük bir blok gibi duruyordu.
+]]
+local LOOK = {
+	frame = Color3.fromRGB(226, 236, 242),
+	metal = Color3.fromRGB(176, 188, 196),
+	shell = Color3.fromRGB(84, 112, 128),
+	accent = Color3.fromRGB(252, 204, 48),
+	dark = Color3.fromRGB(30, 38, 46),
+	lamp = Color3.fromRGB(255, 250, 238),
+	lane = Color3.fromRGB(186, 204, 214),
+	belt = Color3.fromRGB(58, 72, 86),
+}
+
 local function newAnchoredPart(name: string, size: Vector3, cframe: CFrame, color: Color3, parent: Instance): Part
 	local part = Instance.new("Part")
 	part.Name = name
@@ -154,7 +171,7 @@ end
 	  3. Korkuluk basamakların dışına taşıyordu ("demir çıkıntısı"). Korkuluk
 	     artık basamak dizisiyle aynı uzunlukta ve aynı merkezde.
 ]]
-local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number)
+local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number, room: Config.BayRoom)
 	local halfX = Config.PlotSize.X / 2
 	local halfZ = Config.PlotSize.Z / 2
 	local rise = Config.FloorHeight
@@ -169,14 +186,13 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	local deckW = halfX - deckX0
 	local deckCX = deckX0 + deckW / 2
 
-	local DECK_COLOR = Color3.fromRGB(64, 76, 82)
-	local TRIM_COLOR = Color3.fromRGB(126, 140, 144)
-	local RAIL_COLOR = Color3.fromRGB(168, 181, 184)
+	-- Güverte odanın oluk renginde; üstündeki plakalar odanın karoları
+	local DECK_COLOR = room.grout
+	local TRIM_COLOR = LOOK.frame
+	local RAIL_COLOR = LOOK.metal
 
 	local function slab(name: string, size: Vector3, offset: Vector3, color: Color3): Part
-		local p = newAnchoredPart(name, size, CFrame.new(origin + offset), color, parent)
-		p.Material = Enum.Material.Metal
-		return p
+		return newAnchoredPart(name, size, CFrame.new(origin + offset), color, parent)
 	end
 
 	-- ── Ana güverte ────────────────────────────────────────────────────────
@@ -216,10 +232,9 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 				deckTop - rise + (i - 0.5) * stepRise,
 				zTop + stairLen - (i - 0.5) * stepRun
 			)),
-			if i % 2 == 0 then DECK_COLOR else TRIM_COLOR,
+			if i % 2 == 0 then room.tile else TRIM_COLOR,
 			parent
 		)
-		p.Material = Enum.Material.Metal
 		p.CanCollide = true
 	end
 
@@ -268,7 +283,6 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 			RAIL_COLOR,
 			parent
 		)
-		rail.Material = Enum.Material.Metal
 		rail.CanCollide = false
 	end
 
@@ -346,13 +360,8 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		kuruluyor (aynı plaka, oluk, uyarı şeridi), böylece katlar arasında
 		uyum var — ama her katın kendi numarası ve kendi renk aksanı var.
 	]]
-	local floorIndex = math.floor((deckTop - Config.PlotSize.Y / 2) / rise) + 1
-	local FLOOR_TINT = {
-		Color3.fromRGB(86, 140, 150),
-		Color3.fromRGB(176, 132, 74),
-		Color3.fromRGB(150, 110, 170),
-	}
-	local tint = FLOOR_TINT[math.clamp(floorIndex, 1, #FLOOR_TINT)]
+	-- Katın vurgu rengi odanın rengi: üst kat da aynı odanın parçası
+	local tint = room.accent
 
 	-- Zemin plakaları: alt kattaki güverte dokusunun aynısı
 	local TILE = 14
@@ -364,13 +373,13 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 				deckX0 + (i + 0.5) * (deckW / cols),
 				deckTop + 0.16,
 				-deckZ / 2 + (j + 0.5) * (deckZ / rowsT)
-			), if (i + j) % 2 == 0 then DECK_COLOR else Color3.fromRGB(56, 67, 73))
+			), if (i + j) % 2 == 0 then room.tile else room.tile2)
 		end
 	end
 
 	-- Kaide sıralarının arasındaki yürüme yolu, kenarında uyarı şeridi
 	slab("DeckLane", Vector3.new(deckW - 4, 0.12, 7), Vector3.new(deckCX, deckTop + 0.26, 0),
-		Color3.fromRGB(96, 108, 118))
+		LOOK.lane)
 	for _, sz in { -1, 1 } do
 		local step = 5
 		local count = math.floor((deckW - 4) / step)
@@ -379,7 +388,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 				deckCX - (deckW - 4) / 2 + (i + 0.5) * step,
 				deckTop + 0.3,
 				sz * 3.5
-			), if i % 2 == 0 then Color3.fromRGB(206, 172, 72) else Color3.fromRGB(38, 36, 28))
+			), if i % 2 == 0 then LOOK.accent else LOOK.dark)
 		end
 	end
 
@@ -388,7 +397,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		aşağı bakınca kat "kesilmiş" gibi duruyordu. Korkuluk yerine dolu
 		panel çünkü bu kenarda geçiş yok.
 	]]
-	slab("DeckWall", Vector3.new(deckW, 7, 1), Vector3.new(deckCX, deckTop + 3.5, deckZ / 2 - 0.5), DECK_COLOR)
+	slab("DeckWall", Vector3.new(deckW, 7, 1), Vector3.new(deckCX, deckTop + 3.5, deckZ / 2 - 0.5), LOOK.shell)
 	slab("DeckWallTrim", Vector3.new(deckW, 0.6, 1.6), Vector3.new(deckCX, deckTop + 7.2, deckZ / 2 - 0.5), TRIM_COLOR)
 	slab("DeckWallBand", Vector3.new(deckW - 6, 0.5, 1.4), Vector3.new(deckCX, deckTop + 5.4, deckZ / 2 - 0.9), tint)
 
@@ -480,16 +489,15 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	booth.Name = "UpgradeBooth"
 	booth.Parent = parent
 
-	local SHELL = Color3.fromRGB(96, 108, 114)
-	local TRIM = Color3.fromRGB(168, 181, 184)
-	local ACCENT = Color3.fromRGB(206, 172, 72)
-	local DARK = Color3.fromRGB(27, 34, 39)
+	local SHELL = LOOK.shell
+	local TRIM = LOOK.frame
+	local ACCENT = LOOK.accent
+	local DARK = LOOK.dark
 
 	local root = Vector3.new(bx, topY, bz)
 
 	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
 		local p = newAnchoredPart(name, size, CFrame.new(origin + root + offset), color, booth)
-		p.Material = Enum.Material.Metal
 		p.CanCollide = collide ~= false
 		return p
 	end
@@ -531,7 +539,7 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 		local text = Instance.new("TextLabel")
 		text.Size = UDim2.fromScale(1, 1)
 		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBold
+		text.Font = Enum.Font.FredokaOne
 		text.TextScaled = true
 		text.TextColor3 = ACCENT
 		text.Text = "UPGRADES"
@@ -661,18 +669,17 @@ local function buildLockConsole(parent: Instance, origin: Vector3)
 	console.Name = "LockConsole"
 	console.Parent = parent
 
-	local SHELL = Color3.fromRGB(96, 108, 114)
-	local TRIM = Color3.fromRGB(168, 181, 184)
+	local SHELL = LOOK.shell
+	local TRIM = LOOK.frame
 
 	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
 		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(cx, topY, cz) + offset), color, console)
-		p.Material = Enum.Material.Metal
 		p.CanCollide = collide ~= false
 		return p
 	end
 
 	-- Zeminde uyarı halkası: düğmenin alanı belli olsun
-	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.13, 0), Color3.fromRGB(206, 172, 72), false).Transparency = 0.78
+	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.13, 0), LOOK.accent, false).Transparency = 0.7
 
 	part("LockBase", Vector3.new(6, 1.2, 6), Vector3.new(0, 0.6, 0), TRIM)
 	part("LockColumn", Vector3.new(3.4, 3.4, 3.4), Vector3.new(0, 2.9, 0), SHELL)
@@ -706,9 +713,9 @@ local function buildPlot(index: number): Model
 		row * (Config.PlotRowSpacing or 0)
 	)
 
-	-- Zemin
-	local base = newAnchoredPart("Base", Config.PlotSize, CFrame.new(origin), Color3.fromRGB(58, 64, 76), plot)
-	base.Material = Enum.Material.Concrete
+	-- Zemin: içinde durduğu Skeld odasının renginde, bir tık koyu (sahne gibi okunsun)
+	local room = Config.GetBayRoom(index)
+	local base = newAnchoredPart("Base", Config.PlotSize, CFrame.new(origin), room.tile2:Lerp(Color3.new(0, 0, 0), 0.08), plot)
 	plot.PrimaryPart = base
 
 	-- Kaideler: her katta iki sıra. 1. kat zeminde ve açık gelir,
@@ -732,7 +739,7 @@ local function buildPlot(index: number): Model
 		floorModel.Parent = floors
 
 		if floor > 1 then
-			buildUpperFloor(floorModel, origin, deckTop)
+			buildUpperFloor(floorModel, origin, deckTop, room)
 		end
 
 		--[[
@@ -748,7 +755,7 @@ local function buildPlot(index: number): Model
 				"Podium",
 				Vector3.new(4, 1, 4),
 				CFrame.new(origin + offset),
-				Color3.fromRGB(90, 98, 112),
+				LOOK.frame,
 				podiums
 			)
 			podium:SetAttribute("SlotIndex", (floor - 1) * Config.PodiumsPerFloorTotal + index)
@@ -768,10 +775,9 @@ local function buildPlot(index: number): Model
 		"Conveyor",
 		Vector3.new(Config.PlotSize.X - 8, 1, 5),
 		CFrame.new(origin + Vector3.new(0, Config.PlotSize.Y / 2 + 0.5, Config.PlotSize.Z / 2 - 5)),
-		Color3.fromRGB(38, 42, 52),
+		LOOK.belt,
 		plot
 	)
-	conveyor.Material = Enum.Material.DiamondPlate
 
 	local items = Instance.new("Folder")
 	items.Name = "Items"
@@ -782,9 +788,12 @@ local function buildPlot(index: number): Model
 		"Sign",
 		Vector3.new(6, 0.4, 0.4),
 		CFrame.new(origin + Vector3.new(0, 8, -Config.PlotSize.Z / 2 + 1)),
-		Color3.fromRGB(30, 34, 42),
+		LOOK.dark,
 		plot
 	)
+	-- Yalnızca etiketin çapası: havada duran koyu çubuk görünmesin
+	sign.Transparency = 1
+	sign.CanCollide = false
 
 	--[[
 		AlwaysOnTop kapali: acikken tabela 2B HUD'un uzerine ciziliyordu.
@@ -804,10 +813,10 @@ local function buildPlot(index: number): Model
 	label.Name = "Text"
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
+	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(235, 240, 255)
-	label.TextStrokeTransparency = 0.3
+	label.TextStrokeTransparency = 0.15
 	label.Text = "EMPTY BASE"
 	label.Parent = gui
 
@@ -816,11 +825,11 @@ local function buildPlot(index: number): Model
 		"SpawnPad",
 		Vector3.new(8, 0.4, 8),
 		CFrame.new(origin + Vector3.new(0, Config.PlotSize.Y / 2 + 0.3, -Config.PlotSize.Z / 2 + 7)),
-		Color3.fromRGB(70, 200, 255),
+		Color3.fromRGB(120, 206, 255),
 		plot
 	)
 	spawnPad.Material = Enum.Material.Neon
-	spawnPad.Transparency = 0.45
+	spawnPad.Transparency = 0.55
 
 	plot:SetAttribute("Locked", false)
 	plot:SetAttribute("LockUsedAt", 0)

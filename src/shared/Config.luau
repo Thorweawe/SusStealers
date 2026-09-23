@@ -40,6 +40,43 @@ Config.PlotColumns = 4
 Config.PlotSpacing = 120       -- yanal boşluk 48 stud (üs 72 geniş)
 Config.PlotRowSpacing = 116    -- dikey boşluk 64 stud (üs 52 derin)
 
+--[[
+	Üs odaları: harita The Skeld, her üs bir Skeld odası. Sıra üs numarasına
+	göre (1-4 arka satır, 5-8 ön satır). Skeld'de motorlar solda üst üste
+	durduğu için 1 ve 5 motor odaları; aralarındaki koridor ucunda Reaktör.
+
+	İki yer kullanıyor: harita kurucusu (tools/map) oda zeminini, tabelayı
+	ve eşyaları buna göre kuruyor; PlotService üssün zeminini aynı renge
+	boyuyor. Renk burada tek yerde, yoksa üs ile oda ayrı tonda kalıyordu.
+]]
+export type BayRoom = {
+	id: string,        -- eşya seti (aynı id aynı eşyalar)
+	name: string,      -- tabelada yazan ad
+	tile: Color3,      -- zemin karosu
+	tile2: Color3,     -- dama deseninin ikinci tonu
+	grout: Color3,     -- karo arası oluk
+	accent: Color3,    -- odanın vurgu rengi (şerit, ekran)
+}
+
+local function rgb(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
+end
+
+Config.BayRooms = {
+	{ id = "Engine", name = "UPPER ENGINE", tile = rgb(170, 154, 138), tile2 = rgb(156, 141, 126), grout = rgb(108, 96, 86), accent = rgb(240, 136, 52) },
+	{ id = "Security", name = "SECURITY", tile = rgb(116, 176, 140), tile2 = rgb(104, 162, 128), grout = rgb(66, 110, 84), accent = rgb(90, 230, 150) },
+	{ id = "Comms", name = "COMMUNICATIONS", tile = rgb(132, 154, 190), tile2 = rgb(120, 142, 178), grout = rgb(78, 96, 126), accent = rgb(120, 206, 255) },
+	{ id = "O2", name = "O2", tile = rgb(116, 184, 174), tile2 = rgb(104, 170, 160), grout = rgb(66, 118, 110), accent = rgb(120, 244, 204) },
+	{ id = "Engine", name = "LOWER ENGINE", tile = rgb(170, 154, 138), tile2 = rgb(156, 141, 126), grout = rgb(108, 96, 86), accent = rgb(240, 136, 52) },
+	{ id = "Electrical", name = "ELECTRICAL", tile = rgb(184, 170, 116), tile2 = rgb(168, 154, 102), grout = rgb(116, 104, 64), accent = rgb(255, 214, 60) },
+	{ id = "Admin", name = "ADMIN", tile = rgb(180, 118, 126), tile2 = rgb(164, 104, 112), grout = rgb(110, 64, 72), accent = rgb(110, 240, 150) },
+	{ id = "Shields", name = "SHIELDS", tile = rgb(220, 200, 156), tile2 = rgb(204, 184, 142), grout = rgb(146, 126, 94), accent = rgb(255, 216, 80) },
+} :: { BayRoom }
+
+function Config.GetBayRoom(index: number): BayRoom
+	return Config.BayRooms[(index - 1) % #Config.BayRooms + 1]
+end
+
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
 Config.IncomeInterval = 1

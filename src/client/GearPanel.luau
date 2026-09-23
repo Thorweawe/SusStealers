@@ -94,7 +94,7 @@ function GearPanel.Create(screen: ScreenGui): Panel
 	hint.TextSize = 12
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 	hint.TextColor3 = UiKit.MUTED
-	hint.Text = "Bought once, yours forever. Equip from your backpack."
+	hint.Text = "Bought once, yours forever. Equip from your hotbar (1-3)."
 	hint.ZIndex = Z + 2
 	hint.Parent = band
 

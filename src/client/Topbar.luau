@@ -45,6 +45,7 @@ local CLUTTER = {
 	"RewardsPanel",
 	"GearPanel",
 	"TransitPanel",
+	"Hotbar",
 }
 
 local BUTTON = 44
@@ -141,6 +142,8 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 			end
 			table.clear(restore)
 		end
+		-- Kendini yeniden çizen parçalar (ekipman çubuğu) gizliyken görünmesin
+		screen:SetAttribute("UiHidden", hidden)
 		UiKit.ClearSlot(eyeSlot)
 		UiKit.EyeIcon(eyeSlot, 28, hidden)
 		tip.Text = if hidden then "Show UI  (H)" else "Hide UI  (H)"

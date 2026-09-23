@@ -146,7 +146,20 @@ function UiKit.Shell(parent: Instance, name: string, accent: Color3): Frame
 	root.BorderSizePixel = 0
 	root.Parent = parent
 	UiKit.Corner(root, 14)
-	UiKit.Stroke(root, accent, 1.4, 0.45)
+	--[[
+		Kenarlık kalın ve belirgin: Among Us menüleri koyu zemin üstüne
+		kalın açık çerçeveyle okunuyor. 1.4 kalınlık ve yarı saydamken panel
+		sahnenin içinde eriyordu.
+	]]
+	UiKit.Stroke(root, accent:Lerp(Color3.new(1, 1, 1), 0.15), 2.6, 0.08)
+	-- Üstten aşağı hafif açılan zemin: düz tek renk kutu yerine hacim
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Color = ColorSequence.new(
+		UiKit.SHELL:Lerp(accent, 0.07):Lerp(Color3.new(1, 1, 1), 0.03),
+		UiKit.SHELL_DEEP
+	)
+	grad.Parent = root
 	return root
 end
 
@@ -249,27 +262,35 @@ end
 	Kapatma düğmesi: panelin sağ üstünde, hep aynı yerde ve aynı boyutta.
 	Oyuncu bir panelde öğrendiği yeri diğerinde de bulmalı.
 ]]
+--[[
+	Among Us'ın kapatma düğmesi gibi: kırmızı daire, beyaz kontur, beyaz X.
+	Koyu kare bir "X" panelin içinde kayboluyordu; kırmızı daire her
+	pencerede ilk bakışta bulunuyor.
+]]
 function UiKit.CloseButton(parent: Frame): TextButton
 	local close = Instance.new("TextButton")
 	close.Name = "Close"
 	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position = UDim2.new(1, -12, 0, 12)
-	close.Size = UDim2.fromOffset(28, 28)
-	close.BackgroundColor3 = UiKit.SHELL_DEEP
+	close.Position = UDim2.new(1, -10, 0, 10)
+	close.Size = UDim2.fromOffset(30, 30)
+	close.BackgroundColor3 = UiKit.CREW.RED
 	close.BorderSizePixel = 0
-	close.Font = Enum.Font.GothamBold
-	close.TextSize = 15
-	close.TextColor3 = UiKit.MUTED
+	close.Font = Enum.Font.FredokaOne
+	close.TextSize = 17
+	close.TextColor3 = Color3.new(1, 1, 1)
 	close.Text = "X"
 	close.AutoButtonColor = false
+	close.ZIndex = parent.ZIndex + 6
 	close.Parent = parent
-	UiKit.Corner(close, 8)
+	UiKit.Corner(close, 15)
+	UiKit.Stroke(close, Color3.new(1, 1, 1), 2, 0.1)
 
+	local base = UiKit.CREW.RED
 	close.MouseEnter:Connect(function()
-		close.TextColor3 = UiKit.INK
+		close.BackgroundColor3 = base:Lerp(Color3.new(1, 1, 1), 0.18)
 	end)
 	close.MouseLeave:Connect(function()
-		close.TextColor3 = UiKit.MUTED
+		close.BackgroundColor3 = base
 	end)
 
 	return close
@@ -526,56 +547,94 @@ function UiKit.ClearSlot(slot: Instance)
 end
 
 --[[
-	İksir şişesi: boyun, gövde, içinde sıvı.
-
-	Sıvı seviyesi adede göre doluyor — "kaç tane var" bilgisi sayı
-	okunmadan veriliyor. Boşken şişe sönük.
+	İkon çizim yardımcısı: kare bir tuval (holder) ve üstüne oranla
+	yerleşen yuvarlak köşeli şekiller. Bütün ikonlar aynı dilde çiziliyor:
+	dolgun gövde, koyu kontur yerine koyu ikinci ton, sol üstte beyaz
+	parlama. Oranlar tuvale göre (0..1), yani her boyutta aynı duruyor.
 ]]
-function UiKit.Vial(parent: Instance, size: number, tint: Color3, fill: number, active: boolean): Frame
+local WHITE = Color3.new(1, 1, 1)
+local BLACK = Color3.new(0, 0, 0)
+
+local function canvas(parent: Instance, name: string, size: number): Frame
 	local holder = Instance.new("Frame")
-	holder.Name = "Vial"
+	holder.Name = name
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
 	holder.Position = UDim2.fromScale(0.5, 0.5)
 	holder.Size = UDim2.fromOffset(size, size)
 	holder.BackgroundTransparency = 1
 	holder.ZIndex = baseZ(parent)
 	holder.Parent = parent
-
-	local tone = if active then tint else UiKit.DIM
-
-	local neck = Instance.new("Frame")
-	neck.AnchorPoint = Vector2.new(0.5, 0)
-	neck.Position = UDim2.fromScale(0.5, 0.02)
-	neck.Size = UDim2.fromOffset(size * 0.3, size * 0.24)
-	neck.BackgroundColor3 = tone
-	neck.BorderSizePixel = 0
-	neck.ZIndex = holder.ZIndex + 2
-	neck.Parent = holder
-	UiKit.Corner(neck, math.max(2, math.floor(size * 0.08)))
-
-	local body = Instance.new("Frame")
-	body.AnchorPoint = Vector2.new(0.5, 1)
-	body.Position = UDim2.fromScale(0.5, 1)
-	body.Size = UDim2.fromOffset(size * 0.74, size * 0.74)
-	body.BackgroundColor3 = UiKit.SHELL_DEEP
-	body.BorderSizePixel = 0
-	body.ClipsDescendants = true
-	body.ZIndex = holder.ZIndex + 1
-	body.Parent = holder
-	UiKit.Corner(body, math.floor(size * 0.33))
-	UiKit.Stroke(body, tone, 1.4, 0.25)
-
-	local liquid = Instance.new("Frame")
-	liquid.AnchorPoint = Vector2.new(0.5, 1)
-	liquid.Position = UDim2.fromScale(0.5, 1)
-	liquid.Size = UDim2.new(1, 0, math.clamp(fill, 0, 1), 0)
-	liquid.BackgroundColor3 = tone
-	liquid.BackgroundTransparency = if active then 0.12 else 0.6
-	liquid.BorderSizePixel = 0
-	liquid.ZIndex = holder.ZIndex + 2
-	liquid.Parent = body
-
 	return holder
+end
+
+-- Tuvalde şekil: konum/boyut oranla, `round` 0..0.5 köşe oranı
+local function shape(holder: Frame, x: number, y: number, w: number, h: number, color: Color3, zOff: number, round: number?, rot: number?): Frame
+	local f = Instance.new("Frame")
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Position = UDim2.fromScale(x, y)
+	f.Size = UDim2.fromScale(w, h)
+	f.BackgroundColor3 = color
+	f.BorderSizePixel = 0
+	f.Rotation = rot or 0
+	f.ZIndex = holder.ZIndex + zOff
+	f.Parent = holder
+	if round and round > 0 then
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(round, 0)
+		c.Parent = f
+	end
+	return f
+end
+
+-- Halka (içi boş daire). `gap` verilirse halkanın bir kısmı saydam kalıyor.
+local function ring(holder: Frame, x: number, y: number, w: number, h: number, color: Color3, thick: number, zOff: number, gap: number?, gapRot: number?): Frame
+	local f = shape(holder, x, y, w, h, color, zOff, 0.5)
+	f.BackgroundTransparency = 1
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thick
+	s.Parent = f
+	if gap then
+		local g = Instance.new("UIGradient")
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1 - gap - 0.001, 0),
+			NumberSequenceKeypoint.new(1 - gap, 1),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		g.Rotation = gapRot or 0
+		g.Parent = s
+	end
+	return f
+end
+
+--[[
+	İksir şişesi: yuvarlak dipli laboratuvar şişesi, mantar tıpa, içinde
+	kabarcıklı sıvı.
+
+	Önceki çizimin gövdesi koyu doluydu ve dikdörtgen sıvı yuvarlak
+	gövdeden taşıyordu; düğmede siyah bir bomba gibi duruyordu. Şimdi cam
+	açık, sıvı gövdenin içinde ikinci bir daire. Sıvı miktarı adede göre;
+	boşken şişe soluk ve boş.
+]]
+function UiKit.Vial(parent: Instance, size: number, tint: Color3, fill: number, active: boolean): Frame
+	local h = canvas(parent, "Vial", size)
+	local glass = Color3.fromRGB(214, 236, 246)
+	local amount = if active then math.clamp(fill, 0.35, 1) else 0
+
+	shape(h, 0.5, 0.1, 0.24, 0.12, Color3.fromRGB(168, 118, 78), 3, 0.3)          -- tıpa
+	local neck = shape(h, 0.5, 0.27, 0.26, 0.26, glass, 1, 0.2)
+	neck.BackgroundTransparency = if active then 0.25 else 0.55
+	local body = shape(h, 0.5, 0.64, 0.74, 0.66, glass, 1, 0.5)
+	body.BackgroundTransparency = if active then 0.25 else 0.55
+	if amount > 0 then
+		local d = 0.66 * (0.55 + 0.45 * amount)
+		shape(h, 0.5, 0.97 - d / 2 - 0.02, d * 1.08, d, tint, 2, 0.5)
+		shape(h, 0.42, 0.72, 0.1, 0.1, WHITE, 3, 0.5).BackgroundTransparency = 0.25
+		shape(h, 0.58, 0.8, 0.07, 0.07, WHITE, 3, 0.5).BackgroundTransparency = 0.35
+	end
+	shape(h, 0.34, 0.5, 0.12, 0.16, WHITE, 3, 0.5, -20).BackgroundTransparency = 0.3 -- parlama
+	return h
 end
 
 --[[
@@ -628,44 +687,22 @@ end
 	"bu açılacak bir şey" diyor.
 ]]
 function UiKit.Egg(parent: Instance, size: number, tint: Color3): Frame
-	local z = baseZ(parent)
-
-	local egg = Instance.new("Frame")
-	egg.Name = "Egg"
-	egg.AnchorPoint = Vector2.new(0.5, 0.5)
-	egg.Position = UDim2.fromScale(0.5, 0.5)
-	egg.Size = UDim2.fromOffset(size * 0.78, size)
-	egg.BackgroundColor3 = tint
-	egg.BorderSizePixel = 0
-	egg.ZIndex = z + 1
-	egg.Parent = parent
-
-	-- Üstü dar, altı geniş: tek yarıçap veremiyoruz, iki katman gerekiyor
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.5, 0)
-	corner.Parent = egg
-
-	local belly = Instance.new("Frame")
-	belly.AnchorPoint = Vector2.new(0.5, 1)
-	belly.Position = UDim2.fromScale(0.5, 1)
-	belly.Size = UDim2.fromScale(1, 0.62)
-	belly.BackgroundColor3 = tint
-	belly.BorderSizePixel = 0
-	belly.ZIndex = z + 1
-	belly.Parent = egg
-	UiKit.Corner(belly, math.floor(size * 0.34))
-
-	local crack = Instance.new("Frame")
-	crack.AnchorPoint = Vector2.new(0.5, 0.5)
-	crack.Position = UDim2.fromScale(0.5, 0.46)
-	crack.Size = UDim2.new(0.78, 0, 0, 2)
-	crack.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.5)
-	crack.BorderSizePixel = 0
-	crack.Rotation = -8
-	crack.ZIndex = z + 2
-	crack.Parent = egg
-
-	return egg
+	--[[
+		Yumurta: dar üst + geniş alt iki elipsten; üstünde üç benek ve
+		parlama. Eskiden tek oval + yatay çatlak çizgisiydi ve küçük
+		boyutta bir hap gibi okunuyordu.
+	]]
+	local h = canvas(parent, "Egg", size)
+	local shade = tint:Lerp(BLACK, 0.18)
+	shape(h, 0.5, 0.62, 0.78, 0.7, shade, 1, 0.5)                -- alt gölge
+	shape(h, 0.5, 0.6, 0.74, 0.68, tint, 2, 0.5)                 -- geniş alt
+	shape(h, 0.5, 0.36, 0.56, 0.62, tint, 2, 0.5)                -- dar üst
+	local spot = tint:Lerp(WHITE, 0.5)
+	shape(h, 0.62, 0.36, 0.16, 0.13, spot, 3, 0.5, 20)
+	shape(h, 0.38, 0.62, 0.2, 0.15, spot, 3, 0.5, -15)
+	shape(h, 0.64, 0.72, 0.12, 0.1, spot, 3, 0.5)
+	shape(h, 0.38, 0.28, 0.1, 0.18, WHITE, 3, 0.5, 20).BackgroundTransparency = 0.25
+	return h
 end
 
 --[[
@@ -1013,65 +1050,176 @@ function UiKit.Coin(parent: Instance, size: number, tint: Color3): Frame
 end
 
 --[[
-	Bot: çalma hızının ikonu.
-
-	Ayakkabı iki dikdörtgenden — bilek ve taban. Basit ama silueti
-	tanınıyor ve "hareket" dışında bir şey okunmuyor.
+	Koşan mürettebat: çalma hızının ikonu. Öne eğik fasulye + arkasında üç
+	hız çizgisi. Eski çizim (bot) küçük boyutta "L" harfi gibi okunuyordu.
 ]]
 function UiKit.Boot(parent: Instance, size: number, tint: Color3): Frame
-	local boot = Instance.new("Frame")
-	boot.Name = "Boot"
-	boot.AnchorPoint = Vector2.new(0.5, 0.5)
-	boot.Position = UDim2.fromScale(0.5, 0.42)
-	boot.Size = UDim2.fromOffset(size * 0.42, size * 0.62)
-	boot.BackgroundColor3 = tint
-	boot.BorderSizePixel = 0
-	boot.ZIndex = baseZ(parent) + 1
-	boot.Parent = parent
-	UiKit.Corner(boot, math.max(2, math.floor(size * 0.12)))
+	local h = canvas(parent, "Runner", size)
+	for k, y in { 0.34, 0.52, 0.7 } do
+		local line = shape(h, 0.2 - (k % 2) * 0.04, y, 0.3, 0.09, tint, 1, 0.5)
+		line.BackgroundTransparency = 0.15 + k * 0.12
+	end
+	local host = shape(h, 0.6, 0.52, 0.72, 0.72, tint, 1)
+	host.BackgroundTransparency = 1
+	local body = UiKit.Crewmate(host, size * 0.64, tint)
+	body.Rotation = 14
+	return h
+end
+UiKit.Runner = UiKit.Boot
 
-	local sole = Instance.new("Frame")
-	sole.AnchorPoint = Vector2.new(0, 1)
-	sole.Position = UDim2.new(0, 0, 1, math.floor(size * 0.3))
-	sole.Size = UDim2.fromOffset(size * 0.78, size * 0.26)
-	sole.BackgroundColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.25)
-	sole.BorderSizePixel = 0
-	sole.ZIndex = boot.ZIndex + 1
-	sole.Parent = boot
-	UiKit.Corner(sole, math.max(2, math.floor(size * 0.1)))
+--[[
+	Rebirth: dönen ok (yeniden başla). Halka + ok ucu + ortada küçük yıldız
+	parıltısı. Eski alev çizimi bir hapa benziyordu.
+]]
+function UiKit.Flame(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Rebirth", size)
+	local thick = math.max(2, size * 0.13)
+	ring(h, 0.5, 0.52, 0.72, 0.72, tint, thick, 1, 0.24, 35)
+	-- Ok ucu: halkanın kesik ucunda eşkenar dörtgen
+	local r = 0.36
+	local a = math.rad(-27)
+	shape(h, 0.5 + math.cos(a) * r, 0.52 + math.sin(a) * r, 0.3, 0.3, tint, 2, 0.08, 45)
+	shape(h, 0.5, 0.52, 0.2, 0.2, tint:Lerp(WHITE, 0.4), 2, 0.1, 45)
+	return h
+end
+UiKit.Rebirth = UiKit.Flame
 
-	return boot
+--[[ Alışveriş çantası: mağazanın ikonu. Sap halkası gövdenin arkasında. ]]
+function UiKit.Bag(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Bag", size)
+	ring(h, 0.5, 0.3, 0.42, 0.42, tint:Lerp(BLACK, 0.3), math.max(2, size * 0.09), 1)
+	shape(h, 0.5, 0.64, 0.8, 0.62, tint, 2, 0.18)
+	shape(h, 0.5, 0.4, 0.8, 0.14, tint:Lerp(BLACK, 0.22), 3, 0.3)
+	-- Göğüste vizör: Among Us dokunuşu
+	shape(h, 0.5, 0.66, 0.4, 0.2, UiKit.VISOR, 3, 0.5)
+	shape(h, 0.58, 0.62, 0.1, 0.06, WHITE, 4, 0.5)
+	return h
 end
 
---[[ Alev: rebirth ikonu. İç içe iki damla, dıştan içe açılan renk. ]]
-function UiKit.Flame(parent: Instance, size: number, tint: Color3): Frame
-	local outer = Instance.new("Frame")
-	outer.Name = "Flame"
-	outer.AnchorPoint = Vector2.new(0.5, 0.5)
-	outer.Position = UDim2.fromScale(0.5, 0.5)
-	outer.Size = UDim2.fromOffset(size * 0.62, size * 0.9)
-	outer.BackgroundColor3 = tint
-	outer.BorderSizePixel = 0
-	outer.Rotation = 45
-	outer.ZIndex = baseZ(parent) + 1
-	outer.Parent = parent
+--[[ Kitap: indeksin ikonu. Kapakta mürettebat, sağda sayfa kenarı. ]]
+function UiKit.Book(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Book", size)
+	shape(h, 0.56, 0.52, 0.66, 0.82, WHITE:Lerp(tint, 0.15), 1, 0.12)   -- sayfalar
+	shape(h, 0.48, 0.5, 0.7, 0.84, tint, 2, 0.14)                       -- kapak
+	shape(h, 0.2, 0.5, 0.12, 0.84, tint:Lerp(BLACK, 0.3), 3, 0.3)        -- sırt
+	local host = shape(h, 0.52, 0.5, 0.5, 0.5, tint, 3)
+	host.BackgroundTransparency = 1
+	UiKit.Crewmate(host, size * 0.4, tint:Lerp(WHITE, 0.75))
+	return h
+end
 
-	local outerCorner = Instance.new("UICorner")
-	-- Üç köşe yuvarlak, biri sivri: alev damlasının silueti
-	outerCorner.CornerRadius = UDim.new(0.5, 0)
-	outerCorner.Parent = outer
+--[[ Taç: unvanların ikonu. ]]
+function UiKit.Crown(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Crown", size)
+	for _, p in { { 0.2, 0.5 }, { 0.5, 0.42 }, { 0.8, 0.5 } } do
+		shape(h, p[1], p[2], 0.3, 0.3, tint, 1, 0.12, 45)
+	end
+	shape(h, 0.5, 0.72, 0.84, 0.3, tint, 2, 0.2)
+	shape(h, 0.5, 0.83, 0.84, 0.08, tint:Lerp(BLACK, 0.25), 3, 0.5)
+	for _, p in { { 0.2, 0.32 }, { 0.5, 0.22 }, { 0.8, 0.32 } } do
+		shape(h, p[1], p[2], 0.13, 0.13, WHITE, 3, 0.5)
+	end
+	shape(h, 0.5, 0.68, 0.16, 0.16, UiKit.CREW.RED, 4, 0.5)
+	return h
+end
 
-	local inner = Instance.new("Frame")
-	inner.AnchorPoint = Vector2.new(0.5, 0.5)
-	inner.Position = UDim2.fromScale(0.5, 0.58)
-	inner.Size = UDim2.fromScale(0.52, 0.52)
-	inner.BackgroundColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.55)
-	inner.BorderSizePixel = 0
-	inner.ZIndex = outer.ZIndex + 1
-	inner.Parent = outer
-	UiKit.Corner(inner, math.floor(size * 0.25))
+--[[ Pati izi: petlerin ikonu. ]]
+function UiKit.Paw(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Paw", size)
+	shape(h, 0.5, 0.66, 0.52, 0.44, tint, 1, 0.5)
+	for _, p in { { 0.2, 0.42, -25 }, { 0.38, 0.22, -10 }, { 0.62, 0.22, 10 }, { 0.8, 0.42, 25 } } do
+		shape(h, p[1], p[2], 0.2, 0.25, tint, 1, 0.5, p[3])
+	end
+	shape(h, 0.42, 0.6, 0.12, 0.1, WHITE, 2, 0.5).BackgroundTransparency = 0.45
+	return h
+end
 
-	return outer
+--[[ Asma kilit: kilit ile ilgili her şeyin ikonu. ]]
+function UiKit.Lock(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Lock", size)
+	ring(h, 0.5, 0.36, 0.46, 0.5, tint:Lerp(WHITE, 0.25), math.max(2, size * 0.1), 1)
+	shape(h, 0.5, 0.68, 0.74, 0.54, tint, 2, 0.18)
+	local hole = tint:Lerp(BLACK, 0.55)
+	shape(h, 0.5, 0.63, 0.16, 0.16, hole, 3, 0.5)
+	shape(h, 0.5, 0.74, 0.08, 0.18, hole, 3, 0.3)
+	return h
+end
+
+--[[ Şimşek: hız/anında etkilerin ikonu. İki paralelkenar + bağlantı. ]]
+function UiKit.Bolt(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Bolt", size)
+	-- Kalın çizgiler: küçük boyutta ince çapraz bir çizgi gibi kalıyordu
+	shape(h, 0.6, 0.28, 0.32, 0.52, tint, 1, 0.1, 22)
+	shape(h, 0.5, 0.52, 0.62, 0.18, tint, 1, 0.25, -10)
+	shape(h, 0.4, 0.76, 0.32, 0.52, tint, 1, 0.1, 22)
+	shape(h, 0.56, 0.28, 0.09, 0.32, WHITE, 2, 0.5, 22).BackgroundTransparency = 0.35
+	return h
+end
+
+--[[ Kürsü: kaide/üs yuvası ikonu, üstünde küçük mürettebat. ]]
+function UiKit.Podium(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Podium", size)
+	shape(h, 0.5, 0.88, 0.86, 0.14, tint:Lerp(BLACK, 0.25), 1, 0.4)
+	shape(h, 0.5, 0.7, 0.54, 0.3, tint, 1, 0.1)
+	shape(h, 0.5, 0.54, 0.72, 0.1, tint:Lerp(WHITE, 0.3), 2, 0.4)
+	local host = shape(h, 0.5, 0.28, 0.4, 0.4, tint, 2)
+	host.BackgroundTransparency = 1
+	UiKit.Crewmate(host, size * 0.38, WHITE)
+	return h
+end
+
+--[[ Şans çarkı: çark ile ilgili ikon. Dört renkli dilim + göbek + dil. ]]
+function UiKit.Wheel(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Wheel", size)
+	shape(h, 0.5, 0.54, 0.84, 0.84, tint, 1, 0.5)
+	for k, rot in { 0, 45, 90, 135 } do
+		shape(h, 0.5, 0.54, 0.78, 0.06, WHITE, 2, 0.5, rot).BackgroundTransparency = 0.2 + (k % 2) * 0.2
+	end
+	shape(h, 0.5, 0.54, 0.22, 0.22, WHITE, 3, 0.5)
+	shape(h, 0.5, 0.08, 0.18, 0.18, UiKit.CREW.RED, 3, 0.1, 45)
+	return h
+end
+
+--[[
+	Tek giriş: ikon adından çizim. Düğmeler, mağaza satırları ve ödül
+	kutucukları aynı adları kullanıyor, böylece aynı şey her yerde aynı
+	resimle gösteriliyor.
+]]
+function UiKit.Icon(parent: Instance, kind: string, size: number, tint: Color3): Frame
+	if kind == "crate" then
+		return UiKit.Crate(parent, size, tint)
+	elseif kind == "crewmate" then
+		return UiKit.Crewmate(parent, size, tint)
+	elseif kind == "coin" then
+		return UiKit.Coin(parent, size, tint)
+	elseif kind == "vial" or kind == "potion" then
+		return UiKit.Vial(parent, size, tint, 0.8, true)
+	elseif kind == "boot" or kind == "runner" then
+		return UiKit.Boot(parent, size, tint)
+	elseif kind == "egg" then
+		return UiKit.Egg(parent, size, tint)
+	elseif kind == "clipboard" then
+		return UiKit.Clipboard(parent, size, tint)
+	elseif kind == "bag" then
+		return UiKit.Bag(parent, size, tint)
+	elseif kind == "book" then
+		return UiKit.Book(parent, size, tint)
+	elseif kind == "crown" then
+		return UiKit.Crown(parent, size, tint)
+	elseif kind == "paw" then
+		return UiKit.Paw(parent, size, tint)
+	elseif kind == "lock" then
+		return UiKit.Lock(parent, size, tint)
+	elseif kind == "bolt" then
+		return UiKit.Bolt(parent, size, tint)
+	elseif kind == "podium" then
+		return UiKit.Podium(parent, size, tint)
+	elseif kind == "wheel" then
+		return UiKit.Wheel(parent, size, tint)
+	elseif kind == "gift" then
+		return UiKit.Gift(parent, size, tint)
+	end
+	return UiKit.Flame(parent, size, tint)
 end
 
 --[[

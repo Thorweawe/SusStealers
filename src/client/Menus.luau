@@ -45,6 +45,7 @@ local ROW = UiKit.ROW
 local POTION_ACCENT = Color3.fromRGB(150, 226, 160)
 
 export type Menu = {
+	Open: (tab: string) -> (),
 	Destroy: () -> (),
 }
 
@@ -138,7 +139,8 @@ function Menus.Create(screen: ScreenGui): Menu
 	local titlesHolder, titlesButton, titlesSlot =
 		UiKit.IconButton(dock, "Titles", UiKit.CREW.PURPLE, "TITLES")
 	titlesHolder.LayoutOrder = 1
-	UiKit.Crewmate(titlesSlot, 26, UiKit.CREW.PURPLE:Lerp(Color3.new(1, 1, 1), 0.55))
+	-- Altın taç: pet düğmesiyle aynı mürettebat figürünü kullanıyordu
+	UiKit.Crown(titlesSlot, 30, Color3.fromRGB(255, 214, 90))
 
 	local potionsHolder, potionsButton, potionsSlot =
 		UiKit.IconButton(dock, "Potions", POTION_ACCENT, "POTIONS")
@@ -152,8 +154,8 @@ function Menus.Create(screen: ScreenGui): Menu
 	local function drawPotionIcon(total: number)
 		UiKit.ClearSlot(potionsSlot)
 		UiKit.Vial(
-			potionsSlot, 28,
-			Color3.new(1, 1, 1),
+			potionsSlot, 32,
+			Color3.fromRGB(170, 255, 120),
 			total / math.max(1, Config.PotionStackLimit),
 			total > 0
 		)
@@ -611,6 +613,7 @@ function Menus.Create(screen: ScreenGui): Menu
 	end)
 
 	return {
+		Open = open,
 		Destroy = function()
 			titlesConnection:Disconnect()
 			potionsConnection:Disconnect()

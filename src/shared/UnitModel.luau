@@ -39,33 +39,62 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	local model = Instance.new("Model")
 	model.Name = def.id
 
-	-- Gövde (Among Us fasulyesi: dikey silindir + yuvarlak üst)
-	local body = newPart("Body", Vector3.new(2.0, 2.4, 2.0), bodyColor, Enum.Material.SmoothPlastic)
-	body.Shape = Enum.PartType.Cylinder
-	-- Cylinder ekseni X'tir, dikey durması için Z etrafında 90° çeviriyoruz
-	body.CFrame = CFrame.new(0, 1.8, 0) * CFrame.Angles(0, 0, math.rad(90))
+	--[[
+		Among Us fasulyesi. Yuvarlak şekiller Roblox'un yerleşik ağlarından
+		(SpecialMesh Head = yuvarlatılmış silindir, Sphere = elips) — mağaza
+		varlığı değil, her yerde yükleniyor.
+
+		Eski hâli keskin kenarlı silindir, küre ve KUTU vizördü; uzaktan
+		bakınca vizör yüze yapıştırılmış mavi bir tuğla gibi duruyordu.
+		Ölçüler aynı (boy 4.0, kafa merkezi 3.0): şapkalar yerinde kalıyor.
+	]]
+	local function rounded(part: Part, meshType: Enum.MeshType): Part
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = meshType
+		mesh.Parent = part
+		return part
+	end
+
+	-- Gövde: kenarları yuvarlatılmış silindir (dik, döndürmeye gerek yok)
+	local body = rounded(newPart("Body", Vector3.new(2.05, 2.5, 2.0), bodyColor, Enum.Material.SmoothPlastic), Enum.MeshType.Head)
+	body.CFrame = CFrame.new(0, 1.85, 0)
 	body.Parent = model
 
-	local head = newPart("Head", Vector3.new(2.0, 2.0, 2.0), bodyColor, Enum.Material.SmoothPlastic)
+	local head = newPart("Head", Vector3.new(2.05, 2.05, 2.05), bodyColor, Enum.Material.SmoothPlastic)
 	head.Shape = Enum.PartType.Ball
 	head.CFrame = CFrame.new(0, 3.0, 0)
 	head.Parent = model
 
-	-- Vizör
-	local visor = newPart("Visor", Vector3.new(1.35, 0.85, 0.55), Color3.fromRGB(150, 220, 255), Enum.Material.Glass)
-	visor.Shape = Enum.PartType.Block
-	visor.CFrame = CFrame.new(0, 3.05, -0.85)
-	visor.Reflectance = 0.25
+	-- Vizör: arkada koyu çerçeve, önde elips cam ve iki parlama
+	local rim = rounded(newPart("VisorRim", Vector3.new(1.62, 1.04, 0.5), bodyColor:Lerp(Color3.new(0, 0, 0), 0.5), Enum.Material.SmoothPlastic), Enum.MeshType.Sphere)
+	rim.CFrame = CFrame.new(0.12, 3.02, -0.7)
+	rim.Parent = model
+
+	local visor = rounded(newPart("Visor", Vector3.new(1.46, 0.88, 0.6), Color3.fromRGB(150, 216, 240), Enum.Material.Glass), Enum.MeshType.Sphere)
+	visor.CFrame = CFrame.new(0.12, 3.04, -0.8)
+	visor.Reflectance = 0.2
 	visor.Parent = model
 
-	-- Sırt çantası
-	local pack = newPart("Backpack", Vector3.new(0.8, 1.9, 0.9), bodyColor, Enum.Material.SmoothPlastic)
-	pack.CFrame = CFrame.new(0, 2.0, 1.25)
+	for index, spec in { { 0.42, 3.22, 0.42, 0.22 }, { 0.62, 2.98, 0.16, 0.12 } } do
+		local glint = rounded(newPart("VisorGlint" .. index, Vector3.new(spec[3], spec[4], 0.06), Color3.fromRGB(245, 252, 255), Enum.Material.Neon), Enum.MeshType.Sphere)
+		glint.CFrame = CFrame.new(spec[1], spec[2], -1.09)
+		glint.Parent = model
+	end
+
+	-- Kafada cilalı parıltı: oyuncak gibi okunsun
+	local shine = rounded(newPart("BodyGlint", Vector3.new(0.42, 0.26, 0.06), Color3.fromRGB(255, 255, 255), Enum.Material.Neon), Enum.MeshType.Sphere)
+	shine.CFrame = CFrame.new(-0.55, 3.62, -0.5) * CFrame.Angles(math.rad(-35), math.rad(-35), math.rad(25))
+	shine.Transparency = 0.45
+	shine.Parent = model
+
+	-- Sırt çantası: yuvarlatılmış
+	local pack = rounded(newPart("Backpack", Vector3.new(0.85, 1.9, 0.95), bodyColor:Lerp(Color3.new(0, 0, 0), 0.12), Enum.Material.SmoothPlastic), Enum.MeshType.Head)
+	pack.CFrame = CFrame.new(0, 2.05, 1.18)
 	pack.Parent = model
 
-	-- Bacaklar
+	-- Bacaklar: kısa ve yuvarlak uçlu
 	for index, offset in { -0.55, 0.55 } do
-		local leg = newPart("Leg" .. index, Vector3.new(0.75, 1.3, 1.0), bodyColor, Enum.Material.SmoothPlastic)
+		local leg = rounded(newPart("Leg" .. index, Vector3.new(0.8, 1.3, 1.02), bodyColor, Enum.Material.SmoothPlastic), Enum.MeshType.Head)
 		leg.CFrame = CFrame.new(offset, 0.65, 0)
 		leg.Parent = model
 	end

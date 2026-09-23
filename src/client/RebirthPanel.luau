@@ -191,7 +191,8 @@ function RebirthPanel.Create(screen: ScreenGui): Panel
 	-- Açılınca diğer pencereleri kapatır (mağaza, indeks...)
 	UiKit.Exclusive(root)
 	corner(root, 16)
-	stroke(root, EMBER, 1.6, 0.35)
+	-- Diğer pencerelerle aynı kalın çerçeve (UiKit.Shell ile aynı değerler)
+	stroke(root, EMBER:Lerp(Color3.new(1, 1, 1), 0.15), 2.6, 0.08)
 
 	local title = Instance.new("TextLabel")
 	title.Position = UDim2.fromOffset(22, 16)
@@ -217,20 +218,9 @@ function RebirthPanel.Create(screen: ScreenGui): Panel
 	rank.ZIndex = 13
 	rank.Parent = root
 
-	local close = Instance.new("TextButton")
-	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position = UDim2.new(1, -14, 0, 14)
-	close.Size = UDim2.fromOffset(30, 30)
-	close.BackgroundColor3 = SHELL_DEEP
-	close.BorderSizePixel = 0
-	close.Font = Enum.Font.GothamBold
-	close.TextSize = 16
-	close.TextColor3 = MUTED
-	close.Text = "X"
-	close.AutoButtonColor = false
-	close.ZIndex = 13
-	close.Parent = root
-	corner(close, 8)
+	-- Kapatma düğmesi her pencerede aynı: kırmızı daire (UiKit.CloseButton)
+	local close = UiKit.CloseButton(root)
+	close.ZIndex = 14
 
 	-- ─── Amblem ─────────────────────────────────────────────────────────────
 

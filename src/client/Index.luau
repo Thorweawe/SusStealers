@@ -115,7 +115,7 @@ function Index.Create(screen: ScreenGui): Catalog
 	badge.BackgroundTransparency = 1
 	badge.ZIndex = Z + 2
 	badge.Parent = band
-	UiKit.Crewmate(badge, 26, ACCENT)
+	UiKit.Book(badge, 28, ACCENT)
 
 	label(band, {
 		Position = UDim2.fromOffset(52, 0), Size = UDim2.new(0, 300, 1, 0),

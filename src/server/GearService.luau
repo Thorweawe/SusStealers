@@ -196,7 +196,7 @@ function GearService.TryBuy(player: Player, id: string): boolean
 	profile.gear[id] = true
 	GearService.Publish(player)
 	giveTool(player, id)
-	notify(player, def.name .. " bought! Check your backpack", false)
+	notify(player, def.name .. " bought! Equip it from your hotbar", false)
 	return true
 end
 
