@@ -35,6 +35,7 @@ local FriendService = require(script.FriendService)
 local VentService = require(script.VentService)
 local EventService = require(script.EventService)
 local SabotageService = require(script.SabotageService)
+local RogueService = require(script.RogueService)
 
 local started = os.clock()
 
@@ -73,5 +74,7 @@ VentService.Start()
 SabotageService.Start()
 -- En sonda: Economy, Steal ve Announce hazır olmalı
 EventService.Start()
+-- Olay ve vent servislerine bakıyor: onlardan sonra
+RogueService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

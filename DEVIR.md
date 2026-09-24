@@ -13,6 +13,22 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (9) — Batur (yalnızca sunucu/shared)
+
+**Gezen impostor NPC** (`src/server/RogueService.luau`, `Config.Rogue*`):
+- 5-9 dk'da bir (olay yokken) rastgele bir vent'ten kırmızı "ROGUE IMPOSTOR" çıkıyor,
+  rastgele bir oyuncunun dolu kaidesine yürüyor, 8 sn hackliyor, karakterin kopyasını
+  kafasına alıp ≥150 stud uzaktaki bir vent'e kaçıyor (~12 sn kovalamaca).
+- **Kilit işe yaramıyor.** Yalnızca üssün SAHİBİ durdurabiliyor (E basılı, 1 sn);
+  başkası basınca "Only X can stop this" uyarısı.
+- Durdurursa: gelirine göre ödül (120 sn'lik gelir, en az $5K) + yakalama sayacı.
+- Kaçarsa: karakter kaidede kalıyor ama **5 dk para üretmiyor** (kaidede
+  `OfflineUntil` sunucu saati + `OfflineUnit`; `EconomyService.GetIncome` atlıyor),
+  karakter soluk, üstünde "STOLEN m:ss". Karakter değişirse (satıldı/çalındı) biter.
+- Hareket sunucuda, model kök parçaya kaynaklı. İstemci kodu gerekmedi.
+- Not: bu oyunda `BillboardGui.AlwaysOnTop = true` etiketler çizilmiyor; kapalı kullan.
+- Bildirim türü `rogue` (Config.NotifyCues). Testler 149/149.
+
 ## 2026-09-24 (8) — Batur (Yusuf'un şeridine de yazıldı)
 
 **1. ChatTitles düzeltildi:** `TextChatService.OnIncomingMessage` OKUNMUYOR artık

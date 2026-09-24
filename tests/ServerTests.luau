@@ -54,6 +54,7 @@ local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
 local SabotageService = require(Server.SabotageService)
+local RogueService = require(Server.RogueService)
 
 local ServerTests = {}
 
@@ -3095,6 +3096,138 @@ case("Sabotaj: etkiler üsse uygulanıp süre sonunda kalkıyor", function(ctx)
 	clearPlot(ctx.plot)
 end)
 
+-- ─── Gezen impostor ─────────────────────────────────────────────────────────
+
+case("Impostor NPC: ayarlar yakalanabilir, ödül gelire göre", function()
+	ok("kaçarken oyuncudan yavaş", Config.RogueFleeSpeed < Config.NormalWalkSpeed)
+	ok("yaklaşırken oyuncudan yavaş", Config.RogueApproachSpeed < Config.NormalWalkSpeed)
+	ok("aralık mantıklı", Config.RogueIntervalMin >= 180 and Config.RogueIntervalMax >= Config.RogueIntervalMin)
+	eq("gelirsizlik 5 dk", Config.RogueOfflineSeconds, 300)
+	eq("taban ödül", Config.GetRogueReward(0), Config.RogueRewardMin)
+	eq("gelirle ödül", Config.GetRogueReward(1e6), Config.RogueRewardSeconds * 1e6)
+	ok("ses tanımlı", Config.HasNotifyCue(RogueService.NotifyKind))
+	ok("vent kapakları var", #VentService.GetPads() >= 2)
+	-- Her üsten en az bir kaçış vent'i yeterince uzakta olmalı (kovalamaca olsun)
+	for _, plot in PlotService.GetAllPlots() do
+		local far = false
+		for _, pad in VentService.GetPads() do
+			if (pad.Position - plot.Base.Position).Magnitude >= Config.RogueEscapeMinDistance then
+				far = true
+			end
+		end
+		ok(plot.Name .. " uzak vent", far)
+	end
+	ok("kaçış 10 sn'den uzun", Config.RogueEscapeMinDistance / Config.RogueFleeSpeed >= 10)
+end)
+
+case("Impostor NPC: sahibi durdurunca ödül alıyor, kilit korumuyor", function(ctx)
+	RogueService._Reset()
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+
+	-- Kilitli üs de hedef olabiliyor
+	ctx.plot:SetAttribute("Locked", true)
+	local found = false
+	for _, c in RogueService.GetCandidates() do
+		if c.podium == podium then
+			found = true
+		end
+	end
+	ok("kilitli üs hedef", found)
+	ctx.plot:SetAttribute("Locked", false)
+
+	eq("yokken yakalanmaz", (RogueService.TryCatch(ctx.player)), "none")
+	ok("çıktı", RogueService.Spawn(ctx.plot, podium, true))
+	ok("ikincisi çıkmıyor", not RogueService.Spawn(ctx.plot, podium, true))
+	local r = RogueService.GetCurrent()
+	ok("sahibi doğru", r ~= nil and r.owner == ctx.player)
+	ok("modeli dünyada", r ~= nil and r.model.Parent == workspace)
+	ok("promptu var", r ~= nil and r.root:FindFirstChild("RoguePrompt") ~= nil)
+	-- Kök yürüyünce gövde de gelmeli (kaynaklar dünyada kurulmazsa vent'te kalıyordu)
+	if r then
+		local body = r.model:FindFirstChild("Body") :: BasePart
+		local before = body.Position
+		r.root.CFrame += Vector3.new(0, 0, 5)
+		task.wait()
+		near("gövde kökle geliyor", (body.Position - before).Z, 5, 0.05)
+		-- Gövde kökün hemen üstünde (kaynak yanlış anda kurulunca yüzlerce stud uzakta kalıyordu)
+		ok("gövde kökün yanında", (body.Position - r.root.Position).Magnitude < 4,
+			tostring((body.Position - r.root.Position).Magnitude))
+		local _, size = r.model:GetBoundingBox()
+		near("ayaklar zeminde", r.root.Position.Y - r.lift - (r.model:GetBoundingBox().Position.Y - size.Y / 2), 0, 0.05)
+	end
+
+	RogueService._Grab()
+	local ghosted = false
+	for _, d in podium.Unit:GetDescendants() do
+		if d:GetAttribute("RogueGhost") ~= nil then
+			ghosted = true
+		end
+	end
+	ok("kapınca karakter soluk", ghosted)
+	ok("sırtında kopya", r ~= nil and r.carried ~= nil)
+
+	setCash(ctx.player, 0)
+	local caught0 = ctx.profile.caught
+	local reason, reward = RogueService.TryCatch(ctx.player)
+	eq("durdurdu", reason, "ok")
+	-- En az ödül kadar: yakalama sayacı bir unvan açarsa onun ödülü de ekleniyor
+	ok("ödül geldi", EconomyService.GetCash(ctx.player) >= reward, tostring(EconomyService.GetCash(ctx.player)))
+	ok("ödül tabandan az değil", reward >= Config.RogueRewardMin)
+	eq("yakalama sayıldı", ctx.profile.caught, caught0 + 1)
+	eq("sahneden gitti", RogueService.GetCurrent(), nil)
+	eq("gelir kesilmedi", podium:GetAttribute("OfflineUntil"), nil)
+	local still = false
+	for _, d in podium.Unit:GetDescendants() do
+		if d:GetAttribute("RogueGhost") ~= nil then
+			still = true
+		end
+	end
+	ok("karakter normale döndü", not still)
+	clearPlot(ctx.plot)
+end)
+
+case("Impostor NPC: kaçarsa karakter 5 dk para üretmiyor", function(ctx)
+	RogueService._Reset()
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	local income = EconomyService.GetIncome(ctx.player)
+	ok("önce gelir var", income > 0)
+
+	ok("çıktı", RogueService.Spawn(ctx.plot, podium, true))
+	RogueService._Grab()
+	RogueService._Escape()
+	-- Gecikmeli "karakter kondu" sinyali işareti silmemeli
+	task.wait()
+	eq("sahneden gitti", RogueService.GetCurrent(), nil)
+	local untilAt = podium:GetAttribute("OfflineUntil")
+	ok("gelirsiz", typeof(untilAt) == "number" and untilAt > workspace:GetServerTimeNow() + 290)
+	eq("gelir kesildi", EconomyService.GetIncome(ctx.player), 0)
+	eq("karakter kaidede duruyor", podium:GetAttribute("UnitId"), Config.Units[10].id)
+	ok("geri sayım etiketi", podium:FindFirstChild("OfflineLabel") ~= nil)
+	local found = false
+	for _, c in RogueService.GetCandidates() do
+		if c.podium == podium then
+			found = true
+		end
+	end
+	ok("gelirsiz kaide tekrar hedef değil", not found)
+
+	-- Karakter değişince (satıldı / çalındı) gelirsizlik bitiyor
+	PlotService.ClearUnit(podium)
+	task.wait()
+	eq("boşalınca temizlendi", podium:GetAttribute("OfflineUntil"), nil)
+
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	RogueService._Reset(podium)
+	eq("gelir geri geldi", EconomyService.GetIncome(ctx.player), income)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -3191,6 +3324,9 @@ function ServerTests.Run(player: Player?): number
 	-- Olay takvimi de dursun; süren bir olay gelir/süre ölçen testleri bozar
 	EventService.SetPaused(true)
 	EventService.End()
+	-- Gezen impostor da çıkmasın; sahnede varsa kaldır
+	RogueService.SetPaused(true)
+	RogueService._Reset()
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -3229,6 +3365,7 @@ function ServerTests.Run(player: Player?): number
 	QuestService.SetPaused(false)
 	EventService.End()
 	EventService.SetPaused(false)
+	RogueService.SetPaused(false)
 	-- Testler iksir içiyor; kalan takviyeyi canlı oturuma bırakma
 	MonetizationService.ClearBoosts(player)
 

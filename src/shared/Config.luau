@@ -748,6 +748,8 @@ Config.NotifyCues = {
 	friend   = { source = "UiA", startAt = 7.50, length = 0.24, pitch = 1.10, volume = 0.45, repeats = 2, gap = 0.14 },
 	-- Sabotaj: alarm ailesinden, alçak ve kısa üç vuruş (olaydan farklı)
 	sabotage = { source = "Alarm", startAt = 3.00, length = 0.16, pitch = 0.70, volume = 0.45, repeats = 3, gap = 0.09 },
+	-- Gezen impostor: alarm ailesinden ama tiz ve uzun iki vuruş
+	rogue    = { source = "Alarm", startAt = 6.00, length = 0.34, pitch = 1.45, volume = 0.45, repeats = 2, gap = 0.18 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -2197,6 +2199,40 @@ end
 
 function Config.GetSabotagePrice(def: SabotageDef, incomePerSecond: number): number
 	return math.max(def.minimum, math.floor(incomePerSecond * def.seconds))
+end
+
+-- ─── Gezen impostor (NPC) ───────────────────────────────────────────────────
+--[[
+	Arada bir bir vent'ten NPC impostor çıkıyor, rastgele bir üsse yürüyüp
+	bir kaideyi "hackliyor", karakteri kapıp başka bir vent'e kaçıyor.
+	YALNIZCA o üssün sahibi durdurabiliyor (hold E):
+	  durdurursa — gelirine göre ödül (RogueRewardSeconds, en az RogueRewardMin)
+	  kaçarsa    — karakter kaidede kalıyor ama RogueOfflineSeconds boyunca
+	               para üretmiyor (soluk görünüyor, üstünde geri sayım)
+
+	Kalabalık olmayan sunucuda da oyunda hareket olsun diye. Kilit işe
+	yaramıyor (kilit oyunculara karşı); tek savunma sahibinin kendisi.
+	Hızı normal yürüyüşten yavaş: sahibi yetişebilsin.
+]]
+Config.RogueIntervalMin = 300      -- iki impostor arası (sn), rastgele
+Config.RogueIntervalMax = 540
+Config.RogueFirstDelay = { 90, 180 } -- sunucu açıldıktan sonra ilki
+Config.RogueApproachSpeed = 11
+Config.RogueFleeSpeed = 13         -- NormalWalkSpeed'den yavaş olmalı
+Config.RogueHackSeconds = 8
+Config.RogueApproachTimeout = 120  -- yolda takılırsa vazgeçer
+Config.RogueFleeTimeout = 60       -- kaçarken takılırsa kaçmış sayılır
+-- Kaçış vent'i kaideden en az bu kadar uzak: en yakın vent 5 sn'lik
+-- yoldaydı, sahibinin yetişme şansı yoktu. 150 stud ≈ 12 sn kovalamaca.
+Config.RogueEscapeMinDistance = 150
+Config.RogueOfflineSeconds = 300   -- kaçınca karakterin gelirsiz kaldığı süre
+Config.RogueRewardSeconds = 120
+Config.RogueRewardMin = 5_000
+Config.RogueCatchHold = 1
+Config.RogueCatchRange = 12
+
+function Config.GetRogueReward(incomePerSecond: number): number
+	return math.max(Config.RogueRewardMin, math.floor(incomePerSecond * Config.RogueRewardSeconds))
 end
 
 -- ─── Ödüller: günlük seri, oynama süresi, indeks ────────────────────────────

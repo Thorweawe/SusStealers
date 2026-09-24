@@ -81,9 +81,12 @@ function EconomyService.GetIncome(player: Player): number
 	end
 
 	local total = 0
+	local now = workspace:GetServerTimeNow()
 	for _, podium in PlotService.GetPodiums(plot) do
 		local unitId = podium:GetAttribute("UnitId") :: string
-		if unitId ~= "" then
+		-- Gezen impostorun kaçırdığı karakter bir süre gelir üretmiyor (RogueService)
+		local offlineUntil = podium:GetAttribute("OfflineUntil") :: number?
+		if unitId ~= "" and not (offlineUntil and offlineUntil > now) then
 			local def = Config.GetUnit(unitId)
 			if def then
 				local mutationId = podium:GetAttribute("MutationId") :: string
