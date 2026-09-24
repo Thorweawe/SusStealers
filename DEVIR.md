@@ -13,6 +13,28 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (2) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+**Harita — `tools/map/polish.luau` (yeni bölüm, SECTIONS'ın EN SONUNDA):**
+- Oda tabelaları (tavandan sarkan, iki yüzlü), orta boşlukta kasa yığını,
+  duvarlarda kırmızı uyarı lambaları, 6 yeni vent kapağı (landmarks'taki
+  kapağın kopyası), küçük/tavan/zemin parçalarında gölge kapalı (4196 → 1878).
+- Malzemelere dokunulmadı (kit'in SmoothPlastic kuralı).
+- Studio'ya doğrudan uygulandı (Decor.Polish). **Haritayı yeniden kurarsan
+  polish'i de çalıştır**, yoksa tabelalar/ventler gider ve ventler kapanır.
+
+**Sunucu:** `VentService` — eşli kapaklar (VentPair A-D), taşırken kullanılamıyor,
+8 sn bekleme. Config: `VentCooldown`, `VentHoldTime`.
+
+**İstemci:**
+- Yeni `MapLife.luau`: uyarı lambalarını yakıp söndürüyor, koridorda 4 süs
+  mürettebat geziyor (istemciye özel, çarpışmasız).
+- Sesler: asteroit oyununa lazer + kaya kırılma sesi; Music'te dron/nabız sesleri
+  yerine Roblox lisanslı müzik; gıcırtılı fon dronu kapalı (`AMBIENT_ENABLED`),
+  makine uğultusu yarıya indi. Arayüz/alarm seslerine dokunulmadı.
+
+---
+
 ## 2026-09-24 — Batur (Yusuf'un şeridine de yazıldı: `src/client/*`)
 
 Cihaz uyumu (telefon/tablet/konsol) ve arkadaş bonusu. Testler 126/126 temiz,

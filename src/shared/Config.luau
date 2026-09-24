@@ -782,6 +782,12 @@ end
 Config.OfflineIncomeRate = 0.05
 Config.OfflineIncomeCapHours = 3
 
+-- ─── Vent ───────────────────────────────────────────────────────────────────
+-- Taşırken kullanılamıyor (VentService). Bekleme, iki kapak arasında gidip
+-- gelip kovalayanı sonsuza kadar atlatmayı engelliyor.
+Config.VentCooldown = 8
+Config.VentHoldTime = 0.35
+
 -- ─── Arkadaş bonusu ─────────────────────────────────────────────────────────
 --[[
 	Aynı sunucudaki her Roblox arkadaşı için küçük bir gelir bonusu.

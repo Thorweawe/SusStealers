@@ -19,6 +19,7 @@ local FloorStyle = require(script.FloorStyle)
 local Index = require(script.Index)
 local Leaderboard = require(script.Leaderboard)
 local Lobby = require(script.Lobby)
+local MapLife = require(script.MapLife)
 local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
 local RarityFX = require(script.RarityFX)
@@ -715,6 +716,11 @@ mountPanel("GearPanel", function()
 			gear.Open()
 		end
 	end)
+end)
+
+-- Harita canlılığı: uyarı lambaları ve koridorda gezen mürettebat
+mountPanel("MapLife", function()
+	MapLife.Start()
 end)
 
 -- Summons sohbet sekmesi (nadir cikislar)

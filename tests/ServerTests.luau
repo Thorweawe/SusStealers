@@ -48,6 +48,7 @@ local RewardService = require(Server.RewardService)
 local GearService = require(Server.GearService)
 local MinigameService = require(Server.MinigameService)
 local FriendService = require(Server.FriendService)
+local VentService = require(Server.VentService)
 
 local ServerTests = {}
 
@@ -2518,6 +2519,55 @@ case("Arkadaş: bonus geliri çarpıyor, nitelik tavana kırpılıyor", function
 
 	ctx.player:SetAttribute("FriendBonus", 0)
 	clearPlot(ctx.plot)
+end)
+
+-- ─── Vent ──────────────────────────────────────────────────────────────────
+
+case("Vent: kapaklar eşli ve promptlu", function()
+	local pads = VentService.GetPads()
+	ok("en az iki çift", #pads >= 4, tostring(#pads))
+	local pairs: { [string]: number } = {}
+	local prompted = true
+	for _, pad in pads do
+		local id = pad:GetAttribute("VentPair")
+		pairs[tostring(id)] = (pairs[tostring(id)] or 0) + 1
+		if not pad:FindFirstChild("VentPrompt") then
+			prompted = false
+		end
+	end
+	local allTwo = true
+	for _, n in pairs do
+		if n ~= 2 then
+			allTwo = false
+		end
+	end
+	ok("her çiftte iki kapak", allTwo)
+	ok("her kapakta prompt", prompted)
+end)
+
+case("Vent: taşırken yok, bekleme var, eşine ışınlıyor", function(ctx)
+	local pads = VentService.GetPads()
+	assert(#pads >= 2, "vent yok")
+	local a, b = pads[1], pads[2]
+	local root = ctx.player.Character.HumanoidRootPart :: BasePart
+	local home = root.CFrame
+	VentService._Reset(ctx.player)
+
+	-- Taşıyormuş gibi: StealService sırttaki modele bu adı veriyor
+	local fake = Instance.new("Model")
+	fake.Name = "CarriedUnit"
+	fake.Parent = ctx.player.Character
+	eq("taşırken reddedildi", VentService.TryVent(ctx.player, a, b, 1000), "carrying")
+	fake:Destroy()
+
+	eq("boş elle geçti", VentService.TryVent(ctx.player, a, b, 1000), "ok")
+	ok("eşine vardı", (root.Position - b.Position).Magnitude < 6,
+		string.format("%.1f", (root.Position - b.Position).Magnitude))
+	eq("hemen tekrar yok", VentService.TryVent(ctx.player, b, a, 1000 + Config.VentCooldown - 1), "cooldown")
+	eq("bekleme dolunca var", VentService.TryVent(ctx.player, b, a, 1000 + Config.VentCooldown + 1), "ok")
+
+	VentService._Reset(ctx.player)
+	root.CFrame = home
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
