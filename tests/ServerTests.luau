@@ -49,6 +49,7 @@ local GearService = require(Server.GearService)
 local MinigameService = require(Server.MinigameService)
 local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
+local EventService = require(Server.EventService)
 
 local ServerTests = {}
 
@@ -2570,6 +2571,127 @@ case("Vent: taşırken yok, bekleme var, eşine ışınlıyor", function(ctx)
 	root.CFrame = home
 end)
 
+-- ─── Sunucu olayları ───────────────────────────────────────────────────────
+
+case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
+	local ids = {}
+	for _, def in Config.Events do
+		ok(def.id .. " süre periyottan kısa", def.duration + Config.EventWarning < def.every)
+		ok(def.id .. " offset periyot içinde", def.offset >= 0 and def.offset < def.every)
+		ids[def.id] = true
+	end
+	for _, id in { "Meeting", "LightsOut", "Meltdown", "Impostor" } do
+		ok(id .. " tanımlı", ids[id] == true)
+	end
+
+	-- 24 saat boyunca her olayın penceresi (uyarı dahil) başka bir olayınkiyle kesişmesin
+	local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
+	local windows = {}
+	for _, def in Config.Events do
+		local t = Config.GetNextEventStart(def, day0)
+		while t < day0 + 86400 do
+			table.insert(windows, { id = def.id, a = t - Config.EventWarning, b = t + def.duration })
+			t += def.every
+		end
+	end
+	local clash = nil
+	for i = 1, #windows do
+		for j = i + 1, #windows do
+			local x, y = windows[i], windows[j]
+			if x.a < y.b and y.a < x.b then
+				clash = x.id .. "/" .. y.id
+			end
+		end
+	end
+	ok("çakışma yok", clash == nil, tostring(clash))
+
+	-- Bir sonraki başlangıç: tam slotta kendisi, bir saniye sonra bir sonraki
+	local meeting = Config.GetEvent("Meeting") :: Config.EventDef
+	local slot = day0 + meeting.offset
+	eq("tam slot", Config.GetNextEventStart(meeting, slot), slot)
+	eq("slottan sonra", Config.GetNextEventStart(meeting, slot + 1), slot + meeting.every)
+end)
+
+case("Olay: Emergency Meeting geliri katlıyor, bitince dönüyor", function(ctx)
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	local base = EconomyService.GetIncome(ctx.player)
+
+	ok("başladı", EventService.Begin("Meeting"))
+	eq("süren olay", EventService.GetActiveId(), "Meeting")
+	near("gelir katlandı", EconomyService.GetIncome(ctx.player), base * Config.MeetingIncomeMul, 2)
+	eq("ikinci olay başlamıyor", EventService.Begin("LightsOut"), false)
+	EventService.End()
+	eq("bitince normal", EconomyService.GetIncome(ctx.player), base)
+	eq("yayın temizlendi", workspace:GetAttribute("EventId"), "")
+	clearPlot(ctx.plot)
+end)
+
+case("Olay: Lights Sabotage çalma süresini kısaltıyor", function(ctx)
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
+	assert(prompt, "çalma promptu yok")
+	-- Prompt karaktere göre süresini nitelik sinyaliyle güncelliyor (ertelenmiş)
+	task.wait()
+	local normal = prompt.HoldDuration
+
+	ok("başladı", EventService.Begin("LightsOut"))
+	near("kısaldı", prompt.HoldDuration, normal * Config.LightsOutHoldMul, 0.01)
+	EventService.End()
+	near("geri döndü", prompt.HoldDuration, normal, 0.01)
+	clearPlot(ctx.plot)
+end)
+
+case("Olay: Reactor Meltdown çekirdekleri üslerin dışında, ödül veriyor", function(ctx)
+	ok("başladı", EventService.Begin("Meltdown"))
+	local folder = workspace:FindFirstChild("EventCores")
+	local count = if folder then #folder:GetChildren() else 0
+	ok("çekirdek düştü", count > 0, tostring(count))
+
+	local insidePlot = 0
+	if folder then
+		for _, core in folder:GetChildren() do
+			for _, plot in PlotService.GetAllPlots() do
+				local cf, size = plot:GetBoundingBox()
+				local lp = cf:PointToObjectSpace(Vector3.new(core.Position.X, cf.Position.Y, core.Position.Z))
+				if math.abs(lp.X) <= size.X / 2 and math.abs(lp.Z) <= size.Z / 2 then
+					insidePlot += 1
+				end
+			end
+		end
+	end
+	eq("üs içinde çekirdek yok", insidePlot, 0)
+	EventService.End()
+	eq("bitince temizlendi", workspace:FindFirstChild("EventCores"), nil)
+
+	-- Ödül: nakit (zar yüksek) ve karakter (zar düşük, boş kaide var)
+	clearPlot(ctx.plot)
+	setCash(ctx.player, 0)
+	local kind, amount = EventService.GrantCore(ctx.player, 0.99)
+	eq("nakit ödül", kind, "cash")
+	ok("en az taban", (amount :: number) >= Config.MeltdownMinCash, tostring(amount))
+	local kind2, unitId = EventService.GrantCore(ctx.player, 0)
+	eq("karakter ödülü", kind2, "unit")
+	ok("tanımlı karakter", Config.GetUnit(unitId) ~= nil, tostring(unitId))
+	clearPlot(ctx.plot)
+end)
+
+case("Olay: Impostor ödemesi %3-5 ve tavanlı", function(ctx)
+	eq("alt sınır", EventService.ImpostorPayment(1_000_000, 0), 30_000)
+	eq("üst sınır", EventService.ImpostorPayment(1_000_000, 1), 50_000)
+	eq("tavan", EventService.ImpostorPayment(1e12, 1), Config.ImpostorPayCap)
+	eq("parasız", EventService.ImpostorPayment(0, 0.5), 0)
+	-- Tek oyunculu sunucuda impostor seçilmiyor
+	eq("tek oyuncuyla başlamıyor", EventService.Begin("Impostor"), false)
+	-- Impostor olmayan hırsız yakalanınca kimse ödemiyor
+	eq("impostor değilse ödeme yok", EventService.OnCaught(ctx.player, ctx.player, 0.5), 0)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -2658,6 +2780,9 @@ function ServerTests.Run(player: Player?): number
 	TitleService.SetPaused(true)
 	TutorialService.SetPaused(true)
 	QuestService.SetPaused(true)
+	-- Olay takvimi de dursun; süren bir olay gelir/süre ölçen testleri bozar
+	EventService.SetPaused(true)
+	EventService.End()
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -2694,6 +2819,8 @@ function ServerTests.Run(player: Player?): number
 	TitleService.SetPaused(false)
 	TutorialService.SetPaused(false)
 	QuestService.SetPaused(false)
+	EventService.End()
+	EventService.SetPaused(false)
 	-- Testler iksir içiyor; kalan takviyeyi canlı oturuma bırakma
 	MonetizationService.ClearBoosts(player)
 

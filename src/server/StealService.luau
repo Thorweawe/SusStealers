@@ -34,6 +34,19 @@ type Carry = {
 }
 
 local carrying: { [Player]: Carry } = {}
+
+--[[
+	Sunucu olaylarının çalmaya dokunduğu iki yer (EventService yazıyor):
+	  eventHoldMul    — Lights Sabotage'ta bütün çalma süreleri kısalıyor.
+	                    Prompt herkese ortak olduğu için HoldDuration'ın
+	                    kendisi değişiyor; istemci de kısa süreyi görüyor.
+	  caughtListeners — hırsız yakalandığında haber alınacaklar
+	                    (Impostor olayı ödemeyi buradan yapıyor).
+	StealService EventService'i require etmiyor; bağımlılık tek yönlü.
+]]
+local eventHoldMul = 1
+local podiumRefreshers: { () -> () } = {}
+local caughtListeners: { (thief: Player, catcher: Player) -> () } = {}
 local lastStealAt: { [Player]: number } = {}
 
 --[[
@@ -330,7 +343,27 @@ local function setupCatchPrompt(thief: Player, model: Model)
 
 		BadgeService.Award(catcher, "ThiefCatcher")
 		TitleService.AddCaught(catcher)
+
+		for _, listener in caughtListeners do
+			task.spawn(listener, thief, catcher)
+		end
 	end)
+end
+
+--[[ Hırsız yakalandığında çağrılacak dinleyici ekler (EventService). ]]
+function StealService.OnCaught(listener: (thief: Player, catcher: Player) -> ())
+	table.insert(caughtListeners, listener)
+end
+
+--[[
+	Bütün çalma sürelerini bir çarpanla ölçekler ve promptları hemen
+	günceller. 1 = normal. Lights Sabotage 0.6 veriyor.
+]]
+function StealService.SetEventHoldMultiplier(mul: number)
+	eventHoldMul = math.clamp(mul, 0.2, 1)
+	for _, refresh in podiumRefreshers do
+		refresh()
+	end
 end
 
 -- ─── Bırakma ────────────────────────────────────────────────────────────────
@@ -596,7 +629,7 @@ local function setupPodiumPrompt(podium: Part)
 		end
 
 		local mutationId = podium:GetAttribute("MutationId") :: string
-		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId)
+		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId) * eventHoldMul
 
 		-- Hızlı Çalma pass'i kişiye özel, prompt ise herkese ortak.
 		-- Burada taban süre yazılıyor; kişisel indirim tetiklenme anında
@@ -607,6 +640,7 @@ local function setupPodiumPrompt(podium: Part)
 	end
 
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
+	table.insert(podiumRefreshers, refresh)
 	refresh()
 
 	PromptGuard.Connect(prompt, function(player)

@@ -13,6 +13,33 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (3) — Batur: sunucu olayları (Yusuf'un şeridine de yazıldı)
+
+**Sunucu — `EventService` (yeni):** UTC saatine hizalı, bütün sunucularda aynı anda.
+
+| Olay | Zaman | Etki |
+|---|---|---|
+| Emergency Meeting | her saat :15, 2 dk | herkese 2x gelir |
+| Lights Sabotage | her saat :45, 90 sn | çalma süresi ×0.6, istemcide karanlık |
+| Reactor Meltdown | 3 saatte bir :30, 60 sn | üslerin dışında rastgele 6 çekirdek; nakit / %15 karakter |
+| Impostor Among Us | 2 saatte bir :00, 1 dk | rastgele oyuncu herkesin gördüğü impostor; yakalanırsa yakalayan ona %3-5 öder (en fazla 200k) |
+
+- 30 sn önce uyarı. Ayarlar `Config.Events` ve altındaki sabitler.
+- `StealService`: `SetEventHoldMultiplier`, `OnCaught` eklendi. `EconomyService`:
+  `workspace.EventIncomeMul` çarpanı.
+- İstemciye workspace nitelikleriyle gidiyor (`EventId`, `EventEndsAt`, `NextEvent*`);
+  yeni remote yok.
+
+**İstemci — `EventFX.luau` (yeni):** üst ortada olay şeridi + geri sayım, olay yokken
+"Next: ... in mm:ss"; Lights Sabotage'ta yerel karartma. Tasarımını değiştirmekte serbestsin.
+
+**Bulunan hata (düzeltilmedi, satış öncesi lazım):** Fast Steal pass'i / "steal" iksiri
+pratikte işe yaramıyor. Sunucu kısa basılı tutmayı kabul ediyor ama istemcideki prompt
+yine tam `HoldDuration` dolunca tetikleniyor. Çözüm: istemci, pass/iksiri olan oyuncuda
+`StealPrompt.HoldDuration`'ı yerelde çarpanla kısaltmalı (çarpanı niteliğe yazmak gerekecek).
+
+---
+
 ## 2026-09-24 (2) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 **Harita — `tools/map/polish.luau` (yeni bölüm, SECTIONS'ın EN SONUNDA):**

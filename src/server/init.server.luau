@@ -31,6 +31,7 @@ local GlobalBoardService = require(script.GlobalBoardService)
 local MinigameService = require(script.MinigameService)
 local FriendService = require(script.FriendService)
 local VentService = require(script.VentService)
+local EventService = require(script.EventService)
 
 local started = os.clock()
 
@@ -64,5 +65,7 @@ GlobalBoardService.Start()
 MinigameService.Start()
 FriendService.Start()
 VentService.Start()
+-- En sonda: Economy, Steal ve Announce hazır olmalı
+EventService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

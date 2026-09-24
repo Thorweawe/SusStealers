@@ -15,6 +15,7 @@ local Net = require(Shared.Net)
 local CarryGuide = require(script.CarryGuide)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
+local EventFX = require(script.EventFX)
 local FloorStyle = require(script.FloorStyle)
 local Index = require(script.Index)
 local Leaderboard = require(script.Leaderboard)
@@ -716,6 +717,11 @@ mountPanel("GearPanel", function()
 			gear.Open()
 		end
 	end)
+end)
+
+-- Sunucu olayları: üstteki şerit ve Lights Sabotage karanlığı
+mountPanel("EventFX", function()
+	EventFX.Create(screen)
 end)
 
 -- Harita canlılığı: uyarı lambaları ve koridorda gezen mürettebat

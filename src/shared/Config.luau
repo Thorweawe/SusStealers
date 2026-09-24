@@ -664,6 +664,8 @@ Config.NotifyCues = {
 	reward   = { source = "UiD", startAt = 2.50, length = 0.22, pitch = 1.25, volume = 0.50, repeats = 2, gap = 0.10 },
 	-- Ekipman satın alma: metalik tek vuruş
 	gear     = { source = "UiB", startAt = 3.50, length = 0.26, pitch = 0.95, volume = 0.50 },
+	-- Sunucu olayı başladı/yaklaşıyor: alarm ailesinden, ağır iki vuruş
+	event    = { source = "Alarm", startAt = 5.00, length = 0.30, pitch = 0.85, volume = 0.45, repeats = 2, gap = 0.22 },
 	-- Arkadaş sunucuya girdi: sıcak, iki vuruşlu karşılama
 	friend   = { source = "UiA", startAt = 7.50, length = 0.24, pitch = 1.10, volume = 0.45, repeats = 2, gap = 0.14 },
 
@@ -781,6 +783,83 @@ end
 -- hediyesi kadar, strateji olacak kadar değil.
 Config.OfflineIncomeRate = 0.05
 Config.OfflineIncomeCapHours = 3
+
+-- ─── Sunucu olayları ────────────────────────────────────────────────────────
+--[[
+	Saatli olaylar (EventService). Zamanlar UTC saatine hizalı: bütün
+	sunucularda aynı anda başlıyor, oyuncu "Emergency Meeting her saat
+	başı :15'te" diye öğrenebiliyor ve o saatte oyuna giriyor.
+
+	every   — kaç saniyede bir
+	offset  — periyodun içindeki başlangıç (0 = saat başı)
+	duration— kaç saniye sürüyor
+
+	Dakikalar birbirine denk gelmeyecek şekilde dağıtıldı: :00 impostor
+	(çift saatler), :15 toplantı, :30 reaktör (3 saatte bir), :45 ışıklar.
+]]
+export type EventDef = {
+	id: string,
+	name: string,
+	every: number,
+	offset: number,
+	duration: number,
+}
+
+Config.Events = {
+	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 15 * 60, duration = 120 },
+	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
+	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
+	{ id = "Impostor",  name = "Impostor Among Us", every = 2 * 3600, offset = 0,       duration = 60 },
+} :: { EventDef }
+
+-- Başlamadan kaç saniye önce haber verilsin
+Config.EventWarning = 30
+
+-- Emergency Meeting: herkese gelir çarpanı
+Config.MeetingIncomeMul = 2
+-- Lights Sabotage: çalma basılı tutma süresi bu oranla çarpılıyor
+Config.LightsOutHoldMul = 0.6
+
+--[[
+	Reactor Meltdown: istasyonun rastgele noktalarına enerji çekirdekleri
+	düşüyor, ilk dokunan alıyor. Rastgele çünkü üsler farklı yerlerde; sabit
+	nokta bazı üslere hep yakın olurdu.
+	Ödül gelirle ölçekli (yeni oyuncu için de anlamlı, zengin için de):
+	nakit ya da düşük ihtimalle bir karakter.
+]]
+Config.MeltdownCores = 6
+Config.MeltdownRewardSeconds = 90   -- nakit ödül = saniyelik gelir × bu
+Config.MeltdownMinCash = 5000
+Config.MeltdownUnitChance = 0.15
+Config.MeltdownUnitMinutes = 10     -- karakter ödülü: ~10 dk'lık gelirle alınabilecek en iyisi
+
+--[[
+	Impostor Among Us: rastgele bir oyuncu 1 dakikalığına herkesin gördüğü
+	impostor oluyor. Çalarken yakalanırsa yakalayan ona parasının bir
+	kısmını ÖDÜYOR; yakalanmazsa çaldığıyla kalıyor. Diğerleri için ikilem:
+	yakalamak para kaybettiriyor, yakalamamak karakter.
+]]
+Config.ImpostorPayMin = 0.03
+Config.ImpostorPayMax = 0.05
+Config.ImpostorPayCap = 200000
+
+--[[ Olayın verilen andan sonraki ilk başlangıcı (unix saniye). ]]
+function Config.GetNextEventStart(def: EventDef, now: number): number
+	local into = (now - def.offset) % def.every
+	if into == 0 then
+		return now
+	end
+	return now - into + def.every
+end
+
+function Config.GetEvent(id: string): EventDef?
+	for _, def in Config.Events do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
 
 -- ─── Vent ───────────────────────────────────────────────────────────────────
 -- Taşırken kullanılamıyor (VentService). Bekleme, iki kapak arasında gidip
