@@ -58,6 +58,21 @@ sadece kendi şeridindeki dosyaları çevir.
 > Bu kural bir kez gevşetildi ("ikimiz aynı anda yazmıyoruz zaten") ve
 > hemen ardından HUD iki kez üst üste ezildi. Gevşetmeyin.
 
+**Tek istisna: karşı taraf çalışmıyorken.** Kullanıcın karşı tarafın o an
+çalışmadığını söylerse onun şeridine de yazabilirsin. Şartları:
+
+1. Başlamadan `git pull` ve Studio'dakini dosyaya çekip `git diff` — fark
+   varsa dur.
+2. İş bitince **`DEVIR.md`'nin en üstüne kayıt ekle**: ne değişti, hangi
+   dosyalar, karşı tarafın bilmesi gereken ne var. Sonra commit + push.
+
+### Her oturumun başında: `DEVIR.md`
+
+`git pull`'dan sonra `DEVIR.md`'yi oku. Son baktığından beri eklenen
+kayıtlar karşı tarafın senin şeridinde yaptığı işler ve sana notlarıdır.
+Kendi şeridinde yaptığın ama karşı tarafı ilgilendiren işleri de (yeni
+remote, Config alanı, bağlanması gereken modül) oraya yaz.
+
 ### Dil kuralı
 Oyuncunun gördüğü her metin **İngilizce** (karakter isimleri, promptlar,
 bildirimler, leaderstats, HUD). Kod içi yorumlar **Türkçe**.
