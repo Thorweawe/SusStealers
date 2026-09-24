@@ -16,6 +16,7 @@ local CarryGuide = require(script.CarryGuide)
 local ConveyorFX = require(script.ConveyorFX)
 local CosmeticPanel = require(script.CosmeticPanel)
 local SabotagePanel = require(script.SabotagePanel)
+local AlertBanner = require(script.AlertBanner)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
 local EggStyle = require(script.EggStyle)
@@ -199,6 +200,13 @@ end
 -- söylüyor, ayrı bir olay akışına gerek yok.
 
 local effects = ScreenFX.Create(screen)
+-- Üsse tehdit uyarıları (çalınma, gezen impostor, sabotaj) alttaki bildirim
+-- yığınında kayboluyordu; üst-ortada büyük bant
+local alertBanner = AlertBanner.Create(screen)
+local BANNER_TITLES: { [string]: string } = {
+	rogue = "Rogue impostor!",
+	sabotage = "Sabotage!",
+}
 SoundFX.Preload()
 SoundFX.StartAmbient()
 
@@ -233,12 +241,18 @@ local rebirthPanel: RebirthPanel.Panel? = nil
 	Tür gelmezse SoundFX taban sese düşüyor, yani eski çağrılar da çalışıyor.
 ]]
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean, kind: string?)
-	showToast(text, if isError then BAD else GOOD)
+	-- Üssüne yönelik tehditler (sunucu isError ile gönderiyor) bantta
+	local bannerTitle = if kind and isError then BANNER_TITLES[kind] else nil
+	if bannerTitle then
+		alertBanner.Show(bannerTitle, text, nil, 5)
+	else
+		showToast(text, if isError then BAD else GOOD)
+	end
 	SoundFX.Event(kind, isError)
 end)
 
 Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName: string)
-	showToast(string.format("%s stole your %s!", thiefName, unitName), Color3.fromRGB(255, 70, 110))
+	alertBanner.Show("You've been robbed!", string.format("%s took your %s - chase & press E", thiefName, unitName), nil, 6)
 
 	-- Çalınmak bedensel hissedilmeli: köşedeki yazıyı kaçırmak kolay,
 	-- kırmızı parlama ve sarsıntı kaçırılmıyor.

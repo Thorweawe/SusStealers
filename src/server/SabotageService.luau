@@ -265,7 +265,7 @@ function SabotageService.TryUse(player: Player, id: string, target: Player?, now
 	local what = if id == "Blackout" then "turned off your lights"
 		elseif id == "LockJam" then "jammed your lock"
 		else "jammed your comms (no steal alerts)"
-	notify(target, string.format("SABOTAGE! %s %s for %ds", player.DisplayName, what, def.duration), true)
+	notify(target, string.format("%s %s for %ds", player.DisplayName, what, def.duration), true)
 	return "ok"
 end
 

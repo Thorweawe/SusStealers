@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-25 (11) — Batur (Yusuf'un şeridine yazıldı)
+
+**Üsse tehdit uyarı bandı** (`src/client/AlertBanner.luau`, `init.client.luau`):
+- Çalınma, gezen impostor ve sabotaj uyarıları artık alttaki bildirim yığınında
+  değil, ekranın **üst-ortasında büyük bant** (başlık + tek satır, açılışta sarsılma,
+  nabız atan kenar). Olay şeridinin altında (y=118), yeni uyarı eskisinin yerini alıyor.
+- `Notify` işleyicisi: `kind` "rogue" / "sabotage" **ve** isError ise bant, değilse toast.
+  StealAlert → "YOU'VE BEEN ROBBED!" bandı (toast kaldırıldı).
+- Sunucu tarafı kısaltıldı: StealService kurbana ayrıca toast göndermiyor (bant yeter);
+  RogueService / SabotageService kurban mesajları banda sığacak kadar kısa.
+
 ## 2026-09-24 (10) — Batur (Yusuf'un şeridine yazıldı)
 
 - `TaskGames.luau` Swipe Card kabul aralığı %30 daraltıldı: `SWIPE_MIN, SWIPE_MAX`

@@ -593,11 +593,10 @@ local function onStealPrompt(podium: Part, thief: Player)
 	setupCatchPrompt(thief, model)
 
 	notify(thief, string.format("Stole %s! Run to your base", unitName), false, "steal")
-	-- Comms Jam sabotajı (SabotageService) altındaki kurban uyarı almıyor
+	-- Comms Jam sabotajı (SabotageService) altındaki kurban uyarı almıyor.
+	-- Ayrı bildirim yok: istemci StealAlert'i büyük uyarı bandında gösteriyor
 	if victim and not victim:GetAttribute("CommsJam") then
 		alertRemote:FireClient(victim, thief.DisplayName, unitName)
-		notify(victim, string.format("%s is carrying your %s - chase and press E to stop them",
-			thief.DisplayName, unitName), true)
 	end
 	if victim then
 		BadgeService.Award(victim, "Victim")

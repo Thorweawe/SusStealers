@@ -414,7 +414,7 @@ function RogueService._Grab()
 	end
 	setGhost(r.podium, true)
 	r.status.Text = "Escaping with " .. unitName(r.podium) .. "!"
-	notify(r.owner, string.format("The impostor grabbed your %s! Catch it before it vents (hold E)", unitName(r.podium)), true)
+	notify(r.owner, string.format("It grabbed your %s - catch it (hold E)!", unitName(r.podium)), true)
 end
 
 --[[ Kaçtı: kaide gelirsiz kalıyor. Testler de doğrudan çağırıyor. ]]
@@ -427,7 +427,7 @@ function RogueService._Escape()
 	despawn(r)
 	if grabbed and r.podium.Parent and PlotService.IsOccupied(r.podium) then
 		setOffline(r.podium)
-		notify(r.owner, string.format("The impostor escaped! Your %s makes no money for %s",
+		notify(r.owner, string.format("It escaped! %s earns nothing for %s",
 			unitName(r.podium), Config.FormatDuration(Config.RogueOfflineSeconds)), true)
 	end
 end
@@ -533,7 +533,7 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 	place(r, spawnPad.Position + Vector3.new(0, spawnPad.Size.Y / 2, 0), Vector3.zAxis)
 	current = r
 
-	notify(owner, "A rogue impostor crawled out of a vent and is heading for your base! Stop it (hold E)", true)
+	notify(owner, "It's coming for your base - stop it (hold E)!", true)
 	for _, other in Players:GetPlayers() do
 		if other ~= owner then
 			notify(other, string.format("A rogue impostor is after %s's base!", owner.DisplayName), false)
