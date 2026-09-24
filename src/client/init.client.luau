@@ -13,6 +13,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
+local CosmeticPanel = require(script.CosmeticPanel)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
 local EventFX = require(script.EventFX)
@@ -717,6 +718,26 @@ mountPanel("GearPanel", function()
 		if who == player and prompt.Name == "GearPrompt" then
 			gear.Open()
 		end
+	end)
+end)
+
+--[[
+	Kozmetik mağazası. Düğmesi sağdaki menü dizisinde (Pets/Rebirth ile aynı
+	yol); dizi beşinci düğme için uzatılıyor.
+]]
+mountPanel("CosmeticPanel", function()
+	local panel = CosmeticPanel.Create(screen)
+	previews.Style = panel.Toggle
+	local dock = screen:WaitForChild("MenuDock", 10) :: Frame?
+	if not dock then
+		return
+	end
+	dock.Size = UDim2.new(0, 64, 0, 5 * 68 + 4 * 8)
+	local holder, button, slot = UiKit.IconButton(dock, "Style", UiKit.CREW.PURPLE:Lerp(UiKit.CREW.PINK, 0.4), "STYLE")
+	holder.LayoutOrder = 5
+	UiKit.Crewmate(slot, 28, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.3))
+	button.MouseButton1Click:Connect(function()
+		panel.Toggle()
 	end)
 end)
 

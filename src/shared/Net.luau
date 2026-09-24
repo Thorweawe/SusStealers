@@ -39,6 +39,7 @@ local EVENTS = {
 	"Sprint",       -- client -> server (active: boolean)
 	"AsteroidsDone", -- client -> server (argumansiz) — Weapons görevi bitti
 	"TaskDone",     -- client -> server (taskId: string) — ek oda görevi bitti
+	"CosmeticAction", -- client -> server (action: "buy"|"equip"|"unequip", id: string)
 }
 
 --[[
@@ -128,6 +129,14 @@ local CLIENT_TO_SERVER = {
 		oynamaktan fazlasını kazandıramıyor.
 	]]
 	TaskDone = true,
+	--[[
+		CosmeticAction bedava bir şey VERMİYOR: "buy" oyuncunun KENDİ parasını
+		harcıyor (fiyat Config'te, sunucuda okunuyor), "equip" yalnızca sahip
+		olunan bir kozmetiği takıyor, "unequip" çıkarıyor. Kozmetik güç
+		vermiyor; kimlik Config'te aranıyor, tanınmayan reddediliyor
+		(CosmeticService). Üç iş tek remote'ta: yüzeyi büyütmemek için.
+	]]
+	CosmeticAction = true,
 }
 
 local Net = {}

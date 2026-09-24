@@ -24,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 local Net = require(ReplicatedStorage.Shared.Net)
+local CosmeticModel = require(ReplicatedStorage.Shared.CosmeticModel)
 
 local Server = script.Parent
 local PlotService = require(Server.PlotService)
@@ -48,6 +49,7 @@ local RewardService = require(Server.RewardService)
 local GearService = require(Server.GearService)
 local MinigameService = require(Server.MinigameService)
 local TaskService = require(Server.TaskService)
+local CosmeticService = require(Server.CosmeticService)
 local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
@@ -1855,7 +1857,8 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 
 		Şu an on dört remote var: TutorialSkip, TitleEquip, PotionUse,
 		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
-		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone, TaskDone. Hiçbiri
+		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone, TaskDone,
+		CosmeticAction. Hiçbiri
 		oyuncuya bedava bir şey VERMİYOR — ya oyuncunun kendi parasını
 		harcıyor, ya zaten kazanılmış bir şeyi kullanıyor, ya da hakkı
 		sunucudaki sayaçlardan hesaplanan bir ödülü topluyor. AsteroidsDone
@@ -1863,10 +1866,11 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on beşte (TaskDone ek oda görevleri için eklendi, gerekçesi
-		Net.luau'da): yenisi eklemek bilinçli bir karar olsun, kazara büyümesin.
+		Sınır on altıda (TaskDone ek oda görevleri, CosmeticAction kozmetikler
+		için eklendi; gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir
+		karar olsun, kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 15, tostring(#listened))
+	ok("liste bilinçli", #listened <= 16, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2774,6 +2778,71 @@ case("Görev (oda): ödül sunucuda doğrulanıyor", function(ctx)
 	TaskService._Reset(ctx.player)
 end)
 
+-- ─── Kozmetikler ────────────────────────────────────────────────────────────
+
+case("Kozmetik: tanımlar tutarlı, her şapkanın modeli var", function()
+	local seen = {}
+	local prevHat, prevTrail = 0, 0
+	for _, def in Config.Cosmetics do
+		ok(def.id .. " tekil", not seen[def.id])
+		seen[def.id] = true
+		ok(def.id .. " türü", def.kind == "hat" or def.kind == "trail", def.kind)
+		ok(def.id .. " nadirlik", Config.Rarities[def.rarity] ~= nil)
+		if def.kind == "hat" then
+			ok(def.id .. " fiyat sırası", def.price > prevHat)
+			prevHat = def.price
+			local model = CosmeticModel.BuildHat(def.id, true)
+			ok(def.id .. " modeli kuruluyor", model ~= nil and model.PrimaryPart ~= nil)
+			if model then
+				model:Destroy()
+			end
+		else
+			ok(def.id .. " fiyat sırası", def.price > prevTrail)
+			prevTrail = def.price
+		end
+	end
+	ok("ses tanımlı", Config.HasNotifyCue(CosmeticService.NotifyKind))
+end)
+
+case("Kozmetik: satın alma parayla, takma sahiplikle, karaktere takılıyor", function(ctx)
+	local p = ctx.profile
+	p.cosmetics = {}
+	p.hat = ""
+	p.trail = ""
+	local hat = Config.Cosmetics[1]
+	setCash(ctx.player, 0)
+	ok("parasız alınmıyor", not CosmeticService.TryBuy(ctx.player, hat.id))
+	ok("sahip olunmayan takılmıyor", not CosmeticService.Equip(ctx.player, "hat", hat.id))
+	ok("bilinmeyen alınmıyor", not CosmeticService.TryBuy(ctx.player, "NoSuchHat"))
+
+	setCash(ctx.player, hat.price)
+	ok("alındı", CosmeticService.TryBuy(ctx.player, hat.id))
+	eq("parası düştü", EconomyService.GetCash(ctx.player), 0)
+	ok("profilde", p.cosmetics[hat.id] == true)
+	eq("alınca takıldı", p.hat, hat.id)
+	ok("ikinci kez alınmıyor", not CosmeticService.TryBuy(ctx.player, hat.id))
+	ok("karakterde şapka", ctx.player.Character:FindFirstChild("CosmeticHat") ~= nil)
+	ok("nitelik yayınlandı", string.find(tostring(ctx.player:GetAttribute("CosmeticsOwned")), hat.id, 1, true) ~= nil)
+
+	ok("yanlış türe takılmıyor", not CosmeticService.Equip(ctx.player, "trail", hat.id))
+	ok("çıkarıldı", CosmeticService.Equip(ctx.player, "hat", ""))
+	eq("şapka yok", ctx.player.Character:FindFirstChild("CosmeticHat"), nil)
+
+	-- İz: kök parçaya Trail takılıyor
+	local trail: any = nil
+	for _, def in Config.Cosmetics do
+		if def.kind == "trail" then
+			trail = def
+			break
+		end
+	end
+	p.cosmetics[trail.id] = true
+	ok("iz takıldı", CosmeticService.Equip(ctx.player, "trail", trail.id))
+	ok("karakterde iz", ctx.player.Character.HumanoidRootPart:FindFirstChild("CosmeticTrail") ~= nil)
+	CosmeticService.Equip(ctx.player, "trail", "")
+	eq("iz kalktı", ctx.player.Character.HumanoidRootPart:FindFirstChild("CosmeticTrail"), nil)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -2830,6 +2899,9 @@ function ServerTests.Run(player: Player?): number
 		playtimeClaimed = table.clone(profile.playtimeClaimed),
 		indexClaimed = table.clone(profile.indexClaimed),
 		gear = table.clone(profile.gear),
+		cosmetics = table.clone(profile.cosmetics),
+		hat = profile.hat,
+		trail = profile.trail,
 	}
 	local backupFloors = plot:GetAttribute("UnlockedFloors")
 
@@ -2935,6 +3007,11 @@ function ServerTests.Run(player: Player?): number
 	profile.playtimeClaimed = backup.playtimeClaimed
 	profile.indexClaimed = backup.indexClaimed
 	profile.gear = backup.gear
+	profile.cosmetics = backup.cosmetics
+	profile.hat = backup.hat
+	profile.trail = backup.trail
+	CosmeticService.Apply(player)
+	CosmeticService.Publish(player)
 	for name, value in backupAttributes do
 		player:SetAttribute(name, value)
 	end

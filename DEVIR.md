@@ -13,6 +13,24 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (5) — Batur: kozmetikler (Yusuf'un şeridine de yazıldı)
+
+**Ne:** 10 şapka (Sprout → Halo) ve 4 iz (Stardust → Rainbow), oyun içi parayla,
+10K'dan 10B'ye. Kalıcı, güç vermiyor; geç oyun için para çukuru.
+- `Config.Cosmetics` (tanımlar), `src/shared/CosmeticModel.luau` (görünüş — hazır
+  varlık yok, önizleme ile başındaki aynı kod).
+- Sunucu: `CosmeticService` — satın alma / takma, karaktere sunucuda takılıyor
+  (herkes görüyor), şapka takılıyken avatarın kendi şapkaları gizleniyor.
+  Profil: `cosmetics`, `hat`, `trail` (DataService sanitize ediyor).
+- Yeni client→server remote **`CosmeticAction`**(action, id) — tek remote'ta
+  buy/equip/unequip; gerekçesi Net.luau'da, test sınırı 16.
+- İstemci: `CosmeticPanel.luau` — STYLE penceresi (dönen 3B önizleme, HATS/TRAILS
+  sekmeleri). Düğmesi sağdaki MenuDock'ta 5. sırada (dock 5 düğmeye uzatıldı).
+  Topbar CLUTTER'a `CosmeticPanel` eklendi. UiPreview: `Style`.
+- Tasarımı değiştirmekte serbestsin.
+
+---
+
 ## 2026-09-24 (4) — Batur: ek odalar ve görevler (harita + Yusuf'un şeridi)
 
 **Harita:** istasyonun güney duvarında, yan koridorların (x=60 ve x=300) ucunda iki

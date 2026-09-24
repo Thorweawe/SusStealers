@@ -704,6 +704,8 @@ Config.NotifyCues = {
 	gear     = { source = "UiB", startAt = 3.50, length = 0.26, pitch = 0.95, volume = 0.50 },
 	-- Sunucu olayı başladı/yaklaşıyor: alarm ailesinden, ağır iki vuruş
 	event    = { source = "Alarm", startAt = 5.00, length = 0.30, pitch = 0.85, volume = 0.45, repeats = 2, gap = 0.22 },
+	-- Kozmetik satın alma: parlak, üç hızlı vuruş (ödülden farklı kaynak)
+	cosmetic = { source = "UiC", startAt = 10.0, length = 0.20, pitch = 1.40, volume = 0.45, repeats = 3, gap = 0.07 },
 	-- Arkadaş sunucuya girdi: sıcak, iki vuruşlu karşılama
 	friend   = { source = "UiA", startAt = 7.50, length = 0.24, pitch = 1.10, volume = 0.45, repeats = 2, gap = 0.14 },
 
@@ -1924,6 +1926,58 @@ Config.Gear = {
 
 function Config.GetGear(id: string): GearDef?
 	for _, def in Config.Gear do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+-- ─── Kozmetikler ────────────────────────────────────────────────────────────
+--[[
+	Oyuncunun kendi karakterine şapka ve koşarken arkasında kalan iz.
+	Oyun içi parayla alınıyor ve KALICI (rebirth'te gitmiyor).
+
+	Neden: geç oyunda milyarları harcayacak yer azdı; kozmetik oynanışı
+	değiştirmeyen bir para çukuru — güç vermiyor, gösteriş veriyor. Fiyat
+	merdiveni erken oyundan (10K) geç oyuna (10B) uzanıyor ki her aşamada
+	alınacak bir şey olsun.
+
+	Görünüşleri src/shared/CosmeticModel.luau'da (hazır varlık yok).
+]]
+export type CosmeticDef = {
+	id: string,
+	name: string,
+	kind: string,       -- "hat" | "trail"
+	price: number,
+	rarity: Rarity,
+	color: Color3,
+	colors: { Color3 }?, -- iz renk geçişi (yoksa tek renk)
+}
+
+Config.Cosmetics = {
+	-- Şapkalar
+	{ id = "Sprout",      name = "Sprout",        kind = "hat", price = 10_000,        rarity = "Common",    color = Color3.fromRGB(90, 200, 90) },
+	{ id = "PartyHat",    name = "Party Hat",     kind = "hat", price = 50_000,        rarity = "Common",    color = Color3.fromRGB(60, 140, 240) },
+	{ id = "ToiletPaper", name = "Toilet Paper",  kind = "hat", price = 150_000,       rarity = "Uncommon",  color = Color3.fromRGB(242, 244, 248) },
+	{ id = "Antenna",     name = "Antenna",       kind = "hat", price = 500_000,       rarity = "Uncommon",  color = Color3.fromRGB(210, 40, 50) },
+	{ id = "FriedEgg",    name = "Fried Egg",     kind = "hat", price = 2_000_000,     rarity = "Rare",      color = Color3.fromRGB(250, 200, 60) },
+	{ id = "ChefHat",     name = "Chef Hat",      kind = "hat", price = 8_000_000,     rarity = "Rare",      color = Color3.fromRGB(242, 244, 248) },
+	{ id = "TrafficCone", name = "Traffic Cone",  kind = "hat", price = 30_000_000,    rarity = "Epic",      color = Color3.fromRGB(245, 120, 30) },
+	{ id = "Horns",       name = "Impostor Horns", kind = "hat", price = 150_000_000,  rarity = "Legendary", color = Color3.fromRGB(200, 20, 30) },
+	{ id = "Crown",       name = "Crown",         kind = "hat", price = 1_000_000_000, rarity = "Mythic",    color = Color3.fromRGB(250, 200, 60) },
+	{ id = "Halo",        name = "Halo",          kind = "hat", price = 5_000_000_000, rarity = "Secret",    color = Color3.fromRGB(255, 230, 120) },
+	-- İzler
+	{ id = "Stardust",    name = "Stardust Trail", kind = "trail", price = 1_000_000,     rarity = "Uncommon", color = Color3.fromRGB(235, 240, 255) },
+	{ id = "Toxic",       name = "Toxic Trail",    kind = "trail", price = 25_000_000,    rarity = "Epic",     color = Color3.fromRGB(110, 240, 140) },
+	{ id = "Crimson",     name = "Impostor Trail", kind = "trail", price = 500_000_000,   rarity = "Legendary", color = Color3.fromRGB(220, 30, 40),
+	  colors = { Color3.fromRGB(255, 70, 70), Color3.fromRGB(120, 0, 20) } },
+	{ id = "Rainbow",     name = "Rainbow Trail",  kind = "trail", price = 10_000_000_000, rarity = "Secret",  color = Color3.fromRGB(255, 120, 200),
+	  colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 200, 60), Color3.fromRGB(90, 220, 110), Color3.fromRGB(70, 150, 255), Color3.fromRGB(190, 90, 255) } },
+} :: { CosmeticDef }
+
+function Config.GetCosmetic(id: string): CosmeticDef?
+	for _, def in Config.Cosmetics do
 		if def.id == id then
 			return def
 		end

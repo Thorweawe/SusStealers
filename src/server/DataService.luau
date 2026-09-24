@@ -108,6 +108,11 @@ export type Profile = {
 	-- Satın alınmış ekipman (Gear Shop): kimlik -> true. Kalıcı; rebirth'te
 	-- sıfırlanmıyor, bir kez alınan alet hep geliyor.
 	gear: { [string]: boolean },
+	-- Kozmetikler: sahip olunanlar (kimlik -> true) ve takılı şapka / iz.
+	-- Boş dize = takılı değil. Kalıcı; rebirth'te sıfırlanmıyor.
+	cosmetics: { [string]: boolean },
+	hat: string,
+	trail: string,
 }
 
 export type QuestEntry = {
@@ -182,6 +187,9 @@ local function newProfile(): Profile
 		playtimeClaimed = {},
 		indexClaimed = {},
 		gear = {},
+		cosmetics = {},
+		hat = "",
+		trail = "",
 	}
 end
 
@@ -448,6 +456,24 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
+	--[[
+		Kozmetikler. Takılı olan AYRICA süzülüyor: sahip olunmayan ya da
+		Config'ten kalkmış bir şey takılı kalmasın, türü de doğru olmalı.
+	]]
+	if typeof(raw.cosmetics) == "table" then
+		for id, flag in raw.cosmetics do
+			if typeof(id) == "string" and Config.GetCosmetic(id) and flag == true then
+				profile.cosmetics[id] = true
+			end
+		end
+	end
+	for _, slot in { "hat", "trail" } do
+		local id = (raw :: any)[slot]
+		local def = if typeof(id) == "string" then Config.GetCosmetic(id) else nil
+		if def and def.kind == slot and profile.cosmetics[id] then
+			(profile :: any)[slot] = id
+		end
+	end
 
 	return profile
 end
@@ -554,6 +580,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.playtimeClaimed = table.clone(profile.playtimeClaimed)
 	snapshot.indexClaimed = table.clone(profile.indexClaimed)
 	snapshot.gear = table.clone(profile.gear)
+	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 
