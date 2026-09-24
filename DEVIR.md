@@ -13,6 +13,29 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-25 (12) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+**1. Görsel netlik** (`src/client/RarityFX.luau`, `tools/map/finish.luau`): nadir
+karakterlerin ışığı küçüldü (Mythic: 25 → 15 stud menzil, 2.3 → 1.2 parlaklık), Mythic
+mızrakları ince ve yarı saydam, parçacık ve duman azaldı; Bloom 0.7/1.6 → 0.45/2.0.
+Pembe ışık artık bütün üssü boyamıyor, kafesteki karakter görünüyor.
+
+**2. Bakım tünelleri** (`tools/map/tunnels.luau` yeni, `kit.luau` M.TUNNEL_*, `station.luau`):
+iki üs sırasının arkasında (x=48 ve x=312, merkeze simetrik) korkuluklu rampa zemine
+iniyor, tünel sıraların ve koridorun altından geçip öbür sıranın arkasından çıkıyor.
+Taşırken de girilebiliyor (vent'ten farkı), yol bulucu içinden geçiyor. Güverte
+(Deck), karın (Belly) ve orta blok (BellyMid) artık tünel boşluklu kuruluyor
+(`K.boxHoles`); BellyMid alt/üst diye ikiye bölündü. Harita denetimi 0 çakışma.
+
+**3. Admin masası** (`tools/map/admin.luau` yeni, `src/server/AdminMapService.luau` yeni):
+Cafeteria'nın kuzey ucunda, panoların önünde masa. Ekranında harita; her oda/üs için
+içindeki oyuncu sayısı kadar nokta (tam yer değil). Başkasının üssünde biri varsa o üs
+kırmızı, gezen impostor kırmızı nokta, tünel ayrı bölge. Her şey sunucuda çiziliyor
+(SurfaceGui dünyada), istemci kodu yok. Bölgeler çalışma anında Decor'dan ölçülüyor.
+Not: üst yüzdeki SurfaceGui'nin "yukarısı" parçanın -X'i; ekran parçası 90° döndürüldü.
+
+Harita bölümleri: `SECTIONS`'a "admin" ve "tunnels" eklendi. Testler 151/151.
+
 ## 2026-09-25 (11) — Batur (Yusuf'un şeridine yazıldı)
 
 **Üsse tehdit uyarı bandı** (`src/client/AlertBanner.luau`, `init.client.luau`):

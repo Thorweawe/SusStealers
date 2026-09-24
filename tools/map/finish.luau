@@ -38,9 +38,10 @@ return {
 
 		local bloom = Lighting:FindFirstChildOfClass("BloomEffect")
 		if bloom then
-			bloom.Intensity = 0.7
+			-- 0.7 / 1.6'da nadir karakterlerin neon sergileri kareyi yıkıyordu
+			bloom.Intensity = 0.45
 			bloom.Size = 22
-			bloom.Threshold = 1.6
+			bloom.Threshold = 2.0
 		end
 
 		-- Uzayda sis olmaz: atmosfer uzaktaki gezegenleri griye boğuyordu

@@ -15,7 +15,9 @@ return {
 		-- ─── Zemin ──────────────────────────────────────────────────────────
 		local floor = K.folder("Floor")
 
-		K.box(floor, "Deck", M.centerX, -0.5, M.centerZ, M.X1 - M.X0 + T, 1, M.Z1 - M.Z0 + T, C.hallGrout)
+		-- Tünel rampalarının açıklıkları güverteden ve karolardan kesiliyor (tunnels.luau)
+		local openings = K.tunnelOpenings()
+		K.boxHoles(floor, "Deck", M.centerX, -0.5, M.centerZ, M.X1 - M.X0 + T, 1, M.Z1 - M.Z0 + T, C.hallGrout, openings)
 
 		local roomRects = {}
 		for i = 1, M.PLOT_COUNT do
@@ -25,6 +27,9 @@ return {
 		local holes = table.clone(roomRects)
 		table.insert(holes, M.REACTOR_RECT)
 		table.insert(holes, M.NAV_RECT)
+		for _, o in openings do
+			table.insert(holes, o)
+		end
 
 		--[[
 			Koridor karoları. 12'lik kare; odaların, reaktörün ve kokpitin
@@ -108,8 +113,16 @@ return {
 		-- Dış gövde: güvertenin altında kademeli daralan karın
 		local W = M.X1 - M.X0 + T
 		local D = M.Z1 - M.Z0 + T
-		K.box(hull, "Belly", M.centerX, -5, M.centerZ, W + 1.6, 8, D + 1.6, C.hullOut)
-		K.box(hull, "BellyMid", M.centerX, -12, M.centerZ, W - 24, 6, D - 24, C.wallKick)
+		--[[
+			Karın blokları tünelin geçtiği yerde oyuk. BellyMid ikiye bölündü:
+			alt dilim (tünel zemininin altı) tam kalıyor — dışarıdan bakınca
+			delik görünmesin — üst dilim tünel izinden kesiliyor.
+		]]
+		local footprints = K.tunnelFootprints()
+		local floorBottom = M.TUNNEL_FLOOR - 0.2
+		K.boxHoles(hull, "Belly", M.centerX, -5, M.centerZ, W + 1.6, 8, D + 1.6, C.hullOut, footprints)
+		K.box(hull, "BellyMidLow", M.centerX, (-15 + floorBottom) / 2, M.centerZ, W - 24, floorBottom + 15, D - 24, C.wallKick)
+		K.boxHoles(hull, "BellyMid", M.centerX, (floorBottom - 9) / 2, M.centerZ, W - 24, -9 - floorBottom, D - 24, C.wallKick, footprints)
 		K.box(hull, "Keel", M.centerX, -17, M.centerZ, W - 80, 4, D - 70, C.hullOut)
 		-- Karın çizgisi: yandan bakınca gövde kalınlığı okunsun
 		K.box(hull, "BellyStripe", M.centerX, -2.2, M.Z1 + T / 2 + 0.9, W + 1.8, 1.2, 0.4, C.hazard)

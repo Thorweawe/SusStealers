@@ -55,6 +55,7 @@ local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
 local SabotageService = require(Server.SabotageService)
 local RogueService = require(Server.RogueService)
+local AdminMapService = require(Server.AdminMapService)
 
 local ServerTests = {}
 
@@ -3226,6 +3227,76 @@ case("Impostor NPC: kaçarsa karakter 5 dk para üretmiyor", function(ctx)
 	RogueService._Reset(podium)
 	eq("gelir geri geldi", EconomyService.GetIncome(ctx.player), income)
 	clearPlot(ctx.plot)
+end)
+
+-- ─── Harita: tüneller ve admin masası ──────────────────────────────────────
+
+case("Tünel: iki rampa ve tünel kurulu, yol bulucu içinden geçiyor", function()
+	local tunnels = workspace.Decor:FindFirstChild("Tunnels")
+	ok("tünel klasörü", tunnels ~= nil)
+	if not tunnels then
+		return
+	end
+	eq("iki tünel", #tunnels:GetChildren(), 2)
+	for _, t in tunnels:GetChildren() do
+		local ramps = 0
+		for _, d in t:GetChildren() do
+			if d.Name == "TunnelRamp" then
+				ramps += 1
+			end
+		end
+		eq(t.Name .. " iki rampa", ramps, 2)
+	end
+	-- Rampa girişinden öteki girişe yol tünelden geçmeli
+	local t1 = tunnels:FindFirstChild("Tunnel1")
+	local floorPart = t1 and t1:FindFirstChild("TunnelFloor") :: BasePart?
+	if floorPart then
+		local x = floorPart.Position.X
+		local z0 = floorPart.Position.Z - floorPart.Size.Z / 2
+		local z1 = floorPart.Position.Z + floorPart.Size.Z / 2
+		local path = game:GetService("PathfindingService"):CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = false })
+		path:ComputeAsync(Vector3.new(x, 4, z0 - 4), Vector3.new(x, 3, z1 + 4))
+		eq("yol bulundu", path.Status, Enum.PathStatus.Success)
+		local minY = math.huge
+		for _, wp in path:GetWaypoints() do
+			minY = math.min(minY, wp.Position.Y)
+		end
+		ok("yol yeraltından", minY < -10, tostring(minY))
+	end
+end)
+
+case("Admin masası: bölgeler ölçülüyor, konum doğru odaya düşüyor", function(ctx)
+	local zones = AdminMapService.GetZones()
+	ok("bölgeler var", #zones >= 10, tostring(#zones))
+	local screen = workspace.Decor.AdminTable:FindFirstChild("AdminScreen")
+	ok("ekranda harita", screen ~= nil and screen:FindFirstChild("AdminMap") ~= nil)
+
+	local base = ctx.plot:FindFirstChild("Base") :: BasePart
+	local z = AdminMapService.Classify(base.Position + Vector3.new(0, 3, 0))
+	eq("üs", z and z.name, ctx.plot.Name)
+	local tunnelFloor = workspace.Decor.Tunnels.Tunnel1.TunnelFloor :: BasePart
+	local t = AdminMapService.Classify(tunnelFloor.Position + Vector3.new(0, 2, 0))
+	eq("tünel", t and t.kind, "tunnel")
+	local lobby = AdminMapService.Classify(screen.Position + Vector3.new(0, 1, -8))
+	eq("cafeteria", lobby and lobby.name, "Lobby")
+	local hall = AdminMapService.Classify(Vector3.new(180, 3, 58))
+	eq("koridor", hall and hall.kind, "hall")
+
+	-- Kendi üssünde: nokta var, davetsiz misafir yok
+	ctx.player.Character.HumanoidRootPart.CFrame = CFrame.new(base.Position + Vector3.new(0, 4, 0))
+	task.wait()
+	AdminMapService.Update()
+	local frame = z and z.frame
+	local dots = 0
+	if frame then
+		for _, d in frame.Dots:GetChildren() do
+			if d:IsA("Frame") and d.Visible then
+				dots += 1
+			end
+		end
+	end
+	eq("kendi üssünde bir nokta", dots, 1)
+	ok("kendi üssü kırmızı değil", frame ~= nil and frame.BackgroundColor3 ~= Color3.fromRGB(200, 50, 60))
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────

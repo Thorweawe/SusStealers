@@ -36,6 +36,7 @@ local VentService = require(script.VentService)
 local EventService = require(script.EventService)
 local SabotageService = require(script.SabotageService)
 local RogueService = require(script.RogueService)
+local AdminMapService = require(script.AdminMapService)
 
 local started = os.clock()
 
@@ -76,5 +77,6 @@ SabotageService.Start()
 EventService.Start()
 -- Olay ve vent servislerine bakıyor: onlardan sonra
 RogueService.Start()
+AdminMapService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

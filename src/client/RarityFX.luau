@@ -169,7 +169,7 @@ function RarityFX.Create(): FX
 		base.CFrame = CFrame.new(top + Vector3.new(0, 0.06, 0))
 		base.Color = color
 		base.Material = Enum.Material.Neon
-		base.Transparency = 0.25
+		base.Transparency = 0.4
 		base.Anchored = true
 		base.CanCollide = false
 		base.CanQuery = false
@@ -177,10 +177,15 @@ function RarityFX.Create(): FX
 		base.CastShadow = false
 		base.Parent = holder
 
+		--[[
+			Işık kaidenin kendisini aydınlatsın, üssün tamamını değil. Eskiden
+			Mythic'te 25 stud menzil ve 2.3 parlaklıktı: bütün üs zemini
+			pembeye boyanıyor, çekimlerde kare tamamen yıkanıyordu.
+		]]
 		local light = Instance.new("PointLight")
 		light.Color = color
-		light.Range = 10 + rarity.order * 2.5
-		light.Brightness = 0.8 + rarity.order * 0.25
+		light.Range = 8 + rarity.order * 1.2
+		light.Brightness = 0.45 + rarity.order * 0.12
 		light.Parent = base
 
 		--[[
@@ -274,13 +279,14 @@ function RarityFX.Create(): FX
 			     kafes gibi kapatıyor ama içerisi görünüyor. ]]
 			for i = 1, 6 do
 				local a = (i - 1) * (math.pi / 3)
-				piece("Spear", Vector3.new(0.45, 9.5, 0.45),
+				-- İnce ve yarı saydam: kafesin içindeki karakter görünsün
+				piece("Spear", Vector3.new(0.3, 9.5, 0.3),
 					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(3.4, 4.6, 0)
 						* CFrame.Angles(math.rad(13), 0, 0),
-					color, 0.15)
-				piece("SpearTip", Vector3.new(0.85, 0.85, 0.85),
+					color, 0.45)
+				piece("SpearTip", Vector3.new(0.7, 0.7, 0.7),
 					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(2.3, 9.4, 0),
-					color, 0)
+					color, 0.2)
 			end
 			piece("Capstone", Vector3.new(1.8, 1.8, 1.8),
 				CFrame.new(top + Vector3.new(0, 10.2, 0)) * CFrame.Angles(0, math.rad(45), math.rad(45)),
@@ -311,7 +317,7 @@ function RarityFX.Create(): FX
 			emitter.Size = NumberSequence.new(0.35, 0)
 			emitter.Transparency = NumberSequence.new(0.35, 1)
 			emitter.Lifetime = NumberRange.new(1.4, 2.4)
-			emitter.Rate = 6 + rarity.order * 3
+			emitter.Rate = 3 + rarity.order * 1.5
 			emitter.Speed = NumberRange.new(1.5, 3.5)
 			emitter.SpreadAngle = Vector2.new(22, 22)
 			emitter.LightEmission = 1
@@ -362,7 +368,7 @@ function RarityFX.Create(): FX
 				local a = (i - 1) * (math.pi * 2 / accent.spikes)
 				deco("Spike", Vector3.new(0.3, 3.6, 0.3),
 					CFrame.new(top) * CFrame.Angles(0, a, 0) * CFrame.new(3.2, 1.8, 0),
-					tone, 0.2)
+					tone, 0.4)
 			end
 		end
 
@@ -398,10 +404,10 @@ function RarityFX.Create(): FX
 			-- Erime / uzay tozu: ağır, yavaş yükselen parçacık
 			local smoke = Instance.new("ParticleEmitter")
 			smoke.Color = ColorSequence.new(tone)
-			smoke.Size = NumberSequence.new(0.8, 2.6)
-			smoke.Transparency = NumberSequence.new(0.65, 1)
+			smoke.Size = NumberSequence.new(0.6, 1.8)
+			smoke.Transparency = NumberSequence.new(0.75, 1)
 			smoke.Lifetime = NumberRange.new(2.6, 4.2)
-			smoke.Rate = 5
+			smoke.Rate = 4
 			smoke.Speed = NumberRange.new(0.6, 1.4)
 			smoke.SpreadAngle = Vector2.new(40, 40)
 			smoke.LightEmission = 0.4

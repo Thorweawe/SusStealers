@@ -118,6 +118,25 @@ M.SPINE_Z1 = M.ROW_SPACING - M.halfZ - M.ROOM_FRONT
 M.REACTOR_RECT = { M.IX0 + 0.3, M.SPINE_Z0 + 4, M.IX0 + 28, M.SPINE_Z1 - 4 }
 M.NAV_RECT = { M.IX1 - 28, M.SPINE_Z0 + 4, M.IX1 - 0.3, M.SPINE_Z1 - 4 }
 
+--[[
+	Bakım tünelleri (tunnels.luau): iki üs sırasının ARKASINDAN zemine inen
+	rampalar ve sıraların + omurga koridorunun altından geçen tünel. Dış iki
+	yan koridorda (sütunlar arası boşluk), merkeze simetrik. Rampa girişleri
+	duvar tarafında (duvardan TUNNEL_EDGE içeride), rampa koridora doğru
+	iniyor; tünel iki rampanın dibini birleştiriyor.
+
+	Neden: istasyon tek açık salon, kovalamaca hep düz çizgi. Tünel görüş
+	hattını kesiyor ve kovalayana "hangi çıkış?" diye tahmin ettiriyor.
+	Vent'ten farkı: taşırken de giriliyor ama kısayol değil, yol kadar uzun.
+]]
+M.TUNNEL_X = { M.PLOT_SPACING * 0.4, (M.COLUMNS - 1) * M.PLOT_SPACING - M.PLOT_SPACING * 0.4 }
+M.TUNNEL_W = 12          -- dış genişlik (rampa boşluğu)
+M.TUNNEL_RAMP = 26       -- rampa uzunluğu (z)
+M.TUNNEL_EDGE = 9.8      -- rampa girişi ile duvar iç yüzü arası (karın orta bloğunun içinde kalsın)
+M.TUNNEL_FLOOR = -13.1   -- tünel zemininin üst yüzü
+M.TUNNEL_S0 = M.IZ0 + M.TUNNEL_EDGE   -- güney rampanın üst ucu
+M.TUNNEL_N1 = M.IZ1 - M.TUNNEL_EDGE   -- kuzey rampanın üst ucu
+
 -- Yüzeye yatan ince parçaların çakışmasını önleyen küçük pay
 M.LIFT = 0.03
 -- Karo üst yüzü (istasyon ve lobi zemini)
@@ -159,6 +178,27 @@ function K.roomRect(index: number): { number }
 	-- Arka kenar duvarın iç yüzünden 0.3 içeride: süpürgelikle aynı düzlemde kalmasın
 	local back = if facing > 0 then M.Z0 + M.WALL_T / 2 + 0.3 else M.Z1 - M.WALL_T / 2 - 0.3
 	return { o.X - M.ROOM_HX, math.min(front, back), o.X + M.ROOM_HX, math.max(front, back) }
+end
+
+--[[ Tünel rampalarının zemindeki açıklıkları: {x0, z0, x1, z1} listesi. ]]
+function K.tunnelOpenings(): { { number } }
+	local out = {}
+	for _, x in M.TUNNEL_X do
+		local hw = M.TUNNEL_W / 2
+		table.insert(out, { x - hw, M.TUNNEL_S0, x + hw, M.TUNNEL_S0 + M.TUNNEL_RAMP })
+		table.insert(out, { x - hw, M.TUNNEL_N1 - M.TUNNEL_RAMP, x + hw, M.TUNNEL_N1 })
+	end
+	return out
+end
+
+--[[ Tünelin gövde içindeki tüm izi (rampa + tünel): gövde bloklarından oyuluyor. ]]
+function K.tunnelFootprints(): { { number } }
+	local out = {}
+	for _, x in M.TUNNEL_X do
+		local hw = M.TUNNEL_W / 2
+		table.insert(out, { x - hw, M.TUNNEL_S0, x + hw, M.TUNNEL_N1 })
+	end
+	return out
 end
 
 function K.plotRect(index: number, pad: number?): { number }
@@ -687,6 +727,32 @@ function K.tiles(parent: Instance, area: Rect, tileW: number, tileD: number, gap
 			end
 		end
 	end
+end
+
+--[[
+	Deliklerle eksene hizalı kutu: dikdörtgen (x-z) delikler çıkarılıp kalan
+	parçalar ayrı kutular olarak kuruluyor. Zemin ve gövde blokları tünel
+	için buradan oyuluyor. Parçaların hepsi aynı adı taşıyor.
+]]
+function K.boxHoles(parent: Instance, name: string, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, color: Color3, holes: { Rect }, extra: { [string]: any }?): { Part }
+	local pieces: { Rect } = { { cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2 } }
+	for _, h in holes do
+		local nextPieces: { Rect } = {}
+		for _, p in pieces do
+			for _, q in rectSubtract(p, h) do
+				table.insert(nextPieces, q)
+			end
+		end
+		pieces = nextPieces
+	end
+	local out = {}
+	for _, p in pieces do
+		local w, d = p[3] - p[1], p[4] - p[2]
+		if w > 0.01 and d > 0.01 then
+			table.insert(out, K.box(parent, name, (p[1] + p[3]) / 2, cy, (p[2] + p[4]) / 2, w, sy, d, color, extra))
+		end
+	end
+	return out
 end
 
 -- ─── Skeld duvarı ───────────────────────────────────────────────────────────
