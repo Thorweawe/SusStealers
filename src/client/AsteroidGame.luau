@@ -22,6 +22,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local SoundFX = require(script.Parent.SoundFX)
 local UiKit = require(script.Parent.UiKit)
 
 local AsteroidGame = {}
@@ -242,6 +243,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 
 	-- Toptan hedefe lazer: kısa süre görünüp sönüyor
 	local function laser(target: Vector2)
+		SoundFX.Laser()
 		local size = canvas.AbsoluteSize / uiScale()
 		local from = Vector2.new(size.X / 2, size.Y)
 		local delta = target - from
@@ -303,6 +305,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 		local at = Vector2.new(rock.x, rock.y)
 		laser(at)
 		explode(at, rock.size, rock.button.BackgroundColor3)
+		SoundFX.RockBreak()
 		rock.button:Destroy()
 		destroyed += 1
 		refresh()

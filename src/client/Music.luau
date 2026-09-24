@@ -63,12 +63,27 @@ local PLAYLIST: { [string]: { string } } = {
 		Şimdi ikisi de nabızlı: altta duran uğultunun üstünde ritim olarak
 		ayrışıyorlar.
 	]]
+	--[[
+		İKİNCİ SEÇİM: GERÇEK MÜZİK. İlk listede dron ve nabız sesleri vardı
+		("Big Pulsing Low Pitch", "Intense Pulsing Hum") — müzik değil, ses
+		efektiydi; oyuncu "baş ağrıtıyor" ve "bazı yerlerde müzik yok" dedi.
+		Şimdiki parçalar Roblox'un lisanslı müzik kütüphanesinden (APM/KPM
+		tarzı yapım müziği), her oyunda kullanılabiliyor ve bu yerde
+		yüklendikleri ölçüldü.
+
+		lobby   — hafif, oyuncaklı bilim kurgu: alışveriş yeri, acele yok
+		station — sinsi/entrika: oyunun özü çalmak
+	]]
 	lobby = {
-		"rbxassetid://9119960234",   -- Telemetry Shimmering Pulse Constant Whir 1
+		"rbxassetid://1836693755",   -- Sci Fidelity (Thomas Kane)
+		"rbxassetid://9041894478",   -- The Light of Zetar Alternate (Cezame)
+		"rbxassetid://1840199347",   -- Dot Matrix (B)
 	},
 	station = {
-		"rbxassetid://9119845261",   -- Synth Tone Constant Big Pulsing Low Pitch 1
-		"rbxassetid://9114504868",   -- Flutter Ring Constant Intense Pulsing Hum 2
+		"rbxassetid://9045117617",   -- Sneaky Schemes - Alt4, NoPerc
+		"rbxassetid://9043067384",   -- House Of Intrigue B
+		"rbxassetid://1843126991",   -- Sneaky - No Melody
+		"rbxassetid://1843899070",   -- Investigation Moods 141
 	},
 }
 
@@ -78,7 +93,7 @@ local PLAYLIST: { [string]: { string } } = {
 	Doku müziği altta durmalı ama DUYULMALI. 0.16'da ortam uğultusunun
 	altında kalıyordu ve oyuncu müziği hiç fark etmiyordu.
 ]]
-local BASE_VOLUME = 0.32
+local BASE_VOLUME = 0.26
 local DUCK_VOLUME = 0.05
 local FADE = 1.5
 
@@ -237,8 +252,19 @@ function Music.Start(): Handle
 					finished = true
 				end)
 
+				--[[
+					Yüklenemeyen parça Ended vermiyor. Eskiden burada 10 dakika
+					bekleniyordu ve o süre boyunca hiç müzik çalmıyordu —
+					"bazı yerlerde müzik yok" şikâyetinin bir sebebi. Şimdi
+					10 sn'de yüklenmezse atlanıyor; yüklenirse parça süresi
+					kadar bekleniyor.
+				]]
 				local waited = 0
-				while not finished and not stopped and playToken == token and waited < 600 do
+				while not finished and not stopped and playToken == token do
+					local limit = if sound.IsLoaded and sound.TimeLength > 0 then sound.TimeLength + 3 else 10
+					if waited >= limit then
+						break
+					end
 					task.wait(0.5)
 					waited += 0.5
 				end

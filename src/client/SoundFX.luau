@@ -46,6 +46,11 @@ local ID = {
 	-- Ağır / mekanik işler
 	Throb   = "rbxassetid://9119838397",   -- Synth Throb Constant Low Frequency 1
 
+	-- Asteroit oyunu (Weapons): atış ve kaya kırılması. Among Us'ın kendi
+	-- sesleri telifli; bunlar Roblox kütüphanesinden benzer tınılar.
+	Laser   = "rbxassetid://9116225257",   -- Laser Blast 101 (Pro Sound Effects)
+	Rock    = "rbxassetid://9118588165",   -- Rock Drop On Concrete Breaks 10
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -88,9 +93,16 @@ end
 -- ─── Fon ────────────────────────────────────────────────────────────────────
 
 local ambient: Sound? = nil
+local AMBIENT_ENABLED = false
 
 function SoundFX.StartAmbient()
-	if ambient then
+	--[[
+		KAPALI. Sürekli çalan gıcırtılı dron ("Gritty Drone") müziğin altında
+		durmadan vızıldıyordu ve oyuncu "baş ağrıtıyor" dedi. Atmosferi
+		artık gerçek müzik (Music.luau) veriyor; fon sesine gerek kalmadı.
+		Geri açmak için AMBIENT_ENABLED'ı true yap.
+	]]
+	if ambient or not AMBIENT_ENABLED then
 		return
 	end
 	ambient = newSound(ID.Ambient, SoundService, ambienceGroup, 0.5, true)
@@ -118,9 +130,10 @@ function SoundFX.AttachMachineHum(anchor: BasePart)
 		(yani yanında bile hafif), duyulma mesafesi 70'ten 42'ye indi
 		(komşu üslerin uğultusu üst üste binmesin).
 	]]
-	local s = newSound(ID.Machine, anchor, ambienceGroup, 0.16, true)
+	-- İkinci kısma: 1.93 sn'lik kısa döngü yine de tekrarı duyuruyordu
+	local s = newSound(ID.Machine, anchor, ambienceGroup, 0.08, true)
 	s.Name = "MachineHum"
-	s.RollOffMaxDistance = 42
+	s.RollOffMaxDistance = 30
 	s.RollOffMinDistance = 3
 	s.RollOffMode = Enum.RollOffMode.InverseTapered
 	s:Play()
@@ -179,6 +192,18 @@ end
 
 function SoundFX.Deny()
 	fire("Deny")
+end
+
+--[[
+	Asteroit atışı: kaydın yalnızca başındaki kısa "pew". Tamamı 3 sn ve
+	art arda atışta üst üste binince gürültüye dönüşüyordu.
+]]
+function SoundFX.Laser()
+	fire("Laser", 0, 0.35)
+end
+
+function SoundFX.RockBreak()
+	fire("Rock", 0, 0.6)
 end
 
 -- ─── Olay sesleri ───────────────────────────────────────────────────────────
@@ -399,6 +424,8 @@ function SoundFX.Preload()
 	effect("Success", ID.Success, 0.75)
 	effect("Deny", ID.Deny, 0.55)
 	effect("Alarm", ID.Alarm, 0.55)
+	effect("Laser", ID.Laser, 0.35)
+	effect("Rock", ID.Rock, 0.45)
 
 	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
 	-- sessizlik olmasın
