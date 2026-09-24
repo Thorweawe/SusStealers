@@ -86,6 +86,10 @@ local function publishNext(now: number)
 	local bestDef: Config.EventDef? = nil
 	local bestAt = math.huge
 	for _, def in Config.Events do
+		-- Rastgele olay (Impostor) sürpriz: sıradaki olarak yayınlanmıyor
+		if def.random then
+			continue
+		end
 		local at = Config.GetNextEventStart(def, now + 1)
 		if at < bestAt then
 			bestDef, bestAt = def, at
@@ -425,6 +429,8 @@ function EventService.Start()
 	-- Takvim: saniyede bir bak. Uyarı ve başlangıç için her olayın bir sonraki slotu.
 	local warned: { [string]: number } = {}
 	local started: { [string]: number } = {}
+	-- Rastgele olayların bu saatteki planı: kimlik -> { hour, starts, done }
+	local plans: { [string]: { hour: number, starts: { number }, done: { [number]: boolean } } } = {}
 	task.spawn(function()
 		while true do
 			task.wait(1)
@@ -441,6 +447,26 @@ function EventService.Start()
 			end
 
 			for _, def in Config.Events do
+				if def.random then
+					--[[
+						Saat değişince yeni zar: bu saatin başlangıçları. Uyarı
+						yok, çizelgede yok — sürpriz. Başlayamazsa (tek oyuncu,
+						başka olay sürüyor) o başlangıç yanıyor.
+					]]
+					local hour = now - now % 3600
+					local plan = plans[def.id]
+					if not plan or plan.hour ~= hour then
+						plan = { hour = hour, starts = Config.PlanRandomEvent(def, hour, rng), done = {} }
+						plans[def.id] = plan
+					end
+					for _, at in plan.starts do
+						if not plan.done[at] and now >= at and now - at < 5 then
+							plan.done[at] = true
+							EventService.Begin(def.id, now)
+						end
+					end
+					continue
+				end
 				local nextAt = Config.GetNextEventStart(def, now)
 				-- Uyarı: başlangıçtan EventWarning saniye önce, slot başına bir kez
 				if nextAt - now <= Config.EventWarning and nextAt > now and warned[def.id] ~= nextAt then

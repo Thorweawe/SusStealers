@@ -2687,6 +2687,10 @@ end)
 case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 	local ids = {}
 	for _, def in Config.Events do
+		if def.random then
+			ids[def.id] = true
+			continue
+		end
 		ok(def.id .. " süre periyottan kısa", def.duration + Config.EventWarning < def.every)
 		ok(def.id .. " offset periyot içinde", def.offset >= 0 and def.offset < def.every)
 		ids[def.id] = true
@@ -2699,6 +2703,9 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 	local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
 	local windows = {}
 	for _, def in Config.Events do
+		if def.random then
+			continue
+		end
 		local t = Config.GetNextEventStart(def, day0)
 		while t < day0 + 86400 do
 			table.insert(windows, { id = def.id, a = t - Config.EventWarning, b = t + def.duration })
@@ -2721,6 +2728,42 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 	local slot = day0 + meeting.offset
 	eq("tam slot", Config.GetNextEventStart(meeting, slot), slot)
 	eq("slottan sonra", Config.GetNextEventStart(meeting, slot + 1), slot + meeting.every)
+end)
+
+case("Olay: rastgele impostor saatte iki kez, sabit olaylara denk gelmiyor", function()
+	local def = Config.GetEvent("Impostor") :: Config.EventDef
+	ok("rastgele", def.random == true)
+	local rng = Random.new(7)
+	local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
+	local allGood, countsOk, spacingOk = true, true, true
+	for h = 0, 23 do
+		local hour = day0 + h * 3600
+		local starts = Config.PlanRandomEvent(def, hour, rng)
+		if #starts ~= (def.perHour or 1) then
+			countsOk = false
+		end
+		local windows = Config.GetFixedEventWindows(hour - 3600, hour + 7200)
+		for i, t in starts do
+			if t < hour or t + def.duration > hour + 3600 then
+				allGood = false
+			end
+			for _, w in windows do
+				if t < w[2] and w[1] < t + def.duration then
+					allGood = false
+				end
+			end
+			if i > 1 and t - starts[i - 1] < Config.RandomEventSpacing then
+				spacingOk = false
+			end
+		end
+	end
+	ok("her saat perHour kadar", countsOk)
+	ok("sabit olaylarla çakışmıyor", allGood)
+	ok("birbirinden uzak", spacingOk)
+	-- Farklı zarlar farklı zamanlar (her sunucu kendi planını yapıyor)
+	local a = Config.PlanRandomEvent(def, day0, Random.new(1))
+	local b = Config.PlanRandomEvent(def, day0, Random.new(2))
+	ok("tahmin edilemez", a[1] ~= b[1] or a[2] ~= b[2])
 end)
 
 case("Olay: Emergency Meeting geliri katlıyor, bitince dönüyor", function(ctx)

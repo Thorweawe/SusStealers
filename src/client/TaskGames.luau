@@ -4,10 +4,10 @@
 
 	  Fuel Engines — HOLD'a basılı tut, tank dolsun. Bırakınca durur, sıfırlanmaz
 	                 (Among Us'taki gibi).
-	  Fix Wiring   — soldaki kabloyu, sağdaki aynı renkle birleştir. Sağ sıra
-	                 her açılışta karışık.
-	  Swipe Card   — kart ray boyunca gidip geliyor; yeşil bölgedeyken SWIPE.
-	                 Erken/geç basınca "Too fast / Too slow".
+	  Fix Wiring   — kabloyu tut, sürükle, sağdaki aynı renkli sokete bırak
+	                 (Among Us'taki gibi metal pano, soket lambaları, kıvılcım sesi).
+	  Swipe Card   — cüzdandan kartı çıkar, okuyucudan sürükleyerek geçir;
+	                 hız okunuyor: Too fast / Too slow / Bad read / Accepted.
 
 	Konsolun promptunu sunucu kuruyor ve başlangıç zamanını orada yazıyor;
 	burası oyuncunun kendi tetiklemesini görüp pencereyi açıyor, bitince
@@ -21,6 +21,8 @@ local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -43,8 +45,8 @@ local ACCENT = UiKit.CREW.YELLOW
 
 local HINTS: { [string]: string } = {
 	Fuel = "Hold the button until the tank is full.",
-	Wiring = "Connect each wire to the same color.",
-	Card = "Swipe when the card is in the green zone.",
+	Wiring = "Drag each wire to the socket of the same color.",
+	Card = "Take the card from the wallet and swipe it through the reader.",
 }
 
 local function frame(parent: Instance, color: Color3, z: number): Frame
@@ -246,19 +248,101 @@ function TaskGames.Create(screen: ScreenGui): Handle
 		end)
 	end
 
+	-- ─── Ortak: işaretçi ─────────────────────────────────────────────────
+
+	--[[
+		Sürükleme için işaretçinin tuvaldeki (content) yeri, ÖLÇEKSİZ birimle.
+		InputObject.Position ekran pikseli (topbar hariç) ve HUD'un ScreenGui'si
+		de topbar'ı hariç tutuyor, ikisi aynı düzlemde; arayüz ölçeğine
+		(DeviceLayout) bölünce tuvalin içindeki konum çıkıyor.
+	]]
+	local function uiScale(): number
+		local value = screen:GetAttribute("Scale")
+		return if typeof(value) == "number" and value > 0 then value else 1
+	end
+	local function toContent(p: Vector3): Vector2
+		local v = Vector2.new(p.X, p.Y)
+		return (v - content.AbsolutePosition) / uiScale()
+	end
+	local function isPointerMove(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+	end
+	local function isPointerPress(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+	end
+
+	-- İki nokta arasında kalın çizgi (kablo)
+	local function segment(parent: Instance, a: Vector2, b: Vector2, color: Color3, thick: number, z: number): Frame
+		local delta = b - a
+		local line = frame(parent, color, z)
+		line.AnchorPoint = Vector2.new(0.5, 0.5)
+		line.Position = UDim2.fromOffset((a.X + b.X) / 2, (a.Y + b.Y) / 2)
+		line.Size = UDim2.fromOffset(math.max(1, delta.Magnitude), thick)
+		line.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+		UiKit.Corner(line, math.floor(thick / 2))
+		return line
+	end
+	local function moveSegment(line: Frame, a: Vector2, b: Vector2)
+		local delta = b - a
+		line.Position = UDim2.fromOffset((a.X + b.X) / 2, (a.Y + b.Y) / 2)
+		line.Size = UDim2.fromOffset(math.max(1, delta.Magnitude), line.Size.Y.Offset)
+		line.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+	end
+
 	-- ─── Fix Wiring ──────────────────────────────────────────────────────
 
+	--[[
+		Among Us'taki gibi: metal pano, solda dört renkli kablo ucu, sağda
+		karışık sırada dört soket ve yanlarında lamba. Kabloyu TUT, sürükle,
+		aynı renkteki sokete BIRAK. Doğruysa kıvılcım sesiyle bağlanıyor ve
+		soketin lambası yanıyor; yanlışsa kablo geri çekiliyor.
+
+		Gamepad'de sürükleme yok: kablo ucuna A (seç), sokete A (bağla).
+	]]
 	local WIRE_COLORS = {
-		Color3.fromRGB(222, 52, 52),
-		Color3.fromRGB(60, 110, 240),
-		Color3.fromRGB(245, 205, 50),
-		Color3.fromRGB(240, 90, 200),
+		Color3.fromRGB(222, 40, 40),
+		Color3.fromRGB(40, 90, 235),
+		Color3.fromRGB(245, 215, 40),
+		Color3.fromRGB(225, 70, 200),
 	}
+	local PANEL = Color3.fromRGB(58, 64, 74)
+	local PANEL_DARK = Color3.fromRGB(38, 42, 50)
 
 	local function buildWiring()
 		local rows = #WIRE_COLORS
-		local gap = CONTENT_H / (rows + 1)
-		local leftX, rightX = 50, CONTENT_W - 50
+		local top, bottom = 34, CONTENT_H - 20
+		local gap = (bottom - top) / rows
+		local leftX, rightX = 58, CONTENT_W - 58
+
+		-- Pano: metal zemin, üst ve altta sarı-siyah şerit, köşelerde vida
+		local board = frame(content, PANEL, Z + 2)
+		board.Size = UDim2.fromScale(1, 1)
+		UiKit.Corner(board, 12)
+		for _, y in { 0, CONTENT_H - 12 } do
+			local hz = frame(board, Color3.fromRGB(245, 200, 40), Z + 3)
+			hz.Position = UDim2.fromOffset(12, y + 3)
+			hz.Size = UDim2.new(1, -24, 0, 6)
+			hz.ClipsDescendants = true
+			for k = 0, 22 do
+				local stripe = frame(hz, Color3.fromRGB(30, 30, 36), Z + 4)
+				stripe.Position = UDim2.fromOffset(k * 19, 0)
+				stripe.Size = UDim2.fromOffset(8, 6)
+			end
+		end
+		for _, p in { Vector2.new(10, 20), Vector2.new(CONTENT_W - 18, 20), Vector2.new(10, CONTENT_H - 28), Vector2.new(CONTENT_W - 18, CONTENT_H - 28) } do
+			local screw = frame(board, Color3.fromRGB(150, 158, 170), Z + 3)
+			screw.Position = UDim2.fromOffset(p.X, p.Y)
+			screw.Size = UDim2.fromOffset(8, 8)
+			UiKit.Corner(screw, 4)
+		end
+		-- Kablo kanalları: iki yandaki koyu şeritler
+		for _, x in { 0, CONTENT_W - 46 } do
+			local duct = frame(board, PANEL_DARK, Z + 3)
+			duct.Position = UDim2.fromOffset(x, top - 8)
+			duct.Size = UDim2.fromOffset(46, bottom - top + 16)
+		end
 
 		-- Sağ sıra karışık; aynı sırada çıkarsa görev bir anlam taşımazdı
 		local order = { 1, 2, 3, 4 }
@@ -270,151 +354,364 @@ function TaskGames.Create(screen: ScreenGui): Handle
 			end
 		until order[1] ~= 1 or order[2] ~= 2 or order[3] ~= 3
 
-		local selected: number? = nil
+		local leftTip: { Vector2 } = {}
+		local rightTip: { [number]: Vector2 } = {} -- renk -> soket ucu
+		local lights: { [number]: Frame } = {}
 		local done: { [number]: boolean } = {}
 		local leftButtons: { TextButton } = {}
 
-		-- Seçili kablonun kenarı beyaz ve kalın; seçim değişince eskisi geri döner
-		local function highlight(b: TextButton, on: boolean)
-			local stroke = b:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				stroke.Color = if on then Color3.new(1, 1, 1) else Color3.new(0, 0, 0)
-				stroke.Thickness = if on then 3 else 2
-				stroke.Transparency = if on then 0 else 0.3
-			end
-		end
-
-		local function node(x: number, y: number, color: Color3): TextButton
-			local b = Instance.new("TextButton")
-			b.AutoButtonColor = false
-			b.Text = ""
-			b.AnchorPoint = Vector2.new(0.5, 0.5)
-			b.Position = UDim2.fromOffset(x, y)
-			b.Size = UDim2.fromOffset(46, 30)
-			b.BackgroundColor3 = color
-			b.BorderSizePixel = 0
-			b.ZIndex = Z + 4
-			b.Parent = content
-			UiKit.Corner(b, 8)
-			UiKit.Stroke(b, Color3.new(0, 0, 0), 2, 0.3)
-			return b
-		end
-
-		local function wire(a: Vector2, b: Vector2, color: Color3)
-			local delta = b - a
-			local line = frame(content, color, Z + 3)
-			line.AnchorPoint = Vector2.new(0.5, 0.5)
-			line.Position = UDim2.fromOffset((a.X + b.X) / 2, (a.Y + b.Y) / 2)
-			line.Size = UDim2.fromOffset(delta.Magnitude, 9)
-			line.Rotation = math.deg(math.atan2(delta.Y, delta.X))
-			UiKit.Corner(line, 4)
-		end
-
 		for i, color in WIRE_COLORS do
-			local y = gap * i
-			local b = node(leftX, y, color)
-			leftButtons[i] = b
-			b.MouseButton1Click:Connect(function()
-				if done[i] or finished then
+			local y = top + gap * (i - 0.5)
+			-- Kanaldan çıkan kablo gövdesi + bakır uç
+			local body = frame(board, color, Z + 4)
+			body.AnchorPoint = Vector2.new(0, 0.5)
+			body.Position = UDim2.fromOffset(0, y)
+			body.Size = UDim2.fromOffset(leftX - 6, 16)
+			local tip = Instance.new("TextButton")
+			tip.AutoButtonColor = false
+			tip.Text = ""
+			tip.AnchorPoint = Vector2.new(0.5, 0.5)
+			tip.Position = UDim2.fromOffset(leftX, y)
+			tip.Size = UDim2.fromOffset(26, 26)
+			tip.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.15)
+			tip.BorderSizePixel = 0
+			tip.ZIndex = Z + 6
+			tip.Parent = board
+			UiKit.Corner(tip, 6)
+			UiKit.Stroke(tip, Color3.fromRGB(200, 130, 60), 3, 0)
+			leftButtons[i] = tip
+			leftTip[i] = Vector2.new(leftX + 12, y)
+		end
+		for slotIndex, colorIndex in order do
+			local y = top + gap * (slotIndex - 0.5)
+			local color = WIRE_COLORS[colorIndex]
+			local body = frame(board, color, Z + 4)
+			body.AnchorPoint = Vector2.new(1, 0.5)
+			body.Position = UDim2.new(1, 0, 0, y)
+			body.Size = UDim2.fromOffset(CONTENT_W - rightX - 6, 16)
+			local socket = frame(board, color:Lerp(Color3.new(0, 0, 0), 0.25), Z + 5)
+			socket.AnchorPoint = Vector2.new(0.5, 0.5)
+			socket.Position = UDim2.fromOffset(rightX, y)
+			socket.Size = UDim2.fromOffset(26, 26)
+			UiKit.Corner(socket, 6)
+			UiKit.Stroke(socket, Color3.fromRGB(20, 20, 24), 3, 0)
+			-- Soketin yanında lamba: bağlanınca yanıyor
+			local lamp = frame(board, Color3.fromRGB(70, 70, 60), Z + 5)
+			lamp.AnchorPoint = Vector2.new(0.5, 1)
+			lamp.Position = UDim2.fromOffset(rightX + 26, y - 6)
+			lamp.Size = UDim2.fromOffset(12, 12)
+			UiKit.Corner(lamp, 6)
+			lights[colorIndex] = lamp
+			rightTip[colorIndex] = Vector2.new(rightX - 12, y)
+		end
+
+		local function nearestSocket(p: Vector2): number?
+			for colorIndex, at in rightTip do
+				if (p - at).Magnitude <= 30 then
+					return colorIndex
+				end
+			end
+			return nil
+		end
+
+		local function connect(i: number)
+			done[i] = true
+			segment(board, leftTip[i], rightTip[i], WIRE_COLORS[i], 12, Z + 5)
+			lights[i].BackgroundColor3 = Color3.fromRGB(255, 230, 90)
+			SoundFX.TaskSound("wireConnect")
+			for k = 1, rows do
+				if not done[k] then
 					return
 				end
-				if selected and leftButtons[selected] then
-					highlight(leftButtons[selected], false)
+			end
+			complete("Wiring")
+		end
+
+		local function wrong()
+			status.Text = "Wrong wire!"
+			status.TextColor3 = UiKit.BAD
+			SoundFX.Deny()
+		end
+
+		-- Sürükleme
+		local dragging: number? = nil
+		local dragLine: Frame? = nil
+		local selected: number? = nil -- gamepad seçimi
+
+		local function stopDrag()
+			if dragLine then
+				dragLine:Destroy()
+				dragLine = nil
+			end
+			dragging = nil
+		end
+
+		for i, tip in leftButtons do
+			tip.InputBegan:Connect(function(input)
+				if finished or done[i] or not isPointerPress(input) then
+					return
+				end
+				dragging = i
+				selected = nil
+				SoundFX.TaskSound("wireGrab")
+				dragLine = segment(board, leftTip[i], toContent(input.Position), WIRE_COLORS[i], 12, Z + 7)
+			end)
+			-- Gamepad: A ile seç (sürüklemeden)
+			tip.InputBegan:Connect(function(input)
+				if finished or done[i] or input.KeyCode ~= Enum.KeyCode.ButtonA then
+					return
 				end
 				selected = i
-				highlight(b, true)
+				SoundFX.TaskSound("wireGrab")
+				status.Text = "Now pick the matching socket"
+				status.TextColor3 = UiKit.MUTED
 			end)
 		end
-		for slot, colorIndex in order do
-			local y = gap * slot
-			local b = node(rightX, y, WIRE_COLORS[colorIndex])
-			b.MouseButton1Click:Connect(function()
-				if finished or not selected or done[selected] then
+		-- Gamepad için soketler de seçilebilir düğme
+		for colorIndex, at in rightTip do
+			local hit = Instance.new("TextButton")
+			hit.Text = ""
+			hit.BackgroundTransparency = 1
+			hit.AnchorPoint = Vector2.new(0.5, 0.5)
+			hit.Position = UDim2.fromOffset(at.X + 12, at.Y)
+			hit.Size = UDim2.fromOffset(34, 34)
+			hit.ZIndex = Z + 8
+			hit.Parent = board
+			hit.InputBegan:Connect(function(input)
+				local s = selected
+				if finished or input.KeyCode ~= Enum.KeyCode.ButtonA or not s or done[s] then
 					return
 				end
-				if selected ~= colorIndex then
-					status.Text = "Wrong wire!"
-					status.TextColor3 = UiKit.BAD
-					SoundFX.Deny()
-					return
-				end
-				done[colorIndex] = true
-				highlight(leftButtons[colorIndex], false)
-				wire(Vector2.new(leftX + 23, gap * colorIndex), Vector2.new(rightX - 23, y), WIRE_COLORS[colorIndex])
 				selected = nil
-				status.Text = ""
-				local all = true
-				for k = 1, rows do
-					if not done[k] then
-						all = false
-					end
-				end
-				if all then
-					complete("Wiring")
+				if s == colorIndex then
+					status.Text = ""
+					connect(s)
+				else
+					wrong()
 				end
 			end)
 		end
+
+		local moved = UserInputService.InputChanged:Connect(function(input)
+			local i = dragging
+			if i and dragLine and isPointerMove(input) then
+				moveSegment(dragLine, leftTip[i], toContent(input.Position))
+			end
+		end)
+		local released = UserInputService.InputEnded:Connect(function(input)
+			local i = dragging
+			if not i or not isPointerPress(input) then
+				return
+			end
+			local target = nearestSocket(toContent(input.Position))
+			stopDrag()
+			if target == i then
+				status.Text = ""
+				connect(i)
+			elseif target then
+				wrong()
+			end
+		end)
+		table.insert(cleanup, function()
+			moved:Disconnect()
+			released:Disconnect()
+			stopDrag()
+		end)
 	end
 
 	-- ─── Swipe Card ──────────────────────────────────────────────────────
 
+	--[[
+		Among Us'taki gibi: üstte yeşil yazılı ekran, ortada kart okuyucu
+		yuvası, altta cüzdan. Cüzdana bas → kart yuvanın başına çıkar. Kartı
+		TUT ve yuva boyunca sağa SÜRÜKLE. Hız okunuyor:
+		  sona gelmeden bırakırsan  → BAD READ. TRY AGAIN.
+		  SWIPE_MIN'den hızlı        → TOO FAST. TRY AGAIN.
+		  SWIPE_MAX'tan yavaş        → TOO SLOW. TRY AGAIN.
+		  aradaysa                    → ACCEPTED. THANK YOU.
+
+		Gamepad'de sürükleme yok: karta A → doğru hızda kendisi kayıyor.
+	]]
+	local SWIPE_MIN, SWIPE_MAX = 0.5, 1.3
+	local LCD_GREEN = Color3.fromRGB(110, 255, 140)
+
 	local function buildCard()
-		local trackW = CONTENT_W - 60
-		local track = frame(content, Color3.fromRGB(40, 46, 58), Z + 2)
-		track.AnchorPoint = Vector2.new(0.5, 0.5)
-		track.Position = UDim2.fromOffset(CONTENT_W / 2, CONTENT_H * 0.4)
-		track.Size = UDim2.fromOffset(trackW, 70)
-		UiKit.Corner(track, 12)
+		local body = frame(content, Color3.fromRGB(60, 66, 78), Z + 2)
+		body.Size = UDim2.fromScale(1, 1)
+		UiKit.Corner(body, 12)
 
-		-- Yeşil bölge: rayın ortasındaki %30
-		local zone = frame(track, UiKit.GOOD, Z + 3)
-		zone.AnchorPoint = Vector2.new(0.5, 0)
-		zone.Position = UDim2.fromScale(0.5, 0)
-		zone.Size = UDim2.fromScale(0.3, 1)
-		zone.BackgroundTransparency = 0.6
+		-- Ekran
+		local lcd = frame(body, Color3.fromRGB(12, 28, 18), Z + 3)
+		lcd.Position = UDim2.fromOffset(40, 14)
+		lcd.Size = UDim2.new(1, -80, 0, 40)
+		UiKit.Corner(lcd, 6)
+		UiKit.Stroke(lcd, Color3.fromRGB(30, 34, 40), 3, 0)
+		local lcdText = label(lcd, "PLEASE INSERT CARD", 18, LCD_GREEN, Z + 4)
+		lcdText.Font = Enum.Font.Code
+		lcdText.Size = UDim2.fromScale(1, 1)
 
-		local card = frame(track, Color3.fromRGB(236, 241, 248), Z + 4)
+		-- Okuyucu yuvası ve iki lamba
+		local SLOT_Y, SLOT_X0, SLOT_X1 = 104, 50, CONTENT_W - 50
+		local slot = frame(body, Color3.fromRGB(28, 30, 36), Z + 3)
+		slot.AnchorPoint = Vector2.new(0, 0.5)
+		slot.Position = UDim2.fromOffset(SLOT_X0 - 20, SLOT_Y)
+		slot.Size = UDim2.fromOffset(SLOT_X1 - SLOT_X0 + 40, 70)
+		UiKit.Corner(slot, 8)
+		local groove = frame(slot, Color3.fromRGB(10, 10, 14), Z + 4)
+		groove.AnchorPoint = Vector2.new(0, 0.5)
+		groove.Position = UDim2.new(0, 8, 0.5, 0)
+		groove.Size = UDim2.new(1, -16, 0, 6)
+		local redLamp = frame(body, Color3.fromRGB(90, 30, 30), Z + 4)
+		redLamp.Position = UDim2.fromOffset(CONTENT_W - 64, 142)
+		redLamp.Size = UDim2.fromOffset(14, 14)
+		UiKit.Corner(redLamp, 7)
+		local greenLamp = frame(body, Color3.fromRGB(30, 80, 40), Z + 4)
+		greenLamp.Position = UDim2.fromOffset(CONTENT_W - 44, 142)
+		greenLamp.Size = UDim2.fromOffset(14, 14)
+		UiKit.Corner(greenLamp, 7)
+
+		-- Cüzdan (altta) ve kart
+		local wallet = Instance.new("TextButton")
+		wallet.AutoButtonColor = true
+		wallet.Text = ""
+		wallet.AnchorPoint = Vector2.new(0.5, 1)
+		wallet.Position = UDim2.new(0.5, 0, 1, -8)
+		wallet.Size = UDim2.fromOffset(170, 62)
+		wallet.BackgroundColor3 = Color3.fromRGB(120, 78, 44)
+		wallet.BorderSizePixel = 0
+		wallet.ZIndex = Z + 5
+		wallet.Parent = body
+		UiKit.Corner(wallet, 10)
+		UiKit.Stroke(wallet, Color3.fromRGB(70, 44, 24), 3, 0)
+		local stitch = frame(wallet, Color3.fromRGB(220, 190, 140), Z + 6)
+		stitch.Position = UDim2.new(0, 10, 0, 10)
+		stitch.Size = UDim2.new(1, -20, 0, 2)
+		local walletHint = label(wallet, "TAP WALLET", 12, Color3.fromRGB(240, 220, 180), Z + 6)
+		walletHint.Size = UDim2.fromScale(1, 1)
+
+		local CARD_W, CARD_H = 84, 54
+		local card = Instance.new("TextButton")
+		card.AutoButtonColor = false
+		card.Text = ""
 		card.AnchorPoint = Vector2.new(0.5, 0.5)
-		card.Position = UDim2.fromScale(0, 0.5)
-		card.Size = UDim2.fromOffset(46, 60)
+		card.Size = UDim2.fromOffset(CARD_W, CARD_H)
+		card.BackgroundColor3 = Color3.fromRGB(236, 241, 248)
+		card.BorderSizePixel = 0
+		card.ZIndex = Z + 6
+		card.Parent = body
 		UiKit.Corner(card, 6)
-		local stripe = frame(card, UiKit.CREW.CYAN, Z + 5)
-		stripe.Position = UDim2.fromScale(0, 0.18)
-		stripe.Size = UDim2.new(1, 0, 0, 8)
+		local band = frame(card, UiKit.CREW.CYAN, Z + 7)
+		band.Position = UDim2.fromOffset(0, 8)
+		band.Size = UDim2.new(1, 0, 0, 10)
+		local photo = frame(card, UiKit.CREW.RED, Z + 7)
+		photo.Position = UDim2.fromOffset(8, 24)
+		photo.Size = UDim2.fromOffset(18, 22)
+		UiKit.Corner(photo, 6)
+		local lineA = frame(card, Color3.fromRGB(150, 160, 175), Z + 7)
+		lineA.Position = UDim2.fromOffset(32, 28)
+		lineA.Size = UDim2.fromOffset(42, 4)
+		local lineB = frame(card, Color3.fromRGB(150, 160, 175), Z + 7)
+		lineB.Position = UDim2.fromOffset(32, 38)
+		lineB.Size = UDim2.fromOffset(30, 4)
 
-		local button = bigButton(content, "SWIPE", UiKit.CREW.BLUE)
-		button.AnchorPoint = Vector2.new(0.5, 0.5)
-		button.Position = UDim2.fromOffset(CONTENT_W / 2, CONTENT_H * 0.78)
-		button.Size = UDim2.fromOffset(170, 56)
+		local walletPos = Vector2.new(CONTENT_W / 2, CONTENT_H - 44)
+		local startPos = Vector2.new(SLOT_X0 + CARD_W / 2 - 20, SLOT_Y)
+		local endX = SLOT_X1 - CARD_W / 2 + 20
+		card.Position = UDim2.fromOffset(walletPos.X, walletPos.Y)
+		card.Visible = false
 
-		local t = 0
-		local x = 0
-		local step = RunService.RenderStepped:Connect(function(dt)
-			if finished then
+		local inserted = false
+		local swiping = false
+		local swipeStart = 0
+		local grabOffset = 0
+
+		local function setLamps(ok: boolean?)
+			redLamp.BackgroundColor3 = if ok == false then Color3.fromRGB(255, 60, 60) else Color3.fromRGB(90, 30, 30)
+			greenLamp.BackgroundColor3 = if ok == true then Color3.fromRGB(90, 255, 120) else Color3.fromRGB(30, 80, 40)
+		end
+
+		local function resetCard(message: string)
+			swiping = false
+			lcdText.Text = message
+			card.Position = UDim2.fromOffset(startPos.X, startPos.Y)
+		end
+
+		local function judge(elapsed: number)
+			if elapsed < SWIPE_MIN then
+				setLamps(false)
+				SoundFX.Deny()
+				resetCard("TOO FAST. TRY AGAIN.")
+			elseif elapsed > SWIPE_MAX then
+				setLamps(false)
+				SoundFX.Deny()
+				resetCard("TOO SLOW. TRY AGAIN.")
+			else
+				swiping = false
+				setLamps(true)
+				lcdText.Text = "ACCEPTED. THANK YOU."
+				SoundFX.TaskSound("cardAccept")
+				complete("Card")
+			end
+		end
+
+		wallet.Activated:Connect(function()
+			if inserted or finished then
 				return
 			end
-			t += dt
-			-- Gidip gelen hareket; hız hafifçe değişiyor ki ezber tutmasın
-			x = (math.sin(t * 2.4) + 1) / 2
-			card.Position = UDim2.fromScale(x, 0.5)
+			inserted = true
+			card.Visible = true
+			walletHint.Text = ""
+			SoundFX.TaskSound("wireGrab")
+			TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ Position = UDim2.fromOffset(startPos.X, startPos.Y) }):Play()
+			lcdText.Text = "PLEASE SWIPE CARD"
+		end)
+
+		card.InputBegan:Connect(function(input)
+			if finished or not inserted or swiping then
+				return
+			end
+			if isPointerPress(input) then
+				swiping = true
+				swipeStart = os.clock()
+				grabOffset = toContent(input.Position).X - card.Position.X.Offset
+				setLamps(nil)
+				SoundFX.TaskSound("cardSwipe")
+			elseif input.KeyCode == Enum.KeyCode.ButtonA then
+				-- Gamepad: kart doğru hızda kendisi kayıyor
+				swiping = true
+				SoundFX.TaskSound("cardSwipe")
+				local t = TweenService:Create(card, TweenInfo.new(0.9, Enum.EasingStyle.Linear),
+					{ Position = UDim2.fromOffset(endX, startPos.Y) })
+				t:Play()
+				t.Completed:Once(function()
+					judge(0.9)
+				end)
+			end
+		end)
+
+		local moved = UserInputService.InputChanged:Connect(function(input)
+			if not swiping or not isPointerMove(input) then
+				return
+			end
+			local x = math.clamp(toContent(input.Position).X - grabOffset, startPos.X, endX)
+			card.Position = UDim2.fromOffset(x, startPos.Y)
+			if x >= endX - 1 then
+				judge(os.clock() - swipeStart)
+			end
+		end)
+		local released = UserInputService.InputEnded:Connect(function(input)
+			if not swiping or not isPointerPress(input) then
+				return
+			end
+			-- Sona varmadan bırakıldı
+			setLamps(false)
+			SoundFX.Deny()
+			resetCard("BAD READ. TRY AGAIN.")
 		end)
 		table.insert(cleanup, function()
-			step:Disconnect()
-		end)
-
-		button.MouseButton1Click:Connect(function()
-			if finished then
-				return
-			end
-			if math.abs(x - 0.5) <= 0.15 then
-				status.Text = "Accepted. Thank you."
-				status.TextColor3 = UiKit.GOOD
-				complete("Card")
-			else
-				status.Text = if x < 0.5 then "Too slow. Try again." else "Too fast. Try again."
-				status.TextColor3 = UiKit.BAD
-				SoundFX.Deny()
-			end
+			moved:Disconnect()
+			released:Disconnect()
 		end)
 	end
 
@@ -460,27 +757,47 @@ function TaskGames.Create(screen: ScreenGui): Handle
 
 	-- ─── Sarı "!" işaretleri ─────────────────────────────────────────────
 
-	local markers: { [string]: BillboardGui } = {}
+	--[[
+		Görev konsollarının üstünde sarı "!" (Among Us'taki görev işareti):
+		görev hazırsa (bekleme bitmişse) görünüyor. Oda görevleri "TaskId"
+		niteliğinden, Weapons'taki asteroit görevi AsteroidConsole'dan bulunuyor;
+		hazır olma zamanları oyuncu niteliklerinde (TaskReady_<id>, AsteroidReadyAt).
+	]]
+	type Marker = { gui: BillboardGui, readyAttr: string }
+	local markers: { [string]: Marker } = {}
+
+	local function addMarker(key: string, part: BasePart, readyAttr: string)
+		if markers[key] then
+			return
+		end
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "TaskMarker"
+		gui.Size = UDim2.fromOffset(40, 50)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, part.Size.Y / 2 + 3, 0)
+		gui.MaxDistance = 140
+		gui.Adornee = part
+		local mark = label(gui, "!", 44, ACCENT, 1)
+		mark.Font = Enum.Font.FredokaOne
+		mark.Size = UDim2.fromScale(1, 1)
+		mark.TextStrokeTransparency = 0.2
+		gui.Parent = player:WaitForChild("PlayerGui")
+		markers[key] = { gui = gui, readyAttr = readyAttr }
+	end
+
 	local function attachMarkers()
 		local decor = workspace:FindFirstChild("Decor")
 		if not decor then
 			return
 		end
 		for _, part in decor:GetDescendants() do
+			if not part:IsA("BasePart") then
+				continue
+			end
 			local taskId = part:GetAttribute("TaskId")
-			if part:IsA("BasePart") and typeof(taskId) == "string" and not markers[taskId] then
-				local gui = Instance.new("BillboardGui")
-				gui.Name = "TaskMarker"
-				gui.Size = UDim2.fromOffset(40, 50)
-				gui.StudsOffsetWorldSpace = Vector3.new(0, part.Size.Y / 2 + 3, 0)
-				gui.MaxDistance = 140
-				gui.Adornee = part
-				local mark = label(gui, "!", 44, ACCENT, 1)
-				mark.Font = Enum.Font.FredokaOne
-				mark.Size = UDim2.fromScale(1, 1)
-				mark.TextStrokeTransparency = 0.2
-				gui.Parent = player:WaitForChild("PlayerGui")
-				markers[taskId] = gui
+			if typeof(taskId) == "string" then
+				addMarker(taskId, part, "TaskReady_" .. taskId)
+			elseif part.Name == "AsteroidConsole" then
+				addMarker("Asteroids", part, "AsteroidReadyAt")
 			end
 		end
 	end
@@ -489,9 +806,9 @@ function TaskGames.Create(screen: ScreenGui): Handle
 		while true do
 			attachMarkers()
 			local now = os.time()
-			for taskId, gui in markers do
-				local readyAt = player:GetAttribute("TaskReady_" .. taskId)
-				gui.Enabled = not (typeof(readyAt) == "number" and readyAt > now)
+			for _, m in markers do
+				local readyAt = player:GetAttribute(m.readyAttr)
+				m.gui.Enabled = not (typeof(readyAt) == "number" and readyAt > now)
 			end
 			task.wait(1)
 		end
@@ -502,8 +819,8 @@ function TaskGames.Create(screen: ScreenGui): Handle
 		Destroy = function()
 			triggered:Disconnect()
 			task.cancel(markerLoop)
-			for _, gui in markers do
-				gui:Destroy()
+			for _, m in markers do
+				m.gui:Destroy()
 			end
 			root:Destroy()
 		end,

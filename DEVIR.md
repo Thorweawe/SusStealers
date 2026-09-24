@@ -13,6 +13,35 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (7) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+Önce: Yusuf'un bulut oturumu `claude/game-mechanics-ui-updates-fj05yq` branch'ine
+pushlamıştı; Studio zaten o hâldeydi. **main'e fast-forward birleştirildi**, testler
+Studio'da 142/142 (bulut oturumu koşamamıştı).
+
+**1. Olaylar:** Impostor artık **rastgele** — her saat 2 kez, sabit olayların
+pencerelerine (uyarı dahil) ve birbirine 15 dk'dan yakın olmayan anlarda; her
+sunucu kendi zarını atıyor (`Config.PlanRandomEvent`, `EventDef.random/perHour`).
+Uyarı yok, çizelgede yok. `EventFX` çizelgesi yalnızca **sıradaki** sabit olayı
+gösteriyor (başlık NEXT EVENT).
+
+**2. Gezen mürettebat (`MapLife`):** 8 kişi, PathfindingService ile her yere
+(koridor, odalar, lobi, kanatlar, ek odalar) yürüyor, %30 ihtimalle boş bir
+koltuğa oturuyor. Eşya içine düşen karolar hedef değil; 3 kez yol bulamayan
+başka karoya taşınıyor. Oyuncu oturunca mürettebat kalkıyor.
+
+**3. Uyarı lambaları duvara monte** (`polish.luau`): duvar yüzü ışınla ölçülüyor,
+arka plaka + kol + kubbe. Harita denetimi 0 çakışma.
+
+**4. Asteroit konsolunda da sarı "!"** (`TaskGames`, `AsteroidReadyAt`).
+
+**5. Fix Wiring ve Swipe Card baştan (`TaskGames`):** kablo sürükle-bırak (metal
+pano, soket lambaları, kıvılcım sesi; gamepad'de A ile seç/bağla); kart cüzdandan
+çıkıp sürükleniyor, hız okunuyor (TOO FAST / TOO SLOW / BAD READ / ACCEPTED,
+0.5–1.3 sn). `SoundFX.TaskSound` + 4 yeni ses (Roblox lisanslı).
+
+---
+
 ## 2026-09-24 (6) — Claude (bulut oturumu): oyun mekaniği + arayüz turu (iki şeride de yazıldı)
 
 Kullanıcı istedi, iki şeritte birden çalışıldı. **Studio'ya basılmadı** (bulut

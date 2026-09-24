@@ -51,6 +51,12 @@ local ID = {
 	Laser   = "rbxassetid://9116225257",   -- Laser Blast 101 (Pro Sound Effects)
 	Rock    = "rbxassetid://9118588165",   -- Rock Drop On Concrete Breaks 10
 
+	-- Oda görevleri (TaskGames): kablo tutma / bağlama, kart kaydırma / onay
+	WireGrab   = "rbxassetid://9120489791",   -- Wall Switch Click 12
+	WireZap    = "rbxassetid://9114277402",   -- Electric Zaps 6
+	CardSwipe  = "rbxassetid://9113722807",   -- Card Swipe 8
+	CardAccept = "rbxassetid://9119764754",   -- Synth Beeps High Pitch 6
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -204,6 +210,24 @@ end
 
 function SoundFX.RockBreak()
 	fire("Rock", 0, 0.6)
+end
+
+--[[
+	Oda görevlerinin sesleri (TaskGames). Kayıtların başından kısa kesitler:
+	kıvılcım ve bip uzun kayıtlar, tamamı çalınca görevin temposunu boğuyordu.
+]]
+local TASK_SOUNDS: { [string]: { key: string, length: number } } = {
+	wireGrab = { key = "WireGrab", length = 0.3 },
+	wireConnect = { key = "WireZap", length = 0.45 },
+	cardSwipe = { key = "CardSwipe", length = 0.8 },
+	cardAccept = { key = "CardAccept", length = 0.5 },
+}
+
+function SoundFX.TaskSound(kind: string)
+	local def = TASK_SOUNDS[kind]
+	if def then
+		fire(def.key, 0, def.length)
+	end
 end
 
 -- ─── Olay sesleri ───────────────────────────────────────────────────────────
@@ -426,6 +450,10 @@ function SoundFX.Preload()
 	effect("Alarm", ID.Alarm, 0.55)
 	effect("Laser", ID.Laser, 0.35)
 	effect("Rock", ID.Rock, 0.45)
+	effect("WireGrab", ID.WireGrab, 0.5)
+	effect("WireZap", ID.WireZap, 0.4)
+	effect("CardSwipe", ID.CardSwipe, 0.6)
+	effect("CardAccept", ID.CardAccept, 0.4)
 
 	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
 	-- sessizlik olmasın

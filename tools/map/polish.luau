@@ -118,10 +118,24 @@ return {
 		end
 
 		local beacons = K.folder("Beacons", root)
+		--[[
+			Uyarı lambası DUVARA MONTE: arka plaka duvarın yüzüne yapışık, kısa
+			bir kolun ucunda kubbe. Eskiden karo sınırından hesaplanan bir
+			noktada duruyordu; duvarın o yükseklikteki yüzü karo sınırından
+			içeride olduğu için lamba duvardan ~0.4 stud uzakta havada kalıyordu.
+			Şimdi duvarın yüzü ışınla ölçülüyor.
+		]]
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		rayParams.FilterDescendantsInstances = { root }
 		local function beacon(pos: Vector3, facing: Vector3)
-			local cf = CFrame.lookAt(pos, pos + facing)
-			K.boxAt(beacons, "BeaconBase", cf * CFrame.new(0, -0.9, -0.3), Vector3.new(1.4, 0.4, 1.2), C.metalDark)
-			local lamp = K.boxAt(beacons, "WarnBeacon", cf * CFrame.new(0, -0.1, -0.3), Vector3.new(1.1, 1.2, 1.1), C.red,
+			-- Duvara doğru (facing'in tersi) ışın: yüzey neredeyse oraya
+			local hit = workspace:Raycast(pos + facing * 3, -facing * 8, rayParams)
+			local surface = if hit then hit.Position else pos
+			local cf = CFrame.lookAt(surface, surface + facing)
+			K.boxAt(beacons, "BeaconPlate", cf * CFrame.new(0, 0, -0.1), Vector3.new(1.3, 1.5, 0.2), C.metalDark)
+			K.boxAt(beacons, "BeaconArm", cf * CFrame.new(0, 0, -0.45), Vector3.new(0.35, 0.35, 0.5), C.metalDark)
+			local lamp = K.boxAt(beacons, "WarnBeacon", cf * CFrame.new(0, 0, -1.2), Vector3.new(1.1, 1.1, 1.1), C.red,
 				{ shape = Enum.PartType.Ball, emit = "Indicator" })
 			-- Parlaklık 0: istemci (MapLife) yakıp söndürüyor
 			K.light(lamp, C.red, 14, 0)

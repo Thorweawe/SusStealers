@@ -872,8 +872,14 @@ Config.OfflineIncomeCapHours = 3
 	offset  — periyodun içindeki başlangıç (0 = saat başı)
 	duration— kaç saniye sürüyor
 
-	Dakikalar birbirine denk gelmeyecek şekilde dağıtıldı: :00 impostor
-	(çift saatler), :15 toplantı, :30 reaktör (3 saatte bir), :45 ışıklar.
+	Dakikalar birbirine denk gelmeyecek şekilde dağıtıldı: :15 toplantı,
+	:30 reaktör (3 saatte bir), :45 ışıklar.
+
+	RASTGELE OLAYLAR (random = true): Impostor sürpriz olmalı — oyuncu ne
+	zaman geleceğini bilirse kilidini önceden basar ve olayın gerilimi
+	kalmaz. Her saat `perHour` kez, sabit olayların pencerelerine (uyarı
+	dahil) ve birbirlerine denk gelmeyen rastgele anlarda başlıyor; her
+	sunucu kendi zarını atıyor, çizelgede görünmüyor, önceden uyarı yok.
 ]]
 export type EventDef = {
 	id: string,
@@ -881,14 +887,20 @@ export type EventDef = {
 	every: number,
 	offset: number,
 	duration: number,
+	random: boolean?,
+	perHour: number?,
 }
 
 Config.Events = {
 	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 15 * 60, duration = 120 },
 	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
 	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
-	{ id = "Impostor",  name = "Impostor Among Us", every = 2 * 3600, offset = 0,       duration = 60 },
+	{ id = "Impostor",  name = "Impostor Among Us", every = 3600, offset = 0, duration = 60, random = true, perHour = 2 },
 } :: { EventDef }
+
+-- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
+Config.RandomEventGap = 90
+Config.RandomEventSpacing = 15 * 60
 
 -- Başlamadan kaç saniye önce haber verilsin
 Config.EventWarning = 30
@@ -928,6 +940,73 @@ function Config.GetNextEventStart(def: EventDef, now: number): number
 		return now
 	end
 	return now - into + def.every
+end
+
+--[[
+	Sabit olayların [from, to) aralığına düşen pencereleri: uyarıdan bitişe.
+	Rastgele olay bunlara denk gelmemeli.
+]]
+function Config.GetFixedEventWindows(from: number, to: number): { { number } }
+	local windows = {}
+	for _, def in Config.Events do
+		if def.random then
+			continue
+		end
+		local t = Config.GetNextEventStart(def, from - def.duration - Config.EventWarning)
+		while t < to + Config.EventWarning do
+			table.insert(windows, { t - Config.EventWarning, t + def.duration })
+			t += def.every
+		end
+	end
+	return windows
+end
+
+--[[
+	Rastgele olayın bir saatteki başlangıçları (unix saniye, sıralı).
+	`hourStart` saatin başı. Adaylar 30 sn aralıklı; sabit pencerelere
+	Config.RandomEventGap'ten yakın olanlar ve birbirine RandomEventSpacing'ten
+	yakın olanlar eleniyor. Aday kalmazsa daha az döner.
+]]
+function Config.PlanRandomEvent(def: EventDef, hourStart: number, rng: Random): { number }
+	local gap = Config.RandomEventGap
+	local windows = Config.GetFixedEventWindows(hourStart - 3600, hourStart + 7200)
+	local candidates = {}
+	local t = hourStart + gap
+	while t + def.duration + gap <= hourStart + 3600 do
+		local free = true
+		for _, w in windows do
+			if t - gap < w[2] and w[1] < t + def.duration + gap then
+				free = false
+				break
+			end
+		end
+		if free then
+			table.insert(candidates, t)
+		end
+		t += 30
+	end
+	local picked: { number } = {}
+	for _ = 1, def.perHour or 1 do
+		local pool = {}
+		for _, c in candidates do
+			local ok = true
+			for _, p in picked do
+				if math.abs(c - p) < Config.RandomEventSpacing then
+					ok = false
+					break
+				end
+			end
+			if ok then
+				table.insert(pool, c)
+			end
+		end
+		if #pool == 0 then
+			break
+		end
+		table.insert(picked, pool[rng:NextInteger(1, #pool)])
+	end
+	table.sort(picked)
+	return picked
 end
 
 function Config.GetEvent(id: string): EventDef?

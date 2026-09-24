@@ -158,7 +158,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 	UiKit.Corner(panel, 14)
 	local panelStroke = UiKit.Stroke(panel, UiKit.VISOR, 1.8, 0.45)
 
-	-- Başlık: tıklayınca liste daralıyor (yalnızca sıradaki olay kalıyor)
+	-- Başlık: tıklayınca sıradaki olay satırı gizleniyor / geri geliyor
 	local head = Instance.new("TextButton")
 	head.Name = "Head"
 	head.Position = UDim2.fromOffset(12, 4)
@@ -169,7 +169,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 	head.TextSize = 13
 	head.TextXAlignment = Enum.TextXAlignment.Left
 	head.TextColor3 = UiKit.MUTED
-	head.Text = "EVENTS"
+	head.Text = "NEXT EVENT"
 	head.Parent = panel
 
 	local fold = Instance.new("TextLabel")
@@ -332,10 +332,14 @@ function EventFX.Create(screen: ScreenGui): Handle
 			panelStroke.Color = UiKit.VISOR
 		end
 
-		-- Sıradakiler: başlangıcı en yakın olan üstte, süren olay listede yok
+		--[[
+			Yalnızca SIRADAKİ olay gösteriliyor (bütün liste kalabalık yapıyordu).
+			Rastgele olaylar (Impostor) hiç gösterilmiyor: sürpriz olmalı,
+			zamanını sunucu her saat rastgele seçiyor ve kimseye söylemiyor.
+		]]
 		local upcoming: { { def: Config.EventDef, at: number } } = {}
 		for _, def in Config.Events do
-			if def.id ~= activeId then
+			if def.id ~= activeId and not def.random then
 				table.insert(upcoming, { def = def, at = Config.GetNextEventStart(def, now) })
 			end
 		end
@@ -346,7 +350,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 		local y = HEAD_H + (if live then CARD_H else 0)
 		for index, row in rows do
 			local entry = upcoming[index]
-			local visible = entry ~= nil and (not collapsed or index == 1)
+			local visible = entry ~= nil and index == 1 and not collapsed
 			row.frame.Visible = visible
 			if not entry or not visible then
 				continue
