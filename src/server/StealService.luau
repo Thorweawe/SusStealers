@@ -636,6 +636,8 @@ local function setupPodiumPrompt(podium: Part)
 		-- PromptGuard'ın beklediği süreye yansıyor.
 		prompt.HoldDuration = hold
 		prompt.ObjectText = string.format("%.1fs", hold)
+		-- İstemci kişisel süreyi bundan hesaplıyor (PromptFilter)
+		prompt:SetAttribute("BaseHold", hold)
 		prompt.Enabled = true
 	end
 
@@ -647,7 +649,7 @@ local function setupPodiumPrompt(podium: Part)
 		onStealPrompt(podium, player)
 	end, function(player)
 		-- Hızlı Çalma pass'i olan daha kısa tutuyor
-		return prompt.HoldDuration * MonetizationService.GetStealHoldMultiplier(player)
+		return Config.GetPersonalStealHold(prompt.HoldDuration, MonetizationService.GetStealHoldMultiplier(player))
 	end)
 end
 

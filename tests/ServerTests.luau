@@ -2692,6 +2692,40 @@ case("Olay: Impostor ödemesi %3-5 ve tavanlı", function(ctx)
 	eq("impostor değilse ödeme yok", EventService.OnCaught(ctx.player, ctx.player, 0.5), 0)
 end)
 
+-- ─── Hızlı çalma ────────────────────────────────────────────────────────────
+
+case("Hızlı çalma: pass iksirden güçlü, alt sınır var, istemciye yayınlanıyor", function(ctx)
+	ok("pass iksirden güçlü", Config.PassFastStealMultiplier < Config.PotionFastStealMultiplier)
+	ok("ikisi de gerçekten hızlandırıyor", Config.PotionFastStealMultiplier < 1)
+
+	near("normal", Config.GetPersonalStealHold(4, 0.6), 2.4, 0.001)
+	eq("alt sınır", Config.GetPersonalStealHold(2 * Config.LightsOutHoldMul, Config.PassFastStealMultiplier), Config.MinStealHold)
+	near("taban zaten kısaysa dokunma", Config.GetPersonalStealHold(0.8, 0.5), 0.8, 0.001)
+
+	MonetizationService.ClearBoosts(ctx.player)
+	MonetizationService.PublishStealHold(ctx.player)
+	eq("iksirsiz nitelik 1", ctx.player:GetAttribute("StealHoldMul"), 1)
+
+	MonetizationService.GrantBoost(ctx.player, "steal", 60)
+	eq("iksir çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player), Config.PotionFastStealMultiplier)
+	MonetizationService.PublishStealHold(ctx.player)
+	eq("iksir niteliği", ctx.player:GetAttribute("StealHoldMul"), Config.PotionFastStealMultiplier)
+
+	MonetizationService.ClearBoosts(ctx.player)
+	MonetizationService.PublishStealHold(ctx.player)
+	eq("iksir bitince 1", ctx.player:GetAttribute("StealHoldMul"), 1)
+
+	-- Sunucu çalma promptuna tabanı nitelik olarak yazıyor
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	task.wait()
+	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
+	near("taban niteliği", prompt:GetAttribute("BaseHold") or -1, prompt.HoldDuration, 0.001)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[

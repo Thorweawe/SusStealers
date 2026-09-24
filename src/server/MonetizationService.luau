@@ -185,12 +185,26 @@ function MonetizationService.GetExtraPodiumsPerFloor(player: Player): number
 end
 
 function MonetizationService.GetStealHoldMultiplier(player: Player): number
-	if MonetizationService.HasPass(player, "FastSteal")
-		or boostOf(player, "steal")
-	then
+	-- Üst üste binmiyor: pass varsa pass, yoksa iksir
+	if MonetizationService.HasPass(player, "FastSteal") then
 		return Config.PassFastStealMultiplier
 	end
+	if boostOf(player, "steal") then
+		return Config.PotionFastStealMultiplier
+	end
 	return 1
+end
+
+--[[
+	Çalma çarpanını istemciye nitelik olarak yayınlar. İstemci kendi
+	ekranındaki çalma promptunu buna göre kısaltıyor (PromptFilter);
+	yoksa sunucu kısa basışı kabul etse de prompt tam süreyi bekliyordu.
+]]
+function MonetizationService.PublishStealHold(player: Player)
+	local mul = MonetizationService.GetStealHoldMultiplier(player)
+	if player:GetAttribute("StealHoldMul") ~= mul then
+		player:SetAttribute("StealHoldMul", mul)
+	end
 end
 
 --[[ Kilit süresi ve bekleme süresi. ]]
@@ -356,6 +370,16 @@ function MonetizationService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		passCache[player] = nil
+	end)
+
+	-- İksir süresi dolunca da nitelik düşmeli; saniyede bir bakmak yeter
+	task.spawn(function()
+		while true do
+			for _, player in Players:GetPlayers() do
+				task.spawn(MonetizationService.PublishStealHold, player)
+			end
+			task.wait(1)
+		end
 	end)
 end
 

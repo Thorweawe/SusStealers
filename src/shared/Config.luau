@@ -379,7 +379,7 @@ Config.Potions = {
 	{ id = "Income2x",   name = "Double Income", kind = "income", seconds = 600, multiplier = 2, weight = 35,
 	  description = "2x cash from every podium" },
 	{ id = "FastSteal",  name = "Fast Hands",    kind = "steal",  seconds = 900, weight = 25,
-	  description = "Steal prompts finish faster" },
+	  description = "Steal 20% faster" },
 	{ id = "StrongLock", name = "Reinforced Lock", kind = "lock", seconds = 900, weight = 25,
 	  description = "Longer lock, shorter cooldown" },
 	{ id = "Income3x",   name = "Triple Income", kind = "income", seconds = 300, multiplier = 3, weight = 15,
@@ -932,7 +932,30 @@ Config.PassExtraPodiumsPerFloor = 2
 -- bu sabite göre ilerliyor; sonradan değiştirmek kayıtlı slot -> kaide
 -- eşlemesini bozar, o yüzden değişirse DataService sürümü de artmalı.
 Config.PodiumsPerFloorTotal = Config.PodiumsPerPlot + Config.PassExtraPodiumsPerFloor
-Config.PassFastStealMultiplier = 0.7   -- basılı tutma süresi bu oranla çarpılır
+--[[
+	Hızlı çalma: basılı tutma süresi bu oranla çarpılıyor.
+	Pass kalıcı ve Robux'la alınıyor, o yüzden belirgin şekilde güçlü
+	(%40); iksir süreli bir tadımlık (%20) — pass'in ne işe yaradığını
+	gösteriyor ama yerini tutmuyor. İkisi üst üste binmiyor, iyisi geçiyor.
+
+	ESKİ HATA: sunucu kısa süreyi kabul ediyordu ama istemcideki prompt
+	yine TAM süre dolunca tetikleniyordu; pass ve iksir pratikte hiçbir şey
+	yapmıyordu. Şimdi oyuncunun çarpanı "StealHoldMul" niteliğiyle istemciye
+	gidiyor ve PromptFilter kendi ekranındaki promptu kısaltıyor.
+]]
+Config.PassFastStealMultiplier = 0.6
+Config.PotionFastStealMultiplier = 0.8
+-- Hiçbir çarpan birleşimi (pass + Lights Sabotage) çalmayı bundan kısa yapamaz
+Config.MinStealHold = 1
+
+--[[
+	Oyuncuya özel çalma süresi: taban (karaktere ve olaya göre) × kişisel
+	çarpan, alt sınırla. Sunucu (PromptGuard) ve istemci (PromptFilter)
+	AYNI fonksiyonu kullanıyor; farklı hesaplasalar basış reddedilirdi.
+]]
+function Config.GetPersonalStealHold(base: number, multiplier: number): number
+	return math.max(math.min(base, Config.MinStealHold), base * multiplier)
+end
 Config.PassStrongLockDuration = 40
 Config.PassStrongLockCooldown = 50
 

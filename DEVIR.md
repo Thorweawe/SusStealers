@@ -33,10 +33,12 @@ Kayıt kalıbı:
 **İstemci — `EventFX.luau` (yeni):** üst ortada olay şeridi + geri sayım, olay yokken
 "Next: ... in mm:ss"; Lights Sabotage'ta yerel karartma. Tasarımını değiştirmekte serbestsin.
 
-**Bulunan hata (düzeltilmedi, satış öncesi lazım):** Fast Steal pass'i / "steal" iksiri
-pratikte işe yaramıyor. Sunucu kısa basılı tutmayı kabul ediyor ama istemcideki prompt
-yine tam `HoldDuration` dolunca tetikleniyor. Çözüm: istemci, pass/iksiri olan oyuncuda
-`StealPrompt.HoldDuration`'ı yerelde çarpanla kısaltmalı (çarpanı niteliğe yazmak gerekecek).
+**Düzeltildi (aynı gün, sonraki commit):** Fast Steal pass'i / Fast Hands iksiri pratikte
+işe yaramıyordu (sunucu kısa basışı kabul ediyor, istemcideki prompt tam süreyi bekliyordu).
+Şimdi: pass %40, iksir %20 hızlı (üst üste binmiyor), en az 1 sn (`Config.MinStealHold`).
+Sunucu oyuncuya `StealHoldMul`, çalma promptuna `BaseHold` niteliği yazıyor;
+`PromptFilter` (istemci) kendi ekranında süreyi `Config.GetPersonalStealHold` ile kısaltıyor.
+ShopPanel'deki pass açıklaması güncellendi.
 
 ---
 

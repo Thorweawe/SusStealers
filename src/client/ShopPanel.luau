@@ -68,7 +68,7 @@ local PASSES: { Entry } = {
 	{ key = "ExtraPodiums", kind = "pass", tint = UiKit.CREW.CYAN,
 		icon = "podium",   blurb = "Two extra podium slots on every floor you own." },
 	{ key = "FastSteal",    kind = "pass", tint = UiKit.CREW.RED,
-		icon = "bolt",     blurb = "Rip a crewmate off a podium in a lot less time." },
+		icon = "bolt",     blurb = "Steal 40% faster, forever. Rip crewmates off podiums in record time." },
 	{ key = "StrongLock",   kind = "pass", tint = UiKit.CREW.BLUE,
 		icon = "lock",     blurb = "Your base lock holds longer and recharges faster." },
 	{ key = "TripleHatch",  kind = "pass", tint = UiKit.CREW.PINK,

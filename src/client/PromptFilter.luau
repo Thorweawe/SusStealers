@@ -13,6 +13,11 @@
 -- zaten doğruysa YAZMIYORUZ — satış (0.4 sn) ve çalma (4 sn) basışları
 -- sürekli iptal oluyordu.
 
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+
 local PromptFilter = {}
 
 export type Filter = {
@@ -141,6 +146,24 @@ function PromptFilter.Create(): Filter
 				-- Sadece gerçekten değişiyorsa yaz
 				if d.Enabled ~= want then
 					d.Enabled = want
+				end
+
+				--[[
+					Kişisel çalma süresi (Fast Steal pass'i / Fast Hands iksiri).
+					Prompt herkese ortak, sunucu tabanı yazıyor; oyuncunun kendi
+					ekranında süreyi çarpanla kısaltıyoruz. Sunucu aynı formülle
+					(Config.GetPersonalStealHold) doğruluyor.
+				]]
+				if d.Name == "StealPrompt" then
+					local base = d:GetAttribute("BaseHold")
+					if typeof(base) == "number" then
+						local mul = Players.LocalPlayer:GetAttribute("StealHoldMul")
+						local hold = Config.GetPersonalStealHold(base, if typeof(mul) == "number" then mul else 1)
+						if math.abs(d.HoldDuration - hold) > 0.005 then
+							d.HoldDuration = hold
+							d.ObjectText = string.format("%.1fs", hold)
+						end
+					end
 				end
 			end
 		end
