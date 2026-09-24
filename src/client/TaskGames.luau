@@ -532,7 +532,9 @@ function TaskGames.Create(screen: ScreenGui): Handle
 
 		Gamepad'de sürükleme yok: karta A → doğru hızda kendisi kayıyor.
 	]]
-	local SWIPE_MIN, SWIPE_MAX = 0.5, 1.3
+	-- Kabul aralığı %30 daraltıldı (0.5-1.3 → 0.62-1.18, orta nokta 0.9 aynı):
+	-- geniş aralıkta rastgele bir hızla bile geçiliyordu. Gamepad 0.9'da kayıyor.
+	local SWIPE_MIN, SWIPE_MAX = 0.62, 1.18
 	local LCD_GREEN = Color3.fromRGB(110, 255, 140)
 
 	local function buildCard()

@@ -13,6 +13,11 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (10) — Batur (Yusuf'un şeridine yazıldı)
+
+- `TaskGames.luau` Swipe Card kabul aralığı %30 daraltıldı: `SWIPE_MIN, SWIPE_MAX`
+  0.5-1.3 → **0.62-1.18** sn (orta nokta 0.9 aynı; gamepad otomatik kaydırması 0.9'da).
+
 ## 2026-09-24 (9) — Batur (yalnızca sunucu/shared)
 
 **Gezen impostor NPC** (`src/server/RogueService.luau`, `Config.Rogue*`):
