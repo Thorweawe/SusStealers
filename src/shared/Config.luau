@@ -664,6 +664,8 @@ Config.NotifyCues = {
 	reward   = { source = "UiD", startAt = 2.50, length = 0.22, pitch = 1.25, volume = 0.50, repeats = 2, gap = 0.10 },
 	-- Ekipman satın alma: metalik tek vuruş
 	gear     = { source = "UiB", startAt = 3.50, length = 0.26, pitch = 0.95, volume = 0.50 },
+	-- Arkadaş sunucuya girdi: sıcak, iki vuruşlu karşılama
+	friend   = { source = "UiA", startAt = 7.50, length = 0.24, pitch = 1.10, volume = 0.45, repeats = 2, gap = 0.14 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -779,6 +781,24 @@ end
 -- hediyesi kadar, strateji olacak kadar değil.
 Config.OfflineIncomeRate = 0.05
 Config.OfflineIncomeCapHours = 3
+
+-- ─── Arkadaş bonusu ─────────────────────────────────────────────────────────
+--[[
+	Aynı sunucudaki her Roblox arkadaşı için küçük bir gelir bonusu.
+	Amaç oyuncunun arkadaşını çağırması; dengeyi bozmaması için küçük ve
+	tavanlı: üç arkadaşta +%15, sonrası artmıyor. Karşılaştırma: tek bir
+	rebirth +%50, gelir pass'i x2.
+
+	Karşılıklı: iki arkadaş aynı sunucudaysa İKİSİ de bonus alıyor, yani
+	davet eden de gelen de kazanıyor.
+]]
+Config.FriendBonusPerFriend = 0.05
+Config.FriendBonusMax = 0.15
+
+--[[ Sunucudaki arkadaş sayısına göre gelir bonusu (0.10 = +%10). ]]
+function Config.GetFriendBonus(friendCount: number): number
+	return math.min(Config.FriendBonusMax, math.max(0, friendCount) * Config.FriendBonusPerFriend)
+end
 
 -- ─── Para kazanma ───────────────────────────────────────────────────────────
 -- ID'ler Creator Dashboard > Monetization altında ürün oluşturulunca buraya

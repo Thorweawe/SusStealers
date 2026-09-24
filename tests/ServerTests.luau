@@ -47,6 +47,7 @@ local PetService = require(Server.PetService)
 local RewardService = require(Server.RewardService)
 local GearService = require(Server.GearService)
 local MinigameService = require(Server.MinigameService)
+local FriendService = require(Server.FriendService)
 
 local ServerTests = {}
 
@@ -2473,6 +2474,52 @@ case("Görev: asteroit ödülü sunucuda doğrulanıyor", function(ctx)
 	MinigameService._Reset(ctx.player)
 end)
 
+-- ─── Arkadaş bonusu ─────────────────────────────────────────────────────────
+
+case("Arkadaş: bonus küçük ve tavanlı", function()
+	eq("arkadaş yoksa sıfır", Config.GetFriendBonus(0), 0)
+	near("bir arkadaş", Config.GetFriendBonus(1), Config.FriendBonusPerFriend, 0.0001)
+	near("tavanda duruyor", Config.GetFriendBonus(50), Config.FriendBonusMax, 0.0001)
+	eq("negatif sayı sıfır", Config.GetFriendBonus(-3), 0)
+	--[[
+		"Oyunu kırmasın": tavan tek bir rebirth'ün kalıcı bonusunun yarısını
+		geçmemeli, yoksa arkadaşla oynamak ilerlemenin kendisinden değerli
+		olur.
+	]]
+	ok("rebirth'ten çok küçük", Config.FriendBonusMax <= Config.RebirthIncomeBonus / 2,
+		string.format("%.2f / %.2f", Config.FriendBonusMax, Config.RebirthIncomeBonus))
+	ok("sesi var", Config.HasNotifyCue(FriendService.NotifyKind))
+end)
+
+case("Arkadaş: bonus geliri çarpıyor, nitelik tavana kırpılıyor", function(ctx)
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	-- Yüksek gelirli karakter: gelir tam sayıya yuvarlanıyor, küçük sayıda
+	-- yuvarlama farkı bonusun kendisinden büyük olurdu
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+
+	ctx.player:SetAttribute("FriendBonus", 0)
+	local base = EconomyService.GetIncome(ctx.player)
+	ok("taban gelir var", base > 0, tostring(base))
+
+	ctx.player:SetAttribute("FriendBonus", Config.GetFriendBonus(2))
+	local boosted = EconomyService.GetIncome(ctx.player)
+	near("iki arkadaş", boosted, base * (1 + Config.GetFriendBonus(2)), 2)
+
+	-- Nitelik elle şişirilse bile tavanı geçmiyor
+	ctx.player:SetAttribute("FriendBonus", 10)
+	near("tavana kırpıldı", EconomyService.GetIncome(ctx.player), base * (1 + Config.FriendBonusMax), 2)
+
+	-- Tek oyunculu testte gerçek arkadaş yok: yeniden yayın sıfıra döndürüyor
+	FriendService._Publish(ctx.player)
+	eq("arkadaş sayısı", ctx.player:GetAttribute("FriendsHere"), 0)
+	eq("yayın sıfırladı", ctx.player:GetAttribute("FriendBonus"), 0)
+
+	ctx.player:SetAttribute("FriendBonus", 0)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -2543,10 +2590,13 @@ function ServerTests.Run(player: Player?): number
 		PetSpeedBonus = player:GetAttribute("PetSpeedBonus"),
 		IndexBonus = player:GetAttribute("IndexBonus"),
 		IndexClaimed = player:GetAttribute("IndexClaimed"),
+		FriendBonus = player:GetAttribute("FriendBonus"),
 	}
 	player:SetAttribute("PetIncomeBonus", 0)
 	player:SetAttribute("PetSpeedBonus", 0)
 	player:SetAttribute("IndexBonus", 0)
+
+	player:SetAttribute("FriendBonus", 0)
 
 	local ctx = { player = player, plot = plot, profile = profile }
 

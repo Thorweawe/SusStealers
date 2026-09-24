@@ -13,6 +13,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
+local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
 local FloorStyle = require(script.FloorStyle)
 local Index = require(script.Index)
@@ -63,11 +64,21 @@ local PANEL = Color3.fromRGB(18, 20, 28)
 
 -- ─── Arayüz ─────────────────────────────────────────────────────────────────
 
-local screen = Instance.new("ScreenGui")
-screen.Name = "SusStealersHud"
-screen.ResetOnSpawn = false
-screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screen.Parent = playerGui
+local hudGui = Instance.new("ScreenGui")
+hudGui.Name = "SusStealersHud"
+hudGui.ResetOnSpawn = false
+hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+hudGui.Parent = playerGui
+
+--[[
+	Bütün paneller `screen`e kuruluyor ve `screen` artık ScreenGui'nin
+	kendisi değil, içindeki ölçek katmanı (DeviceLayout). Telefonda ve
+	tablette arayüz tek yerden küçülüyor; panellerin kodu değişmedi.
+	Paneller `screen`i yalnızca ebeveyn ve ad araması için kullanıyor,
+	ikisi de Frame'de aynı çalışıyor.
+]]
+local deviceLayout = DeviceLayout.Wrap(hudGui)
+local screen: ScreenGui = deviceLayout.Root :: any
 
 --[[
 	Sol alttaki sayaçlar: nakit ve çalma hızı.
@@ -298,11 +309,19 @@ local function refreshCash()
 	local income = player:GetAttribute("Income") :: number?
 
 	cashValue.Text = "$" .. Config.FormatCash(cash or 0)
-	cashSub.Text = string.format("+$%s/s", Config.FormatCash(income or 0))
+	--[[
+		Arkadaş bonusu gelirin yanında: oyuncu bonusun nereden geldiğini
+		görsün, arkadaşı çağırmanın karşılığı da burada okunuyor.
+	]]
+	local friendBonus = player:GetAttribute("FriendBonus") :: number?
+	cashSub.Text = if (friendBonus or 0) > 0
+		then string.format("+$%s/s · friends +%d%%", Config.FormatCash(income or 0), math.floor((friendBonus or 0) * 100 + 0.5))
+		else string.format("+$%s/s", Config.FormatCash(income or 0))
 end
 
 player:GetAttributeChangedSignal("Cash"):Connect(refreshCash)
 player:GetAttributeChangedSignal("Income"):Connect(refreshCash)
+player:GetAttributeChangedSignal("FriendBonus"):Connect(refreshCash)
 refreshCash()
 
 --[[

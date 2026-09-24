@@ -257,8 +257,9 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	marker.AlwaysOnTop = true
 	marker.MaxDistance = 400
 	marker.Enabled = false
-	-- ScreenGui'nin İÇİ değil, PlayerGui'nin kendisi
-	marker.Parent = screen.Parent
+	-- ScreenGui'nin İÇİ değil, PlayerGui'nin kendisi. `screen` artık ölçek
+	-- katmanı (DeviceLayout), ebeveyni ScreenGui; o yüzden doğrudan PlayerGui.
+	marker.Parent = player:WaitForChild("PlayerGui")
 
 	local markerArrow = Instance.new("TextLabel")
 	markerArrow.Size = UDim2.fromScale(1, 1)

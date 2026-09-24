@@ -219,6 +219,33 @@ function Hotbar.Create(screen: ScreenGui): Bar
 		if processed then
 			return
 		end
+		--[[
+			Gamepad'de rakam tuşu yok: R1 sıradakini, L1 öncekini kuşandırıyor.
+			Uçtan geçince elde bir şey kalmıyor (hazır çubuktaki gibi).
+		]]
+		if input.KeyCode == Enum.KeyCode.ButtonR1 or input.KeyCode == Enum.KeyCode.ButtonL1 then
+			if #tools == 0 then
+				return
+			end
+			local current = 0
+			for i, t in tools do
+				if t.Parent == player.Character then
+					current = i
+				end
+			end
+			local step = if input.KeyCode == Enum.KeyCode.ButtonR1 then 1 else -1
+			local nextIndex = (current + step) % (#tools + 1)
+			local hum = humanoid()
+			if nextIndex == 0 then
+				if hum then
+					hum:UnequipTools()
+				end
+			elseif tools[nextIndex] ~= nil and tools[nextIndex].Parent ~= player.Character then
+				toggle(tools[nextIndex])
+			end
+			return
+		end
+
 		local index = table.find(KEYS, input.KeyCode)
 		local tool = index and tools[index]
 		if tool then

@@ -1,8 +1,12 @@
 --!strict
 --[[
-	Roblox'un üst şeridine, sohbet düğmesinin hemen sağına iki düğme:
+	Roblox'un üst şeridine, sohbet düğmesinin hemen sağına üç düğme:
 
-	    [Roblox] [≡ 💬]  [HEDİYE] [GÖZ]
+	    [Roblox] [≡ 💬]  [DAVET] [HEDİYE] [GÖZ]
+
+	  DAVET  — Roblox'un arkadaş davet penceresi. Aynı sunucudaki her
+	           arkadaş küçük bir gelir bonusu veriyor (FriendService);
+	           düğme en solda çünkü oyunun büyümesi ona bağlı.
 
 	  HEDİYE — ödül penceresi (günlük seri + oynama süresi). Toplanacak
 	           ödül varsa köşesinde kırmızı sayı.
@@ -27,8 +31,13 @@
 ]]
 
 local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
+local SocialService = game:GetService("SocialService")
 local UserInputService = game:GetService("UserInputService")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 local UiKit = require(script.Parent.UiKit)
 
 local Topbar = {}
@@ -67,11 +76,13 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 	-- düğme geri gelemezdi
 	layer.DisplayOrder = 20
 	layer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	layer.Parent = screen.Parent
+	-- `screen` ölçek katmanı (DeviceLayout); şerit ölçeklenmiyor, Roblox'un
+	-- kendi düğmeleriyle aynı boyda kalmalı. O yüzden doğrudan PlayerGui.
+	layer.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 	local row = Instance.new("Frame")
 	row.Name = "Buttons"
-	row.Size = UDim2.fromOffset(BUTTON * 2 + GAP, BUTTON + 4)
+	row.Size = UDim2.fromOffset(BUTTON * 3 + GAP * 2, BUTTON + 4)
 	row.BackgroundTransparency = 1
 	row.Parent = layer
 
@@ -80,6 +91,67 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Padding = UDim.new(0, GAP)
 	layout.Parent = row
+
+	-- ─── Davet ──────────────────────────────────────────────────────────────
+
+	local inviteHolder, inviteButton = UiKit.Raised(row, "Invite", UiKit.CREW.GREEN, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	inviteHolder.LayoutOrder = 0
+	local inviteSlot = Instance.new("Frame")
+	inviteSlot.Size = UDim2.fromScale(1, 1)
+	inviteSlot.BackgroundTransparency = 1
+	inviteSlot.ZIndex = 5
+	inviteSlot.Parent = inviteButton
+	-- Mürettebat + artı: "birini ekle"
+	local crew = UiKit.Crewmate(inviteSlot, 24, UiKit.CREW.LIME:Lerp(Color3.new(1, 1, 1), 0.35))
+	crew.Position = UDim2.fromScale(0.42, 0.52)
+	local plus = Instance.new("TextLabel")
+	plus.AnchorPoint = Vector2.new(1, 0)
+	plus.Position = UDim2.new(1, -3, 0, 1)
+	plus.Size = UDim2.fromOffset(16, 16)
+	plus.BackgroundTransparency = 1
+	plus.Font = Enum.Font.FredokaOne
+	plus.TextSize = 18
+	plus.TextColor3 = Color3.new(1, 1, 1)
+	plus.TextStrokeTransparency = 0.3
+	plus.Text = "+"
+	plus.ZIndex = crew.ZIndex + 4
+	plus.Parent = inviteSlot
+
+	local inviteTip = Instance.new("TextLabel")
+	inviteTip.AnchorPoint = Vector2.new(0.5, 0)
+	inviteTip.Position = UDim2.new(0.5, 0, 1, 6)
+	inviteTip.Size = UDim2.fromOffset(170, 18)
+	inviteTip.BackgroundTransparency = 1
+	inviteTip.Font = Enum.Font.GothamBold
+	inviteTip.TextSize = 12
+	inviteTip.TextColor3 = UiKit.MUTED
+	inviteTip.TextStrokeTransparency = 0.5
+	inviteTip.TextTransparency = 1
+	inviteTip.ZIndex = 6
+	inviteTip.Text = string.format("Invite friends · +%d%% income each",
+		math.floor(Config.FriendBonusPerFriend * 100 + 0.5))
+	inviteTip.Parent = inviteHolder
+
+	inviteButton.MouseEnter:Connect(function()
+		inviteTip.TextTransparency = 0
+	end)
+	inviteButton.MouseLeave:Connect(function()
+		inviteTip.TextTransparency = 1
+	end)
+	inviteButton.MouseButton1Click:Connect(function()
+		-- Davet penceresi Roblox'un; oyuncu davet atamıyorsa (yaş/ayar) sessiz geç
+		task.spawn(function()
+			local player = Players.LocalPlayer
+			local ok, allowed = pcall(function()
+				return SocialService:CanSendGameInviteAsync(player)
+			end)
+			if ok and allowed then
+				pcall(function()
+					SocialService:PromptGameInvite(player)
+				end)
+			end
+		end)
+	end)
 
 	-- ─── Hediye ─────────────────────────────────────────────────────────────
 
@@ -180,10 +252,10 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 			height, x = if topInset.Y > 0 then topInset.Y else 36, 228
 		end
 		local size = if height >= 50 then BUTTON else math.max(28, height - 6)
-		for _, holder in { giftHolder, eyeHolder } do
+		for _, holder in { inviteHolder, giftHolder, eyeHolder } do
 			holder.Size = UDim2.fromOffset(size, size + 4)
 		end
-		row.Size = UDim2.fromOffset(size * 2 + GAP, size + 4)
+		row.Size = UDim2.fromOffset(size * 3 + GAP * 2, size + 4)
 		row.Position = UDim2.fromOffset(x, math.max(2, height - size - 2))
 	end
 	place()

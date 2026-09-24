@@ -115,6 +115,17 @@ end
 ]]
 local exclusive: { GuiObject } = {}
 
+--[[
+	Pencere açılınca haber alınacak dinleyiciler. DeviceLayout gamepad
+	seçimini pencerenin içine taşımak için kullanıyor; pencereler bunu
+	bilmek zorunda değil.
+]]
+local openedListeners: { (GuiObject) -> () } = {}
+
+function UiKit.OnWindowOpened(listener: (GuiObject) -> ())
+	table.insert(openedListeners, listener)
+end
+
 function UiKit.Exclusive(frame: GuiObject)
 	table.insert(exclusive, frame)
 	frame:GetPropertyChangedSignal("Visible"):Connect(function()
@@ -125,6 +136,9 @@ function UiKit.Exclusive(frame: GuiObject)
 			if other ~= frame and other.Visible then
 				other.Visible = false
 			end
+		end
+		for _, listener in openedListeners do
+			task.spawn(listener, frame)
 		end
 	end)
 	frame.Destroying:Connect(function()

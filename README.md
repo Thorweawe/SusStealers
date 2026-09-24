@@ -31,6 +31,8 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/PotionService.luau` | Sunucu | İksir envanteri, içme, süreli takviyeler |
 | `src/server/FloorService.luau` | Sunucu | Üst katların parayla satın alınması |
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
+| `src/server/FriendService.luau` | Sunucu | Aynı sunucudaki arkadaş başına küçük gelir bonusu |
+| `src/client/DeviceLayout.luau` | İstemci | Telefon/tablet/konsol: arayüz ölçeği, dokunmatik yerleşim, gamepad seçimi |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
 

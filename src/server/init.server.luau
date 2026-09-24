@@ -29,6 +29,7 @@ local RewardService = require(script.RewardService)
 local GearService = require(script.GearService)
 local GlobalBoardService = require(script.GlobalBoardService)
 local MinigameService = require(script.MinigameService)
+local FriendService = require(script.FriendService)
 
 local started = os.clock()
 
@@ -60,5 +61,6 @@ RewardService.Start()
 GearService.Start()
 GlobalBoardService.Start()
 MinigameService.Start()
+FriendService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

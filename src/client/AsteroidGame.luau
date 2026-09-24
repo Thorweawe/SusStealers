@@ -116,6 +116,16 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 	close.ZIndex = Z + 6
 
 	-- ─── Hedef ekranı ───────────────────────────────────────────────────────
+	--[[
+		Arayüz ölçeği (DeviceLayout). Mutlak koordinatlar (fare, AbsoluteSize)
+		ekran pikseli; tuvalin içindeki konumlar ölçeksiz birim. Telefonda
+		arayüz küçülünce ikisi ayrışıyor, nişangâh ve kayalar kayıyordu.
+	]]
+	local function uiScale(): number
+		local value = screen:GetAttribute("Scale")
+		return if typeof(value) == "number" and value > 0 then value else 1
+	end
+
 	local canvas = Instance.new("TextButton")
 	canvas.Name = "Scope"
 	canvas.AutoButtonColor = false
@@ -232,7 +242,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 
 	-- Toptan hedefe lazer: kısa süre görünüp sönüyor
 	local function laser(target: Vector2)
-		local size = canvas.AbsoluteSize
+		local size = canvas.AbsoluteSize / uiScale()
 		local from = Vector2.new(size.X / 2, size.Y)
 		local delta = target - from
 		local beam = frame(canvas, UiKit.CREW.RED:Lerp(Color3.new(1, 1, 1), 0.3), Z + 3)
@@ -302,7 +312,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 	end
 
 	local function spawnRock()
-		local size = canvas.AbsoluteSize
+		local size = canvas.AbsoluteSize / uiScale()
 		local s = rng:NextNumber(34, 60)
 		local button = Instance.new("TextButton")
 		button.AutoButtonColor = false
@@ -352,7 +362,7 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
-			local p = Vector2.new(input.Position.X, input.Position.Y) - canvas.AbsolutePosition
+			local p = (Vector2.new(input.Position.X, input.Position.Y) - canvas.AbsolutePosition) / uiScale()
 			laser(p)
 		end
 	end)
@@ -364,8 +374,8 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 
 		-- Nişangâh fareyi izliyor (dokunmatikte son dokunuşta kalıyor)
 		local mouse = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
-		local p = mouse - canvas.AbsolutePosition
-		local size = canvas.AbsoluteSize
+		local p = (mouse - canvas.AbsolutePosition) / uiScale()
+		local size = canvas.AbsoluteSize / uiScale()
 		local inside = p.X >= 0 and p.Y >= 0 and p.X <= size.X and p.Y <= size.Y
 		reticle.Visible = inside
 		hLine.Visible = inside

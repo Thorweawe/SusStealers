@@ -115,6 +115,11 @@ function EconomyService.GetIncome(player: Player): number
 	local indexBonus = player:GetAttribute("IndexBonus") :: number?
 	multiplier *= 1 + math.max(0, indexBonus or 0)
 
+	-- Arkadaş bonusu: sunucudaki arkadaş sayısına göre (FriendService yazıyor).
+	-- Nitelik istemciden değiştirilemez ama yine de tavana kırpıyoruz.
+	local friendBonus = player:GetAttribute("FriendBonus") :: number?
+	multiplier *= 1 + math.clamp(friendBonus or 0, 0, Config.FriendBonusMax)
+
 	return math.floor(total * multiplier)
 end
 
