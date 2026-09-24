@@ -25,6 +25,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local UiKit = require(script.Parent.UiKit)
+local EggStyle = require(script.Parent.EggStyle)
 
 local RewardsPanel = {}
 
@@ -77,8 +78,10 @@ local function drawIcon(slot: Frame, reward: Config.RewardDef, dim: boolean)
 		UiKit.Coin(slot, 30, tone(UiKit.CREW.LIME))
 	elseif reward.kind == "potion" then
 		UiKit.Vial(slot, 32, tone(Color3.fromRGB(150, 226, 160)), 0.8, true)
-	else
+	elseif dim then
 		UiKit.Egg(slot, 34, tone(Color3.fromRGB(255, 190, 220)))
+	else
+		EggStyle.Draw(slot, 34, reward.egg)
 	end
 end
 

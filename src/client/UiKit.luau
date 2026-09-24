@@ -189,6 +189,23 @@ function UiKit.Window(parent: Instance, name: string, accent: Color3): Frame
 end
 
 --[[
+	Gömülü sayfa: bir pencerenin (Envanter) içerik alanına yerleşen panel
+	kökü. Kabuk, kenarlık ve tek pencere kuralı YOK — onları sahibi olan
+	pencere taşıyor. Panel kendi içeriğini buna, Window'a kurar gibi
+	kuruyor; konumlar kökün içine göre olduğu için değişmesi gerekmiyor.
+]]
+function UiKit.Page(host: Instance, name: string): Frame
+	local root = Instance.new("Frame")
+	root.Name = name
+	root.Size = UDim2.fromScale(1, 1)
+	root.BackgroundTransparency = 1
+	root.BorderSizePixel = 0
+	root.Visible = false
+	root.Parent = host
+	return root
+end
+
+--[[
 	Panel başlığı: solda kalın ad, altında sönük alt başlık.
 
 	Ad GothamBlack çünkü panel başlıkları oyunun en üst düzey işaretleri;
@@ -461,8 +478,9 @@ end
 	Sağ kenardaki kare ikon düğmesi. Etiket ikonun altında küçük; ikon
 	tek başına ne olduğunu söylemiyorsa yazı kurtarıyor ama yer kaplamıyor.
 ]]
-function UiKit.IconButton(parent: Instance, name: string, tint: Color3, label: string): (Frame, TextButton, Frame)
-	local holder, button = UiKit.Raised(parent, name, tint, UDim2.fromOffset(64, 68), 14)
+function UiKit.IconButton(parent: Instance, name: string, tint: Color3, label: string, size: Vector2?): (Frame, TextButton, Frame)
+	local dims = size or Vector2.new(64, 68)
+	local holder, button = UiKit.Raised(parent, name, tint, UDim2.fromOffset(dims.X, dims.Y), 14)
 
 	local slot = Instance.new("Frame")
 	slot.Name = "Icon"
@@ -621,6 +639,15 @@ local function ring(holder: Frame, x: number, y: number, w: number, h: number, c
 	end
 	return f
 end
+
+--[[
+	Çizim yardımcıları dışarıya da açık: yumurta stilleri (EggStyle), olay
+	ikonları (EventFX) ve envanter ikonları aynı dilde, aynı oranlı tuvalde
+	çiziliyor. Kopyalasalardı küçük farklar birikip diller ayrışırdı.
+]]
+UiKit.Canvas = canvas
+UiKit.Shape = shape
+UiKit.Ring = ring
 
 --[[
 	İksir şişesi: yuvarlak dipli laboratuvar şişesi, mantar tıpa, içinde
@@ -1122,6 +1149,23 @@ function UiKit.Book(parent: Instance, size: number, tint: Color3): Frame
 	return h
 end
 
+--[[
+	Sırt çantası: envanterin ikonu. Among Us mürettebatının sırtındaki
+	çantanın kendisi — kapak, cep, askı; mürettebat silueti dilinde.
+]]
+function UiKit.Backpack(parent: Instance, size: number, tint: Color3): Frame
+	local h = canvas(parent, "Backpack", size)
+	local dark = tint:Lerp(BLACK, 0.35)
+	ring(h, 0.5, 0.16, 0.34, 0.22, dark, math.max(2, size * 0.07), 1)          -- tutma sapı
+	shape(h, 0.5, 0.58, 0.78, 0.76, tint, 2, 0.28)                             -- gövde
+	shape(h, 0.5, 0.36, 0.78, 0.3, tint:Lerp(WHITE, 0.18), 3, 0.3)            -- kapak
+	shape(h, 0.5, 0.5, 0.78, 0.05, dark, 4, 0)                                 -- kapak dikişi
+	shape(h, 0.5, 0.74, 0.46, 0.26, dark, 3, 0.25)                             -- ön cep
+	shape(h, 0.5, 0.66, 0.14, 0.08, UiKit.CREW.YELLOW, 4, 0.3)                 -- toka
+	shape(h, 0.3, 0.3, 0.1, 0.14, WHITE, 4, 0.5).BackgroundTransparency = 0.35 -- parlama
+	return h
+end
+
 --[[ Taç: unvanların ikonu. ]]
 function UiKit.Crown(parent: Instance, size: number, tint: Color3): Frame
 	local h = canvas(parent, "Crown", size)
@@ -1232,6 +1276,8 @@ function UiKit.Icon(parent: Instance, kind: string, size: number, tint: Color3):
 		return UiKit.Wheel(parent, size, tint)
 	elseif kind == "gift" then
 		return UiKit.Gift(parent, size, tint)
+	elseif kind == "backpack" then
+		return UiKit.Backpack(parent, size, tint)
 	end
 	return UiKit.Flame(parent, size, tint)
 end

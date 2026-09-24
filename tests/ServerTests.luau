@@ -652,6 +652,112 @@ case("Monetization: ürün tanımları tutarlı", function()
 	end
 end)
 
+--[[ Banttaki bir modelin fiyatı (UnitId + MutationId etiketlerinden). ]]
+local function itemPrice(model: Instance): number
+	local unit = model:FindFirstChild("UnitId") :: StringValue?
+	local mutation = model:FindFirstChild("MutationId") :: StringValue?
+	if not unit then
+		return math.huge
+	end
+	local mutationId = if mutation and mutation.Value ~= "" then mutation.Value else nil
+	return Config.GetPrice(unit.Value, mutationId)
+end
+
+case("Konveyör: parasız oyuncuya yalnızca alabileceği karakter geliyor", function(ctx)
+	--[[
+		$100 ile kalan oyuncu (geliri 0) bantta hep alamayacağı karakterler
+		görüyordu; kilitlenme koruması parayı veriyor ama harcanacak yer
+		çıkmıyordu. Artık geliri 0 iken her çekiliş bütçeye uygun.
+	]]
+	clearPlot(ctx.plot)
+	setCash(ctx.player, Config.GetCheapestUnitPrice())
+
+	for _ = 1, 15 do
+		ConveyorService.SpawnFor(ctx.player)
+	end
+
+	local items = ctx.plot:FindFirstChild("Items")
+	local count, affordable = 0, 0
+	for _, model in items:GetChildren() do
+		count += 1
+		if itemPrice(model) <= Config.GetCheapestUnitPrice() then
+			affordable += 1
+		end
+	end
+
+	eq("15 karakter üretildi", count, 15)
+	eq("hepsi $100 ile alınabiliyor", affordable, count)
+	clearPlot(ctx.plot)
+end)
+
+case("Konveyör: bütçe çekilişi sınırlı ve kilitli kademeye girmiyor", function()
+	local rng = Random.new(7)
+	local fine = true
+	for _ = 1, 200 do
+		local unit = Config.RollAffordableUnit(rng, 0, 1000)
+		if unit.price > 1000 or Config.GetUnitWeight(unit, 0) <= 0 then
+			fine = false
+		end
+	end
+	ok("200 çekilişte bütçe ve kademe kilidi tutuyor", fine)
+	eq("bütçe yetmezse en ucuzu", Config.RollAffordableUnit(rng, 0, 0).price, Config.GetCheapestUnitPrice())
+end)
+
+case("Konveyör: bant hızı yükseltmeyle artıyor ama tavanlı", function()
+	local base = Config.GetConveyorBeltSpeed(0)
+	ok("taban pozitif", base > 0)
+	ok("seviye 6 daha hızlı", Config.GetConveyorBeltSpeed(6) > base)
+
+	local def = Config.GetUpgrade("ConveyorSpeed")
+	if not def then
+		return
+	end
+	local top = Config.GetConveyorBeltSpeed(Config.GetUpgradeCeiling(def))
+	near("tavan çarpanı", top / base, Config.ConveyorBeltSpeedMax, 1e-6)
+
+	-- En hızlı hâlde bile karakter bantta alınacak kadar kalmalı
+	local travel = Config.PlotSize.X - 12
+	ok("en hızlı bantta >= 10 sn", travel / top >= 10, string.format("%.1f sn", travel / top))
+end)
+
+case("Konveyör: karakter çıtaya hizalı ve bant saati istemciye gidiyor", function(ctx)
+	clearPlot(ctx.plot)
+	setCash(ctx.player, Config.GetCheapestUnitPrice())
+	ConveyorService.SpawnFor(ctx.player)
+
+	local conveyor = ctx.plot:FindFirstChild("Conveyor") :: BasePart
+	ok("BeltSpeed niteliği var", typeof(conveyor:GetAttribute("BeltSpeed")) == "number")
+	ok("BeltDistance niteliği var", typeof(conveyor:GetAttribute("BeltDistance")) == "number")
+	ok("BeltStamp niteliği var", typeof(conveyor:GetAttribute("BeltStamp")) == "number")
+
+	local model = ctx.plot:FindFirstChild("Items"):FindFirstChildOfClass("Model")
+	ok("karakter doğdu", model ~= nil)
+	if not model then
+		return
+	end
+
+	local travel = model:GetAttribute("Travel") :: number
+	local spawnDistance = model:GetAttribute("SpawnDistance") :: number
+	local gap = travel / Config.ConveyorSlats
+	local rem = spawnDistance % gap
+	ok("doğuş çıta aralığının katında", rem < 1e-6 or gap - rem < 1e-6, string.format("%.4f", rem))
+
+	-- Kapağın içindeyken alınamaz: prompt kapalı, OnBelt false
+	local prompt = model.PrimaryPart and model.PrimaryPart:FindFirstChild("BuyPrompt") :: ProximityPrompt?
+	ok("prompt var", prompt ~= nil)
+	if prompt then
+		eq("kapaktayken OnBelt false", prompt:GetAttribute("OnBelt"), false)
+		-- En fazla bir çıta aralığı sonra ağızdan çıkmış olmalı
+		local speed = conveyor:GetAttribute("BeltSpeed") :: number
+		task.wait(gap / speed + 0.2)
+		if model.Parent then
+			eq("ağızdan çıkınca OnBelt true", prompt:GetAttribute("OnBelt"), true)
+			eq("ağızdan çıkınca prompt açık", prompt.Enabled, true)
+		end
+	end
+	clearPlot(ctx.plot)
+end)
+
 case("Monetization: ödül fonksiyonları çalışıyor", function(ctx)
 	clearPlot(ctx.plot)
 

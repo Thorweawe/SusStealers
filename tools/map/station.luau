@@ -112,7 +112,7 @@ return {
 		K.box(hull, "BellyMid", M.centerX, -12, M.centerZ, W - 24, 6, D - 24, C.wallKick)
 		K.box(hull, "Keel", M.centerX, -17, M.centerZ, W - 80, 4, D - 70, C.hullOut)
 		-- Karın çizgisi: yandan bakınca gövde kalınlığı okunsun
-		K.box(hull, "BellyStripe", M.centerX, -2.2, M.Z1 + T / 2 + 0.9, W + 1.8, 1.2, 0.4, C.hazard, { collide = false })
+		K.box(hull, "BellyStripe", M.centerX, -2.2, M.Z1 + T / 2 + 0.9, W + 1.8, 1.2, 0.4, C.hazard)
 
 		--[[
 			Duvar tepesinde dış korniş. Alt yüzü 51.8'de: tavan levhasının alt
@@ -144,10 +144,10 @@ return {
 		local beams = math.floor((sky[3] - sky[1]) / 30)
 		for k = 0, beams do
 			local x = sky[1] + k * (sky[3] - sky[1]) / beams
-			K.box(ceil, "SkyBeam", x, CY - 0.7, (sky[2] + sky[4]) / 2, 1.4, 1.2, sky[4] - sky[2] + 1.4, C.frame, { collide = false })
+			K.box(ceil, "SkyBeam", x, CY - 0.7, (sky[2] + sky[4]) / 2, 1.4, 1.2, sky[4] - sky[2] + 1.4, C.frame)
 		end
 		for _, z in { sky[2], sky[4] } do
-			K.box(ceil, "SkyRail", (sky[1] + sky[3]) / 2, CY - 0.7, z, sky[3] - sky[1] + 1.4, 1.2, 1.4, C.frame, { collide = false })
+			K.box(ceil, "SkyRail", (sky[1] + sky[3]) / 2, CY - 0.7, z, sky[3] - sky[1] + 1.4, 1.2, 1.4, C.frame)
 		end
 
 		--[[
@@ -156,7 +156,7 @@ return {
 			daha az kaynakla bütün odayı eşit aydınlatıyor.
 		]]
 		local function panel(x: number, z: number, w: number, d: number, range: number, bright: number)
-			K.box(ceil, "LightFrame", x, CY - 0.75, z, w + 1.2, 0.3, d + 1.2, C.frame, { collide = false })
+			K.box(ceil, "LightFrame", x, CY - 0.75, z, w + 1.2, 0.3, d + 1.2, C.frame)
 			local p = K.box(ceil, "LightPanel", x, CY - 0.95, z, w, 0.2, d, C.lamp, { emit = "Fixture" })
 			K.surfaceLight(p, Enum.NormalId.Bottom, C.lamp, range, bright, 140)
 		end

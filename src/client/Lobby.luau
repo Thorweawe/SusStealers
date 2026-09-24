@@ -100,6 +100,44 @@ function Lobby.Create(screen: ScreenGui): Hub
 		return char ~= nil and char:FindFirstChild("CarriedUnit") ~= nil
 	end
 
+	--[[
+		Masanın bankında oturan oyuncuyu ışınlanmadan önce kaldırır.
+
+		ESKİ HATA: acil durum masasının bankına oturup "RETURN TO MY BASE"
+		deyince oturduğun koltuk da seninle geliyordu. Oturmak karakteri
+		koltuğa kaynakla (SeatWeld) bağlıyor; PivotTo kaynaklı her şeyi,
+		koltuk dahil, birlikte taşıyor.
+
+		Sit = false kalkışı başlatıyor, kaynağı sunucu siliyor; silinmesi
+		bir ağ turu sürüyor. En fazla bir saniye bekleniyor, kaynak hâlâ
+		duruyorsa yerelde koparılıyor ki koltuk hiçbir koşulda gelmesin.
+	]]
+	local function standUp(char: Model)
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		local seat = humanoid and humanoid.SeatPart
+		if not (humanoid and seat) then
+			return
+		end
+		-- Zıplamak koltuktan kalkmanın motorun tanıdığı yolu; Sit tek başına her zaman yetmiyor
+		humanoid.Sit = false
+		humanoid.Jump = true
+
+		local deadline = os.clock() + 1
+		while os.clock() < deadline do
+			if humanoid.SeatPart == nil and not seat:FindFirstChild("SeatWeld") then
+				return
+			end
+			task.wait()
+		end
+
+		local weld = seat:FindFirstChild("SeatWeld")
+		if weld then
+			weld:Destroy()
+		end
+	end
+
+	local teleporting = false
+
 	button.Activated:Connect(function()
 		--[[
 			Taşırken ışınlanma YOK. Çalmanın bütün riski üsse kadar yürümekte;
@@ -119,6 +157,17 @@ function Lobby.Create(screen: ScreenGui): Hub
 		if not (base and base:IsA("BasePart") and char) then
 			note.Text = "You don't own a base yet"
 			note.TextColor3 = WARN
+			return
+		end
+
+		-- Koltuktan kalkış bekleyebilir: art arda tıklama iki kez ışınlamasın
+		if teleporting then
+			return
+		end
+		teleporting = true
+		standUp(char)
+		teleporting = false
+		if player.Character ~= char then
 			return
 		end
 

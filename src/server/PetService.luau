@@ -446,8 +446,9 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 	else
 		notify(player, string.format("%s x%d hatched!", egg.name, amount), false)
 	end
+	-- Üçüncü argüman yumurtanın kimliği: istemci açılışı o yumurtanın stilinde oynatıyor
 	if hatchedRemote then
-		hatchedRemote:FireClient(player, keys, "egg")
+		hatchedRemote:FireClient(player, keys, "egg", eggId)
 	end
 	for _, key in keys do
 		announce(player, key, "hatched")
@@ -477,7 +478,7 @@ function PetService.GiveEggRoll(player: Player, eggId: string): string?
 	end
 	apply(player)
 	if hatchedRemote then
-		hatchedRemote:FireClient(player, { key }, "egg")
+		hatchedRemote:FireClient(player, { key }, "egg", eggId)
 	end
 	announce(player, key, "got")
 	return key

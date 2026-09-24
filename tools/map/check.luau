@@ -184,7 +184,8 @@ function Check.run(root: Instance, opts: { [string]: any }?): { [string]: any }
 		local zmin, zmax = zone.min, zone.max
 		for _, b in boxes do
 			local p = b.part
-			if not p.CanCollide or not p:IsDescendantOf(root) then
+			-- AllowInPlot: bilerek orada duran oyun parçası (konveyör kapağı)
+			if not p.CanCollide or not p:IsDescendantOf(root) or p:GetAttribute("AllowInPlot") then
 				continue
 			end
 			if b.max.X > zmin.X + 0.05 and b.min.X < zmax.X - 0.05

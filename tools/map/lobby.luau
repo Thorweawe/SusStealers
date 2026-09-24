@@ -64,7 +64,7 @@ return {
 			K.box(f, "BridgeRoof", cx, ceilY + 1, (za + zb) / 2, bx1 - bx0 + T + 1, 0.8, zb - za - T, C.hullOut)
 			for k = 0, 1 do
 				local z = za + (zb - za) * (0.3 + 0.4 * k)
-				K.box(f, "LightFrame", cx, ceilY - 0.75, z, 13.2, 0.3, 4.2, C.frame, { collide = false })
+				K.box(f, "LightFrame", cx, ceilY - 0.75, z, 13.2, 0.3, 4.2, C.frame)
 				local p = K.box(f, "LightPanel", cx, ceilY - 0.95, z, 12, 0.2, 3, C.lamp, { emit = "Fixture" })
 				K.surfaceLight(p, Enum.NormalId.Bottom, C.lamp, 34, 1.4, 140)
 			end
@@ -77,7 +77,7 @@ return {
 		local deckX0 = x0 - M.WING_W
 		local deckX1 = x1 + M.WING_W
 		local deck = K.box(f, "LobbyDeck", (deckX0 + deckX1) / 2, -2.5, (z0 + z1) / 2, deckX1 - deckX0, 1, z1 - z0, C.hallGrout,
-			{ transparency = 1, collide = false })
+			{ transparency = 1 })
 		deck.CastShadow = false
 
 		local V = {
@@ -244,7 +244,7 @@ return {
 		for _, v in V do
 			K.vcyl(wf, "CornerPost", v.X, H / 2, v.Y, H, T + 3.4, C.wallHigh)
 			K.vcyl(wf, "CornerFoot", v.X, 1.4, v.Y, 2.8, T + 4.2, C.wallKick)
-			K.vcyl(wf, "CornerBand", v.X, 15.3, v.Y, 1.2, T + 4, C.wallRail, { collide = false })
+			K.vcyl(wf, "CornerBand", v.X, 15.3, v.Y, 1.2, T + 4, C.wallRail)
 		end
 		-- Tavan
 		local ceilY = H + 0.6
@@ -268,7 +268,7 @@ return {
 		end
 		local function cafTable(parent: Instance, tx: number, tz: number): BasePart
 			local post = K.vcyl(parent, "TablePost", tx, FLOOR + 1.7, tz, 3.4, 3, C.metal)
-			K.vcyl(parent, "TableFoot", tx, FLOOR + 0.2, tz, 0.4, 6, C.metalDark, { collide = false })
+			K.vcyl(parent, "TableFoot", tx, FLOOR + 0.2, tz, 0.4, 6, C.metalDark)
 			K.vcyl(parent, "TableRim", tx, FLOOR + 3.7, tz, 0.6, 15.2, C.tableRim)
 			K.vcyl(parent, "TableTop", tx, FLOOR + 3.9, tz, 0.8, 14, C.tableTop)
 			bench(parent, tx, tz, 10.2)
@@ -289,14 +289,14 @@ return {
 			post:SetAttribute("TeleportHub", true)
 			local top = FLOOR + 4.3
 			K.vcyl(tp, "ButtonBase", cx, top + 0.4, cz, 0.8, 6.4, C.frame)
-			local button = K.ball(tp, "EmergencyButton", cx, top + 1.1, cz, 3.8, rgb(232, 40, 40), { collide = false })
+			local button = K.ball(tp, "EmergencyButton", cx, top + 1.1, cz, 3.8, rgb(232, 40, 40))
 			button.Material = Enum.Material.SmoothPlastic
 			K.light(button, rgb(255, 80, 70), 16, 1.1)
 			local dome = K.ball(tp, "ButtonGlass", cx, top + 0.9, cz, 5.8, C.glass,
-				{ material = Enum.Material.Glass, transparency = 0.7, collide = false })
+				{ material = Enum.Material.Glass, transparency = 0.7 })
 			dome.CastShadow = false
 			-- Üstünde yüzen etiket
-			local anchor = K.box(tp, "PadLabel", cx, top + 7.5, cz, 1, 1, 1, C.frame, { transparency = 1, collide = false })
+			local anchor = K.box(tp, "PadLabel", cx, top + 7.5, cz, 1, 1, 1, C.frame, { transparency = 1 })
 			local gui = Instance.new("BillboardGui")
 			gui.Name = "Label"
 			gui.Size = UDim2.fromScale(14, 3.4)
@@ -331,14 +331,14 @@ return {
 		local allSpots = table.clone(spots)
 		table.insert(allSpots, { cx, cz })
 		for _, s in allSpots do
-			K.vcyl(lamps, "LampRim", s[1], H - 0.55, s[2], 0.5, 11, C.frame, { collide = false })
+			K.vcyl(lamps, "LampRim", s[1], H - 0.55, s[2], 0.5, 11, C.frame)
 			local lamp = K.vcyl(lamps, "Lamp", s[1], H - 0.85, s[2], 0.3, 9.4, C.lamp, { emit = "Fixture" })
 			-- Dik silindirin yerel -X yüzü aşağı bakıyor (Z etrafında 90° dönük)
 			K.surfaceLight(lamp, Enum.NormalId.Left, C.lamp, 40, 1.5, 150)
 		end
 		-- Kenar lambaları (kanat kapılarının önü ve güney)
 		for _, p in { { cx, z0 + 18 }, { x0 + 26, cz }, { x1 - 26, cz }, { cx, z1 - 30 } } do
-			K.box(lamps, "LightFrame", p[1], H - 0.15, p[2], 13.2, 0.3, 4.2, C.frame, { collide = false })
+			K.box(lamps, "LightFrame", p[1], H - 0.15, p[2], 13.2, 0.3, 4.2, C.frame)
 			local lp = K.box(lamps, "LightPanel", p[1], H - 0.35, p[2], 12, 0.2, 3, C.lamp, { emit = "Fixture" })
 			K.surfaceLight(lp, Enum.NormalId.Bottom, C.lamp, 40, 1.3, 140)
 		end
@@ -394,7 +394,7 @@ return {
 				body.Text = "..."
 				body.Parent = surface
 				-- Ekranın altında küçük kürsü lambası
-				K.box(bf, "BoardLip", x, 4.6, zb - 1.6, 42.6, 0.6, 2, C.frame, { collide = false })
+				K.box(bf, "BoardLip", x, 4.6, zb - 1.6, 42.6, 0.6, 2, C.frame)
 			end
 		end
 
@@ -417,7 +417,7 @@ return {
 
 			local plinth = K.boxAt(wheel, "WheelPlinth", W(0, 2.5, 0), Vector3.new(14, 5, 9), C.frame)
 			wheel.PrimaryPart = plinth
-			K.boxAt(wheel, "WheelPlinthBand", W(0, 3.6, 0), Vector3.new(14.3, 1.1, 9.3), rgb(64, 124, 196), { collide = false })
+			K.boxAt(wheel, "WheelPlinthBand", W(0, 3.6, 0), Vector3.new(14.3, 1.1, 9.3), rgb(64, 124, 196))
 			K.boxAt(wheel, "WheelDeck", W(0, 0.35, 1.5), Vector3.new(26, 0.7, 14), C.frameDark)
 			for _, s in { -1, 1 } do
 				K.boxAt(wheel, "WheelLeg", W(s * 7.2, 5 + (hubY - 5) / 2, -1) * CFrame.Angles(0, 0, math.rad(-s * 10)),
@@ -467,7 +467,7 @@ return {
 			K.boxAt(wheel, "WheelHub", W(0, hubY, 1.2) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(2, 5.4, 5.4), C.frame,
 				{ shape = Enum.PartType.Cylinder })
 			K.boxAt(wheel, "WheelHubCap", W(0, hubY, 2.2) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.6, 2.6, 2.6), C.red,
-				{ shape = Enum.PartType.Cylinder, collide = false })
+				{ shape = Enum.PartType.Cylinder })
 			-- Durdurucu dil
 			K.boxAt(wheel, "TickerMount", W(0, hubY + R + 4, 0.2), Vector3.new(3, 1.6, 3), C.frame)
 			K.boxAt(wheel, "TickerArm", W(0, hubY + R + 1.8, 0.2) * CFrame.Angles(0, 0, math.rad(7)), Vector3.new(1.2, 3.6, 1.6), C.metal)
@@ -498,7 +498,7 @@ return {
 			for k, s in steps do
 				K.boxAt(sf, "Step" .. k, base * CFrame.new(s[1], s[2] / 2, 0), Vector3.new(8.8, s[2], 9), C.frame)
 				K.boxAt(sf, "StepBand" .. k, base * CFrame.new(s[1], s[2] - 0.5, -4.55), Vector3.new(8.8, 1, 0.1), s[3], { emit = "Screen" })
-				local num = K.boxAt(sf, "StepNum" .. k, base * CFrame.new(s[1], (s[2] - 1) / 2, -4.56), Vector3.new(3.6, math.max(1.2, s[2] - 1.4), 0.05), C.frame, { transparency = 1, collide = false })
+				local num = K.boxAt(sf, "StepNum" .. k, base * CFrame.new(s[1], (s[2] - 1) / 2, -4.56), Vector3.new(3.6, math.max(1.2, s[2] - 1.4), 0.05), C.frame, { transparency = 1 })
 				K.text(num, Enum.NormalId.Front, tostring(k), s[3], { h = 1, y = 0 })
 				K.crewmate(sf, base * CFrame.new(s[1], s[2], 0), K.crew(s[4]), 1.7)
 			end
@@ -516,10 +516,10 @@ return {
 			local c = mid + nrm * 4.5
 			local base = CFrame.lookAt(Vector3.new(c.X, FLOOR, c.Y), Vector3.new(c.X + nrm.X, FLOOR, c.Y + nrm.Y))
 			K.boxAt(nf, "Chute", base * CFrame.new(0, 7, 0), Vector3.new(10, 14, 5), C.metal)
-			K.boxAt(nf, "ChuteMouth", base * CFrame.new(0, 7.5, -2.55), Vector3.new(7, 5, 0.1), C.shadow, { collide = false })
-			K.boxAt(nf, "ChuteLever", base * CFrame.new(4, 9, -3.2), Vector3.new(0.6, 3, 0.6), C.red, { collide = false })
+			K.boxAt(nf, "ChuteMouth", base * CFrame.new(0, 7.5, -2.55), Vector3.new(7, 5, 0.1), C.shadow)
+			K.boxAt(nf, "ChuteLever", base * CFrame.new(4, 9, -3.2), Vector3.new(0.6, 3, 0.6), C.red)
 			for k = -2, 2 do
-				K.boxAt(nf, "ChuteStripe", base * CFrame.new(k * 2, 2, -2.56), Vector3.new(1, 1.4, 0.06), if k % 2 == 0 then C.hazard else C.hazardDark, { collide = false })
+				K.boxAt(nf, "ChuteStripe", base * CFrame.new(k * 2, 2, -2.56), Vector3.new(1, 1.4, 0.06), if k % 2 == 0 then C.hazard else C.hazardDark)
 			end
 			-- Kuzeydoğu: atıştırmalık otomatı
 			a, b = V[2], V[3]
@@ -529,22 +529,22 @@ return {
 			base = CFrame.lookAt(Vector3.new(c.X, FLOOR, c.Y), Vector3.new(c.X + nrm.X, FLOOR, c.Y + nrm.Y))
 			K.boxAt(nf, "Vending", base * CFrame.new(0, 7, 0), Vector3.new(9, 14, 5), rgb(220, 70, 70))
 			K.boxAt(nf, "VendGlass", base * CFrame.new(-1, 8, -2.55), Vector3.new(5.6, 9, 0.1), C.glass,
-				{ material = Enum.Material.Glass, transparency = 0.4, collide = false })
+				{ material = Enum.Material.Glass, transparency = 0.4 })
 			for row = 0, 2 do
 				for col = -1, 1 do
 					K.boxAt(nf, "Snack", base * CFrame.new(-1 + col * 1.7, 5.2 + row * 2.8, -2.3), Vector3.new(1.2, 1.6, 0.3),
-						K.crew(row * 3 + col + 3), { collide = false })
+						K.crew(row * 3 + col + 3))
 				end
 			end
-			K.boxAt(nf, "VendPad", base * CFrame.new(3.2, 9, -2.55), Vector3.new(1.6, 4, 0.1), C.shadow, { collide = false })
-			local vl = K.boxAt(nf, "VendLogo", base * CFrame.new(0, 13.2, -2.56), Vector3.new(7, 1.2, 0.05), C.white, { transparency = 1, collide = false })
+			K.boxAt(nf, "VendPad", base * CFrame.new(3.2, 9, -2.55), Vector3.new(1.6, 4, 0.1), C.shadow)
+			local vl = K.boxAt(nf, "VendLogo", base * CFrame.new(0, 13.2, -2.56), Vector3.new(7, 1.2, 0.05), C.white, { transparency = 1 })
 			K.text(vl, Enum.NormalId.Front, "SNACKS", C.white, { h = 1, y = 0 })
 			-- Saksı bitkileri: kapıların iki yanında
 			for _, p in { { cx - 26, z0 + 5 }, { cx + 26, z0 + 5 } } do
 				K.vcyl(nf, "Pot", p[1], FLOOR + 1.5, p[2], 3, 4, C.frame)
-				K.vcyl(nf, "PotSoil", p[1], FLOOR + 3.05, p[2], 0.1, 3.4, rgb(110, 80, 56), { collide = false })
-				K.ellipsoid(nf, "Bush", CFrame.new(p[1], FLOOR + 5.4, p[2]), Vector3.new(5, 5, 5), rgb(80, 180, 96), { collide = false })
-				K.ellipsoid(nf, "Bush", CFrame.new(p[1] + 1.2, FLOOR + 7, p[2] - 0.6), Vector3.new(3.4, 3.4, 3.4), rgb(100, 200, 110), { collide = false })
+				K.vcyl(nf, "PotSoil", p[1], FLOOR + 3.05, p[2], 0.1, 3.4, rgb(110, 80, 56))
+				K.ellipsoid(nf, "Bush", CFrame.new(p[1], FLOOR + 5.4, p[2]), Vector3.new(5, 5, 5), rgb(80, 180, 96))
+				K.ellipsoid(nf, "Bush", CFrame.new(p[1] + 1.2, FLOOR + 7, p[2] - 0.6), Vector3.new(3.4, 3.4, 3.4), rgb(100, 200, 110))
 			end
 		end
 	end,

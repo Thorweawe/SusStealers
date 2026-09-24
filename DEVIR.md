@@ -13,6 +13,76 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (6) — Claude (bulut oturumu): oyun mekaniği + arayüz turu (iki şeride de yazıldı)
+
+Kullanıcı istedi, iki şeritte birden çalışıldı. **Studio'ya basılmadı** (bulut
+oturumu, Studio yok): dosyaları sync ile bas, **haritayı yeniden kur** (aşağıda),
+sonra testleri koş. Yeni testler eklendi ama Studio'da koşulmadı.
+
+**1. $100'da kilitlenme (sunucu — `ConveyorService`, `Config`)**
+- Geliri 0 olan oyuncunun bandına artık YALNIZCA alabileceği karakterler geliyor
+  (`Config.RollAffordableUnit`); mutasyon fiyatı bütçeyi aşarsa düz geliyor.
+  Geliri olan ama art arda `Config.ConveyorPityAfter` (3) karakteri alamayan
+  oyuncuya da bir sonraki çekiliş bütçesine uygun. Garantili mutasyon (Robux)
+  bu kuralın dışında.
+
+**2. Bant saati: gri çıtalar karakterlerle birlikte (sunucu + istemci)**
+- `Config.ConveyorLifetime` / `Config.ConveyorSpeed` KALKTI. Yerine
+  `Config.ConveyorBeltSpeed` (2.75 stud/sn) + `GetConveyorBeltSpeed(level)`:
+  Conveyor Speed yükseltmesi artık bandı da hızlandırıyor (seviye başına +%3.5,
+  tavan x1.8 — en hızlıda karakter bantta ~12 sn).
+- Her üssün tek bir yol sayacı var; `Conveyor` parçasına `BeltSpeed/BeltDistance/
+  BeltStamp` (sunucu saati) nitelikleri yazılıyor. Karakter bir çıtanın üstünde,
+  kapağın İÇİNDEN doğup ağızdan çıkıyor; ağızdan çıkana kadar promptu kapalı
+  (`OnBelt` niteliği, `PromptFilter` buna bakıyor).
+- Yeni istemci modülü `ConveyorFX.luau`: çıtaları ve bandın üstündeki karakterleri
+  aynı saatle her karede çiziyor. `DecorFX` artık `BeltSlat`'lara dokunmuyor.
+- Çıta sayısı `Config.ConveyorSlats` = haritadaki (bays.luau) sayı; değişirse ikisi birden.
+
+**3. Koltukla ışınlanma** — `Lobby.luau` (RETURN TO MY BASE), `PlotService.Unseat`
+(+ `TeleportToPlot`), `VentService`: ışınlamadan önce oyuncu koltuktan kaldırılıyor.
+
+**4. Haritada içinden geçilen hiçbir şey yok (tools/map — YENİDEN KUR)**
+- `kit.luau` katılık kuralı değişti: `collide = false` artık yok sayılıyor (map
+  dosyalarından da temizlendi). Geçirgen olan yalnızca: `ghost = true`, saydamlığı
+  >= 0.7 (cam hariç), yere yatık ince kaplamalar (yükseklik <= 0.6).
+- Konveyör kapakları (Hatch/Intake) KATI; `AllowInPlot` niteliğiyle işaretli,
+  `check.luau` bunları "oyun alanı ihlali" saymıyor.
+- `exterior.luau` → hepsi `ghost` (dış uzay). MedBay tarama halkası `ghost`.
+- PlotService: üst kat korkulukları, satıcı, kilit kubbesi, kilitli bonus kaide katı.
+
+**5. Merdiven yeniden tasarlandı (`PlotService.buildUpperFloor`)**
+- Her kat merdiveni ÖNDEN (giriş tarafı) başlayıp ARKAYA tırmanıyor, katlar aynı
+  yönde üst üste. Arka sahanlık güverteye bağlanıyor; 3. katın merdiveni 2. katın
+  ön sahanlığından başlıyor. İki yanda katı korkuluk, basamak burnunda sarı şerit,
+  alnında ışık, dipte oklar, tepede "FLOOR N" kemeri. `buildUpperFloor`'a `floor`
+  parametresi eklendi. Kilitli katta SurfaceGui'ler de kapanıyor.
+
+**6. Kafeterya kapısındaki kasa yığını ve havada duran uyarı lambası kaldırıldı** (`polish.luau`).
+
+**7. Yumurta stilleri** — yeni `EggStyle.luau`: Supply (karton + koli bandı, zıplıyor),
+Skeld (vizör + anten, dönüyor), Polus (kar + buz kristalleri, kar yağıyor), Void
+(hale + yörüngede küreler, nabız). Kuluçkadaki yumurtalar istemcide süsleniyor
+(harita kurulmadan çalışıyor), `DecorFX` Hatchery.EggN'i artık süzdürmüyor.
+`HatchFX` açılışı yumurtanın stiline göre (sarsıntı / hızlanan dönüş / donma /
+içine çökme + saçılan parçalar). **Sunucu:** `PetHatched`'in 3. argümanı yumurta
+açılışında artık yumurta kimliği (`PetService.TryHatch`, `GiveEggRoll`).
+
+**8. Envanter** — yeni `Inventory.luau`: PETS → POTIONS → STYLE → TITLES sekmeleri tek
+pencerede (B tuşu). `PetPanel`, `CosmeticPanel`, `Menus` artık `host` alıp sayfa olarak
+kuruluyor (`UiKit.Page`); host verilmezse eski pencere hâli duruyor. `MenuDock`'u
+artık Envanter kuruyor: sağ ortada ENVANTER, hemen altında REBIRTH (72x78).
+Topbar CLUTTER'a `InventoryPanel`, `EventSchedule` eklendi. `DeviceLayout`:
+MenuDock dokunmatik kaldırmadan çıktı, `EventSchedule` girdi; WINDOW_FIT 840x600.
+UiKit: `Page`, `Backpack`, `Canvas/Shape/Ring` dışa açık, `IconButton`'a boyut.
+
+**9. Olay çizelgesi (sağ alt)** — `EventFX`: bütün olaylar, çizimle ikonları ve geri
+sayımları; süren olay üstte büyük kartta. Üst ortadaki "Next: ..." satırı kalktı
+(üst şerit yalnızca olay sürerken).
+
+**Haritayı yeniden kurmak:** README "Harita" bölümündeki komutla bütün bölümler
+(polish dahil, en sonda). Denetim `çakışan yüz: 0 | oyun alanı ihlali: 0` vermeli.
+
 ## 2026-09-24 (5) — Batur: kozmetikler (Yusuf'un şeridine de yazıldı)
 
 **Ne:** 10 şapka (Sprout → Halo) ve 4 iz (Stardust → Rainbow), oyun içi parayla,

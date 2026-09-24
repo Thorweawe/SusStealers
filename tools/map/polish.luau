@@ -92,14 +92,14 @@ return {
 			local cf = CFrame.lookAt(pos, pos + facing)
 			K.sign(signs, "RoomSign", cf, SIGN_W, SIGN_H, theme.name, theme.accent)
 			-- Arkası da okunsun: odanın içinden bakan da adı görsün
-			local rear = K.boxAt(signs, "RoomSignRear", cf * CFrame.new(0, 0, 0.62), Vector3.new(SIGN_W, SIGN_H, 0.1), C.shadow, { collide = false })
+			local rear = K.boxAt(signs, "RoomSignRear", cf * CFrame.new(0, 0, 0.62), Vector3.new(SIGN_W, SIGN_H, 0.1), C.shadow)
 			K.text(rear, Enum.NormalId.Back, theme.name, C.white, { h = 0.78, y = 0.08 })
 			-- Tavana iki askı
 			local rodLength = ceilingY - (SIGN_Y + SIGN_H / 2 + 0.6)
 			for _, x in { -SIGN_W * 0.36, SIGN_W * 0.36 } do
 				K.boxAt(signs, "SignRod",
 					cf * CFrame.new(x, SIGN_H / 2 + 0.6 + rodLength / 2, 0.3),
-					Vector3.new(0.3, rodLength, 0.3), C.metalDark, { collide = false })
+					Vector3.new(0.3, rodLength, 0.3), C.metalDark)
 			end
 		end
 
@@ -113,34 +113,45 @@ return {
 			K.boxAt(props, "Crate", cf, Vector3.new(s, s, s), CRATE)
 			-- Kenar bantları: kutuyu "kasa" yapan tek şey
 			for _, y in { -s * 0.32, s * 0.32 } do
-				K.boxAt(props, "CrateStrap", cf * CFrame.new(0, y, 0), Vector3.new(s + 0.08, s * 0.12, s + 0.08), STRAP, { collide = false })
+				K.boxAt(props, "CrateStrap", cf * CFrame.new(0, y, 0), Vector3.new(s + 0.08, s * 0.12, s + 0.08), STRAP)
 			end
 		end
 
 		local beacons = K.folder("Beacons", root)
 		local function beacon(pos: Vector3, facing: Vector3)
 			local cf = CFrame.lookAt(pos, pos + facing)
-			K.boxAt(beacons, "BeaconBase", cf * CFrame.new(0, -0.9, -0.3), Vector3.new(1.4, 0.4, 1.2), C.metalDark, { collide = false })
+			K.boxAt(beacons, "BeaconBase", cf * CFrame.new(0, -0.9, -0.3), Vector3.new(1.4, 0.4, 1.2), C.metalDark)
 			local lamp = K.boxAt(beacons, "WarnBeacon", cf * CFrame.new(0, -0.1, -0.3), Vector3.new(1.1, 1.2, 1.1), C.red,
-				{ shape = Enum.PartType.Ball, collide = false, emit = "Indicator" })
+				{ shape = Enum.PartType.Ball, emit = "Indicator" })
 			-- Parlaklık 0: istemci (MapLife) yakıp söndürüyor
 			K.light(lamp, C.red, 14, 0)
 		end
+
+		--[[
+			Kafeterya kapısı (GATE) ön duvarda, orta boşluğun tam karşısında.
+			Eskiden orta boşluğun İKİ ucuna da kasa yığını konuyordu; ön uçtaki
+			yığın kafeteryaya giden yolun ortasında, kapının içinde duruyordu
+			("kafeteryaya giden yolda gereksiz bloklar"). Uyarı lambası da
+			kapının açıklığında havada asılı kalıyordu. Kapılı uçta ikisi de yok.
+		]]
+		local gateX0 = M.centerX - M.GATE_W / 2
+		local gateX1 = M.centerX + M.GATE_W / 2
 
 		for gi, gx in gaps do
 			for _, back in { true, false } do
 				local wallZ = if back then hallMinZ else hallMaxZ
 				local inward = if back then 1 else -1
 				local facing = Vector3.new(0, 0, inward)
-				-- Ortadaki boşlukta kasa yığını; yanlardakinde vent var (aşağıda)
-				if gi == math.ceil(#gaps / 2) then
+				local atGate = not back and gx >= gateX0 and gx <= gateX1
+				-- Ortadaki boşluğun arka ucunda kasa yığını; yanlardakinde vent var (aşağıda)
+				if gi == math.ceil(#gaps / 2) and not atGate then
 					local base = Vector3.new(gx - 4, 2.5, wallZ + inward * 3.2)
 					crate(CFrame.new(base), 5)
 					crate(CFrame.new(base + Vector3.new(5.4, -0.6, 0.4)) * CFrame.Angles(0, math.rad(12), 0), 3.8)
 					crate(CFrame.new(base + Vector3.new(0.3, 4.3, 0)) * CFrame.Angles(0, math.rad(-18), 0), 3.6)
 				end
 				-- Ön duvarda ek oda kapısı olan koridorlarda lamba kapının yerine düşerdi
-				local hasDoor = not back and table.find(M.ANNEX_X or {}, gx) ~= nil
+				local hasDoor = atGate or (not back and table.find(M.ANNEX_X or {}, gx) ~= nil)
 				if not hasDoor then
 					beacon(Vector3.new(gx, 11, wallZ + inward * 0.4), facing)
 				end
@@ -189,7 +200,7 @@ return {
 		-- Pad: görünmez, promptun bağlandığı ve varış noktası olan parça
 		local function pad(center: Vector3, pair: string)
 			local p = K.box(ventFolder, "VentPad", center.X, 1.2, center.Z, 5, 2, 5, C.shadow,
-				{ collide = false, transparency = 1 })
+				{ transparency = 1 })
 			p.CanQuery = false
 			p.CastShadow = false
 			p:SetAttribute("VentPair", pair)

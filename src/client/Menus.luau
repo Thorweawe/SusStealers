@@ -100,58 +100,69 @@ local function describeCondition(row: TitleRow): string
 		labels[row.stat] or row.stat)
 end
 
-function Menus.Create(screen: ScreenGui): Menu
-	-- ─── Açma düğmeleri ─────────────────────────────────────────────────────
+--[[
+	host verilirse (Envanter) sağ kenar düğmeleri kurulmuyor ve katman o
+	çerçevenin içine sayfa olarak kuruluyor; İKSİR ve UNVAN sekmeleri aynı
+	sayfayı paylaşıyor. Hangi sekmede olduğu kökün "InventoryTab"
+	niteliğinde — Envanter doğru sekmeyi onunla seçiyor.
 
-	--[[
-		Sağ kenar rayı: kare ikon düğmeleri, alt alta.
+	onCount: sekmelerin sayaçları (iksir adedi, açık unvan) değişince
+	çağrılıyor: (sekme, kısa metin, rozet sayısı).
+]]
+function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, text: string, badge: number) -> ())?): Menu
+	-- ─── Açma düğmeleri (yalnızca tek başına kullanımda) ─────────────────────
 
-		Eskiden düz koyu "TITLES / POTIONS" dikdörtgenleriydi ve sahnenin
-		üstünde kayboluyordu. Artık sol kenardaki SHOP/INDEX ile aynı
-		kabartma dilinde — oyuncu iki kenarı tek bir arayüz olarak okuyor.
+	local dock: Frame? = nil
+	local titlesButton: TextButton? = nil
+	local potionsButton: TextButton? = nil
+	local potionsLabel: TextLabel? = nil
+	local potionsSlot: Frame? = nil
 
-		Adı MenuDock KALIYOR: RebirthPanel düğmesini buraya adıyla takıyor
-		ve Topbar bu adı gizleme listesinde tutuyor.
-	]]
-	--[[
-		Sağ ALT köşe: haritanın kaldırılmasıyla boşaldı. Sağ üst artık
-		sıralama tablosunun (Roblox oyuncu listesinin yeri); ray oradaydı
-		ve tablo uzadıkça üstüne biniyordu. Sol alttaki haplarla ayna gibi
-		duruyor.
-	]]
-	local dock = Instance.new("Frame")
-	dock.Name = "MenuDock"
-	dock.AnchorPoint = Vector2.new(1, 1)
-	dock.Position = UDim2.new(1, -22, 1, -22)
-	-- Dört düğme (unvan, iksir, pet, rebirth) + aralar
-	dock.Size = UDim2.new(0, 64, 0, 4 * 68 + 3 * 8)
-	dock.BackgroundTransparency = 1
-	dock.Parent = screen
+	if not host then
+		--[[
+			Sağ kenar rayı: kare ikon düğmeleri, alt alta. Adı MenuDock:
+			RebirthPanel düğmesini buraya adıyla takıyor, Topbar gizleme
+			listesinde tutuyor. (Envanter varken bu ray orada kuruluyor.)
+		]]
+		local dockFrame = Instance.new("Frame")
+		dockFrame.Name = "MenuDock"
+		dockFrame.AnchorPoint = Vector2.new(1, 1)
+		dockFrame.Position = UDim2.new(1, -22, 1, -22)
+		dockFrame.Size = UDim2.new(0, 64, 0, 4 * 68 + 3 * 8)
+		dockFrame.BackgroundTransparency = 1
+		dockFrame.Parent = screen
+		dock = dockFrame
 
-	local dockLayout = Instance.new("UIListLayout")
-	dockLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	dockLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	-- Alta yaslı: düğme eklendikçe ray yukarı doğru uzuyor
-	dockLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	dockLayout.Padding = UDim.new(0, 8)
-	dockLayout.Parent = dock
+		local dockLayout = Instance.new("UIListLayout")
+		dockLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		dockLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		-- Alta yaslı: düğme eklendikçe ray yukarı doğru uzuyor
+		dockLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		dockLayout.Padding = UDim.new(0, 8)
+		dockLayout.Parent = dockFrame
 
-	local titlesHolder, titlesButton, titlesSlot =
-		UiKit.IconButton(dock, "Titles", UiKit.CREW.PURPLE, "TITLES")
-	titlesHolder.LayoutOrder = 1
-	-- Altın taç: pet düğmesiyle aynı mürettebat figürünü kullanıyordu
-	UiKit.Crown(titlesSlot, 30, Color3.fromRGB(255, 214, 90))
+		local titlesHolder, titlesBtn, titlesSlot =
+			UiKit.IconButton(dockFrame, "Titles", UiKit.CREW.PURPLE, "TITLES")
+		titlesHolder.LayoutOrder = 1
+		UiKit.Crown(titlesSlot, 30, Color3.fromRGB(255, 214, 90))
+		titlesButton = titlesBtn
 
-	local potionsHolder, potionsButton, potionsSlot =
-		UiKit.IconButton(dock, "Potions", POTION_ACCENT, "POTIONS")
-	potionsHolder.LayoutOrder = 2
-	local potionsLabel = potionsButton:FindFirstChild("Label") :: TextLabel
+		local potionsHolder, potionsBtn, potionsIcon =
+			UiKit.IconButton(dockFrame, "Potions", POTION_ACCENT, "POTIONS")
+		potionsHolder.LayoutOrder = 2
+		potionsButton = potionsBtn
+		potionsSlot = potionsIcon
+		potionsLabel = potionsBtn:FindFirstChild("Label") :: TextLabel
+	end
 
 	--[[
 		İksir ikonu envanterdeki adede göre doluyor; düğme "kaç tane var"
 		bilgisini paneli açmadan veriyor. Boşken şişe sönük kalıyor.
 	]]
 	local function drawPotionIcon(total: number)
+		if not potionsSlot then
+			return
+		end
 		UiKit.ClearSlot(potionsSlot)
 		UiKit.Vial(
 			potionsSlot, 32,
@@ -164,15 +175,20 @@ function Menus.Create(screen: ScreenGui): Menu
 
 	-- ─── Üst katman ─────────────────────────────────────────────────────────
 
-	local overlay = UiKit.Window(screen, "MenuOverlay", ACCENT)
-	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
-	overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
-	overlay.Size = UDim2.new(0, 440, 0, 420)
+	local overlay: Frame
+	if host then
+		overlay = UiKit.Page(host, "MenuOverlay")
+	else
+		overlay = UiKit.Window(screen, "MenuOverlay", ACCENT)
+		overlay.AnchorPoint = Vector2.new(0.5, 0.5)
+		overlay.Position = UDim2.new(0.5, 0, 0.5, 0)
+		overlay.Size = UDim2.new(0, 440, 0, 420)
+	end
 	overlay.Visible = false
 	overlay.ZIndex = 10
 
 	-- Kenarlık sekmeye göre renk değiştiriyor; hangi sekmede olduğun
-	-- panelin çerçevesinden de okunuyor
+	-- panelin çerçevesinden de okunuyor (gömülüyken kenarlık Envanter'in)
 	local overlayStroke = overlay:FindFirstChildOfClass("UIStroke")
 
 	--[[
@@ -213,8 +229,11 @@ function Menus.Create(screen: ScreenGui): Menu
 	hint.ZIndex = 11
 	hint.Parent = overlay
 
-	local close = UiKit.CloseButton(overlay)
-	close.ZIndex = 11
+	local close: TextButton? = nil
+	if not host then
+		close = UiKit.CloseButton(overlay)
+		close.ZIndex = 11
+	end
 
 	local list = Instance.new("ScrollingFrame")
 	list.Position = UDim2.new(0, 14, 0, 62)
@@ -546,19 +565,27 @@ function Menus.Create(screen: ScreenGui): Menu
 			return
 		end
 		currentTab = tab
+		-- Envanter sekmesini bununla seçiyor (iki sekme aynı sayfada)
+		overlay:SetAttribute("InventoryTab", tab)
 		overlay.Visible = true
 		redraw()
 	end
 
-	titlesButton.Activated:Connect(function()
-		open("titles")
-	end)
-	potionsButton.Activated:Connect(function()
-		open("potions")
-	end)
-	close.Activated:Connect(function()
-		overlay.Visible = false
-	end)
+	if titlesButton then
+		titlesButton.Activated:Connect(function()
+			open("titles")
+		end)
+	end
+	if potionsButton then
+		potionsButton.Activated:Connect(function()
+			open("potions")
+		end)
+	end
+	if close then
+		close.Activated:Connect(function()
+			overlay.Visible = false
+		end)
+	end
 
 	-- ─── Veri ───────────────────────────────────────────────────────────────
 
@@ -566,6 +593,15 @@ function Menus.Create(screen: ScreenGui): Menu
 		if typeof(list) == "table" then
 			titleData = list
 			activeTitle = if typeof(active) == "string" then active else ""
+			if onCount then
+				local unlocked = 0
+				for _, row in titleData do
+					if row.unlocked then
+						unlocked += 1
+					end
+				end
+				onCount("titles", string.format("%d / %d unlocked", unlocked, #titleData), 0)
+			end
 			redraw()
 		end
 	end)
@@ -584,7 +620,23 @@ function Menus.Create(screen: ScreenGui): Menu
 		end
 
 		drawPotionIcon(total)
-		potionsLabel.Text = if total > 0 then string.format("POTIONS %d", total) else "POTIONS"
+		if potionsLabel then
+			potionsLabel.Text = if total > 0 then string.format("POTIONS %d", total) else "POTIONS"
+		end
+		if onCount then
+			local active = 0
+			local now = os.time()
+			for _, row in potionData do
+				if (row.activeUntil or 0) > now then
+					active += 1
+				end
+			end
+			local text = if total > 0 then string.format("%d ready to drink", total) else "none in bag"
+			if active > 0 then
+				text ..= string.format(" · %d active", active)
+			end
+			onCount("potions", text, total)
+		end
 	end
 
 	local potionsConnection = Net.Get("Potions").OnClientEvent:Connect(function(list)
@@ -619,7 +671,9 @@ function Menus.Create(screen: ScreenGui): Menu
 			potionsConnection:Disconnect()
 			tick:Disconnect()
 			overlay:Destroy()
-			dock:Destroy()
+			if dock then
+				dock:Destroy()
+			end
 		end,
 	}
 end

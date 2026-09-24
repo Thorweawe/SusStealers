@@ -28,6 +28,7 @@ local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
+local EggStyle = require(script.Parent.EggStyle)
 local AutoHatch = require(script.Parent.AutoHatch)
 
 local PetPanel = {}
@@ -63,11 +64,22 @@ local CARD_W, CARD_H = 96, 108
 ]]
 local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
 
-function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
-	local overlay = UiKit.Window(screen, "PetPanel", ACCENT)
-	overlay.AnchorPoint = Vector2.new(0.5, 0.5)
-	overlay.Position = UDim2.fromScale(0.5, 0.5)
-	overlay.Size = UDim2.fromOffset(580, 520)
+--[[
+	host verilirse panel kendi penceresini açmıyor, o çerçevenin içine
+	sayfa olarak kuruluyor (Envanter'in PETS sekmesi). Kapatma düğmesi de
+	yok; pencereyi sahibi kapatıyor. İçerik konumları kökün içine göre,
+	yani iki hâlde de aynı kod çalışıyor.
+]]
+function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame?, onCount: ((text: string) -> ())?): Panel
+	local overlay: Frame
+	if host then
+		overlay = UiKit.Page(host, "PetPanel")
+	else
+		overlay = UiKit.Window(screen, "PetPanel", ACCENT)
+		overlay.AnchorPoint = Vector2.new(0.5, 0.5)
+		overlay.Position = UDim2.fromScale(0.5, 0.5)
+		overlay.Size = UDim2.fromOffset(580, 520)
+	end
 	overlay.Visible = false
 	overlay.ZIndex = 40
 
@@ -103,8 +115,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 	hint.ZIndex = 41
 	hint.Parent = overlay
 
-	local close = UiKit.CloseButton(overlay)
-	close.ZIndex = 41
+	local close: TextButton? = nil
+	if not host then
+		close = UiKit.CloseButton(overlay)
+		close.ZIndex = 41
+	end
 
 	local hatchRemote = Net.Get("PetHatch")
 	local equipRemote = Net.Get("PetEquip")
@@ -188,7 +203,8 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 		slot.Parent = button
 		-- Yumurtanın rengi havuzunun en iyi kademesinden; açık tonu
 		-- kullanıyoruz ki düğmenin kendi dolgusunun içinde kaybolmasın
-		UiKit.Egg(slot, 32, tint:Lerp(Color3.new(1, 1, 1), 0.55))
+		-- Yumurtanın kendi stili (EggStyle): kuluçkadaki ve açılıştaki görünüşün aynısı
+		EggStyle.Draw(slot, 32, egg.id)
 
 		local name = Instance.new("TextLabel")
 		name.Position = UDim2.fromOffset(46, 12)
@@ -629,6 +645,16 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 		end
 		owned = if typeof(payload.owned) == "table" then payload.owned else {}
 		equipped = if typeof(payload.equipped) == "table" then payload.equipped else {}
+		-- Envanter sekmesindeki sayaç: kaç pet, kaçı takılı
+		if onCount then
+			local total = 0
+			for _, n in owned do
+				if typeof(n) == "number" then
+					total += n
+				end
+			end
+			onCount(string.format("%d pets · %d/%d equipped", total, #equipped, Config.PetEquipSlots))
+		end
 		if overlay.Visible then
 			redraw()
 		end
@@ -638,9 +664,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?): Panel
 
 	refreshEggs()
 
-	close.Activated:Connect(function()
-		overlay.Visible = false
-	end)
+	if close then
+		close.Activated:Connect(function()
+			overlay.Visible = false
+		end)
+	end
 
 	return {
 		Toggle = function()

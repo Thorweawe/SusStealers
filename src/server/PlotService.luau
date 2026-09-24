@@ -156,24 +156,16 @@ end
 --[[
 	═══ ÜST KAT ═════════════════════════════════════════════════════════════
 
-	İki merdiven vardı, teke indi — ikisi birden hem gereksizdi hem de
-	güvertenin iki ucunu da yiyordu. Tek merdiven SOL uçta; sağ uç tamamen
-	güverte olarak kalıyor.
+	Tek merdiven SOL uçta (kuyu x ∈ [-halfX, -halfX + STAIR_W]); sağ uç
+	tamamen güverte. Güverte merdiven şeridinin bittiği yerden başlıyor,
+	ikisi hiç kesişmiyor. Merdivenin kendisi aşağıda ("Merdiven").
 
-	Önceki sürümün üç somut hatası vardı, üçü de burada düzeltildi:
-
-	  1. Merdivenin ÖNÜNDE duvar vardı. "StairWall" kuyunun girişine
-	     konuyordu ve basamaklara ulaşılamıyordu. Artık duvarlar merdivenin
-	     YANLARINDA, giriş açık.
-	  2. Sahanlık ana güverteyle üst üste biniyordu ("bloklar iç içe
-	     girmiş"). Artık güverte merdiven şeridinin bittiği yerden başlıyor,
-	     ikisi hiç kesişmiyor.
-	  3. Korkuluk basamakların dışına taşıyordu ("demir çıkıntısı"). Korkuluk
-	     artık basamak dizisiyle aynı uzunlukta ve aynı merkezde.
+	floor: kurulan katın numarası (2, 3...). Merdiven bir alt kattan bu
+	kata çıkıyor; 3. kat ve üstünde merdivenin dibinde bir alt katın
+	ön sahanlığı da bu katla birlikte kuruluyor (kat kilitliyken gizli).
 ]]
-local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number, room: Config.BayRoom)
+local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: number, room: Config.BayRoom, floor: number)
 	local halfX = Config.PlotSize.X / 2
-	local halfZ = Config.PlotSize.Z / 2
 	local rise = Config.FloorHeight
 
 	local stairW = LAYOUT.STAIR_W
@@ -208,70 +200,171 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 
 	--[[
 		── Merdiven ───────────────────────────────────────────────────────
-		Basamak sayısı yükseklikten türetiliyor; FloorHeight değişirse
-		merdiven kendiliğinden uyuyor. Basamak yüksekliği 1.4 civarında
-		tutuluyor çünkü Roblox karakteri zıplamadan ancak 2 studa çıkıyor.
 
-		Merdiven z ekseninde tırmanıyor: arkadan (+z) öne (-z) doğru. Üst
-		ucunda sahanlık var, sahanlık güverteye yandan bağlanıyor.
+		"Mantığa daha yatkın" yeniden tasarım. Eskisi ARKADAN (konveyörün
+		dibinden) başlayıp öne tırmanıyordu: üsse önden giren oyuncu önce
+		arkaya yürümek zorundaydı, üstte de dar bir sahanlık ve kemer vardı.
+		Üçüncü katın basamakları ikinci katın merdiveninin tam üstünde
+		havada başlıyordu, ancak güvertenin kenarından yana adım atılarak
+		ulaşılıyordu.
+
+		Şimdi:
+		  - Her kat merdiveni ÖNDEN (girişin ve doğuş pedinin olduğu taraf)
+		    başlıyor, ARKAYA doğru tırmanıyor. Katlar aynı yönde üst üste:
+		    her merdivenin altında bir kat aşağısının merdiveni, arada tam
+		    bir kat yüksekliği boşluk var.
+		  - Üstte GENİŞ arka sahanlık güverteye yandan bağlanıyor; bir üst
+		    katın merdiveni o katın ÖN sahanlığından başlıyor (3. kat).
+		  - İki yanda da korkuluk (dikmeli, katı): merdivene yalnızca dibinden
+		    çıkılıyor, yandan düşülmüyor. Güvertenin kuyuya bakan kenarında
+		    da korkuluk var.
+		  - Basamak burnunda sarı uyarı şeridi, alnında odanın vurgu renginde
+		    ışık; dipte yukarı bakan oklar, tepede "FLOOR N" kemeri.
+
+		Basamak sayısı yükseklikten türetiliyor (en fazla 1.2 stud): Roblox
+		karakteri zıplamadan tırmanıyor ve FloorHeight değişirse merdiven
+		kendiliğinden uyuyor.
 	]]
-	local STEPS = math.max(6, math.ceil(rise / 1.4))
+	local deckFront = -deckZ / 2
+	local deckBack = deckZ / 2
+	local FRONT_LANDING = 4
+	local zStart = deckFront + FRONT_LANDING
+	local baseY = deckTop - rise
+
+	local STEPS = math.max(8, math.ceil(rise / 1.2))
 	local stepRise = rise / STEPS
-	local stepRun = 2.4
-	local stairLen = STEPS * stepRun
+	-- Arka sahanlığa en az 6 stud kalsın
+	local stepRun = math.min(1.8, (deckBack - 6 - zStart) / STEPS)
+	local flightLen = STEPS * stepRun
+	local zEnd = zStart + flightLen
+	local stepW = stairW - 1.2
 
-	-- Basamak dizisinin z aralığı: [zTop, zTop + stairLen]
-	local zTop = -deckZ / 2 + 2
+	-- Basamağın ön kenarındaki yükseklik (eğim çizgisi): stringer ve korkuluk buna göre
+	local function pitchY(z: number): number
+		return baseY + stepRise + (z - zStart) * (rise / flightLen)
+	end
 
+	--[[
+		Basamaklar. 2. katın merdiveni zeminden yükseliyor: her basamak
+		zemine kadar dolu, altından geçilen bir boşluk kalmıyor. Üst
+		katlarınki kalın bir tabla (altında bir kat aşağısının merdiveni
+		var, doldurmak onun baş boşluğunu kapatırdı).
+	]]
 	for i = 1, STEPS do
+		local top = baseY + i * stepRise
+		local z0 = zStart + (i - 1) * stepRun
+		local height = if floor == 2 then top - baseY else stepRise + 1
 		local p = newAnchoredPart(
 			"Step",
-			Vector3.new(stairW - 1.2, stepRise, stepRun),
-			CFrame.new(origin + Vector3.new(
-				stairX,
-				deckTop - rise + (i - 0.5) * stepRise,
-				zTop + stairLen - (i - 0.5) * stepRun
-			)),
-			if i % 2 == 0 then room.tile else TRIM_COLOR,
+			Vector3.new(stepW, height, stepRun),
+			CFrame.new(origin + Vector3.new(stairX, top - height / 2, z0 + stepRun / 2)),
+			if i % 2 == 0 then room.tile else room.tile2,
 			parent
 		)
 		p.CanCollide = true
+
+		-- Burun şeridi: basamağın ön kenarı uzaktan seçilsin
+		local nose = slab("StepNose", Vector3.new(stepW, 0.12, 0.45),
+			Vector3.new(stairX, top + 0.06, z0 + 0.23), LOOK.accent)
+		nose.CanCollide = false
+
+		-- Alın ışığı: basamağın öne bakan yüzünde odanın vurgu renginde
+		local glow = slab("StepGlow", Vector3.new(stepW - 1.4, 0.22, 0.1),
+			Vector3.new(stairX, top - stepRise * 0.55, z0 - 0.05), room.accent)
+		glow.Material = Enum.Material.Neon
+		glow.CanCollide = false
+		glow.CastShadow = false
 	end
 
-	-- Üst sahanlık: basamakların bittiği yerden güvertenin ön kenarına
-	local landingLen = zTop + deckZ / 2
-	slab("Landing", Vector3.new(stairW, 1, landingLen),
-		Vector3.new(stairX, deckTop - 0.5, zTop - landingLen / 2), DECK_COLOR)
+	--[[
+		Kiriş (stringer) ve korkuluklar: iki yanda, eğim boyunca. Eğim çizgisi
+		ilk basamağın burnundan son basamağın burnuna; kiriş sahanlığın
+		üstüne taşmasın diye son basamağın burnunda bitiyor.
+	]]
+	local pitchLen = flightLen - stepRun
+	local slope = math.atan2(rise - stepRise, pitchLen)
+	local slopeLen = math.sqrt((rise - stepRise) ^ 2 + pitchLen ^ 2)
+	local zMid = zStart + pitchLen / 2
+	for _, side in { -1, 1 } do
+		local sx = stairX + side * (stairW / 2 - 0.3)
+
+		newAnchoredPart("StairStringer", Vector3.new(0.6, 1.8, slopeLen),
+			CFrame.new(origin + Vector3.new(sx, pitchY(zMid) - 0.5, zMid)) * CFrame.Angles(-slope, 0, 0),
+			TRIM_COLOR, parent)
+
+		-- Kirişin dışında vurgu çizgisi
+		local band = newAnchoredPart("StairStringerBand", Vector3.new(0.12, 0.35, slopeLen - 0.6),
+			CFrame.new(origin + Vector3.new(sx + side * 0.36, pitchY(zMid) - 0.5, zMid)) * CFrame.Angles(-slope, 0, 0),
+			room.accent, parent)
+		band.Material = Enum.Material.Neon
+		band.CanCollide = false
+		band.CastShadow = false
+
+		-- Tırabzan: kirişin üstünde, eğim çizgisinin 3.4 yukarısında
+		newAnchoredPart("StairRail", Vector3.new(0.4, 0.4, slopeLen),
+			CFrame.new(origin + Vector3.new(sx, pitchY(zMid) + 3.4, zMid)) * CFrame.Angles(-slope, 0, 0),
+			RAIL_COLOR, parent)
+
+		-- Dikmeler: üç basamakta bir, uçlarda mutlaka
+		local posts = math.max(2, math.floor(STEPS / 3))
+		for k = 0, posts do
+			local z = zStart + 0.4 + (pitchLen - 0.8) * (k / posts)
+			slab("StairPost", Vector3.new(0.35, 3.4, 0.35), Vector3.new(sx, pitchY(z) + 1.7, z), RAIL_COLOR)
+		end
+	end
+
+	-- ── Arka sahanlık: güverteye yandan bağlanıyor ─────────────────────────
+	local backLen = deckBack - zEnd
+	slab("Landing", Vector3.new(stairW, 1, backLen),
+		Vector3.new(stairX, deckTop - 0.5, zEnd + backLen / 2), DECK_COLOR)
+	slab("LandingTile", Vector3.new(stairW - 1, 0.2, backLen - 1),
+		Vector3.new(stairX, deckTop + 0.1, zEnd + backLen / 2), room.tile)
+
+	-- Arka kenarda güverte duvarının devamı, dış kenarda korkuluk
+	slab("LandingWall", Vector3.new(stairW, 7, 1), Vector3.new(stairX, deckTop + 3.5, deckBack - 0.5), LOOK.shell)
+	slab("LandingWallTrim", Vector3.new(stairW, 0.6, 1.6), Vector3.new(stairX, deckTop + 7.2, deckBack - 0.5), TRIM_COLOR)
+
+	local function edgeRail(name: string, cx: number, cz: number, length: number, along: string, y: number)
+		local size = if along == "x" then Vector3.new(length, 0.35, 0.35) else Vector3.new(0.35, 0.35, length)
+		slab(name, size, Vector3.new(cx, y + 3.2, cz), RAIL_COLOR)
+		local posts = math.max(1, math.floor(length / 5))
+		for k = 0, posts do
+			local t = k / posts
+			slab(name .. "Post", Vector3.new(0.35, 3.2, 0.35), Vector3.new(
+				if along == "x" then cx - length / 2 + length * t else cx,
+				y + 1.6,
+				if along == "z" then cz - length / 2 + length * t else cz
+			), RAIL_COLOR)
+		end
+	end
+
+	edgeRail("LandingRail", -halfX + 0.3, zEnd + backLen / 2, backLen - 1.2, "z", deckTop)
 
 	--[[
-		Merdivenin yanında duvar YOK. İç duvar sahanlığı güverteden
-		ayırıyordu; dış duvar da (StairSide) iki üssün arasındaki koridorda
-		tavana kadar uzanan beyaz bir perde gibi duruyordu ("iki base'in
-		arasındaki duvar"). Dış kenarda korkuluk yeterli: yandan düşen oyuncu
-		zaten alt kattaki koridora iniyor.
+		Güvertenin kuyuya bakan kenarı: merdivenin yanı boyunca korkuluk.
+		Sahanlıkların önü açık kalıyor — güverteye oradan geçiliyor.
 	]]
+	edgeRail("DeckSideRail", deckX0 + 0.3, zStart + flightLen / 2, flightLen - 0.8, "z", deckTop)
 
-	--[[
-		Korkuluk: basamak dizisiyle AYNI uzunlukta ve aynı merkezde. Önceki
-		sürümde uzunluk bağımsız hesaplanıyordu ve uçları basamakların
-		dışına taşıyordu — ekranda havada duran demir çubuk olarak
-		görünüyordu.
-	]]
-	local slope = math.atan2(rise, stairLen)
-	local railLen = math.sqrt(rise * rise + stairLen * stairLen)
-	for _, rs in { -1, 1 } do
-		local rail = newAnchoredPart(
-			"StairRail",
-			Vector3.new(0.4, 0.4, railLen),
-			CFrame.new(origin + Vector3.new(
-				stairX + rs * (stairW / 2 - 1),
-				deckTop - rise / 2 + 3.4,
-				zTop + stairLen / 2
-			)) * CFrame.Angles(slope, 0, 0),
-			RAIL_COLOR,
-			parent
-		)
-		rail.CanCollide = false
+	-- ── Ön sahanlık (3. kat ve üstü): bir alt katta, merdivenin dibinde ──
+	if floor > 2 then
+		slab("FrontLanding", Vector3.new(stairW, 1, FRONT_LANDING),
+			Vector3.new(stairX, baseY - 0.5, deckFront + FRONT_LANDING / 2), DECK_COLOR)
+		edgeRail("FrontLandingRail", -halfX + 0.3, deckFront + FRONT_LANDING / 2, FRONT_LANDING - 0.6, "z", baseY)
+		edgeRail("FrontLandingRail", stairX, deckFront + 0.3, stairW - 1.2, "x", baseY)
+	end
+
+	-- Dipte yukarı bakan oklar: merdivenin nereden başladığı zeminden okunsun
+	for k = 0, 1 do
+		for _, side in { -1, 1 } do
+			local arrow = newAnchoredPart("StairChevron", Vector3.new(2.6, 0.1, 0.6),
+				CFrame.new(origin + Vector3.new(stairX + side * 1.05, baseY + 0.12 + k * 0.01, zStart - 1.2 - k * 1.3))
+					* CFrame.Angles(0, math.rad(side * 35), 0),
+				room.accent, parent)
+			arrow.Material = Enum.Material.Neon
+			arrow.CanCollide = false
+			arrow.CastShadow = false
+		end
 	end
 
 	--[[
@@ -284,7 +377,8 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 			then Vector3.new(length, 0.35, 0.35)
 			else Vector3.new(0.35, 0.35, length)
 
-		slab("Rail", size, Vector3.new(cx, deckTop + 3.2, cz), RAIL_COLOR).CanCollide = false
+		-- Korkuluk KATI: eskiden geçirgendi, oyuncu içinden yürüyüp düşüyordu
+		slab("Rail", size, Vector3.new(cx, deckTop + 3.2, cz), RAIL_COLOR)
 
 		local posts = math.max(2, math.floor(length / 8))
 		for i = 0, posts do
@@ -293,7 +387,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 				if along == "x" then cx - length / 2 + length * t else cx,
 				deckTop + 1.6,
 				if along == "z" then cz - length / 2 + length * t else cz
-			), RAIL_COLOR).CanCollide = false
+			), RAIL_COLOR)
 		end
 	end
 
@@ -419,22 +513,36 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	]]
 
 	--[[
-		Merdiven başına kemer. Çıkış noktasını işaretliyor ve merdivenin
-		"bir kuyu değil bir geçit" olduğunu anlatıyor.
+		Merdivenin tepesinde kemer: çıkan oyuncu hangi kata vardığını
+		karşısında okuyor. Yazı kemerin iki yüzünde (merdivenden ve
+		sahanlıktan bakınca).
 	]]
-	for _, s in { -1, 1 } do
-		slab("StairArchLeg", Vector3.new(1.2, 8, 1.2), Vector3.new(
-			stairX + s * (stairW / 2 - 1),
-			deckTop + 4,
-			zTop - landingLen + 1
-		), TRIM_COLOR)
+	local archZ = zEnd + 0.8
+	for _, side in { -1, 1 } do
+		-- Dış yüzü kirişin/bandın yüzüyle aynı düzlemde olmasın (0.3 içeride)
+		slab("StairArchLeg", Vector3.new(1, 7.6, 1.2), Vector3.new(
+			stairX + side * (stairW / 2 - 0.8), deckTop + 3.8, archZ), TRIM_COLOR)
 	end
-	slab("StairArchBeam", Vector3.new(stairW, 1.4, 1.6), Vector3.new(
-		stairX, deckTop + 8.5, zTop - landingLen + 1
-	), TRIM_COLOR)
-	slab("StairArchBand", Vector3.new(stairW - 3, 0.5, 1.2), Vector3.new(
-		stairX, deckTop + 7.4, zTop - landingLen + 0.6
-	), tint)
+	local beam = slab("StairArchBeam", Vector3.new(stairW, 2.2, 1.6), Vector3.new(stairX, deckTop + 9, archZ), LOOK.dark)
+	slab("StairArchBand", Vector3.new(stairW, 0.4, 1.8), Vector3.new(stairX, deckTop + 7.7, archZ), tint)
+
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local surface = Instance.new("SurfaceGui")
+		surface.Name = "FloorLabel" .. face.Name
+		surface.Face = face
+		surface.CanvasSize = Vector2.new(220, 44)
+		surface.LightInfluence = 0
+		surface.Parent = beam
+
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.FredokaOne
+		text.TextScaled = true
+		text.TextColor3 = tint
+		text.Text = string.format("FLOOR %d", floor)
+		text.Parent = surface
+	end
 end
 
 --[[
@@ -605,7 +713,8 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?): Part
 		local p = newAnchoredPart(name, size * S, CFrame.new(origin + vroot + offset * S), color, booth)
 		p.Material = Enum.Material.SmoothPlastic
-		p.CanCollide = false
+		-- Satıcı katı: içinden geçilen hiçbir şey olmasın
+		p.CanCollide = true
 		if shape then
 			p.Shape = shape
 		end
@@ -674,7 +783,7 @@ local function buildLockConsole(parent: Instance, origin: Vector3)
 	part("LockCollar", Vector3.new(5, 0.4, 5), Vector3.new(0, 4.7, 0), TRIM)
 
 	-- Kırmızı kubbe: promptun bağlandığı parça
-	local dome = part("LockButton", Vector3.new(3.2, 3.2, 3.2), Vector3.new(0, 5.6, 0), Color3.fromRGB(178, 44, 40), false)
+	local dome = part("LockButton", Vector3.new(3.2, 3.2, 3.2), Vector3.new(0, 5.6, 0), Color3.fromRGB(178, 44, 40))
 	dome.Shape = Enum.PartType.Ball
 	dome.Material = Enum.Material.Neon
 
@@ -727,7 +836,7 @@ local function buildPlot(index: number): Model
 		floorModel.Parent = floors
 
 		if floor > 1 then
-			buildUpperFloor(floorModel, origin, deckTop, room)
+			buildUpperFloor(floorModel, origin, deckTop, room, floor)
 		end
 
 		--[[
@@ -949,6 +1058,12 @@ function PlotService.SetUnlockedFloors(plot: Model, count: number)
 	]]
 	local function setFloorParts(root: Instance, open: boolean)
 		for _, part in root:GetDescendants() do
+			-- Yüzey yazısı (merdiven kemerindeki FLOOR N) parça saydamken de
+			-- çiziliyor; kilitli katta havada yazı kalmasın
+			if part:IsA("SurfaceGui") then
+				part.Enabled = open
+				continue
+			end
 			if not part:IsA("BasePart") then
 				continue
 			end
@@ -996,7 +1111,8 @@ function PlotService.SetUnlockedFloors(plot: Model, count: number)
 			podium.CastShadow = false
 		else
 			podium.Transparency = if open then 0 else 0.6
-			podium.CanCollide = open
+			-- Kilitli bonus kaide de katı: yarı saydam "senin değil" ama içinden geçilmiyor
+			podium.CanCollide = true
 			podium.CastShadow = true
 		end
 	end
@@ -1154,6 +1270,26 @@ local function setSignText(plot: Model, text: string)
 	end
 end
 
+--[[
+	Oturan karakteri koltuktan kaldırır. Işınlamadan ÖNCE çağrılmalı:
+	oturmak karakteri koltuğa kaynakla (SeatWeld) bağlıyor ve PivotTo
+	kaynaklı her şeyi taşıyor — acil durum masasının bankı oyuncuyla
+	birlikte üsse geliyordu. Sunucuda kaynağı silmek kesin çözüm.
+]]
+function PlotService.Unseat(character: Model)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if not (humanoid and seat) then
+		return
+	end
+	humanoid.Sit = false
+	for _, child in seat:GetChildren() do
+		if child:IsA("Weld") and child.Name == "SeatWeld" then
+			child:Destroy()
+		end
+	end
+end
+
 --[[ Oyuncuyu kendi üssünün doğuş pedine taşır. Üssü yoksa hiçbir şey yapmaz. ]]
 function PlotService.TeleportToPlot(player: Player)
 	local plot = plotByOwner[player]
@@ -1168,6 +1304,7 @@ function PlotService.TeleportToPlot(player: Player)
 		return
 	end
 
+	PlotService.Unseat(character)
 	character:PivotTo(pad.CFrame * CFrame.new(0, 4, 0))
 end
 

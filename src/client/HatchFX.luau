@@ -32,6 +32,7 @@ local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
 local FuseFX = require(script.Parent.FuseFX)
+local EggStyle = require(script.Parent.EggStyle)
 
 local HatchFX = {}
 
@@ -206,12 +207,124 @@ function HatchFX.Create(screen: ScreenGui): Handle
 
 	-- ─── Tek bir gösterim ───────────────────────────────────────────────────
 
-	local queue: { { keys: { string }, source: string } } = {}
+	local queue: { { keys: { string }, source: string, eggId: string? } } = {}
 	local playing = false
 	local closeRequested = false
 
-	local function play(keys: { string }, source: string)
+	--[[
+		Açılışta yumurtadan saçılan parçalar: yumurtanın kendi malzemesi
+		(karton, cıvata, kar, yıldız). Çatlama anında bir kez.
+	]]
+	local rng = Random.new()
+	local function burst(slot: Slot, style: EggStyle.Style)
+		for _ = 1, 14 do
+			local bit = Instance.new("Frame")
+			bit.AnchorPoint = Vector2.new(0.5, 0.5)
+			bit.Position = slot.figure.Position
+			bit.BorderSizePixel = 0
+			bit.ZIndex = Z + 5
+			local kind = style.bits
+			if kind == "cardboard" then
+				bit.Size = UDim2.fromOffset(rng:NextInteger(10, 18), rng:NextInteger(7, 12))
+				bit.BackgroundColor3 = if rng:NextNumber() < 0.3 then style.accent else style.shell
+			elseif kind == "bolts" then
+				bit.Size = UDim2.fromOffset(8, rng:NextInteger(8, 14))
+				bit.BackgroundColor3 = if rng:NextNumber() < 0.4 then style.accent else Color3.fromRGB(150, 164, 176)
+				UiKit.Corner(bit, 3)
+			elseif kind == "snow" then
+				local d = rng:NextInteger(6, 11)
+				bit.Size = UDim2.fromOffset(d, d)
+				bit.BackgroundColor3 = if rng:NextNumber() < 0.5 then style.accent else style.glow
+				UiKit.Corner(bit, d)
+			else
+				local d = rng:NextInteger(8, 13)
+				bit.Size = UDim2.fromOffset(d, d)
+				bit.Rotation = 45
+				bit.BackgroundColor3 = if rng:NextNumber() < 0.5 then style.accent else style.glow
+			end
+			bit.Parent = slot.root
+
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local dist = rng:NextNumber(90, 160)
+			local target = UDim2.new(0.5, math.cos(angle) * dist, 0, 110 + math.sin(angle) * dist)
+			tween(bit, 0.7, {
+				Position = target,
+				Rotation = bit.Rotation + rng:NextNumber(-220, 220),
+				BackgroundTransparency = 1,
+			})
+			task.delay(0.75, function()
+				bit:Destroy()
+			end)
+		end
+	end
+
+	--[[
+		Çatlama öncesi hareket, yumurtanın stiline göre. Hepsi ~0.72 sn:
+		toplam süre Config.HatchDuration'a bağlı (üstteki SÜRE notu).
+	]]
+	local function crack(eggs: { Frame }, style: EggStyle.Style)
+		if style.crack == "spin" then
+			-- Giderek hızlanan dönüş: kapsül fırlatılmaya hazırlanıyor
+			for _, step in { { 0.3, 360 }, { 0.24, 900 }, { 0.18, 1440 } } do
+				for _, egg in eggs do
+					tween(egg, step[1], { Rotation = step[2] }, Enum.EasingStyle.Linear)
+				end
+				task.wait(step[1])
+			end
+		elseif style.crack == "freeze" then
+			-- Buz kaplıyor, yumurta soğuktan titriyor
+			for _, egg in eggs do
+				local frost = UiKit.Shape(egg, 0.5, 0.53, 0.8, 0.94, style.glow, 6, 0.5)
+				frost.BackgroundTransparency = 1
+				tween(frost, 0.5, { BackgroundTransparency = 0.35 })
+			end
+			for k = 1, 8 do
+				for _, egg in eggs do
+					tween(egg, 0.06, { Rotation = if k % 2 == 0 then 5 else -5 }, Enum.EasingStyle.Linear)
+				end
+				task.wait(0.06)
+			end
+			task.wait(0.24)
+		elseif style.crack == "implode" then
+			-- Nefes alıp içine çöküyor, ekran kararıyor
+			tween(layer, 0.6, { BackgroundTransparency = 0.12 })
+			local scales: { UIScale } = {}
+			for _, egg in eggs do
+				local sc = Instance.new("UIScale")
+				sc.Parent = egg
+				table.insert(scales, sc)
+			end
+			for _, step in { { 0.2, 1.18 }, { 0.14, 0.9 }, { 0.16, 1.3 }, { 0.2, 0.12 } } do
+				for _, sc in scales do
+					tween(sc, step[1], { Scale = step[2] }, Enum.EasingStyle.Sine)
+				end
+				task.wait(step[1])
+			end
+		else
+			-- Sarsıntı: iki yana sallanıp zıplıyor (koli)
+			for _, seconds in WOBBLE do
+				for _, egg in eggs do
+					tween(egg, seconds, { Rotation = -16, Position = UDim2.new(0.5, 0, 0.5, -8) }, Enum.EasingStyle.Sine)
+				end
+				task.wait(seconds)
+				for _, egg in eggs do
+					tween(egg, seconds, { Rotation = 16, Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Sine)
+				end
+				task.wait(seconds)
+			end
+		end
+		for _, egg in eggs do
+			-- Tam turları at: 1440°'den 0'a dönerken geri geri dört tur atmasın
+			egg.Rotation = ((egg.Rotation + 180) % 360) - 180
+			tween(egg, 0.08, { Rotation = 0, Position = UDim2.fromScale(0.5, 0.5) })
+		end
+		task.wait(0.08)
+	end
+
+	local function play(keys: { string }, source: string, eggId: string?)
 		local count = math.min(#keys, #slots)
+		-- Birleştirmede yumurta yok; nötr stil
+		local style = EggStyle.Get(if source == "fuse" then nil else eggId)
 		closeRequested = false
 		dismiss.Active = false
 		layer.Visible = true
@@ -235,8 +348,10 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			end
 		end
 
+		layer.BackgroundColor3 = style.backdrop
 		tween(layer, 0.2, { BackgroundTransparency = 0.4 })
-		headline.Text = if source == "fuse" then "FUSING..." else (if count > 1 then "HATCHING x" .. count .. "..." else "HATCHING...")
+		headline.Text = if source == "fuse" then "FUSING..."
+			else style.title .. (if count > 1 then " x" .. count else "") .. "..."
 		headline.TextColor3 = UiKit.INK
 		headline.TextTransparency = 0
 
@@ -247,27 +362,20 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		]]
 		local eggs: { Frame } = {}
 		for i = 1, count do
-			local egg = UiKit.Egg(slots[i].figure, if count == 1 then 150 else 120, Color3.fromRGB(236, 228, 210))
+			local egg = EggStyle.Draw(slots[i].figure, if count == 1 then 150 else 120,
+				if source == "fuse" then nil else eggId)
 			table.insert(eggs, egg)
 		end
-		for _, seconds in WOBBLE do
-			for _, egg in eggs do
-				tween(egg, seconds, { Rotation = -14 }, Enum.EasingStyle.Sine)
-			end
-			task.wait(seconds)
-			for _, egg in eggs do
-				tween(egg, seconds, { Rotation = 14 }, Enum.EasingStyle.Sine)
-			end
-			task.wait(seconds)
-		end
-		for _, egg in eggs do
-			tween(egg, 0.08, { Rotation = 0 })
-		end
-		task.wait(0.08)
+		crack(eggs, style)
 
-		-- Çatlama: beyaz parlama, yumurtalar gidiyor, petler geliyor
+		-- Çatlama: yumurtanın renginde parlama, parçalar saçılıyor, petler geliyor
+		flash.BackgroundColor3 = style.glow:Lerp(Color3.new(1, 1, 1), 0.55)
 		flash.BackgroundTransparency = 0.05
 		tween(flash, 0.4, { BackgroundTransparency = 1 })
+		tween(layer, 0.3, { BackgroundTransparency = 0.4 })
+		for i = 1, count do
+			burst(slots[i], style)
+		end
 		headline.Text = if source == "fuse" then "FUSED!" else "HATCHED!"
 
 		local best = 0
@@ -345,7 +453,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		playing = true
 		while #queue > 0 do
 			local item = table.remove(queue, 1)
-			local ok, err = pcall(play, item.keys, item.source)
+			local ok, err = pcall(play, item.keys, item.source, item.eggId)
 			if not ok then
 				warn("[HatchFX] " .. tostring(err))
 				layer.Visible = false
@@ -376,7 +484,12 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		if #list == 0 then
 			return
 		end
-		table.insert(queue, { keys = list, source = if typeof(source) == "string" then source else "egg" })
+		-- Yumurta açılışında üçüncü argüman yumurtanın kimliği (stil için)
+		table.insert(queue, {
+			keys = list,
+			source = if typeof(source) == "string" then source else "egg",
+			eggId = if source ~= "fuse" and typeof(fromKey) == "string" then fromKey else nil,
+		})
 		task.spawn(drain)
 	end)
 

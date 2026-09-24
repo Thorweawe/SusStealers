@@ -56,10 +56,12 @@ local TINT: { [string]: Color3 } = {
 type Effect = { label: string, value: (level: number) -> string }
 
 local EFFECT: { [string]: Effect } = {
+	-- Yükseltme hem aralığı kısaltıyor hem bandı hızlandırıyor (ConveyorService)
 	ConveyorSpeed = {
-		label = "New crewmate every",
+		label = "Crewmate every / belt",
 		value = function(level)
-			return string.format("%.1fs", Config.GetConveyorInterval(level))
+			return string.format("%.1fs / %.1fx", Config.GetConveyorInterval(level),
+				Config.GetConveyorBeltSpeed(level) / Config.GetConveyorBeltSpeed(0))
 		end,
 	},
 	UnitGuard = {

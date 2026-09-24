@@ -27,7 +27,7 @@ return {
 
 			local cx, cz = r[1] + 13, midZ
 			K.vcyl(f, "CorePlinth", cx, FLOOR + 1, cz, 2, 17, C.metal)
-			K.vcyl(f, "CoreRing", cx, FLOOR + 2.3, cz, 0.6, 18.4, purple, { collide = false })
+			K.vcyl(f, "CoreRing", cx, FLOOR + 2.3, cz, 0.6, 18.4, purple)
 			local glass = K.vcyl(f, "CoreGlass", cx, FLOOR + 2 + 11, cz, 22, 12, C.glass,
 				{ material = Enum.Material.Glass, transparency = 0.55 })
 			glass.CastShadow = false
@@ -35,14 +35,14 @@ return {
 			K.light(core, C.cyan, 34, 1.6)
 			core:SetAttribute("PulsePeriod", 3.2)
 			for _, y in { 8, 14, 20 } do
-				K.vcyl(f, "CoreBand", cx, FLOOR + y, cz, 1, 12.8, C.metal, { collide = false })
+				K.vcyl(f, "CoreBand", cx, FLOOR + y, cz, 1, 12.8, C.metal)
 			end
 			K.vcyl(f, "CoreCap", cx, FLOOR + 25.3, cz, 2.6, 15, C.metal)
 			K.vcyl(f, "CoreCrown", cx, FLOOR + 27.1, cz, 1, 9, purple)
 			for k = 0, 3 do
 				local a = math.rad(45 + k * 90)
 				K.vcyl(f, "CorePipe", cx + math.cos(a) * 5, (FLOOR + 27.6 + M.WALL_H) / 2, cz + math.sin(a) * 5,
-					M.WALL_H - FLOOR - 27.6, 1.6, C.metalDark, { collide = false })
+					M.WALL_H - FLOOR - 27.6, 1.6, C.metalDark)
 			end
 			local beacon = K.ball(f, "Beacon", cx, FLOOR + 28.4, cz, 1.8, C.red, { emit = "Fixture" })
 			beacon:SetAttribute("PulsePeriod", 1.6)
@@ -52,11 +52,11 @@ return {
 				local z = cz + s * 14
 				K.box(f, "ScannerStand", cx + 6, FLOOR + 2.5, z, 3, 5, 3, C.metal)
 				local tilt = CFrame.new(cx + 6, FLOOR + 5.4, z) * CFrame.Angles(0, 0, math.rad(35))
-				K.boxAt(f, "ScannerPad", tilt, Vector3.new(0.6, 4, 4), C.shadow, { collide = false })
+				K.boxAt(f, "ScannerPad", tilt, Vector3.new(0.6, 4, 4), C.shadow)
 				local palm = tilt * CFrame.new(0.35, -0.3, 0)
-				K.boxAt(f, "Palm", palm, Vector3.new(0.1, 1.6, 1.4), C.cyan, { emit = "Screen", collide = false })
+				K.boxAt(f, "Palm", palm, Vector3.new(0.1, 1.6, 1.4), C.cyan, { emit = "Screen" })
 				for k = -1.5, 1.5 do
-					K.boxAt(f, "Finger", palm * CFrame.new(0, 1.3, k * 0.36), Vector3.new(0.1, 1, 0.26), C.cyan, { emit = "Screen", collide = false })
+					K.boxAt(f, "Finger", palm * CFrame.new(0, 1.3, k * 0.36), Vector3.new(0.1, 1, 0.26), C.cyan, { emit = "Screen" })
 				end
 			end
 
@@ -80,16 +80,16 @@ return {
 				{ material = Enum.Material.Glass, transparency = 0.7, collide = true, reflect = 0.05 })
 			local n = 4
 			for k = 1, n - 1 do
-				K.box(f, "ShieldMullion", x, 26, z0 + k * (z1 - z0) / n, 1.2, 32.2, 1, C.frame, { collide = false })
+				K.box(f, "ShieldMullion", x, 26, z0 + k * (z1 - z0) / n, 1.2, 32.2, 1, C.frame)
 			end
-			K.box(f, "ShieldTransom", x, 34, (z0 + z1) / 2, 1.2, 0.8, z1 - z0 + 0.2, C.frame, { collide = false })
+			K.box(f, "ShieldTransom", x, 34, (z0 + z1) / 2, 1.2, 0.8, z1 - z0 + 0.2, C.frame)
 			-- Kenar dikmeleri açıklığa 0.3 taşıyor: duvarın kesik yüzüyle aynı düzlemde kalmasın
 			for _, s in { -1, 1 } do
-				K.box(f, "ShieldFrame", x - 1.6, 26, if s < 0 then z0 - 0.6 else z1 + 0.6, 1, 34, 1.8, C.frame, { collide = false })
+				K.box(f, "ShieldFrame", x - 1.6, 26, if s < 0 then z0 - 0.6 else z1 + 0.6, 1, 34, 1.8, C.frame)
 			end
 			-- Üst/alt bar açıklığa 0.3 taşıyor: kesiğin yüzüyle aynı düzlemde değil
-			K.box(f, "ShieldFrame", x - 1.6, 42.6, (z0 + z1) / 2, 1, 1.8, z1 - z0 + 3.6, C.frame, { collide = false })
-			K.box(f, "ShieldFrame", x - 1.6, 9.4, (z0 + z1) / 2, 1, 1.8, z1 - z0 + 3.6, C.frame, { collide = false })
+			K.box(f, "ShieldFrame", x - 1.6, 42.6, (z0 + z1) / 2, 1, 1.8, z1 - z0 + 3.6, C.frame)
+			K.box(f, "ShieldFrame", x - 1.6, 9.4, (z0 + z1) / 2, 1, 1.8, z1 - z0 + 3.6, C.frame)
 
 			-- Gösterge paneli: camın önünde, eğik üst yüzeyli
 			local dash = r[3] - 4
@@ -101,16 +101,16 @@ return {
 			for k = 0, 13 do
 				local z = r[2] + 4 + k * ((r[4] - r[2] - 8) / 13)
 				local btn = K.boxAt(f, "DashButton", top * CFrame.new(-1.2 + (k % 2) * 1.4, 0.36, z - (r[2] + r[4]) / 2),
-					Vector3.new(0.8, 0.14, 0.8), tones[k % #tones + 1], { emit = "Indicator", collide = false })
+					Vector3.new(0.8, 0.14, 0.8), tones[k % #tones + 1], { emit = "Indicator" })
 				if k % 4 == 0 then
 					btn:SetAttribute("PulsePeriod", 1.1 + k * 0.1)
 				end
 			end
-			local chart = K.boxAt(f, "StarChart", top * CFrame.new(1.3, 0.36, 0), Vector3.new(2, 0.1, 12), rgb(20, 40, 90), { emit = "Screen", collide = false })
+			local chart = K.boxAt(f, "StarChart", top * CFrame.new(1.3, 0.36, 0), Vector3.new(2, 0.1, 12), rgb(20, 40, 90), { emit = "Screen" })
 			chart.CastShadow = false
 			for k = -2, 2 do
 				K.boxAt(f, "ChartStar", top * CFrame.new(1.3 + (k % 2) * 0.4, 0.42, k * 2.2), Vector3.new(0.3, 0.06, 0.3), C.white,
-					{ emit = "Indicator", collide = false })
+					{ emit = "Indicator" })
 			end
 
 			-- Pilot koltukları camın tarafına bakıyor
@@ -121,8 +121,8 @@ return {
 				K.boxAt(f, "SeatBack", seat * CFrame.new(0, 5.2, 1.8), Vector3.new(3.8, 4.2, 0.8), if k == 1 then C.red else rgb(70, 110, 220))
 			end
 			-- Dümen kolu
-			K.vcyl(f, "Stick", r[1] + 13, FLOOR + 2, midZ, 4, 0.5, C.metalDark, { collide = false })
-			K.ball(f, "StickKnob", r[1] + 13, FLOOR + 4.2, midZ, 1.1, C.red, { collide = false })
+			K.vcyl(f, "Stick", r[1] + 13, FLOOR + 2, midZ, 4, 0.5, C.metalDark)
+			K.ball(f, "StickKnob", r[1] + 13, FLOOR + 4.2, midZ, 1.1, C.red)
 
 			K.hazard(f, r[1] + 0.6, FLOOR + 0.07 + M.LIFT, midZ, r[4] - r[2] - 2, 0.9, "z", 2.4)
 		end
@@ -174,13 +174,13 @@ return {
 		local cams = K.folder("Cameras", lm)
 		local function camera(pos: Vector3, lookAt: Vector3)
 			local cf = CFrame.lookAt(pos, lookAt)
-			K.boxAt(cams, "CamBody", cf, Vector3.new(1.8, 1.8, 3.4), C.frame, { collide = false })
+			K.boxAt(cams, "CamBody", cf, Vector3.new(1.8, 1.8, 3.4), C.frame)
 			K.boxAt(cams, "CamLens", cf * CFrame.new(0, 0, -1.8) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.3, 1.3, 1.3), C.shadow,
-				{ shape = Enum.PartType.Cylinder, collide = false })
+				{ shape = Enum.PartType.Cylinder })
 			local rec = K.boxAt(cams, "CamLight", cf * CFrame.new(0.6, 1.05, -1), Vector3.new(0.45, 0.45, 0.45), C.red,
-				{ shape = Enum.PartType.Ball, emit = "Fixture", collide = false })
+				{ shape = Enum.PartType.Ball, emit = "Fixture" })
 			rec:SetAttribute("PulsePeriod", 1.3)
-			K.boxAt(cams, "CamArm", cf * CFrame.new(0, 0, 2.3), Vector3.new(0.5, 0.5, 1.4), C.metalDark, { collide = false })
+			K.boxAt(cams, "CamArm", cf * CFrame.new(0, 0, 2.3), Vector3.new(0.5, 0.5, 1.4), C.metalDark)
 		end
 		camera(Vector3.new(M.centerX - 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX - 60, 2, midZ))
 		camera(Vector3.new(M.centerX + 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX + 60, 2, midZ))

@@ -31,10 +31,79 @@ type ConveyorItem = {
 	price: number,
 	startCFrame: CFrame,
 	travel: number,
-	spawnedAt: number,
+	-- Bant saatinin bu değere geldiği an karakter kapağın ağzında (konum 0)
+	spawnDistance: number,
+	prompt: ProximityPrompt,
+	label: BillboardGui,
+	visible: boolean,
 }
 
 local activeItems: { ConveyorItem } = {}
+
+--[[
+	═══ BANT SAATİ ══════════════════════════════════════════════════════════
+
+	Her üssün bandının tek bir "kat edilen yol" sayacı var:
+
+	    D(t) = distance + speed × (t − stamp)
+
+	Karakterin banttaki konumu D(t) − spawnDistance. Banttaki gri çıtalar da
+	istemcide AYNI sayaçtan çiziliyor (ConveyorFX): çıta k'nın konumu
+	(k × aralık + D) mod bant boyu. Karakterler D'nin çıta aralığının tam
+	katına geldiği anda ağza varıyor, yani her karakter bir çıtanın üstünde
+	kapaktan çıkıyor ve o çıtayla birlikte ilerliyor.
+
+	Hız değişince (Conveyor Speed yükseltmesi, sahip değişimi) sayaç o anda
+	sabitleniyor ve yeni hızla devam ediyor: karakterler de çıtalar da aynı
+	anda hızlanıyor, hiçbiri sıçramıyor.
+
+	İstemciye Conveyor parçasının nitelikleriyle gidiyor: BeltSpeed,
+	BeltDistance, BeltStamp (workspace:GetServerTimeNow saniyesi).
+]]
+type Belt = { distance: number, stamp: number, speed: number }
+local belts: { [Model]: Belt } = {}
+
+-- Art arda alınamayan karakter sayısı (Config.ConveyorPityAfter)
+local missStreak: { [Model]: number } = {}
+
+local function serverNow(): number
+	return workspace:GetServerTimeNow()
+end
+
+local function beltDistance(belt: Belt, now: number): number
+	return belt.distance + belt.speed * (now - belt.stamp)
+end
+
+--[[ Üssün bandını sahibin yükseltme seviyesine göre günceller ve döner. ]]
+local function syncBelt(plot: Model, conveyor: BasePart, now: number): Belt
+	local owner = PlotService.GetOwner(plot)
+	local level = if owner then UpgradeService.GetLevel(owner, "ConveyorSpeed") else 0
+	local speed = Config.GetConveyorBeltSpeed(level)
+
+	local belt = belts[plot]
+	if belt and belt.speed == speed then
+		return belt
+	end
+
+	if belt then
+		belt.distance = beltDistance(belt, now)
+		belt.stamp = now
+		belt.speed = speed
+	else
+		belt = { distance = 0, stamp = now, speed = speed }
+		belts[plot] = belt
+	end
+
+	conveyor:SetAttribute("BeltSpeed", belt.speed)
+	conveyor:SetAttribute("BeltDistance", belt.distance)
+	conveyor:SetAttribute("BeltStamp", belt.stamp)
+	return belt
+end
+
+--[[ Karakterlerin bantta gittiği yol (Conveyor boyundan türetiliyor). ]]
+local function beltTravel(conveyor: BasePart): number
+	return conveyor.Size.X - 4
+end
 
 -- "Garantili mutasyon" satin alan oyuncunun ussu. Bir sonraki uretimde
 -- harcaniyor: mutasyon cikmazsa zorla veriliyor, yani para verip bos
@@ -67,26 +136,67 @@ local function spawnItem(plot: Model): Config.UnitDef?
 	local owner = PlotService.GetOwner(plot)
 	local conveyorLevel = if owner then UpgradeService.GetLevel(owner, "ConveyorSpeed") else 0
 
-	local def = Config.RollUnit(rng, conveyorLevel)
+	--[[
+		Bütçe koruması (Config.ConveyorPityAfter). Garantili mutasyon
+		satın alınmışsa devreye girmiyor: oyuncu Robux verdi, havuzu
+		daraltmak ödediği şeyi küçültürdü.
+	]]
+	local lucky = luckyPlots[plot] == true
+	local budget: number? = nil
+	if owner and not lucky then
+		local cash = EconomyService.GetCash(owner)
+		local broke = EconomyService.GetIncome(owner) <= 0
+		local pity = (missStreak[plot] or 0) >= Config.ConveyorPityAfter
+		if (broke or pity) and cash >= Config.GetCheapestUnitPrice() then
+			budget = cash
+		end
+	end
+
+	local def = if budget then Config.RollAffordableUnit(rng, conveyorLevel, budget) else Config.RollUnit(rng, conveyorLevel)
 	local mutation = Config.RollMutation(rng)
 
 	-- Garanti satin alindiysa mutasyon cikana kadar cek
-	if luckyPlots[plot] then
+	if lucky then
 		luckyPlots[plot] = nil
 		while not mutation do
 			mutation = Config.RollMutation(rng)
 		end
 	end
 
+	-- Bütçeli çekilişte mutasyonlu fiyat bütçeyi aşıyorsa düz gelsin
+	if budget and mutation and Config.GetPrice(def.id, mutation.id) > budget then
+		mutation = nil
+	end
+
 	local mutationId = if mutation then mutation.id else nil
 	local price = Config.GetPrice(def.id, mutationId)
+
+	-- Art arda alınamayan sayacı: sahip bu karakteri alabiliyorsa sıfırla
+	if owner then
+		if price <= EconomyService.GetCash(owner) then
+			missStreak[plot] = 0
+		else
+			missStreak[plot] = (missStreak[plot] or 0) + 1
+		end
+	end
 
 	local model = UnitModel.Build(def.id, mutationId)
 	model.Name = "ConveyorItem"
 
-	local travel = conveyor.Size.X - 4
+	local travel = beltTravel(conveyor)
 	local startCFrame = conveyor.CFrame * CFrame.new(-travel / 2, conveyor.Size.Y / 2, 0)
-	model:PivotTo(startCFrame)
+
+	--[[
+		Karakter bir sonraki çıtaya hizalanıyor: bant saati çıta aralığının
+		bir sonraki katına geldiğinde ağızda olacak. O ana kadar (en fazla
+		bir çıta aralığı) kapağın içinde bekliyor, sonra çıtasıyla çıkıyor.
+	]]
+	local now = serverNow()
+	local belt = syncBelt(plot, conveyor, now)
+	local gap = travel / Config.ConveyorSlats
+	local spawnDistance = (math.floor(beltDistance(belt, now) / gap) + 1) * gap
+	local position = beltDistance(belt, now) - spawnDistance
+	model:PivotTo(startCFrame * CFrame.new(position, 0, 0))
 
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
@@ -95,6 +205,8 @@ local function spawnItem(plot: Model): Config.UnitDef?
 	end
 
 	local label = UnitModel.BuildLabel(def.id, mutationId)
+	-- Kapağın içindeyken etiket görünmesin; ağızdan çıkınca açılıyor
+	label.Enabled = false
 	label.Parent = model.PrimaryPart
 
 	-- Satın alma promptu
@@ -105,7 +217,16 @@ local function spawnItem(plot: Model): Config.UnitDef?
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 12
 	prompt.RequiresLineOfSight = false
+	prompt.Enabled = false
+	-- İstemcideki PromptFilter Enabled'ı yerelde yeniden yazıyor; kapağın
+	-- içindeyken açmasın diye durum ayrıca nitelikle gidiyor
+	prompt:SetAttribute("OnBelt", false)
 	prompt.Parent = model.PrimaryPart
+
+	-- İstemci (ConveyorFX) karakteri kendi karesinde bant saatine göre çiziyor
+	model:SetAttribute("BeltStart", startCFrame)
+	model:SetAttribute("SpawnDistance", spawnDistance)
+	model:SetAttribute("Travel", travel)
 
 	model.Parent = items
 
@@ -117,7 +238,10 @@ local function spawnItem(plot: Model): Config.UnitDef?
 		price = price,
 		startCFrame = startCFrame,
 		travel = travel,
-		spawnedAt = os.clock(),
+		spawnDistance = spawnDistance,
+		prompt = prompt,
+		label = label,
+		visible = false,
 	}
 	table.insert(activeItems, item)
 
@@ -164,7 +288,7 @@ local function notify(player: Player, text: string, isError: boolean, kind: stri
 end
 
 function ConveyorService.TryBuy(player: Player, item: ConveyorItem, prompt: ProximityPrompt)
-	if item.model.Parent == nil then
+	if item.model.Parent == nil or not item.visible then
 		return
 	end
 
@@ -203,7 +327,16 @@ end
 -- ─── Döngü ──────────────────────────────────────────────────────────────────
 
 local function stepItems()
-	local now = os.clock()
+	local now = serverNow()
+
+	-- Bantlar karakteri olmasa da güncel kalmalı: istemcideki çıtalar
+	-- yükseltme alınır alınmaz hızlansın
+	for _, plot in PlotService.GetAllPlots() do
+		local conveyor = plot:FindFirstChild("Conveyor")
+		if conveyor and conveyor:IsA("BasePart") then
+			syncBelt(plot, conveyor, now)
+		end
+	end
 
 	for index = #activeItems, 1, -1 do
 		local item = activeItems[index]
@@ -213,16 +346,30 @@ local function stepItems()
 			continue
 		end
 
-		local elapsed = now - item.spawnedAt
-		local progress = elapsed / Config.ConveyorLifetime
-
-		if progress >= 1 then
+		local belt = belts[item.plot]
+		if not belt then
 			item.model:Destroy()
 			table.remove(activeItems, index)
 			continue
 		end
 
-		item.model:PivotTo(item.startCFrame * CFrame.new(item.travel * progress, 0, 0))
+		local position = beltDistance(belt, now) - item.spawnDistance
+		if position >= item.travel then
+			item.model:Destroy()
+			table.remove(activeItems, index)
+			continue
+		end
+
+		-- Ağızdan çıkana kadar alınamıyor ve etiketi kapalı
+		local visible = position >= 0
+		if visible ~= item.visible then
+			item.visible = visible
+			item.prompt.Enabled = visible
+			item.prompt:SetAttribute("OnBelt", visible)
+			item.label.Enabled = visible
+		end
+
+		item.model:PivotTo(item.startCFrame * CFrame.new(position, 0, 0))
 	end
 end
 
@@ -292,6 +439,7 @@ function ConveyorService.Start()
 		if not plot then
 			return
 		end
+		missStreak[plot] = nil
 		for index = #activeItems, 1, -1 do
 			if activeItems[index].plot == plot then
 				activeItems[index].model:Destroy()

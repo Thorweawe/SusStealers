@@ -33,6 +33,10 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/PromptGuard.luau` | Sunucu | Prompt tetiklemelerinin doğrulanması |
 | `src/server/FriendService.luau` | Sunucu | Aynı sunucudaki arkadaş başına küçük gelir bonusu |
 | `src/client/DeviceLayout.luau` | İstemci | Telefon/tablet/konsol: arayüz ölçeği, dokunmatik yerleşim, gamepad seçimi |
+| `src/client/Inventory.luau` | İstemci | Envanter penceresi (PETS/POTIONS/STYLE/TITLES sekmeleri) ve sağ ortadaki düğme dizisi (MenuDock) |
+| `src/client/ConveyorFX.luau` | İstemci | Konveyör çıtaları + bandın üstündeki karakterler, üssün bant saatiyle |
+| `src/client/EggStyle.luau` | İstemci | Yumurta stilleri: kuluçkada süs + boşta animasyon, açılışta stil |
+| `src/client/EventFX.luau` | İstemci | Olay şeridi (üst orta), olay çizelgesi (sağ alt), Lights Sabotage karanlığı |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
 | `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
 
@@ -443,7 +447,15 @@ _G.MAP_ONLY = nil
 
 Kurulumun sonunda `tools/map/check.luau` ölçerek denetim yapıyor: aynı
 düzlemde çakışan yüzler (titreme) ve üslerin oyun alanına giren katı
-parçalar. Rapor `cakisan yuz: 0 | oyun alani ihlali: 0` olmalı.
+parçalar. Rapor `cakisan yuz: 0 | oyun alani ihlali: 0` olmalı. Bilerek
+üssün içinde duran oyun parçaları (konveyör kapakları) `AllowInPlot`
+niteliğiyle işaretli, denetim onları saymıyor.
+
+**Katılık kuralı (`kit.luau`):** haritada içinden geçilen hiçbir şey yok.
+`collide = false` yok sayılıyor; geçirgen olan yalnızca `ghost = true`
+verilenler (ışık sütunu, hologram, oyuncunun içinde durduğu halka, dış
+uzay), saydamlığı 0.7 ve üstü olanlar (cam hariç) ve yere yatık ince
+kaplamalar (yükseklik <= 0.6).
 
 Kodun adıyla aradığı parçalar (değiştirirken koru): `Hatchery.Egg1..4 /
 PodRing / PodScreen / FuseCore`, `GearShop.GearCounter / GearPlinth1..3`,
@@ -458,6 +470,8 @@ PodRing / PodScreen / FuseCore`, `GearShop.GearCounter / GearPlinth1..3`,
 Hepsi `src/shared/Config.luau` içinde, tek yerde:
 
 - `ConveyorInterval` — kaç saniyede bir yeni karakter (varsayılan 10)
+- `ConveyorBeltSpeed` / `GetConveyorBeltSpeed` — bant hızı (çıtalar ve karakterler aynı saatle)
+- `ConveyorPityAfter` — art arda kaç alınamayan karakterden sonra bütçeye uygun gelsin
 - `PodiumsPerPlot` — üs başına kaide sayısı (varsayılan 8)
 - `StealHoldTime` / `StealCooldown` — çalma zorluğu
 - `SafeSeconds` — yeni konan karakterin dokunulmazlık süresi

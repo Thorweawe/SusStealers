@@ -143,6 +143,12 @@ function PromptFilter.Create(): Filter
 					want = false
 				end
 
+				-- Konveyördeki karakter henüz kapağın içindeyse alınamıyor
+				-- (sunucu OnBelt niteliğiyle bildiriyor, ConveyorService)
+				if want and d.Name == "BuyPrompt" and d:GetAttribute("OnBelt") == false then
+					want = false
+				end
+
 				-- Sadece gerçekten değişiyorsa yaz
 				if d.Enabled ~= want then
 					d.Enabled = want

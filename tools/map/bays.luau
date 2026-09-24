@@ -41,8 +41,8 @@ return {
 				local col = if front then slot - 1 else slot - perRow - 1
 				local px = ox + (col - (perRow - 1) / 2) * M.PODIUM_GAP
 				local pz = oz + (if front then -M.PODIUM_ROW_Z else M.PODIUM_ROW_Z)
-				K.vcyl(plot, "PodiumPad", px, topY + 0.12 + M.LIFT, pz, 0.24, 6.4, C.frame, { collide = false })
-				K.vcyl(plot, "PodiumRing", px, topY + 0.15 + M.LIFT, pz, 0.3, 5.2, th.grout, { collide = false })
+				K.vcyl(plot, "PodiumPad", px, topY + 0.12 + M.LIFT, pz, 0.24, 6.4, C.frame)
+				K.vcyl(plot, "PodiumRing", px, topY + 0.15 + M.LIFT, pz, 0.3, 5.2, th.grout)
 			end
 
 			-- Çerçeve: sahibin rengi (istemci boyuyor)
@@ -67,13 +67,18 @@ return {
 				başlıyor, aralarındaki mesafe faz (SlidePhase) olarak veriliyor.
 				Eskiden her çıta kendi yerinden bir bant boyu daha kayıyordu ve
 				bandın dışına, üssün arkasına kadar uzanan gri çizgiler oluyordu.
+
+				Hızı burada DEĞİL: istemcideki ConveyorFX çıtaları üssün bant
+				saatiyle (sunucu, ConveyorService) kaydırıyor, karakterler de
+				aynı saatle ve çıta aralığına hizalı doğuyor. SlideSpeed'in
+				yalnızca İŞARETİ kullanılıyor (yön). Çıta sayısı Config'le aynı.
 			]]
-			local SLATS = 8
+			local SLATS = K.Config.ConveyorSlats or 8
 			local gap = beltLen / SLATS
 			local dx = ox - flip * beltLen / 2
 			for k = 0, SLATS - 1 do
 				local slat = K.box(plot, "BeltSlat", dx, beltY + 0.09 + M.LIFT, convZ, 0.9, 0.18, 4.4, C.metalDark)
-				slat:SetAttribute("SlideSpeed", 5 * flip)
+				slat:SetAttribute("SlideSpeed", flip)
 				slat:SetAttribute("SlideRange", beltLen)
 				slat:SetAttribute("SlidePhase", k * gap)
 			end
@@ -81,34 +86,55 @@ return {
 			--[[
 				Kargo kapakları: iki uçta aynı gövde. Çıkışta (karakterlerin
 				doğduğu uç) sıcak ışık ve yeşil lamba, girişte soğuk ışık.
-				Gövde üssün kenarından biraz taşıyor; hepsi geçirgen, üs
-				kenarında oyuncu takılmasın.
+
+				ARTIK KATI. Eskiden "üs kenarında oyuncu takılmasın" diye
+				hepsi geçirgendi; oyuncu kapağın içinden yürüyüp geçiyordu.
+				Karakterler kapağın içinde doğup çıtalarıyla birlikte ağızdan
+				çıkıyor (ConveyorService/ConveyorFX); ağız da kapalı.
+
+				Gövde üssün köşesine taşıyor, yani harita denetiminin "oyun
+				alanında katı dekor" kuralına takılıyor. Bilerek orada: parçalar
+				AllowInPlot niteliğiyle işaretleniyor, denetim onları sayMIyor.
 			]]
-			local function chute(name: string, ax: number, dir: number, tone: Color3, lampColor: Color3)
+			local function buildChute(name: string, ax: number, dir: number, tone: Color3, lampColor: Color3)
 				local W, HH, D = 7, 9, 8.4
 				local bx = ax + dir * (W / 2 + 0.6)
-				local body = K.box(plot, name .. "Body", bx, M.TILE_TOP + (10.4 - M.TILE_TOP) / 2, convZ, W, 10.4 - M.TILE_TOP, D, C.frame, { collide = false })
+				local body = K.box(plot, name .. "Body", bx, M.TILE_TOP + (10.4 - M.TILE_TOP) / 2, convZ, W, 10.4 - M.TILE_TOP, D, C.frame)
 				local hood = K.cyl(plot, if name == "Hatch" then "HatchHood" else name .. "Hood",
-					CFrame.new(bx, 10.4, convZ) * CFrame.Angles(0, math.rad(90), 0), D, W, C.frame, { collide = false })
+					CFrame.new(bx, 10.4, convZ) * CFrame.Angles(0, math.rad(90), 0), D, W, C.frame)
 				-- Gövdenin üstünde tema renginde bant
-				K.box(plot, name .. "Band", bx, 7.6, convZ, W + 0.2, 1.2, D + 0.3, th.accent, { collide = false })
+				K.box(plot, name .. "Band", bx, 7.6, convZ, W + 0.2, 1.2, D + 0.3, th.accent)
 				-- Ağız çerçevesi
 				for _, e in { -1, 1 } do
-					K.box(plot, name .. "Jamb", ax, beltY + HH / 2 - 0.5, convZ + e * 3.7, 1.4, HH - 1, 1.2, C.metal, { collide = false })
+					K.box(plot, name .. "Jamb", ax, beltY + HH / 2 - 0.5, convZ + e * 3.7, 1.4, HH - 1, 1.2, C.metal)
 				end
-				K.box(plot, name .. "Lintel", ax, beltY + HH - 0.5, convZ, 1.6, 1.4, 8.8, C.metal, { collide = false })
+				K.box(plot, name .. "Lintel", ax, beltY + HH - 0.5, convZ, 1.6, 1.4, 8.8, C.metal)
 				-- Karanlık boğaz ve ışıklı ağız
 				-- Boğaz gövdeden 0.15 taşıyor: ön yüzleri aynı düzlemde olmasın
-				K.box(plot, name .. "Throat", ax + dir * 1.4, beltY + (HH - 1.5) / 2, convZ, 1.9, HH - 1.6, 6.2, C.shadow, { collide = false })
+				K.box(plot, name .. "Throat", ax + dir * 1.4, beltY + (HH - 1.5) / 2, convZ, 1.9, HH - 1.6, 6.2, C.shadow)
 				local mouth = K.box(plot, name .. "Mouth", ax + dir * 0.55, beltY + (HH - 1.5) / 2 + 0.1, convZ, 0.3, HH - 2.4, 5.8, tone, { emit = "Screen", transparency = 0.35 })
 				K.light(mouth, tone, 12, 0.9)
 				-- Lento üstünde uyarı dişleri
 				for k = -1, 1 do
-					K.box(plot, name .. "Tooth", ax - dir * 0.85, beltY + HH - 0.5, convZ + k * 2.6, 0.2, 1.1, 1.2, if k == 0 then C.hazardDark else C.hazard, { collide = false })
+					K.box(plot, name .. "Tooth", ax - dir * 0.85, beltY + HH - 0.5, convZ + k * 2.6, 0.2, 1.1, 1.2, if k == 0 then C.hazardDark else C.hazard)
 				end
 				-- Tepede durum lambası
 				local lamp = K.ball(plot, name .. "Lamp", bx, 10.4 + W / 2 + 0.3, convZ, 1.2, lampColor, { emit = "Indicator" })
 				lamp:SetAttribute("PulsePeriod", 2.2)
+				return body, hood
+			end
+
+			local function chute(name: string, ax: number, dir: number, tone: Color3, lampColor: Color3)
+				local existing: { [Instance]: boolean } = {}
+				for _, child in plot:GetChildren() do
+					existing[child] = true
+				end
+				local body, hood = buildChute(name, ax, dir, tone, lampColor)
+				for _, child in plot:GetChildren() do
+					if not existing[child] then
+						child:SetAttribute("AllowInPlot", true)
+					end
+				end
 				return body, hood
 			end
 

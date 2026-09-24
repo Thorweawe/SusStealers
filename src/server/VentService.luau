@@ -63,6 +63,17 @@ function VentService.TryVent(player: Player, from: BasePart, to: BasePart, now: 
 	end
 	lastVentAt[player] = t
 
+	-- Oturuyorsa önce kalksın: kaynaklı koltuk da ışınlanıyordu
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if humanoid and seat then
+		humanoid.Sit = false
+		local weld = seat:FindFirstChild("SeatWeld")
+		if weld then
+			weld:Destroy()
+		end
+	end
+
 	-- Varışta kapağın biraz yukarısı, oyuncunun baktığı yön korunarak
 	local look = root.CFrame.LookVector * Vector3.new(1, 0, 1)
 	local arrive = to.Position + Vector3.new(0, 3, 0)

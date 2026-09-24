@@ -46,8 +46,8 @@ local REF_WIDTH, REF_HEIGHT = 1280, 660
 local TOUCH_REF_WIDTH, TOUCH_REF_HEIGHT = 1000, 560
 local MIN_SCALE, MAX_SCALE = 0.45, 1
 
--- En büyük pencere (PetPanel 580x520) kenar payıyla sığmalı
-local WINDOW_FIT = Vector2.new(820, 540)
+-- En büyük pencere (Envanter 800x560) kenar payıyla sığmalı
+local WINDOW_FIT = Vector2.new(840, 600)
 
 --[[
 	Dokunmatikte kaydırılan öğeler: adı -> hangi taraf. Değerler ekran
@@ -58,7 +58,9 @@ local TOUCH_LIFT = {
 	StatBar = "left",
 	SideRail = "left",
 	Tutorial = "left",
-	MenuDock = "right",
+	-- MenuDock artık sağ ortada (Envanter + Rebirth): zıplama düğmesine denk gelmiyor.
+	-- Sağ alttaki olay çizelgesi geldi.
+	EventSchedule = "right",
 }
 
 --[[

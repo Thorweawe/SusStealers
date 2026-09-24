@@ -34,14 +34,20 @@ local Z = 30
 local ACCENT = UiKit.CREW.PURPLE
 local CARD_W, CARD_H = 150, 196
 
-function CosmeticPanel.Create(screen: ScreenGui): Panel
+-- host verilirse Envanter'in STYLE sekmesine sayfa olarak kuruluyor (PetPanel ile aynı kalıp)
+function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 	local player = Players.LocalPlayer
 	local remote = Net.Get("CosmeticAction")
 
-	local root = UiKit.Window(screen, "CosmeticPanel", ACCENT)
-	root.AnchorPoint = Vector2.new(0.5, 0.5)
-	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(560, 470)
+	local root: Frame
+	if host then
+		root = UiKit.Page(host, "CosmeticPanel")
+	else
+		root = UiKit.Window(screen, "CosmeticPanel", ACCENT)
+		root.AnchorPoint = Vector2.new(0.5, 0.5)
+		root.Position = UDim2.fromScale(0.5, 0.5)
+		root.Size = UDim2.fromOffset(560, 470)
+	end
 	root.Visible = false
 	root.ZIndex = Z
 
@@ -49,11 +55,13 @@ function CosmeticPanel.Create(screen: ScreenGui): Panel
 	title.ZIndex = Z + 2
 	sub.ZIndex = Z + 2
 	sub.Text = "Hats and trails for your crewmate. Everyone can see them."
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 6
-	close.MouseButton1Click:Connect(function()
-		root.Visible = false
-	end)
+	if not host then
+		local close = UiKit.CloseButton(root)
+		close.ZIndex = Z + 6
+		close.MouseButton1Click:Connect(function()
+			root.Visible = false
+		end)
+	end
 
 	-- ─── Sekmeler ────────────────────────────────────────────────────────
 

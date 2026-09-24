@@ -72,9 +72,12 @@ function DecorFX.Start(): FX
 			end
 
 			-- Bant çıtası: kendi ekseninde değil, bir hat boyunca kayıyor
+			-- Kuluçka yumurtaları (Hatchery.EggN) EggStyle'da: her birinin kendi animasyonu var
+			local isHatchEgg = string.match(obj.Name, "^Egg%d+$") ~= nil
+				and obj.Parent ~= nil and obj.Parent.Name == "Hatchery"
 			local bob = obj:GetAttribute("BobHeight")
 			local bobPeriod = obj:GetAttribute("BobPeriod")
-			if typeof(bob) == "number" and typeof(bobPeriod) == "number" and bobPeriod > 0 then
+			if not isHatchEgg and typeof(bob) == "number" and typeof(bobPeriod) == "number" and bobPeriod > 0 then
 				table.insert(bobbers, {
 					part = obj,
 					height = bob,
@@ -86,9 +89,14 @@ function DecorFX.Start(): FX
 				})
 			end
 
+			--[[
+				Konveyör çıtaları (BeltSlat) burada DEĞİL, ConveyorFX'te:
+				hızları sabit değil, üssün bant saatine bağlı ve bandın
+				üstündeki karakterlerle birlikte çiziliyorlar.
+			]]
 			local slide = obj:GetAttribute("SlideSpeed")
 			local slideRange = obj:GetAttribute("SlideRange")
-			if typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
+			if obj.Name ~= "BeltSlat" and typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
 				local phase = obj:GetAttribute("SlidePhase")
 				table.insert(sliders, {
 					part = obj,

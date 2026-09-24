@@ -46,18 +46,18 @@ local CLUTTER = {
 	"Leaderboard",
 	"SideRail",
 	"MenuDock",
-	"MenuOverlay",
+	-- Envanter: petler, iksirler, stil ve unvanlar tek pencerede
+	"InventoryPanel",
+	"EventSchedule",
 	"UnitIndex",
 	"ShopPanel",
 	"QuestPanel",
-	"PetPanel",
 	"RewardsPanel",
 	"GearPanel",
 	"TransitPanel",
 	"Hotbar",
 	"AsteroidGame",
 	"TaskGame",
-	"CosmeticPanel",
 }
 
 local BUTTON = 44

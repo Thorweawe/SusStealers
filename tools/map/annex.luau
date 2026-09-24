@@ -65,7 +65,7 @@ return {
 			K.box(f, "AnnexRoof", ax, H + 1.6, (ceilZ0 + z1 + T / 2 + 0.5) / 2, x1 - x0 + T + 1, 0.8, (z1 + T / 2 + 0.5) - ceilZ0, C.hullOut)
 			for _, t in { 0.3, 0.7 } do
 				local z = z0 + (z1 - z0) * t
-				K.box(f, "LightFrame", ax, H - 0.15, z, 20.2, 0.3, 4.2, C.frame, { collide = false })
+				K.box(f, "LightFrame", ax, H - 0.15, z, 20.2, 0.3, 4.2, C.frame)
 				local p = K.box(f, "LightPanel", ax, H - 0.35, z, 19, 0.2, 3, C.lamp, { emit = "Fixture" })
 				K.surfaceLight(p, Enum.NormalId.Bottom, C.lamp, 30, 1.3, 140)
 			end
@@ -102,14 +102,14 @@ return {
 			K.vcyl(f, "FuelTankBase", tx, FLOOR + 0.5, tz, 1, 9, C.metalDark)
 			K.vcyl(f, "FuelTank", tx, FLOOR + 5.5, tz, 9, 7.6, rgb(222, 96, 44))
 			for _, y in { 2.6, 8.4 } do
-				K.vcyl(f, "FuelBand", tx, FLOOR + y, tz, 0.6, 7.9, C.metalDark, { collide = false })
+				K.vcyl(f, "FuelBand", tx, FLOOR + y, tz, 0.6, 7.9, C.metalDark)
 			end
 			K.vcyl(f, "FuelCap", tx, FLOOR + 10.4, tz, 0.8, 3, C.metal)
-			local label = K.box(f, "FuelLabel", tx, FLOOR + 5.5, tz - 3.9, 4, 1.6, 0.1, C.shadow, { collide = false })
+			local label = K.box(f, "FuelLabel", tx, FLOOR + 5.5, tz - 3.9, 4, 1.6, 0.1, C.shadow)
 			K.text(label, Enum.NormalId.Front, "FUEL", C.hazard)
 			-- Pompa konsolu: tankın yanında, görevin kendisi
 			local pump = K.box(f, "FuelPump", tx + 7, FLOOR + 2.4, tz, 3, 4.8, 3, C.metal)
-			local screen = K.box(f, "FuelScreen", tx + 7, FLOOR + 3.6, tz - 1.55, 2.2, 1.6, 0.1, C.green, { emit = "Screen", collide = false })
+			local screen = K.box(f, "FuelScreen", tx + 7, FLOOR + 3.6, tz - 1.55, 2.2, 1.6, 0.1, C.green, { emit = "Screen" })
 			taskConsole(pump, "Fuel")
 			K.light(screen, C.green, 8, 0.6)
 
@@ -117,12 +117,12 @@ return {
 			-- Duvar korkuluğunun önünde (arka yüzü korkulukla aynı düzlemde kalmasın)
 			local wx = x1 - T / 2 - 0.9
 			local panel = K.box(f, "WiringPanel", wx, FLOOR + 6, cz, 0.8, 6, 7, C.shadow)
-			K.box(f, "WiringFrame", wx + 0.15, FLOOR + 6, cz, 0.7, 6.8, 7.8, C.frameDark, { collide = false })
+			K.box(f, "WiringFrame", wx + 0.15, FLOOR + 6, cz, 0.7, 6.8, 7.8, C.frameDark)
 			local wireColors = { C.red, rgb(60, 110, 240), C.hazard, rgb(240, 90, 200) }
 			for i, col in wireColors do
 				local y = FLOOR + 3.8 + i * 1.1
-				K.box(f, "WireStub", wx - 0.5, y, cz - 2.9, 0.3, 0.35, 1.2, col, { collide = false })
-				K.box(f, "WireStub", wx - 0.5, y, cz + 2.9, 0.3, 0.35, 1.2, col, { collide = false })
+				K.box(f, "WireStub", wx - 0.5, y, cz - 2.9, 0.3, 0.35, 1.2, col)
+				K.box(f, "WireStub", wx - 0.5, y, cz + 2.9, 0.3, 0.35, 1.2, col)
 			end
 			taskConsole(panel, "Wiring")
 
@@ -132,7 +132,7 @@ return {
 				local cf = CFrame.new(cx, cy, czz) * CFrame.Angles(0, math.rad(yaw), 0)
 				K.boxAt(f, "Crate", cf, Vector3.new(s, s, s), CRATE)
 				for _, y in { -s * 0.32, s * 0.32 } do
-					K.boxAt(f, "CrateStrap", cf * CFrame.new(0, y, 0), Vector3.new(s + 0.08, s * 0.12, s + 0.08), STRAP, { collide = false })
+					K.boxAt(f, "CrateStrap", cf * CFrame.new(0, y, 0), Vector3.new(s + 0.08, s * 0.12, s + 0.08), STRAP)
 				end
 			end
 			crate(x0 + 4, FLOOR + 2.5, z1 - 6, 5, 0)
@@ -152,13 +152,13 @@ return {
 			-- Kart okuyucu masası: güney duvarının önünde
 			local dz = z1 - 6
 			K.box(f, "LabDesk", ax, FLOOR + 1.8, dz, 12, 3.6, 4, C.frame)
-			K.box(f, "LabDeskTop", ax, FLOOR + 3.7, dz, 12.6, 0.3, 4.6, C.metalDark, { collide = false })
+			K.box(f, "LabDeskTop", ax, FLOOR + 3.7, dz, 12.6, 0.3, 4.6, C.metalDark)
 			local reader = K.box(f, "CardReader", ax + 2, FLOOR + 4.4, dz - 0.4, 3.2, 1.1, 2, C.shadow)
-			K.box(f, "CardSlot", ax + 2, FLOOR + 5, dz - 0.4, 2.8, 0.1, 0.25, C.green, { emit = "Indicator", collide = false })
+			K.box(f, "CardSlot", ax + 2, FLOOR + 5, dz - 0.4, 2.8, 0.1, 0.25, C.green, { emit = "Indicator" })
 			taskConsole(reader, "Card")
 			-- Masadaki ekran
 			K.box(f, "LabMonitor", ax - 3, FLOOR + 5.4, dz + 0.8, 4, 2.6, 0.3, C.shadow)
-			local ms = K.box(f, "LabMonitorScreen", ax - 3, FLOOR + 5.4, dz + 0.62, 3.6, 2.2, 0.06, C.cyan, { emit = "Screen", collide = false })
+			local ms = K.box(f, "LabMonitorScreen", ax - 3, FLOOR + 5.4, dz + 0.62, 3.6, 2.2, 0.06, C.cyan, { emit = "Screen" })
 			K.light(ms, C.cyan, 8, 0.5)
 
 			-- Numune tüpleri: batı duvarı boyunca, cam içinde yeşil sıvı
@@ -167,7 +167,7 @@ return {
 				local tx = x0 + 4
 				K.vcyl(f, "TubeBase", tx, FLOOR + 0.6, tz, 1.2, 5, C.metalDark)
 				-- Sıvı opak, cam çok saydam: yoksa cam sıvıyı mavinin altında boğuyordu
-				K.vcyl(f, "TubeLiquid", tx, FLOOR + 4.2, tz, 6, 3.2, rgb(110, 240, 140), { emit = "Screen", collide = false })
+				K.vcyl(f, "TubeLiquid", tx, FLOOR + 4.2, tz, 6, 3.2, rgb(110, 240, 140), { emit = "Screen" })
 				K.vcyl(f, "TubeGlass", tx, FLOOR + 4.6, tz, 7.2, 4, C.glass, { material = Enum.Material.Glass, transparency = 0.82 })
 				K.vcyl(f, "TubeCap", tx, FLOOR + 8.5, tz, 0.6, 4.4, C.metal)
 			end

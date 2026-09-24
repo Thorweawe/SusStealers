@@ -13,12 +13,15 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
+local ConveyorFX = require(script.ConveyorFX)
 local CosmeticPanel = require(script.CosmeticPanel)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
+local EggStyle = require(script.EggStyle)
 local EventFX = require(script.EventFX)
 local FloorStyle = require(script.FloorStyle)
 local Index = require(script.Index)
+local Inventory = require(script.Inventory)
 local Leaderboard = require(script.Leaderboard)
 local Lobby = require(script.Lobby)
 local MapLife = require(script.MapLife)
@@ -396,6 +399,7 @@ task.spawn(function()
 end)
 
 DecorFX.Start()
+ConveyorFX.Start()
 ThiefTrail.Start()
 
 local guide = CarryGuide.Create(screen)
@@ -524,15 +528,6 @@ mountPanel("TutorialUI", function()
 end)
 
 
-mountPanel("Menus", function()
-	local menu = Menus.Create(screen)
-	previews.Titles = function()
-		menu.Open("titles")
-	end
-	previews.Potions = function()
-		menu.Open("potions")
-	end
-end)
 
 --[[
 	Yükseltme arayüzü. Kendi üssündeki kulübenin önüne basınca açılıyor,
@@ -554,9 +549,8 @@ mountPanel("Sprint", function()
 end)
 
 --[[
-	Rebirth arayuzu. Sag alttaki dock'a REBIRTH dugmesi ekliyor; panelin
-	kendisi ekranin ortasinda aciliyor. Menus'ten sonra kuruluyor cunku
-	dugmeyi onun dock'una takiyor.
+	Rebirth arayuzu. Sag ortadaki dock'a (Envanter kuruyor) REBIRTH
+	dugmesi ekliyor; panelin kendisi ekranin ortasinda aciliyor.
 ]]
 mountPanel("RebirthPanel", function()
 	local panel = RebirthPanel.Create(screen)
@@ -568,11 +562,11 @@ mountPanel("RebirthPanel", function()
 		return
 	end
 
-	-- Rayin geri kalaniyla ayni kalip: kare ikon dugmesi, altinda etiket
+	-- ENVANTER düğmesinin hemen altında, aynı boyutta (Inventory.luau: sağ orta)
 	local holder, button, slot =
-		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH")
-	holder.LayoutOrder = 4
-	UiKit.Rebirth(slot, 30, Color3.fromRGB(255, 236, 190))
+		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH", Vector2.new(72, 78))
+	holder.LayoutOrder = 2
+	UiKit.Rebirth(slot, 34, Color3.fromRGB(255, 236, 190))
 
 	button.MouseButton1Click:Connect(function()
 		panel.Toggle()
@@ -580,73 +574,168 @@ mountPanel("RebirthPanel", function()
 end)
 
 --[[
-	Petler. Duğmesi sag raya, Menus'un dock'una takiliyor (rebirth ile ayni
-	yol). Panel ekranin ortasinda aciliyor.
+	ENVANTER: petler, iksirler, stil ve unvanlar tek pencerede (Inventory.luau).
+	Sağ ortadaki düğme dizisini (MenuDock) de o kuruyor; REBIRTH düğmesi
+	yukarıda ona takılıyor.
 
-	Pet bonuslari sunucudan nitelik olarak geliyor ve calma hizi hapi onlari
-	zaten gosteriyor; burasi yalnizca arayuzu kuruyor.
+	Sayfalar panellerin kendisi — her biri ayrı pcall'da: biri kurulamazsa
+	diğer sekmeler çalışmaya devam etsin.
 ]]
-mountPanel("PetPanel", function()
-	--[[
-		Açılış animasyonu, otomatik açma döngüsü ve pet penceresi birbirine
-		bağlı: otomatik açma animasyon bitmeden bir sonrakini istemiyor,
-		pencere de hangi yumurtada otomatiğin açık olduğunu gösteriyor.
-	]]
-	local hatchFX = HatchFX.Create(screen)
-	local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
-	local panel = PetPanel.Create(screen, auto)
-	previews.Pets = panel.Toggle
-	previews.Fuse = panel.OpenFuse
+mountPanel("Inventory", function()
+	local inventory = Inventory.Create(screen)
+	local content = inventory.Content
 
-	-- Birleştirme makinede oynuyor: pencere kapanıyor, bitince makine ekranı geri geliyor
-	local fuseWasOpen = false
-	FuseFX.Create({
-		onStart = function()
-			fuseWasOpen = panel.IsFuseOpen()
-			panel.Hide()
-		end,
-		onEnd = function()
-			if fuseWasOpen then
-				panel.OpenFuse()
-			end
-		end,
-	})
-
-	local dock = screen:WaitForChild("MenuDock", 10)
-	if not dock then
-		return
+	local function page(name: string, build: () -> ())
+		local ok, err = pcall(build)
+		if not ok then
+			warn(string.format("[SusStealers] Envanter sayfasi kurulamadi (%s): %s", name, tostring(err)))
+		end
 	end
 
-	local holder, button, slot =
-		UiKit.IconButton(dock, "Pets", UiKit.CREW.PINK, "PETS")
-	holder.LayoutOrder = 3
-	-- Pati izi: unvan düğmesindeki mürettebatla karışmasın, "pet" olduğu hemen okunsun
-	UiKit.Paw(slot, 30, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.6))
+	-- 1) PETS — yumurtalar, koleksiyon, birleştirme makinesi
+	page("Pets", function()
+		--[[
+			Açılış animasyonu, otomatik açma döngüsü ve pet sayfası birbirine
+			bağlı: otomatik açma animasyon bitmeden bir sonrakini istemiyor,
+			sayfa da hangi yumurtada otomatiğin açık olduğunu gösteriyor.
+		]]
+		local hatchFX = HatchFX.Create(screen)
+		local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
+		local panel = PetPanel.Create(screen, auto, content, function(text)
+			inventory.SetCount("pets", text)
+		end)
+		previews.Pets = panel.Toggle
+		previews.Fuse = panel.OpenFuse
 
-	button.MouseButton1Click:Connect(function()
-		panel.Toggle()
-	end)
+		inventory.AddTab({
+			id = "pets",
+			label = "PETS",
+			tint = UiKit.CREW.PINK,
+			order = 1,
+			icon = function(slot, size, tint)
+				UiKit.Paw(slot, size, tint)
+			end,
+		}, content:WaitForChild("PetPanel") :: GuiObject, panel.Toggle)
 
-	--[[
-		Kuluçkahanedeki birleştirme makinesi. Promptu sunucu kuruyor ama
-		pencere istemcinin işi: oyuncunun kendi tetiklemesi burada da
-		görünüyor ve birleştirme modunu açıyor. Asıl işlem (PetFuse)
-		sunucuda, makineye yakınlık orada doğrulanıyor.
-	]]
-	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
-		if who ~= player then
-			return
-		end
-		if prompt.Name == "FusePrompt" then
-			panel.OpenFuse()
-		elseif prompt.Name == "AutoPrompt" then
-			-- Kuluçkadaki yumurtanın T tuşu: o yumurtada otomatik açmayı aç/kapa
-			local eggId = prompt:GetAttribute("EggId")
-			if typeof(eggId) == "string" then
-				auto.Toggle(eggId, 1)
+		-- Birleştirme makinede oynuyor: pencere kapanıyor, bitince makine ekranı geri geliyor
+		local fuseWasOpen = false
+		FuseFX.Create({
+			onStart = function()
+				fuseWasOpen = panel.IsFuseOpen()
+				panel.Hide()
+			end,
+			onEnd = function()
+				if fuseWasOpen then
+					panel.OpenFuse()
+				end
+			end,
+		})
+
+		--[[
+			Kuluçkahanedeki birleştirme makinesi. Promptu sunucu kuruyor ama
+			pencere istemcinin işi: oyuncunun kendi tetiklemesi burada da
+			görünüyor ve birleştirme modunu açıyor. Asıl işlem (PetFuse)
+			sunucuda, makineye yakınlık orada doğrulanıyor.
+		]]
+		game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
+			if who ~= player then
+				return
 			end
+			if prompt.Name == "FusePrompt" then
+				panel.OpenFuse()
+			elseif prompt.Name == "AutoPrompt" then
+				-- Kuluçkadaki yumurtanın T tuşu: o yumurtada otomatik açmayı aç/kapa
+				local eggId = prompt:GetAttribute("EggId")
+				if typeof(eggId) == "string" then
+					auto.Toggle(eggId, 1)
+				end
+			end
+		end)
+	end)
+
+	-- 2) POTIONS ve 4) TITLES — aynı sayfa (Menus), sekmesi niteliğinde
+	page("Menus", function()
+		local menu = Menus.Create(screen, content, function(tab, text, badge)
+			inventory.SetCount(tab, text)
+			if tab == "potions" then
+				inventory.SetBadge("potions", badge)
+			end
+		end)
+		local root = content:WaitForChild("MenuOverlay") :: GuiObject
+		inventory.AddTab({
+			id = "potions",
+			label = "POTIONS",
+			tint = Color3.fromRGB(110, 206, 120),
+			order = 2,
+			icon = function(slot, size, tint)
+				UiKit.Vial(slot, size, Color3.fromRGB(170, 255, 120), 0.8, true)
+			end,
+		}, root, function()
+			menu.Open("potions")
+		end)
+		inventory.AddTab({
+			id = "titles",
+			label = "TITLES",
+			tint = Color3.fromRGB(214, 164, 40),
+			order = 4,
+			icon = function(slot, size, tint)
+				UiKit.Crown(slot, size, Color3.fromRGB(255, 214, 90))
+			end,
+		}, root, function()
+			menu.Open("titles")
+		end)
+		previews.Titles = function()
+			inventory.Open("titles")
+		end
+		previews.Potions = function()
+			inventory.Open("potions")
 		end
 	end)
+
+	-- 3) STYLE — şapkalar ve izler
+	page("Style", function()
+		local panel = CosmeticPanel.Create(screen, content)
+		inventory.AddTab({
+			id = "style",
+			label = "STYLE",
+			tint = UiKit.CREW.PURPLE:Lerp(UiKit.CREW.PINK, 0.4),
+			order = 3,
+			icon = function(slot, size, tint)
+				-- Şapkalı mürettebat: kozmetiğin ne olduğu ikondan okunsun
+				local body = UiKit.Crewmate(slot, size * 0.74, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.3))
+				local hat = Instance.new("Frame")
+				hat.AnchorPoint = Vector2.new(0.5, 1)
+				hat.Position = UDim2.fromScale(0.45, 0.12)
+				hat.Size = UDim2.fromScale(0.62, 0.3)
+				hat.BackgroundColor3 = UiKit.CREW.YELLOW
+				hat.BorderSizePixel = 0
+				hat.ZIndex = body.ZIndex + 2
+				hat.Parent = body
+				UiKit.Corner(hat, 4)
+			end,
+		}, content:WaitForChild("CosmeticPanel") :: GuiObject, panel.Toggle)
+		previews.Style = function()
+			inventory.Open("style")
+		end
+
+		-- Sayaç oyuncu niteliğinden: sahip olunan kozmetik / toplam
+		local function refreshStyle()
+			local raw = player:GetAttribute("CosmeticsOwned")
+			local count = 0
+			if typeof(raw) == "string" then
+				for _ in string.gmatch(raw, "[^,]+") do
+					count += 1
+				end
+			end
+			inventory.SetCount("style", string.format("%d / %d owned", count, #Config.Cosmetics))
+		end
+		player:GetAttributeChangedSignal("CosmeticsOwned"):Connect(refreshStyle)
+		refreshStyle()
+	end)
+
+	previews.Inventory = function()
+		inventory.Open(nil)
+	end
 end)
 
 --[[
@@ -721,26 +810,6 @@ mountPanel("GearPanel", function()
 	end)
 end)
 
---[[
-	Kozmetik mağazası. Düğmesi sağdaki menü dizisinde (Pets/Rebirth ile aynı
-	yol); dizi beşinci düğme için uzatılıyor.
-]]
-mountPanel("CosmeticPanel", function()
-	local panel = CosmeticPanel.Create(screen)
-	previews.Style = panel.Toggle
-	local dock = screen:WaitForChild("MenuDock", 10) :: Frame?
-	if not dock then
-		return
-	end
-	dock.Size = UDim2.new(0, 64, 0, 5 * 68 + 4 * 8)
-	local holder, button, slot = UiKit.IconButton(dock, "Style", UiKit.CREW.PURPLE:Lerp(UiKit.CREW.PINK, 0.4), "STYLE")
-	holder.LayoutOrder = 5
-	UiKit.Crewmate(slot, 28, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.3))
-	button.MouseButton1Click:Connect(function()
-		panel.Toggle()
-	end)
-end)
-
 -- Ek odalardaki görevler (Storage, Laboratory): pencere ve sarı "!" işaretleri
 mountPanel("TaskGames", function()
 	local tasks = TaskGames.Create(screen)
@@ -758,6 +827,11 @@ end)
 -- Sunucu olayları: üstteki şerit ve Lights Sabotage karanlığı
 mountPanel("EventFX", function()
 	EventFX.Create(screen)
+end)
+
+-- Kuluçka yumurtaları: her birinin kendi görünüşü ve boşta animasyonu
+mountPanel("EggStyle", function()
+	EggStyle.Start()
 end)
 
 -- Harita canlılığı: uyarı lambaları ve koridorda gezen mürettebat

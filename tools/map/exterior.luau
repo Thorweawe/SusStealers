@@ -36,18 +36,18 @@ return {
 			-- Motor gövdesi: batıya doğru (x azalıyor)
 			seg("Nacelle", -x0 + 8, -x0 + 70, 38, rgb(150, 164, 176))
 			for _, b in { 16, 36, 56 } do
-				seg("NacelleBand", -x0 + b, -x0 + b + 3, 39.6, rgb(96, 110, 122), { collide = false })
+				seg("NacelleBand", -x0 + b, -x0 + b + 3, 39.6, rgb(96, 110, 122), { ghost = true })
 			end
-			seg("NacelleStripe", -x0 + 24, -x0 + 28, 39.4, cobalt, { collide = false })
+			seg("NacelleStripe", -x0 + 24, -x0 + 28, 39.4, cobalt, { ghost = true })
 			seg("NozzleRing", -x0 + 70, -x0 + 76, 32, rgb(70, 82, 94))
 			seg("NozzleThroat", -x0 + 76, -x0 + 77, 26, C.shadow)
 			-- Alev: iç içe iki parlak silindir + küre; DecorFX nabız veriyor
-			local flame = seg("Flame", -x0 + 77, -x0 + 91, 24, rgb(90, 190, 255), { emit = "Fixture", transparency = 0.25, collide = false })
+			local flame = seg("Flame", -x0 + 77, -x0 + 91, 24, rgb(90, 190, 255), { emit = "Fixture", transparency = 0.25, ghost = true })
 			flame.CastShadow = false
 			flame:SetAttribute("PulsePeriod", 0.5)
-			local inner = seg("FlameCore", -x0 + 77, -x0 + 101, 14, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1, collide = false })
+			local inner = seg("FlameCore", -x0 + 77, -x0 + 101, 14, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1, ghost = true })
 			inner.CastShadow = false
-			local tip = K.ball(f, "FlameTip", x0 - 101, cy, z, 14, rgb(150, 220, 255), { emit = "Fixture", transparency = 0.35, collide = false })
+			local tip = K.ball(f, "FlameTip", x0 - 101, cy, z, 14, rgb(150, 220, 255), { emit = "Fixture", transparency = 0.35, ghost = true })
 			tip.CastShadow = false
 			K.light(flame, rgb(110, 190, 255), 60, 2.2)
 		end
@@ -72,7 +72,7 @@ return {
 				K.flatTriangle(f, "Prow", Vector2.new(xw, czn + s * half), apex, foot, -5.6, 27, hull)
 				K.flatTriangle(f, "ProwDeck", Vector2.new(xw, czn + s * (half - 4)), Vector2.new(xw + L - 10, czn), foot, 8.2, 0.6, rgb(120, 138, 152))
 			end
-			K.box(f, "ProwStripe", xw + 40, 8.6, czn, 60, 0.2, 3, C.hazard, { collide = false })
+			K.box(f, "ProwStripe", xw + 40, 8.6, czn, 60, 0.2, 3, C.hazard, { ghost = true })
 			local nav = K.ball(f, "NoseLight", xw + L - 8, 9.5, czn, 3, C.red, { emit = "Fixture" })
 			nav:SetAttribute("PulsePeriod", 1.8)
 		end
@@ -100,13 +100,13 @@ return {
 		do
 			local f = K.folder("Space", ex)
 			-- Gezegen: kuzeyde, uzakta; cam şeritten ve kuzey pencerelerinden görünüyor
-			local planet = K.ball(f, "Planet", M.centerX - 300, 260, M.Z0 - 1500, 700, rgb(226, 150, 96), { collide = false })
+			local planet = K.ball(f, "Planet", M.centerX - 300, 260, M.Z0 - 1500, 700, rgb(226, 150, 96), { ghost = true })
 			planet.CastShadow = false
-			K.ball(f, "PlanetBand", M.centerX - 300, 300, M.Z0 - 1497, 690, rgb(236, 180, 120), { collide = false }).CastShadow = false
-			local moon = K.ball(f, "Moon", M.centerX + 420, 330, M.Z0 - 1100, 140, rgb(196, 204, 214), { collide = false })
+			K.ball(f, "PlanetBand", M.centerX - 300, 300, M.Z0 - 1497, 690, rgb(236, 180, 120), { ghost = true }).CastShadow = false
+			local moon = K.ball(f, "Moon", M.centerX + 420, 330, M.Z0 - 1100, 140, rgb(196, 204, 214), { ghost = true })
 			moon.CastShadow = false
 			-- Güneyde ikinci gezegen: lobi pencerelerinden
-			local p2 = K.ball(f, "Planet2", M.centerX + 700, 120, M.LOBBY_Z1 + 1300, 520, rgb(90, 140, 230), { collide = false })
+			local p2 = K.ball(f, "Planet2", M.centerX + 700, 120, M.LOBBY_Z1 + 1300, 520, rgb(90, 140, 230), { ghost = true })
 			p2.CastShadow = false
 		end
 
@@ -116,9 +116,9 @@ return {
 			local m = Instance.new("Model")
 			m.Name = "Asteroid"
 			m.Parent = drift
-			local core = K.ball(m, "Rock", x, y, z, 6 * s, rgb(120, 112, 104), { collide = false })
-			K.ball(m, "Rock", x + 2.4 * s, y + 1.2 * s, z - 1 * s, 4 * s, rgb(104, 96, 90), { collide = false })
-			K.ball(m, "Rock", x - 2 * s, y - 1.5 * s, z + 1.4 * s, 3.4 * s, rgb(136, 128, 118), { collide = false })
+			local core = K.ball(m, "Rock", x, y, z, 6 * s, rgb(120, 112, 104), { ghost = true })
+			K.ball(m, "Rock", x + 2.4 * s, y + 1.2 * s, z - 1 * s, 4 * s, rgb(104, 96, 90), { ghost = true })
+			K.ball(m, "Rock", x - 2 * s, y - 1.5 * s, z + 1.4 * s, 3.4 * s, rgb(136, 128, 118), { ghost = true })
 			m.PrimaryPart = core
 			m:SetAttribute("DriftSpeed", speed)
 			m:SetAttribute("DriftRange", range)

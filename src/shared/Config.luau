@@ -141,8 +141,46 @@ Config.IncomeInterval = 1
 
 -- ─── Konveyör ───────────────────────────────────────────────────────────────
 Config.ConveyorInterval = 10   -- kaç saniyede bir yeni karakter gelir
-Config.ConveyorLifetime = 22   -- alınmazsa kaç saniye sonra kaybolur
-Config.ConveyorSpeed = 6
+
+--[[
+	Bant hızı (stud/sn). Karakterler ve banttaki gri çıtalar AYNI hızla,
+	aynı saatle ilerliyor: her karakter bir çıtanın üstünde kapaktan çıkıyor
+	ve o çıtayla birlikte girişe kadar gidiyor.
+
+	ESKİ HATA: karakter 22 saniyede bandı geçiyordu (~2.7 stud/sn), çıtalar
+	ise sabit 5 stud/sn'de akıyordu. Çıtalar karakterlerin altından kayıp
+	gidiyor, bant "boşa dönüyor" gibi görünüyordu.
+
+	Conveyor Speed yükseltmesi bandı da hızlandırıyor (adına uygun), ama
+	tavanlı: en hızlı hâlde bile karakter bantta ~12 sn kalıyor, yoksa
+	almaya yetişilemezdi.
+]]
+Config.ConveyorBeltSpeed = 2.75       -- 0. seviyede
+Config.ConveyorBeltSpeedStep = 0.035  -- seviye başına +%3.5
+Config.ConveyorBeltSpeedMax = 1.8     -- en fazla 1.8 katı
+-- Banttaki çıta sayısı. Harita (tools/map/bays.luau) ile aynı olmalı:
+-- karakterler çıta aralığına hizalı doğuyor.
+Config.ConveyorSlats = 8
+
+function Config.GetConveyorBeltSpeed(level: number): number
+	local mul = math.min(Config.ConveyorBeltSpeedMax, 1 + math.max(0, level) * Config.ConveyorBeltSpeedStep)
+	return Config.ConveyorBeltSpeed * mul
+end
+
+--[[
+	Parası bitmiş oyuncu koruması.
+
+	Kaidesi boş (geliri 0) oyuncuya kilitlenme koruması en ucuz karakterin
+	parasını veriyor ($100). Ama konveyör rastgele çekiyordu: $100'lük Red
+	Crewmate beş çekilişte bir çıkıyor, çoğu zaman mutasyonla pahalanıyor,
+	bantta 22 sn kalıyor. Oyuncu $100 ile bekleyip hiçbir şey alamıyordu.
+
+	Artık geliri 0 olan oyuncunun bandına YALNIZCA alabileceği karakterler
+	geliyor. Geliri olan ama art arda ConveyorPityAfter karakteri alamayan
+	oyuncuya da bir sonraki çekiliş bütçesine uygun geliyor (elinde en ucuz
+	karakterin parası varsa).
+]]
+Config.ConveyorPityAfter = 3
 
 -- ─── Çalma ──────────────────────────────────────────────────────────────────
 Config.StealHoldTime = 4.0     -- prompt kaç saniye basılı tutulur
@@ -1458,6 +1496,42 @@ function Config.RollUnit(rng: Random, conveyorLevel: number?): UnitDef
 	end
 
 	return Config.Units[1]
+end
+
+--[[
+	Bütçeye uygun karakter çeker: yalnızca fiyatı `budget`'ı aşmayan ve o
+	seviyede açık olan karakterler, kendi ağırlıklarıyla. Hiçbiri uymuyorsa
+	en ucuz karakter (kilitlenme koruması parayı zaten ona tamamlıyor).
+]]
+function Config.RollAffordableUnit(rng: Random, conveyorLevel: number?, budget: number): UnitDef
+	local level = conveyorLevel or 0
+
+	local total = 0
+	for _, unit in Config.Units do
+		if unit.price <= budget then
+			total += Config.GetUnitWeight(unit, level)
+		end
+	end
+
+	if total > 0 then
+		local roll = rng:NextNumber(0, total)
+		for _, unit in Config.Units do
+			if unit.price <= budget then
+				roll -= Config.GetUnitWeight(unit, level)
+				if roll <= 0 then
+					return unit
+				end
+			end
+		end
+	end
+
+	local cheapest = Config.Units[1]
+	for _, unit in Config.Units do
+		if unit.price < cheapest.price then
+			cheapest = unit
+		end
+	end
+	return cheapest
 end
 
 --[[ Mutasyon çeker, çıkmazsa nil döner. ]]

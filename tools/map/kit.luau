@@ -338,19 +338,34 @@ export type Opts = {
 	shape: Enum.PartType?,
 	emit: string?,
 	reflect: number?,
+	ghost: boolean?,
 	parent: Instance,
 }
 
 --[[
-	Katılık varsayılanı: görünen katıdır. İstisnalar otomatik:
-	parlayan yüzeyler (ışık hacim değildir) ve yere yatık ince kaplamalar
-	(yükseklik <= 0.6: boya, şerit — üstünde yürünmeli, takılmamalı).
+	═══ KATILIK: HARİTADA İÇİNDEN GEÇİLEN HİÇBİR ŞEY YOK ═══════════════════
+
+	Eski kural "görünen katıdır" diyordu ama istisnası boldu: parlayan her
+	yüzey ve `collide = false` verilen her süs geçirgendi. Sonuç: konveyör
+	kapaklarının, bitkilerin, kasa bantlarının, korkulukların, kuluçka
+	dikmelerinin içinden yürünüyordu.
+
+	Şimdi `collide = false` YOK SAYILIYOR. İçinden geçilebilen yalnızca:
+	  - ghost = true: ışık sütunu, hologram parıltısı, oyuncunun içinde
+	    durduğu hareketli halka (MedBay tarayıcısı), dış uzay dekoru
+	  - saydamlığı >= 0.7 olanlar (görünmez çapa, parıltı) — cam hariç
+	  - yere yatık ince kaplamalar (yükseklik <= 0.6: boya, şerit, halı —
+	    üstünde yürünüyor, takılınmamalı)
+	`collide = true` her durumda katı.
 ]]
 local function solid(o: Opts): boolean
-	if o.collide ~= nil then
-		return o.collide
+	if o.collide == true then
+		return true
 	end
-	if o.emit ~= nil then
+	if o.ghost then
+		return false
+	end
+	if (o.transparency or 0) >= 0.7 and o.material ~= Enum.Material.Glass then
 		return false
 	end
 	return o.size.Y > 0.6
@@ -575,8 +590,8 @@ end
 	yerel -Z yönüne (LookVector) bakıyor.
 ]]
 function K.sign(parent: Instance, name: string, cf: CFrame, w: number, h: number, text: string, accent: Color3?, textColor: Color3?): Part
-	local board = K.boxAt(parent, name, cf, Vector3.new(w, h, 0.8), C.shadow, { collide = false })
-	K.boxAt(parent, name .. "Frame", cf * CFrame.new(0, 0, 0.35), Vector3.new(w + 1.2, h + 1.2, 0.5), C.frame, { collide = false })
+	local board = K.boxAt(parent, name, cf, Vector3.new(w, h, 0.8), C.shadow)
+	K.boxAt(parent, name .. "Frame", cf * CFrame.new(0, 0, 0.35), Vector3.new(w + 1.2, h + 1.2, 0.5), C.frame)
 	if accent then
 		K.boxAt(parent, name .. "Accent", cf * CFrame.new(0, -h / 2 + 0.35, -0.46), Vector3.new(w - 1.2, 0.3, 0.12), accent, { emit = "Screen" })
 	end
@@ -824,14 +839,14 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		piece(tag .. "Glass", wc, (wb + wt) / 2, 0, w1 - w0, wh, 0.4, C.glass,
 			{ material = Enum.Material.Glass, transparency = 0.62, collide = true, reflect = 0.08 })
 		-- Orta kayıt: camı böl, ölçek versin
-		piece(tag .. "Mullion", wc, (wb + wt) / 2, 0, 0.7, wh + 0.2, 0.9, C.frame, { collide = false })
+		piece(tag .. "Mullion", wc, (wb + wt) / 2, 0, 0.7, wh + 0.2, 0.9, C.frame)
 		-- İç ve dış çerçeve
 		for _, side in { 1, -1 } do
 			local dc = side * (T / 2 + 0.3)
-			piece(tag .. "WinFrame", wc, wt + FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame, { collide = false })
-			piece(tag .. "WinFrame", wc, wb - FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame, { collide = false })
-			piece(tag .. "WinFrame", w0 - FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame, { collide = false })
-			piece(tag .. "WinFrame", w1 + FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame, { collide = false })
+			piece(tag .. "WinFrame", wc, wt + FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame)
+			piece(tag .. "WinFrame", wc, wb - FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame)
+			piece(tag .. "WinFrame", w0 - FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame)
+			piece(tag .. "WinFrame", w1 + FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame)
 		end
 		--[[
 			Köşe pahları kaldırıldı: her pencerenin dört köşesinde çerçevenin
@@ -839,7 +854,7 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 			çıkıntı sahneyi kalabalıklaştırıyordu. Düz çerçeve daha sakin.
 		]]
 		-- Pencere altı pervaz (iç)
-		piece(tag .. "Sill", wc, wb - FW - 0.25, T / 2 + 0.55, (w1 - w0) + FW * 2 + 0.6, 0.5, 1.1, C.frameDark, { collide = false })
+		piece(tag .. "Sill", wc, wb - FW - 0.25, T / 2 + 0.55, (w1 - w0) + FW * 2 + 0.6, 0.5, 1.1, C.frameDark)
 	end
 
 	-- ── İç yüz süslemeleri (kapılar ve köşeler hariç) ─────────────────────
@@ -861,18 +876,18 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		-- Bölme duvarları iki yüzden de görünüyor: süsleme iki yana
 		for _, sd in (if spec.twoSided then { 1, -1 } else { 1 }) do
 			piece(tag .. "Kick", mid, 1.3, sd * (T / 2 + 0.25), w, 2.6, 0.5, C.wallKick)
-			piece(tag .. "Rail", mid, rail + 0.6, sd * (T / 2 + 0.35), w, 1.2, 0.7, C.wallRail, { collide = false })
+			piece(tag .. "Rail", mid, rail + 0.6, sd * (T / 2 + 0.35), w, 1.2, 0.7, C.wallRail)
 			-- Dikey derz çıtaları kaldırıldı: her duvarda koyu "demir çizgiler"
 			-- gibi okunuyor, sahneyi kalabalıklaştırıyordu.
 		end
 		-- Tavana yakın ışık bandı
 		if not spec.noCove then
 			piece(tag .. "Cove", mid, H - 2.2, T / 2 + 0.5, w - 2, 0.5, 0.5, C.lamp, { emit = "Screen" })
-			piece(tag .. "CoveLip", mid, H - 1.6, T / 2 + 0.6, w, 0.4, 1.2, C.wallCap, { collide = false })
+			piece(tag .. "CoveLip", mid, H - 1.6, T / 2 + 0.6, w, 0.4, 1.2, C.wallCap)
 		end
 		-- Dış cephe kaplaması: istasyonun dışarıdan görünen yüzü
 		if spec.exterior then
-			piece(tag .. "Belt", mid, rail + 0.6, -(T / 2 + 0.3), w, 1.6, 0.6, spec.exterior, { collide = false })
+			piece(tag .. "Belt", mid, rail + 0.6, -(T / 2 + 0.3), w, 1.6, 0.6, spec.exterior)
 		end
 	end
 end
@@ -896,9 +911,9 @@ function K.door(parent: Instance, a: Vector2, b: Vector2, inside: number, u0: nu
 		local uc = if side < 0 then u0 - J / 2 + 0.3 else u1 + J / 2 - 0.3
 		K.boxAt(parent, "DoorJamb", frame * CFrame.new(uc, h / 2, 0), Vector3.new(J, h, D), C.frame)
 		-- Kanat: sövenin içinde, yarısı görünür
-		K.boxAt(parent, "DoorLeaf", frame * CFrame.new(uc + side * 0.2, h / 2 - 0.2, 0), Vector3.new(J - 0.9, h - 0.8, D + 0.3), C.metal, { collide = false })
+		K.boxAt(parent, "DoorLeaf", frame * CFrame.new(uc + side * 0.2, h / 2 - 0.2, 0), Vector3.new(J - 0.9, h - 0.8, D + 0.3), C.metal)
 		-- Kanadın üstündeki sarı-siyah uyarı bandı
-		K.boxAt(parent, "DoorBand", frame * CFrame.new(uc + side * 0.2, h * 0.55, 0), Vector3.new(J - 0.85, 1.2, D + 0.36), C.hazard, { collide = false })
+		K.boxAt(parent, "DoorBand", frame * CFrame.new(uc + side * 0.2, h * 0.55, 0), Vector3.new(J - 0.85, 1.2, D + 0.36), C.hazard)
 	end
 	K.boxAt(parent, "DoorLintel", frame * CFrame.new((u0 + u1) / 2, h + 1.1 - 0.3, 0), Vector3.new(u1 - u0 + J * 2 - 0.6, 2.2, D), C.frame)
 	-- Durum lambası: iki yüzde
@@ -946,16 +961,16 @@ function K.crewmate(parent: Instance, cf: CFrame, color: Color3, s: number, pose
 	if p == "dead" then
 		-- Ceset: gövdenin alt yarısı, üstünden kemik çıkıyor
 		K.boxAt(model, "Half", at(0, 0.7, 0) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(1.4 * s, 2.1 * s, 2.1 * s), color,
-			{ shape = Enum.PartType.Cylinder, collide = false })
+			{ shape = Enum.PartType.Cylinder })
 		K.boxAt(model, "Cut", at(0, 1.42, 0) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.12 * s, 1.95 * s, 1.95 * s), rgb(236, 226, 220),
-			{ shape = Enum.PartType.Cylinder, collide = false })
-		K.boxAt(model, "Bone", at(0, 1.9, 0), Vector3.new(0.34 * s, 1.0 * s, 0.34 * s), rgb(246, 244, 236), { collide = false })
+			{ shape = Enum.PartType.Cylinder })
+		K.boxAt(model, "Bone", at(0, 1.9, 0), Vector3.new(0.34 * s, 1.0 * s, 0.34 * s), rgb(246, 244, 236))
 		for _, x in { -0.18, 0.18 } do
 			K.boxAt(model, "BoneEnd", at(x, 2.4, 0), Vector3.new(0.4 * s, 0.4 * s, 0.4 * s), rgb(246, 244, 236),
-				{ shape = Enum.PartType.Ball, collide = false })
+				{ shape = Enum.PartType.Ball })
 		end
 		for i, x in { -0.5, 0.5 } do
-			K.boxAt(model, "Leg" .. i, at(x, 0.3, -0.35) , Vector3.new(0.7 * s, 0.6 * s, 1.2 * s), color, { collide = false })
+			K.boxAt(model, "Leg" .. i, at(x, 0.3, -0.35) , Vector3.new(0.7 * s, 0.6 * s, 1.2 * s), color)
 		end
 		model.PrimaryPart = model:FindFirstChild("Half") :: BasePart
 		return model
@@ -963,27 +978,27 @@ function K.crewmate(parent: Instance, cf: CFrame, color: Color3, s: number, pose
 
 	-- Gövde: kapsül
 	local body = K.boxAt(model, "Body", at(0, bodyBase + 1.05, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Vector3.new(2.1 * s, 2.2 * s, 2.2 * s), color, { shape = Enum.PartType.Cylinder, collide = false })
+		Vector3.new(2.1 * s, 2.2 * s, 2.2 * s), color, { shape = Enum.PartType.Cylinder })
 	K.boxAt(model, "Head", at(0, bodyBase + 2.1, 0), Vector3.new(2.2 * s, 2.2 * s, 2.2 * s), color,
-		{ shape = Enum.PartType.Ball, collide = false })
+		{ shape = Enum.PartType.Ball })
 	K.boxAt(model, "Bottom", at(0, bodyBase, 0), Vector3.new(2.2 * s, 1.2 * s, 2.2 * s), color,
-		{ collide = false }).Shape = Enum.PartType.Ball
+		nil).Shape = Enum.PartType.Ball
 
 	-- Vizör: elipsoit + parlak benek
-	K.ellipsoid(model, "Visor", at(0.15, bodyBase + 2.0, -0.92), Vector3.new(1.55 * s, 0.95 * s, 0.75 * s), rgb(150, 206, 230), { collide = false, reflect = 0.15 })
-	K.ellipsoid(model, "VisorShine", at(0.45, bodyBase + 2.18, -1.2), Vector3.new(0.55 * s, 0.26 * s, 0.2 * s), rgb(236, 250, 255), { collide = false })
+	K.ellipsoid(model, "Visor", at(0.15, bodyBase + 2.0, -0.92), Vector3.new(1.55 * s, 0.95 * s, 0.75 * s), rgb(150, 206, 230), { reflect = 0.15 })
+	K.ellipsoid(model, "VisorShine", at(0.45, bodyBase + 2.18, -1.2), Vector3.new(0.55 * s, 0.26 * s, 0.2 * s), rgb(236, 250, 255))
 
 	-- Sırt çantası: yuvarlatılmış
 	K.boxAt(model, "Pack", at(0, bodyBase + 1.05, 1.15) * CFrame.Angles(0, 0, math.rad(90)),
-		Vector3.new(1.7 * s, 1.1 * s, 1.1 * s), dark, { shape = Enum.PartType.Cylinder, collide = false })
+		Vector3.new(1.7 * s, 1.1 * s, 1.1 * s), dark, { shape = Enum.PartType.Cylinder })
 
 	-- Bacaklar
 	for i, x in { -0.52, 0.52 } do
 		if p == "sit" then
-			K.boxAt(model, "Leg" .. i, at(x, legY, -0.9), Vector3.new(0.8 * s, 0.7 * s, 1.5 * s), color, { collide = false })
+			K.boxAt(model, "Leg" .. i, at(x, legY, -0.9), Vector3.new(0.8 * s, 0.7 * s, 1.5 * s), color)
 		else
 			K.boxAt(model, "Leg" .. i, at(x, legY, 0) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(1.0 * s, 0.85 * s, 0.85 * s), color,
-				{ shape = Enum.PartType.Cylinder, collide = false })
+				{ shape = Enum.PartType.Cylinder })
 		end
 	end
 	model.PrimaryPart = body
