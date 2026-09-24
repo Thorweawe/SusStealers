@@ -26,6 +26,7 @@ local PromptFilter = require(script.PromptFilter)
 local RarityFX = require(script.RarityFX)
 local ScreenFX = require(script.ScreenFX)
 local SoundFX = require(script.SoundFX)
+local TaskGames = require(script.TaskGames)
 local ThiefTrail = require(script.ThiefTrail)
 local UiKit = require(script.UiKit)
 
@@ -717,6 +718,20 @@ mountPanel("GearPanel", function()
 			gear.Open()
 		end
 	end)
+end)
+
+-- Ek odalardaki görevler (Storage, Laboratory): pencere ve sarı "!" işaretleri
+mountPanel("TaskGames", function()
+	local tasks = TaskGames.Create(screen)
+	previews.Fuel = function()
+		tasks.Open("Fuel")
+	end
+	previews.Wiring = function()
+		tasks.Open("Wiring")
+	end
+	previews.Card = function()
+		tasks.Open("Card")
+	end
 end)
 
 -- Sunucu olayları: üstteki şerit ve Lights Sabotage karanlığı

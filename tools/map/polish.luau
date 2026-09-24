@@ -139,7 +139,11 @@ return {
 					crate(CFrame.new(base + Vector3.new(5.4, -0.6, 0.4)) * CFrame.Angles(0, math.rad(12), 0), 3.8)
 					crate(CFrame.new(base + Vector3.new(0.3, 4.3, 0)) * CFrame.Angles(0, math.rad(-18), 0), 3.6)
 				end
-				beacon(Vector3.new(gx, 11, wallZ + inward * 0.4), facing)
+				-- Ön duvarda ek oda kapısı olan koridorlarda lamba kapının yerine düşerdi
+				local hasDoor = not back and table.find(M.ANNEX_X or {}, gx) ~= nil
+				if not hasDoor then
+					beacon(Vector3.new(gx, 11, wallZ + inward * 0.4), facing)
+				end
 			end
 		end
 
@@ -226,9 +230,12 @@ return {
 		if #gaps >= 3 then
 			local left, right = gaps[1] + 6, gaps[#gaps] - 6
 			local backZ, frontZ = hallMinZ + 9, hallMaxZ - 9
+			-- Ön duvarda bu koridorların ucunda ek oda kapısı var (annex):
+			-- kapak kapının önüne değil, yanına
+			local fLeft, fRight = gaps[1] + 12, gaps[#gaps] - 12
 			local spots = {
-				{ Vector3.new(left, 0, backZ), "C" }, { Vector3.new(right, 0, frontZ), "C" },
-				{ Vector3.new(right, 0, backZ), "D" }, { Vector3.new(left, 0, frontZ), "D" },
+				{ Vector3.new(left, 0, backZ), "C" }, { Vector3.new(fRight, 0, frontZ), "C" },
+				{ Vector3.new(right, 0, backZ), "D" }, { Vector3.new(fLeft, 0, frontZ), "D" },
 			}
 			for _, s in spots do
 				ventCopy(s[1])

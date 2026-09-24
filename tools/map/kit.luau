@@ -89,6 +89,20 @@ M.CAF_X1 = M.centerX + M.CAF_W / 2
 M.WING_W = 90                         -- MedBay / Weapons kanat genişliği
 M.WING_H = 30
 
+--[[
+	Ek odalar (annex): istasyonun güney duvarından, odalar arası yan
+	koridorların ucundan açılan iki küçük görev odası. Bilerek küçük:
+	oyunun asıl alanı istasyon koridoru, bunlar kısa bir sapma.
+	Kapılar yan koridorların (sütunlar arası boşluk) ortasında; ortadaki
+	koridor lobi köprüsüne gidiyor, o yüzden kenardaki iki koridor.
+]]
+M.ANNEX_X = { M.PLOT_SPACING / 2, (M.COLUMNS - 1.5) * M.PLOT_SPACING }
+M.ANNEX_W = 48          -- oda genişliği (x)
+M.ANNEX_D = 40          -- oda derinliği (z, istasyondan dışarı)
+M.ANNEX_H = 22
+M.ANNEX_DOOR_W = 12
+M.ANNEX_DOOR_H = 14
+
 -- İç yüzler
 M.IX0 = M.X0 + M.WALL_T / 2
 M.IX1 = M.X1 - M.WALL_T / 2

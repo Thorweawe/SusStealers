@@ -38,6 +38,7 @@ local EVENTS = {
 	"GearBuy",      -- client -> server (gearId: string)
 	"Sprint",       -- client -> server (active: boolean)
 	"AsteroidsDone", -- client -> server (argumansiz) — Weapons görevi bitti
+	"TaskDone",     -- client -> server (taskId: string) — ek oda görevi bitti
 }
 
 --[[
@@ -118,6 +119,15 @@ local CLIENT_TO_SERVER = {
 		aynı kazanç.
 	]]
 	AsteroidsDone = true,
+	--[[
+		TaskDone, AsteroidsDone'ın aynısı ama ek odalardaki görevler için
+		(TaskService.TryComplete): başlangıç sunucuda (konsol promptu), en
+		kısa süre, en uzun süre, görev başına bekleme ve konsola yakınlık
+		sunucuda. Kimlik Config.Tasks'ta aranıyor; tanınmayan reddediliyor.
+		Ödül küçük (60 sn'lik gelir, 10 dk'da bir) — sahte istek, görevi
+		oynamaktan fazlasını kazandıramıyor.
+	]]
+	TaskDone = true,
 }
 
 local Net = {}

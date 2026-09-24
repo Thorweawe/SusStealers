@@ -67,11 +67,26 @@ return {
 		local b = Vector2.new(M.X0 - T / 2, M.Z1)
 		local u0 = (M.X1 + T / 2) - (M.centerX + M.GATE_W / 2)
 		local u1 = (M.X1 + T / 2) - (M.centerX - M.GATE_W / 2)
+		local southDoors = { { u0 = u0, u1 = u1, h = M.GATE_H } }
+		-- Ek odaların kapıları (annex.luau): yan koridorların ucunda
+		local annexDoors = {}
+		for _, x in M.ANNEX_X do
+			local du0 = (M.X1 + T / 2) - (x + M.ANNEX_DOOR_W / 2)
+			local du1 = (M.X1 + T / 2) - (x - M.ANNEX_DOOR_W / 2)
+			table.insert(southDoors, { u0 = du0, u1 = du1, h = M.ANNEX_DOOR_H })
+			table.insert(annexDoors, { du0, du1 })
+		end
+		table.sort(southDoors, function(p, q)
+			return p.u0 < q.u0
+		end)
 		K.wall(hull, a, b, 1, K.merge(spec, {
 			name = "South", inset0 = T + 0.6, inset1 = T + 0.6,
-			doors = { { u0 = u0, u1 = u1, h = M.GATE_H } },
+			doors = southDoors,
 		}))
 		K.door(hull, a, b, 1, u0, u1, M.GATE_H)
+		for _, d in annexDoors do
+			K.door(hull, a, b, 1, d[1], d[2], M.ANNEX_DOOR_H)
+		end
 
 		-- Batı: reaktörün arkası, pencere kuşağı devam ediyor
 		K.wall(hull, Vector2.new(M.X0, M.Z1 - T / 2), Vector2.new(M.X0, M.Z0 + T / 2), 1,

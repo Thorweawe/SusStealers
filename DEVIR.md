@@ -13,6 +13,30 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (4) — Batur: ek odalar ve görevler (harita + Yusuf'un şeridi)
+
+**Harita:** istasyonun güney duvarında, yan koridorların (x=60 ve x=300) ucunda iki
+yeni kapı ve arkalarında küçük iki oda:
+- `STORAGE` (batı): yakıt tankı → **Fuel Engines**, kablo panosu → **Fix Wiring**
+- `LABORATORY` (doğu): kart okuyucu → **Swipe Card**
+- Yeni bölüm `tools/map/annex.luau` (SECTIONS'ta `wings`'ten sonra); kapılar
+  `station.luau` güney duvarında; ölçüler `kit.luau` → `M.ANNEX_*`.
+- `polish.luau`: ön duvardaki ventler kapının yanına kaydı, kapılı koridorlarda
+  ön duvar lambası yok. Harita denetimi: çakışan yüz 0.
+
+**Sunucu:** `TaskService` (MinigameService'in aynı kalıbı): konsollar `TaskId`
+niteliğiyle bulunuyor, başlangıç sunucuda, en kısa süre / bekleme / yakınlık
+sunucuda. Ödül 60 sn'lik gelir, görev başına 10 dk. Config: `Config.Tasks`.
+Yeni client→server remote **`TaskDone`** (gerekçesi Net.luau'da, test sınırı 15).
+
+**İstemci:** `TaskGames.luau` — üç mini oyun penceresi + konsol üstünde sarı "!"
+(görev hazırsa). Topbar CLUTTER'a `TaskGame` eklendi. UiPreview: Fuel/Wiring/Card.
+
+Not: haritayı Studio'da kurmak için `HttpService.HttpEnabled`'ı geçici açtım
+(sync köprüsü ancak öyle çalışıyor), iş bitince kapattım.
+
+---
+
 ## 2026-09-24 (3) — Batur: sunucu olayları (Yusuf'un şeridine de yazıldı)
 
 **Sunucu — `EventService` (yeni):** UTC saatine hizalı, bütün sunucularda aynı anda.

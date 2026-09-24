@@ -97,6 +97,44 @@ Config.AsteroidTask = {
 	range = 45,           -- bitirirken konsola en fazla bu kadar uzak
 }
 
+--[[
+	Ek odalardaki (Storage, Laboratory) Among Us görevleri. Asteroit göreviyle
+	aynı kurallar: konsoldan başlanıyor (sunucu saati tutuyor), en kısa süre
+	var (oynamadan bitirilemez), bekleme süresi var, konsolun yakınında
+	olmak gerekiyor. Ödül küçük: görevler oyunun özü değil, arada bir sapma.
+
+	minSeconds — bundan hızlı bitirilemez (sahte istek)
+	maxSeconds — konsoldan başlanan görev bu kadar geçerli
+	cooldown   — aynı görevin iki ödülü arası
+	rewardSeconds — ödül = saniyelik gelir × bu (en az minReward)
+]]
+export type TaskDef = {
+	id: string,
+	name: string,
+	room: string,
+	minSeconds: number,
+	maxSeconds: number,
+	cooldown: number,
+	rewardSeconds: number,
+	minReward: number,
+	range: number,
+}
+
+Config.Tasks = {
+	{ id = "Fuel",   name = "Fuel Engines", room = "Storage",    minSeconds = 3, maxSeconds = 180, cooldown = 600, rewardSeconds = 60, minReward = 500, range = 16 },
+	{ id = "Wiring", name = "Fix Wiring",   room = "Storage",    minSeconds = 2, maxSeconds = 180, cooldown = 600, rewardSeconds = 60, minReward = 500, range = 16 },
+	{ id = "Card",   name = "Swipe Card",   room = "Laboratory", minSeconds = 1, maxSeconds = 180, cooldown = 600, rewardSeconds = 60, minReward = 500, range = 16 },
+} :: { TaskDef }
+
+function Config.GetTask(id: string): TaskDef?
+	for _, def in Config.Tasks do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
 Config.IncomeInterval = 1

@@ -47,6 +47,7 @@ local PetService = require(Server.PetService)
 local RewardService = require(Server.RewardService)
 local GearService = require(Server.GearService)
 local MinigameService = require(Server.MinigameService)
+local TaskService = require(Server.TaskService)
 local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
@@ -1854,7 +1855,7 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 
 		Şu an on dört remote var: TutorialSkip, TitleEquip, PotionUse,
 		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
-		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone. Hiçbiri
+		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone, TaskDone. Hiçbiri
 		oyuncuya bedava bir şey VERMİYOR — ya oyuncunun kendi parasını
 		harcıyor, ya zaten kazanılmış bir şeyi kullanıyor, ya da hakkı
 		sunucudaki sayaçlardan hesaplanan bir ödülü topluyor. AsteroidsDone
@@ -1862,10 +1863,10 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on dörtte: yenisi eklemek bilinçli bir karar olsun (Net.luau'da
-		gerekçesiyle birlikte), kazara büyümesin.
+		Sınır on beşte (TaskDone ek oda görevleri için eklendi, gerekçesi
+		Net.luau'da): yenisi eklemek bilinçli bir karar olsun, kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 14, tostring(#listened))
+	ok("liste bilinçli", #listened <= 15, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2724,6 +2725,53 @@ case("Hızlı çalma: pass iksirden güçlü, alt sınır var, istemciye yayınl
 	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
 	near("taban niteliği", prompt:GetAttribute("BaseHold") or -1, prompt.HoldDuration, 0.001)
 	clearPlot(ctx.plot)
+end)
+
+-- ─── Ek oda görevleri ──────────────────────────────────────────────────────
+
+case("Görev (oda): konsollar kurulu ve tanımlar tutarlı", function()
+	local consoles = TaskService.GetConsoles()
+	for _, def in Config.Tasks do
+		ok(def.id .. " konsolu var", consoles[def.id] ~= nil)
+		local c = consoles[def.id]
+		ok(def.id .. " promptu var", c ~= nil and c:FindFirstChild("TaskPrompt") ~= nil)
+		ok(def.id .. " süreler mantıklı", def.minSeconds > 0 and def.maxSeconds > def.minSeconds and def.cooldown >= 60)
+	end
+end)
+
+case("Görev (oda): ödül sunucuda doğrulanıyor", function(ctx)
+	local def = Config.Tasks[1]
+	local original = TaskService.NearConsole
+	TaskService.NearConsole = function()
+		return true
+	end
+	TaskService._Reset(ctx.player)
+	setCash(ctx.player, 0)
+	local T = 5000
+
+	eq("bilinmeyen görev yok", TaskService.TryComplete(ctx.player, "Nope", T), nil)
+	eq("sayı kimlik yok", TaskService.TryComplete(ctx.player, 42, T), nil)
+	eq("başlamadan yok", TaskService.TryComplete(ctx.player, def.id, T), nil)
+	TaskService.Begin(ctx.player, def.id, T)
+	eq("çok hızlı yok", TaskService.TryComplete(ctx.player, def.id, T + def.minSeconds - 0.5), nil)
+	local reward = TaskService.TryComplete(ctx.player, def.id, T + def.minSeconds + 0.5)
+	ok("geçerli bitiş ödül", reward ~= nil and reward >= def.minReward, tostring(reward))
+	eq("nakit eklendi", EconomyService.GetCash(ctx.player), reward or -1)
+	ok("hazır olma zamanı yazıldı", (ctx.player:GetAttribute("TaskReady_" .. def.id) or 0) > os.time())
+
+	-- Bekleme içinde ikinci ödül yok; başka görev etkilenmiyor
+	TaskService.Begin(ctx.player, def.id, T + 10)
+	eq("beklemede yok", TaskService.TryComplete(ctx.player, def.id, T + 10 + def.minSeconds + 1), nil)
+	local other = Config.Tasks[2]
+	TaskService.Begin(ctx.player, other.id, T + 20)
+	ok("başka görev bağımsız", TaskService.TryComplete(ctx.player, other.id, T + 20 + other.minSeconds + 1) ~= nil)
+
+	-- Konsoldan uzak: test oyuncusu kendi üssünde
+	TaskService.NearConsole = original
+	TaskService._Reset(ctx.player)
+	TaskService.Begin(ctx.player, def.id, T)
+	eq("uzaktan yok", TaskService.TryComplete(ctx.player, def.id, T + def.minSeconds + 1), nil)
+	TaskService._Reset(ctx.player)
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
