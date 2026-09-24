@@ -9,10 +9,13 @@
 	Sohbet mesajının görünümü yalnızca istemcide değiştirilebiliyor,
 	o yüzden bu kısım burada.
 
-	DİKKAT: TextChatService.OnIncomingMessage tek bir fonksiyon tutuyor.
-	Başka bir yerde de atanırsa biri diğerini eziyor. Bu modül zaten
-	atanmış bir işleyici varsa onu çağırıp sonucunu koruyor, yani
-	üzerine yazmıyor.
+	DİKKAT: TextChatService.OnIncomingMessage tek bir fonksiyon tutuyor ve
+	Roblox bu callback'in OKUNMASINA izin vermiyor ("you can only set the
+	callback value"). Eski sürüm önceki işleyiciyi okuyup zincirlemeye
+	çalışıyordu; okuma hata verdiği için panel hiç kurulmuyor, unvanlar
+	sohbette hiç çıkmıyordu. Artık callback'in TEK sahibi bu modül: başka
+	bir modül mesajları değiştirmek isterse ChatTitles.AddTransform ile
+	kaydolsun, OnIncomingMessage'a kendisi yazmasın.
 
 	Kullanım (init.client.luau içinde bir kez):
 		require(script.ChatTitles).Start()
@@ -37,6 +40,15 @@ local TIER_COLORS = {
 	Color3.fromRGB(190, 130, 255),  -- 7-8   mor
 	Color3.fromRGB(255, 175,  60),  -- 9-10  turuncu
 }
+
+-- Başka modüllerin mesaj dönüştürücüleri (unvandan ÖNCE çalışıyor)
+type Transform = (message: TextChatMessage, properties: TextChatMessageProperties) -> ()
+local transforms: { Transform } = {}
+
+--[[ Gelen mesajlara ek bir dönüştürücü kaydeder (OnIncomingMessage'ın yerine). ]]
+function ChatTitles.AddTransform(fn: Transform)
+	table.insert(transforms, fn)
+end
 
 local colorById: { [string]: Color3 } = {}
 local nameById: { [string]: string } = {}
@@ -85,17 +97,10 @@ end
 function ChatTitles.Start()
 	buildLookup()
 
-	-- Varsa önceki işleyiciyi koru, üzerine yazma
-	local previous = TextChatService.OnIncomingMessage
-
 	TextChatService.OnIncomingMessage = function(message: TextChatMessage)
-		local properties: TextChatMessageProperties
-
-		if previous then
-			local ok, result = pcall(previous, message)
-			properties = if ok and result then result else Instance.new("TextChatMessageProperties")
-		else
-			properties = Instance.new("TextChatMessageProperties")
+		local properties = Instance.new("TextChatMessageProperties")
+		for _, fn in transforms do
+			pcall(fn, message, properties)
 		end
 
 		local title = titleOf(message)
@@ -103,7 +108,7 @@ function ChatTitles.Start()
 			return properties
 		end
 
-		-- Önceki işleyici öneki değiştirdiyse onun üstüne ekliyoruz
+		-- Bir dönüştürücü öneki değiştirdiyse onun üstüne ekliyoruz
 		local prefix = if properties.PrefixText ~= "" then properties.PrefixText else message.PrefixText
 		local color = colorById[title] or TIER_COLORS[1]
 

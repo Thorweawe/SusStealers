@@ -34,6 +34,7 @@ local CosmeticService = require(script.CosmeticService)
 local FriendService = require(script.FriendService)
 local VentService = require(script.VentService)
 local EventService = require(script.EventService)
+local SabotageService = require(script.SabotageService)
 
 local started = os.clock()
 
@@ -69,6 +70,7 @@ TaskService.Start()
 CosmeticService.Start()
 FriendService.Start()
 VentService.Start()
+SabotageService.Start()
 -- En sonda: Economy, Steal ve Announce hazır olmalı
 EventService.Start()
 

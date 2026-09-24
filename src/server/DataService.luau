@@ -113,6 +113,11 @@ export type Profile = {
 	cosmetics: { [string]: boolean },
 	hat: string,
 	trail: string,
+	-- Sabotaj eşyaları: kimlik -> adet (en fazla Config.SabotageMaxStack).
+	-- Tek kullanımlık; rebirth'te sıfırlanmıyor (parayla alındı).
+	sabotages: { [string]: number },
+	-- Son sabotaj kullanımı (unix saati); bekleme çıkıp girince sıfırlanmasın
+	lastSabotageAt: number,
 }
 
 export type QuestEntry = {
@@ -190,6 +195,8 @@ local function newProfile(): Profile
 		cosmetics = {},
 		hat = "",
 		trail = "",
+		sabotages = {},
+		lastSabotageAt = 0,
 	}
 end
 
@@ -475,6 +482,19 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
+	if typeof(raw.sabotages) == "table" then
+		for id, count in raw.sabotages do
+			if typeof(id) == "string" and Config.GetSabotage(id)
+				and typeof(count) == "number" and count > 0
+			then
+				profile.sabotages[id] = math.clamp(math.floor(count), 0, Config.SabotageMaxStack)
+			end
+		end
+	end
+	if typeof(raw.lastSabotageAt) == "number" then
+		profile.lastSabotageAt = raw.lastSabotageAt
+	end
+
 	return profile
 end
 
@@ -581,6 +601,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.indexClaimed = table.clone(profile.indexClaimed)
 	snapshot.gear = table.clone(profile.gear)
 	snapshot.cosmetics = table.clone(profile.cosmetics)
+	snapshot.sabotages = table.clone(profile.sabotages)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 

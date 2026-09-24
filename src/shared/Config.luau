@@ -746,6 +746,8 @@ Config.NotifyCues = {
 	cosmetic = { source = "UiC", startAt = 10.0, length = 0.20, pitch = 1.40, volume = 0.45, repeats = 3, gap = 0.07 },
 	-- Arkadaş sunucuya girdi: sıcak, iki vuruşlu karşılama
 	friend   = { source = "UiA", startAt = 7.50, length = 0.24, pitch = 1.10, volume = 0.45, repeats = 2, gap = 0.14 },
+	-- Sabotaj: alarm ailesinden, alçak ve kısa üç vuruş (olaydan farklı)
+	sabotage = { source = "Alarm", startAt = 3.00, length = 0.16, pitch = 0.70, volume = 0.45, repeats = 3, gap = 0.09 },
 
 	-- Bilgilendirme: en sessizler, araya girmemeli
 	tutorial = { source = "UiA", startAt = 9.00, length = 0.24, pitch = 1.00, volume = 0.32 },
@@ -2136,6 +2138,65 @@ function Config.GetCosmetic(id: string): CosmeticDef?
 		end
 	end
 	return nil
+end
+
+-- ─── Sabotajlar ─────────────────────────────────────────────────────────────
+--[[
+	Rakibin üssüne uzaktan kullanılan tek kullanımlık eşyalar. Oyun içi
+	parayla alınıyor, envanterde birikiyor (türü başına en fazla
+	`SabotageMaxStack`), kullanılınca gidiyor.
+
+	  Blackout  — üssün ışıkları sönüyor, orada çalmak daha kısa sürüyor
+	  LockJam   — kilit konsolu bozuluyor: kilitlenemiyor, kilitliyse
+	              kilit birkaç saniye içinde açılıyor
+	  CommsJam  — kurbana "üssünden çalıyorlar" uyarısı gitmiyor
+
+	Fiyat alıcının gelirine göre (`seconds` saniyelik gelir, en az
+	`minimum`): 1B kazanan için $5K'lık sabotaj bedava olurdu.
+
+	TACİZE KARŞI: aynı üsse art arda sabotaj yapılamıyor
+	(`SabotageTargetImmunity`) ve bir oyuncu sabotajları arasında
+	`SabotageUserCooldown` (25 dk) bekliyor — sabotaj nadir ve anlamlı bir
+	hamle olsun, sürekli taciz aracı olmasın. Bekleme profilde (unix
+	saati), çıkıp girerek sıfırlanmıyor. Yeni gelen (kaidesi boş) üsse
+	kullanılamıyor — kaybedecek bir şeyi yokken hedef olmasın.
+]]
+export type SabotageDef = {
+	id: string,
+	name: string,
+	desc: string,
+	duration: number,
+	seconds: number,   -- fiyat = saniyelik gelir × bu
+	minimum: number,
+	color: Color3,
+}
+
+Config.Sabotages = {
+	{ id = "Blackout", name = "Blackout", desc = "Lights out in their base. Stealing there is 30% faster.",
+	  duration = 20, seconds = 120, minimum = 15_000, color = Color3.fromRGB(120, 110, 255) },
+	{ id = "LockJam",  name = "Lock Jam", desc = "Their lock breaks. A lock already on drops in 3s.",
+	  duration = 30, seconds = 180, minimum = 25_000, color = Color3.fromRGB(245, 160, 40) },
+	{ id = "CommsJam", name = "Comms Jam", desc = "They get no alert when someone steals from them.",
+	  duration = 45, seconds = 90, minimum = 10_000, color = Color3.fromRGB(80, 210, 200) },
+} :: { SabotageDef }
+
+Config.SabotageMaxStack = 3
+Config.SabotageTargetImmunity = 90   -- aynı üsse iki sabotaj arası (sn)
+Config.SabotageUserCooldown = 25 * 60 -- bir oyuncunun iki sabotajı arası (sn)
+Config.BlackoutHoldMul = 0.7         -- karanlık üste çalma süresi çarpanı
+Config.LockJamDropDelay = 3          -- kilitliyse kaç sn sonra açılıyor
+
+function Config.GetSabotage(id: string): SabotageDef?
+	for _, def in Config.Sabotages do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+function Config.GetSabotagePrice(def: SabotageDef, incomePerSecond: number): number
+	return math.max(def.minimum, math.floor(incomePerSecond * def.seconds))
 end
 
 -- ─── Ödüller: günlük seri, oynama süresi, indeks ────────────────────────────

@@ -593,10 +593,13 @@ local function onStealPrompt(podium: Part, thief: Player)
 	setupCatchPrompt(thief, model)
 
 	notify(thief, string.format("Stole %s! Run to your base", unitName), false, "steal")
-	if victim then
+	-- Comms Jam sabotajı (SabotageService) altındaki kurban uyarı almıyor
+	if victim and not victim:GetAttribute("CommsJam") then
 		alertRemote:FireClient(victim, thief.DisplayName, unitName)
 		notify(victim, string.format("%s is carrying your %s - chase and press E to stop them",
 			thief.DisplayName, unitName), true)
+	end
+	if victim then
 		BadgeService.Award(victim, "Victim")
 		TitleService.AddRobbed(victim)
 	end
@@ -604,7 +607,7 @@ end
 
 -- ─── Promptlar ──────────────────────────────────────────────────────────────
 
-local function setupPodiumPrompt(podium: Part)
+local function setupPodiumPrompt(podium: Part, plot: Model)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = "Steal"
@@ -629,7 +632,9 @@ local function setupPodiumPrompt(podium: Part)
 		end
 
 		local mutationId = podium:GetAttribute("MutationId") :: string
-		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId) * eventHoldMul
+		-- Blackout sabotajı (SabotageService) yalnızca o üste kısaltıyor
+		local plotMul = if plot:GetAttribute("Blackout") then Config.BlackoutHoldMul else 1
+		local hold = Config.GetStealHoldTime(unitId, if mutationId == "" then nil else mutationId) * eventHoldMul * plotMul
 
 		-- Hızlı Çalma pass'i kişiye özel, prompt ise herkese ortak.
 		-- Burada taban süre yazılıyor; kişisel indirim tetiklenme anında
@@ -642,6 +647,7 @@ local function setupPodiumPrompt(podium: Part)
 	end
 
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
+	plot:GetAttributeChangedSignal("Blackout"):Connect(refresh)
 	table.insert(podiumRefreshers, refresh)
 	refresh()
 
@@ -679,9 +685,21 @@ local function setupLockPrompt(plot: Model)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = anchor
 
+	-- Lock Jam sabotajı (SabotageService) konsolu bozuyor
+	plot:GetAttributeChangedSignal("LockJam"):Connect(function()
+		prompt.ObjectText = if plot:GetAttribute("LockJam")
+			then "JAMMED"
+			else string.format("%d s protection", Config.LockDuration)
+	end)
+
 	PromptGuard.Connect(prompt, function(player)
 		if PlotService.GetOwner(plot) ~= player then
 			notify(player, "Not your base", true)
+			return
+		end
+
+		if plot:GetAttribute("LockJam") then
+			notify(player, "Your lock is jammed! Wait for it to clear", true)
 			return
 		end
 
@@ -695,12 +713,14 @@ local function setupLockPrompt(plot: Model)
 			return
 		end
 
+		local lockedAt = os.clock()
 		plot:SetAttribute("Locked", true)
-		plot:SetAttribute("LockUsedAt", os.clock())
+		plot:SetAttribute("LockUsedAt", lockedAt)
 		notify(player, string.format("Base locked for %d s", duration), false, "lock")
 
 		task.delay(duration, function()
-			if plot.Parent then
+			-- Arada kilit düşürülüp yeniden kurulduysa (Lock Jam) yenisine dokunma
+			if plot.Parent and plot:GetAttribute("LockUsedAt") == lockedAt then
 				plot:SetAttribute("Locked", false)
 				if PlotService.GetOwner(plot) == player and player.Parent then
 					notify(player, "Lock expired", true)
@@ -719,7 +739,7 @@ function StealService.Start()
 	for _, plot in PlotService.GetAllPlots() do
 		setupLockPrompt(plot)
 		for _, podium in PlotService.GetPodiums(plot) do
-			setupPodiumPrompt(podium)
+			setupPodiumPrompt(podium, plot)
 		end
 	end
 

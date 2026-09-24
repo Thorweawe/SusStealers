@@ -13,6 +13,27 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-24 (8) — Batur (Yusuf'un şeridine de yazıldı)
+
+**1. ChatTitles düzeltildi:** `TextChatService.OnIncomingMessage` OKUNMUYOR artık
+(Roblox okumada hata veriyordu). Başka modül mesaj değiştirmek isterse
+`ChatTitles.AddTransform(fn(message, properties))` — unvan ondan sonra ekleniyor.
+Callback'i başka yerde **atama**, ezersin.
+
+**2. Sabotaj eşyaları** (oyun içi parayla, tek kullanımlık, Envanter → **SABOTAGE**
+sekmesi, `src/client/SabotagePanel.luau`):
+- Blackout 20 sn (üssün ışıkları sönüyor, orada çalma %30 hızlı), Lock Jam 30 sn
+  (kilitlenemiyor, kilitliyse 3 sn'de düşüyor), Comms Jam 45 sn (kurbana çalındı
+  uyarısı gitmiyor).
+- Kullanan **25 dk** bekliyor (profilde `lastSabotageAt`, çıkıp girince sıfırlanmıyor);
+  aynı üsse 90 sn'de bir; kaidesi boş üsse olmaz; türü başına en fazla 3.
+- Fiyat gelire göre (`Config.Sabotages`, `GetSabotagePrice`).
+- Sunucu: `SabotageService` (yeni), `StealService` nitelik okuyor (Blackout,
+  LockJam, CommsJam) — birbirini require etmiyorlar. Yeni remote `SabotageAction`
+  (Net gerekçesi yazılı, test sınırı 17). Nitelikler: oyuncuda `Sabotages`,
+  `SabotageReadyAt`, `SabotageShieldUntil`, `CommsJam`; üste `Blackout`, `LockJam`.
+- Testler 146/146.
+
 ## 2026-09-24 (7) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 Önce: Yusuf'un bulut oturumu `claude/game-mechanics-ui-updates-fj05yq` branch'ine

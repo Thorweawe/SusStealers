@@ -40,6 +40,7 @@ local EVENTS = {
 	"AsteroidsDone", -- client -> server (argumansiz) — Weapons görevi bitti
 	"TaskDone",     -- client -> server (taskId: string) — ek oda görevi bitti
 	"CosmeticAction", -- client -> server (action: "buy"|"equip"|"unequip", id: string)
+	"SabotageAction", -- client -> server (action: "buy"|"use", id: string, targetUserId: number?)
 }
 
 --[[
@@ -137,6 +138,14 @@ local CLIENT_TO_SERVER = {
 		(CosmeticService). Üç iş tek remote'ta: yüzeyi büyütmemek için.
 	]]
 	CosmeticAction = true,
+	--[[
+		SabotageAction bedava bir şey VERMİYOR: "buy" oyuncunun KENDİ parasını
+		harcıyor (fiyat gelire göre, sunucuda; yığın sınırı sunucuda), "use"
+		envanterdeki bir eşyayı harcıyor. Hedefe verdiği zarar sunucuda
+		sınırlanıyor: kendine olmaz, boş üsse olmaz, aynı üsse 90 sn'de bir,
+		oyuncu başına 45 sn'de bir, etki en fazla 45 sn (SabotageService).
+	]]
+	SabotageAction = true,
 }
 
 local Net = {}

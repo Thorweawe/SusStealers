@@ -53,6 +53,7 @@ local CosmeticService = require(Server.CosmeticService)
 local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
+local SabotageService = require(Server.SabotageService)
 
 local ServerTests = {}
 
@@ -1964,7 +1965,7 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		Şu an on dört remote var: TutorialSkip, TitleEquip, PotionUse,
 		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
 		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone, TaskDone,
-		CosmeticAction. Hiçbiri
+		CosmeticAction, SabotageAction. Hiçbiri
 		oyuncuya bedava bir şey VERMİYOR — ya oyuncunun kendi parasını
 		harcıyor, ya zaten kazanılmış bir şeyi kullanıyor, ya da hakkı
 		sunucudaki sayaçlardan hesaplanan bir ödülü topluyor. AsteroidsDone
@@ -1972,11 +1973,11 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on altıda (TaskDone ek oda görevleri, CosmeticAction kozmetikler
-		için eklendi; gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir
-		karar olsun, kazara büyümesin.
+		Sınır on yedide (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
+		SabotageAction sabotaj eşyaları için eklendi; gerekçeleri Net.luau'da):
+		yenisi eklemek bilinçli bir karar olsun, kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 16, tostring(#listened))
+	ok("liste bilinçli", #listened <= 17, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2992,6 +2993,108 @@ case("Kozmetik: satın alma parayla, takma sahiplikle, karaktere takılıyor", f
 	eq("iz kalktı", ctx.player.Character.HumanoidRootPart:FindFirstChild("CosmeticTrail"), nil)
 end)
 
+-- ─── Sabotajlar ─────────────────────────────────────────────────────────────
+
+case("Sabotaj: tanımlar tutarlı, fiyat gelire göre", function()
+	for _, def in Config.Sabotages do
+		ok(def.id .. " süre", def.duration > 0 and def.duration <= 45)
+		ok(def.id .. " dokunulmazlık süreden uzun", Config.SabotageTargetImmunity > def.duration)
+		eq(def.id .. " taban fiyat", Config.GetSabotagePrice(def, 0), def.minimum)
+		eq(def.id .. " gelirle", Config.GetSabotagePrice(def, 1e6), def.seconds * 1e6)
+	end
+	ok("ses tanımlı", Config.HasNotifyCue(SabotageService.NotifyKind))
+	ok("remote dinleniyor", Net.IsClientToServer("SabotageAction"))
+end)
+
+case("Sabotaj: satın alma parayla, yığın sınırlı, kendine kullanılmıyor", function(ctx)
+	local p = ctx.profile
+	p.sabotages = {}
+	local def = Config.Sabotages[1]
+	clearPlot(ctx.plot)
+	setCash(ctx.player, 0)
+	ok("parasız alınmıyor", not SabotageService.TryBuy(ctx.player, def.id))
+	ok("bilinmeyen alınmıyor", not SabotageService.TryBuy(ctx.player, "NoSuchThing"))
+
+	local price = Config.GetSabotagePrice(def, EconomyService.GetIncome(ctx.player))
+	setCash(ctx.player, price * (Config.SabotageMaxStack + 1))
+	for _ = 1, Config.SabotageMaxStack do
+		SabotageService.TryBuy(ctx.player, def.id)
+	end
+	eq("yığın dolu", SabotageService.GetCount(ctx.player, def.id), Config.SabotageMaxStack)
+	ok("sınırın üstü alınmıyor", not SabotageService.TryBuy(ctx.player, def.id))
+	eq("fazla para düşmedi", EconomyService.GetCash(ctx.player), price)
+	ok("nitelik yayınlandı", string.find(tostring(ctx.player:GetAttribute("Sabotages")),
+		def.id .. "=" .. Config.SabotageMaxStack, 1, true) ~= nil)
+
+	eq("kendine olmaz", SabotageService.TryUse(ctx.player, def.id, ctx.player), "self")
+	p.lastSabotageAt = 0
+	eq("hedefsiz olmaz", SabotageService.TryUse(ctx.player, def.id, nil), "target")
+	-- Kullanan 25 dk bekliyor; bekleme profilde (unix saati)
+	p.lastSabotageAt = os.time()
+	eq("beklemede", SabotageService.TryUse(ctx.player, def.id, nil), "cooldown")
+	eq("bekleme bitince geçiyor", SabotageService.TryUse(ctx.player, def.id, nil, nil,
+		os.time() + Config.SabotageUserCooldown + 1), "target")
+	ok("bekleme 20-30 dk", Config.SabotageUserCooldown >= 1200 and Config.SabotageUserCooldown <= 1800)
+	eq("adet düşmedi", SabotageService.GetCount(ctx.player, def.id), Config.SabotageMaxStack)
+	p.sabotages = {}
+	eq("olmayan kullanılmıyor", SabotageService.TryUse(ctx.player, def.id, nil), "none")
+end)
+
+case("Sabotaj: etkiler üsse uygulanıp süre sonunda kalkıyor", function(ctx)
+	clearPlot(ctx.plot)
+	local podium = PlotService.FindEmptyPodium(ctx.plot)
+	assert(podium, "boş kaide yok")
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	task.wait()
+	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
+	local normal = prompt.HoldDuration
+
+	-- Blackout: ışıklar sönüyor, çalma kısalıyor
+	SabotageService._Apply("Blackout", ctx.player)
+	task.wait()
+	ok("karanlık niteliği", ctx.plot:GetAttribute("Blackout") == true)
+	near("çalma kısaldı", prompt.HoldDuration, normal * Config.BlackoutHoldMul, 0.001)
+	local lit = 0
+	for _, d in ctx.plot:GetDescendants() do
+		if d:IsA("Light") and d.Enabled and d.Parent and d.Parent.Name ~= "LockButton"
+			and not d:IsDescendantOf(ctx.plot.Podiums)
+		then
+			lit += 1
+		end
+	end
+	eq("ışıklar söndü", lit, 0)
+
+	SabotageService._Reset(ctx.player)
+	task.wait()
+	near("çalma geri geldi", prompt.HoldDuration, normal, 0.001)
+	local off = 0
+	for _, d in ctx.plot:GetDescendants() do
+		if d:GetAttribute("SabotageOff") then
+			off += 1
+		end
+	end
+	eq("ışıklar geri yandı", off, 0)
+
+	-- Lock Jam: kilitliyse kısa süre sonra düşüyor
+	ctx.plot:SetAttribute("Locked", true)
+	ctx.plot:SetAttribute("LockUsedAt", os.clock())
+	SabotageService._Apply("LockJam", ctx.player)
+	ok("bozuk niteliği", ctx.plot:GetAttribute("LockJam") == true)
+	ok("kilit hemen düşmüyor", ctx.plot:GetAttribute("Locked") == true)
+	task.wait(Config.LockJamDropDelay + 0.3)
+	ok("kilit düştü", ctx.plot:GetAttribute("Locked") == false)
+
+	-- Comms Jam: kurbanın niteliği
+	SabotageService._Apply("CommsJam", ctx.player)
+	ok("iletişim kesik", ctx.player:GetAttribute("CommsJam") == true)
+
+	SabotageService._Reset(ctx.player)
+	eq("bozukluk kalktı", ctx.plot:GetAttribute("LockJam"), nil)
+	eq("iletişim geri", ctx.player:GetAttribute("CommsJam"), nil)
+	ctx.plot:SetAttribute("LockUsedAt", 0)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -3049,6 +3152,8 @@ function ServerTests.Run(player: Player?): number
 		indexClaimed = table.clone(profile.indexClaimed),
 		gear = table.clone(profile.gear),
 		cosmetics = table.clone(profile.cosmetics),
+		sabotages = table.clone(profile.sabotages),
+		lastSabotageAt = profile.lastSabotageAt,
 		hat = profile.hat,
 		trail = profile.trail,
 	}
@@ -3157,6 +3262,9 @@ function ServerTests.Run(player: Player?): number
 	profile.indexClaimed = backup.indexClaimed
 	profile.gear = backup.gear
 	profile.cosmetics = backup.cosmetics
+	profile.sabotages = backup.sabotages
+	profile.lastSabotageAt = backup.lastSabotageAt
+	SabotageService.Publish(player)
 	profile.hat = backup.hat
 	profile.trail = backup.trail
 	CosmeticService.Apply(player)

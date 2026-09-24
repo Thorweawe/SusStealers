@@ -15,6 +15,7 @@ local Net = require(Shared.Net)
 local CarryGuide = require(script.CarryGuide)
 local ConveyorFX = require(script.ConveyorFX)
 local CosmeticPanel = require(script.CosmeticPanel)
+local SabotagePanel = require(script.SabotagePanel)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
 local EggStyle = require(script.EggStyle)
@@ -731,6 +732,25 @@ mountPanel("Inventory", function()
 		end
 		player:GetAttributeChangedSignal("CosmeticsOwned"):Connect(refreshStyle)
 		refreshStyle()
+	end)
+
+	-- 5) SABOTAGE — rakip üslere tek kullanımlık sabotajlar
+	page("Sabotage", function()
+		local panel = SabotagePanel.Create(screen, content, function(text)
+			inventory.SetCount("sabotage", text)
+		end)
+		inventory.AddTab({
+			id = "sabotage",
+			label = "SABOTAGE",
+			tint = UiKit.CREW.RED,
+			order = 5,
+			icon = function(slot, size, tint)
+				UiKit.Bolt(slot, size, Color3.fromRGB(255, 120, 110))
+			end,
+		}, content:WaitForChild("SabotagePanel") :: GuiObject, panel.Toggle)
+		previews.Sabotage = function()
+			inventory.Open("sabotage")
+		end
 	end)
 
 	previews.Inventory = function()
