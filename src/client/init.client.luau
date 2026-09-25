@@ -60,9 +60,17 @@ local GearPanel = require(script.GearPanel)
 local Summons = require(script.Summons)
 local Hotbar = require(script.Hotbar)
 local AsteroidGame = require(script.AsteroidGame)
+local TitleScreen = require(script.TitleScreen)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+--[[
+	Başlangıç ekranı: her girişte, HUD kurulmadan ÖNCE açılıyor ki oyuncu
+	yarım kurulmuş arayüzü hiç görmesin. HUD arkasında kurulmaya devam
+	ediyor; PLAY'e basınca perde açılıyor.
+]]
+TitleScreen.Show()
 
 local INK = Color3.fromRGB(235, 240, 250)
 local MUTED = Color3.fromRGB(150, 163, 184)

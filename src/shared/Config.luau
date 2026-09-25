@@ -135,6 +135,17 @@ function Config.GetTask(id: string): TaskDef?
 	return nil
 end
 
+--[[
+	Oyuncu ayarları (başlangıç ekranındaki SETTINGS). Profilde saklanıyor,
+	sunucu oyuncuya "Setting<Ad>" niteliği olarak yazıyor, istemci okuyor.
+	Ses seviyeleri 0..1 çarpan: grubun kendi taban seviyesiyle çarpılıyor.
+]]
+Config.DefaultSettings = {
+	music = 1,
+	sfx = 1,
+	shake = true,
+}
+
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
 Config.StartingCash = 250
 Config.IncomeInterval = 1

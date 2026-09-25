@@ -41,6 +41,7 @@ local EVENTS = {
 	"TaskDone",     -- client -> server (taskId: string) — ek oda görevi bitti
 	"CosmeticAction", -- client -> server (action: "buy"|"equip"|"unequip", id: string)
 	"SabotageAction", -- client -> server (action: "buy"|"use", id: string, targetUserId: number?)
+	"SettingsSave", -- client -> server (settings: { music: number, sfx: number, shake: boolean })
 }
 
 --[[
@@ -146,6 +147,13 @@ local CLIENT_TO_SERVER = {
 		oyuncu başına 45 sn'de bir, etki en fazla 45 sn (SabotageService).
 	]]
 	SabotageAction = true,
+	--[[
+		SettingsSave hiçbir şey VERMİYOR ve hiçbir şeyi değiştirmiyor, yalnızca
+		oyuncunun KENDİ ses/sarsıntı tercihini profile yazıyor. Değerler
+		sunucuda sınırlanıyor (0..1, boolean), bilinmeyen alan yok sayılıyor,
+		sıklık sınırlı (SettingsService).
+	]]
+	SettingsSave = true,
 }
 
 local Net = {}

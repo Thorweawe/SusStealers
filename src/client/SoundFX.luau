@@ -83,8 +83,26 @@ end
 
 -- Fon sürekli çaldığı için efektlerden belirgin kısık; kullanıcı
 -- "baş ağrıtıyor" dediği için ikisi de düşürüldü.
-local ambienceGroup = ensureGroup("Ambience", 0.18)
-local effectGroup = ensureGroup("Effects", 0.45)
+local AMBIENCE_VOLUME = 0.18
+local EFFECT_VOLUME = 0.45
+local ambienceGroup = ensureGroup("Ambience", AMBIENCE_VOLUME)
+local effectGroup = ensureGroup("Effects", EFFECT_VOLUME)
+
+--[[
+	Oyuncunun efekt sesi ayarı (SettingsService -> "SettingSfx" niteliği,
+	0..1). Taban seviyeyle çarpılıyor; fon da efekt sayılıyor.
+]]
+do
+	local player = game:GetService("Players").LocalPlayer
+	local function applySetting()
+		local v = player:GetAttribute("SettingSfx")
+		local k = if typeof(v) == "number" then math.clamp(v, 0, 1) else 1
+		ambienceGroup.Volume = AMBIENCE_VOLUME * k
+		effectGroup.Volume = EFFECT_VOLUME * k
+	end
+	player:GetAttributeChangedSignal("SettingSfx"):Connect(applySetting)
+	applySetting()
+end
 
 local function newSound(id: string, parent: Instance, groupObj: SoundGroup, volume: number, looped: boolean): Sound
 	local s = Instance.new("Sound")

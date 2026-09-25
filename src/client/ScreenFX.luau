@@ -95,6 +95,10 @@ function ScreenFX.Create(screen: ScreenGui): FX
 	end)
 
 	local function shake(strength: number, duration: number)
+		-- Oyuncu ayarlardan kapattıysa (SettingsService) hiç sarsma
+		if game:GetService("Players").LocalPlayer:GetAttribute("SettingShake") == false then
+			return
+		end
 		-- Üst üste gelen sarsıntılarda güçlü olan kazansın
 		shakeStrength = math.max(shakeStrength, strength)
 		shakeDecay = strength / math.max(duration, 0.05)

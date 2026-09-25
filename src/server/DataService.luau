@@ -118,6 +118,8 @@ export type Profile = {
 	sabotages: { [string]: number },
 	-- Son sabotaj kullanımı (unix saati); bekleme çıkıp girince sıfırlanmasın
 	lastSabotageAt: number,
+	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor
+	settings: { music: number, sfx: number, shake: boolean },
 }
 
 export type QuestEntry = {
@@ -197,6 +199,7 @@ local function newProfile(): Profile
 		trail = "",
 		sabotages = {},
 		lastSabotageAt = 0,
+		settings = table.clone(Config.DefaultSettings),
 	}
 end
 
@@ -495,6 +498,19 @@ local function sanitize(raw: any): Profile
 		profile.lastSabotageAt = raw.lastSabotageAt
 	end
 
+	if typeof(raw.settings) == "table" then
+		local s = raw.settings
+		for _, key in { "music", "sfx" } do
+			local v = s[key]
+			if typeof(v) == "number" and v == v then
+				(profile.settings :: any)[key] = math.clamp(v, 0, 1)
+			end
+		end
+		if typeof(s.shake) == "boolean" then
+			profile.settings.shake = s.shake
+		end
+	end
+
 	return profile
 end
 
@@ -602,6 +618,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.gear = table.clone(profile.gear)
 	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.sabotages = table.clone(profile.sabotages)
+	snapshot.settings = table.clone(profile.settings)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 

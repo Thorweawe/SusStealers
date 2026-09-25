@@ -149,8 +149,14 @@ function Music.Start(): Handle
 	local playToken = 0
 	local stopped = false
 
+	-- Oyuncunun müzik ayarı (SettingsService -> "SettingMusic", 0..1)
+	local function setting(): number
+		local v = player:GetAttribute("SettingMusic")
+		return if typeof(v) == "number" then math.clamp(v, 0, 1) else 1
+	end
+
 	local function targetVolume(): number
-		return if ducked then DUCK_VOLUME else BASE_VOLUME
+		return (if ducked then DUCK_VOLUME else BASE_VOLUME) * setting()
 	end
 
 	local function fadeGroup(to: number)
@@ -280,6 +286,11 @@ function Music.Start(): Handle
 		Bölge değişimini izliyoruz. Saniyede bir yeter: bölge geçişi
 		yürüyerek oluyor ve bir saniyelik gecikme fark edilmiyor.
 	]]
+	group.Volume = targetVolume()
+	local settingConnection = player:GetAttributeChangedSignal("SettingMusic"):Connect(function()
+		fadeGroup(targetVolume())
+	end)
+
 	local elapsed = 0
 	local connection = RunService.Heartbeat:Connect(function(delta)
 		if stopped then
@@ -326,6 +337,7 @@ function Music.Start(): Handle
 			stopped = true
 			playToken += 1
 			connection:Disconnect()
+			settingConnection:Disconnect()
 			if current then
 				fadeOut(current)
 				current = nil

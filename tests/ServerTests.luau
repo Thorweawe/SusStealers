@@ -56,6 +56,7 @@ local EventService = require(Server.EventService)
 local SabotageService = require(Server.SabotageService)
 local RogueService = require(Server.RogueService)
 local AdminMapService = require(Server.AdminMapService)
+local SettingsService = require(Server.SettingsService)
 
 local ServerTests = {}
 
@@ -816,6 +817,32 @@ case("Kayıt: profil alanları eksiksiz", function(ctx)
 	ok("units tablo", typeof(p.units) == "table")
 	ok("upgrades tablo", typeof(p.upgrades) == "table")
 	ok("receipts tablo", typeof(p.receipts) == "table")
+end)
+
+case("Ayarlar: sınırlanıyor, profile ve niteliğe yazılıyor", function(ctx)
+	local player = ctx.player
+	local settings = ctx.profile.settings
+	local before = table.clone(settings)
+
+	SettingsService._Reset(player)
+	local result = SettingsService.Apply(player, { music = 5, sfx = -1, shake = false, cash = 1e9 }, 1000)
+	ok("kabul edildi", result ~= nil)
+	eq("müzik 1'e sıkıştı", settings.music, 1)
+	eq("efekt 0'a sıkıştı", settings.sfx, 0)
+	eq("sarsıntı kapandı", settings.shake, false)
+	eq("nitelik yazıldı", player:GetAttribute("SettingSfx"), 0)
+	ok("bilinmeyen alan profile girmedi", (settings :: any).cash == nil)
+
+	-- Çok sık istek düşüyor; yanlış tür yok sayılıyor
+	ok("sık istek reddedildi", SettingsService.Apply(player, { music = 0.5 }, 1000.1) == nil)
+	SettingsService.Apply(player, { music = "x", shake = 1 }, 1001)
+	eq("yanlış tür müziği değiştirmedi", settings.music, 1)
+	eq("yanlış tür sarsıntıyı değiştirmedi", settings.shake, false)
+
+	-- Geri al: oyuncunun gerçek ayarı bozulmasın
+	SettingsService._Reset(player)
+	SettingsService.Apply(player, before, 2000)
+	SettingsService._Reset(player)
 end)
 
 case("Kayıt: kaide değişiklikleri profile yansıyor", function(ctx)
@@ -1975,11 +2002,12 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on yedide (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
-		SabotageAction sabotaj eşyaları için eklendi; gerekçeleri Net.luau'da):
-		yenisi eklemek bilinçli bir karar olsun, kazara büyümesin.
+		Sınır on sekizde (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
+		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları için
+		eklendi; gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar
+		olsun, kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 17, tostring(#listened))
+	ok("liste bilinçli", #listened <= 18, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
