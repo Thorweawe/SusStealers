@@ -1,7 +1,8 @@
 --!strict
 --[[
-	Mürettebat indeksi: bütün karakterler, nadirliğe göre, keşfedilenler
-	açık, keşfedilmeyenler "???".
+	İndeks: iki sekme. CREW — bütün karakterler, nadirliğe göre; PETS —
+	bütün petler, yumurtalarına göre (aşağıda "PETS: pet indeksi").
+	Keşfedilenler açık, keşfedilmeyenler "???".
 
 	═══ DÜZEN ══════════════════════════════════════════════════════════════
 
@@ -34,6 +35,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
 local OwnPlot = require(script.Parent.OwnPlot)
@@ -49,6 +51,7 @@ export type Catalog = {
 		tek yol değil: dokunmatikte klavye yok.
 	]]
 	Toggle: () -> (),
+	ShowPets: () -> (),
 }
 
 local Z = 50
@@ -117,7 +120,7 @@ function Index.Create(screen: ScreenGui): Catalog
 	badge.Parent = band
 	UiKit.Book(badge, 28, ACCENT)
 
-	label(band, {
+	local titleLabel = label(band, {
 		Position = UDim2.fromOffset(52, 0), Size = UDim2.new(0, 300, 1, 0),
 		Font = Enum.Font.GothamBlack, TextSize = 22, Text = "CREW INDEX",
 		TextStrokeTransparency = 0.5, ZIndex = Z + 2,
@@ -656,15 +659,332 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 	end
 
+	-- ─── PETS: pet indeksi ──────────────────────────────────────────────────
+	--[[
+		Bütün petler, yumurtalarına göre satır satır. Bir kez bile elde
+		edilen (ya da otomatik silinen) pet açık, hiç bulunmayan "???"
+		siluet. Veri sunucudan: Pets remote'unun `found` listesi (profildeki
+		petsFound) ve `owned` sayıları. Envanterin PETS sayfası artık yalnızca
+		eldeki petleri gösteriyor; "neler var" sorusunun cevabı burası.
+	]]
+	local mode = "crew"
+	local petsFound: { [string]: boolean } = {}
+	local petsOwned: { [string]: number } = {}
+
+	local petLeft = Instance.new("Frame")
+	petLeft.Position = left.Position
+	petLeft.Size = left.Size
+	petLeft.BackgroundTransparency = 1
+	petLeft.Visible = false
+	petLeft.ZIndex = Z + 1
+	petLeft.Parent = root
+
+	local petDiscovered = label(petLeft, {
+		Size = UDim2.new(0.6, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack,
+		Text = "Discovered 0 / " .. #Config.Pets, TextColor3 = UiKit.CREW.PINK, ZIndex = Z + 2,
+	})
+	local petPercent = label(petLeft, {
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.new(0.4, 0, 0, 20), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = UiKit.MUTED, Text = "0% complete", ZIndex = Z + 2,
+	})
+	local petBarHolder = Instance.new("Frame")
+	petBarHolder.Position = UDim2.fromOffset(0, 24)
+	petBarHolder.Size = UDim2.new(1, 0, 0, 8)
+	petBarHolder.BackgroundTransparency = 1
+	petBarHolder.ZIndex = Z + 2
+	petBarHolder.Parent = petLeft
+	local petTrack, petFill = UiKit.Bar(petBarHolder, 8, UiKit.CREW.PINK)
+	petTrack.ZIndex = Z + 2
+	petFill.ZIndex = Z + 3
+
+	local petList = Instance.new("ScrollingFrame")
+	petList.Position = UDim2.fromOffset(0, 42)
+	petList.Size = UDim2.new(1, 0, 1, -42)
+	petList.BackgroundTransparency = 1
+	petList.BorderSizePixel = 0
+	petList.ScrollBarThickness = 4
+	petList.ScrollBarImageColor3 = UiKit.MUTED
+	petList.CanvasSize = UDim2.new()
+	petList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	petList.ZIndex = Z + 2
+	petList.Parent = petLeft
+	local petLayout = Instance.new("UIListLayout")
+	petLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	petLayout.Padding = UDim.new(0, 6)
+	petLayout.Parent = petList
+
+	local function eggTone(egg: Config.EggDef): Color3
+		local t = egg.tint
+		return if t.R + t.G + t.B < 0.5 then Color3.fromRGB(170, 120, 255) else t
+	end
+
+	type PetCard = { def: Config.PetDef, egg: Config.EggDef, number: number, button: TextButton, figure: Frame, name: TextLabel, count: TextLabel, stroke: UIStroke, known: boolean? }
+	local petCards: { PetCard } = {}
+	local selectedPet: PetCard? = nil
+
+	local function drawPetFigure(slot: Frame, def: Config.PetDef, isKnown: boolean, size: number)
+		UiKit.ClearSlot(slot)
+		if isKnown then
+			UiKit.PetFigure(slot, size, PetModel.FormOf(def.id), def.color)
+		else
+			UiKit.PetFigure(slot, size, PetModel.FormOf(def.id), tierColor(def.rarity):Lerp(Color3.new(0, 0, 0), 0.72))
+			local q = Instance.new("TextLabel")
+			q.Size = UDim2.fromScale(1, 1)
+			q.BackgroundTransparency = 1
+			q.Font = Enum.Font.GothamBlack
+			q.TextSize = math.floor(size * 0.6)
+			q.TextColor3 = tierColor(def.rarity)
+			q.Text = "?"
+			q.ZIndex = slot.ZIndex + 6
+			q.Parent = slot
+		end
+	end
+
+	local function chanceOf(egg: Config.EggDef, rarity: string): number
+		local total = 0
+		for _, w in egg.weights do
+			total += w
+		end
+		return (egg.weights[rarity] or 0) / math.max(total, 1e-6) * 100
+	end
+
+	local function showPetDetail(card: PetCard)
+		selectedPet = card
+		local def = card.def
+		local isKnown = petsFound[def.id] == true
+		local tone = tierColor(def.rarity)
+		detailStroke.Color = tone
+		stageStroke.Color = tone
+		detailName.Text = if isKnown then def.name else "???"
+		detailName.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
+		drawPetFigure(figureSlot, def, isKnown, 80)
+		shownState = "" -- ekip ayrıntısına dönünce yeniden çizilsin
+
+		local pct = chanceOf(card.egg, def.rarity)
+		local values = {
+			{ "Egg", string.upper(card.egg.name), eggTone(card.egg) },
+			{ "Rarity", string.upper(def.rarity), tone },
+			{ "Chance", if pct >= 1 then string.format("%.1f%%", pct) else string.format("%.2f%%", pct), UiKit.INK },
+			{ "Cash bonus", if isKnown then string.format("+%.1f%%", def.incomeBonus * 100) else "???", UiKit.CREW.LIME },
+			{ "Steal speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
+		}
+		for i, row in statRows do
+			local v = values[i]
+			row.key.Text = v[1]
+			row.value.Text = v[2]
+			row.value.TextColor3 = v[3]
+		end
+		local have = petsOwned[def.id] or 0
+		hint.Text = if not isKnown then string.format("Not found yet. Hatch it from the %s!", card.egg.name)
+			elseif have > 0 then string.format("You have %d in your inventory.", have)
+			else "Found before. Hatch another to own it."
+		hint.TextColor3 = if have > 0 then UiKit.GOOD else UiKit.DIM
+		for _, other in petCards do
+			other.stroke.Transparency = if other == card then 0 else 0.7
+			other.stroke.Thickness = if other == card then 2.4 else 1.2
+		end
+	end
+
+	do
+		local number = 0
+		for eggIndex, egg in Config.Eggs do
+			local tone = eggTone(egg)
+			local pets = Config.GetEggPets(egg.id)
+			local row = Instance.new("Frame")
+			row.Name = egg.id
+			row.LayoutOrder = eggIndex
+			row.Size = UDim2.new(1, -8, 0, ROW_H)
+			row.BackgroundTransparency = 1
+			row.ZIndex = Z + 2
+			row.Parent = petList
+			label(row, {
+				Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBlack, TextSize = 13,
+				TextColor3 = tone, Text = string.format("%s  ·  $%s", string.upper(egg.name), Config.FormatCash(egg.price)),
+				ZIndex = Z + 3,
+			})
+			local strip = Instance.new("ScrollingFrame")
+			strip.Position = UDim2.fromOffset(0, 22)
+			strip.Size = UDim2.new(1, 0, 0, CARD_H + 8)
+			strip.BackgroundTransparency = 1
+			strip.BorderSizePixel = 0
+			strip.ScrollBarThickness = 3
+			strip.ScrollBarImageColor3 = tone
+			strip.ScrollingDirection = Enum.ScrollingDirection.X
+			strip.CanvasSize = UDim2.new()
+			strip.AutomaticCanvasSize = Enum.AutomaticSize.X
+			strip.ZIndex = Z + 3
+			strip.Parent = row
+			local sl = Instance.new("UIListLayout")
+			sl.FillDirection = Enum.FillDirection.Horizontal
+			sl.SortOrder = Enum.SortOrder.LayoutOrder
+			sl.Padding = UDim.new(0, 8)
+			sl.Parent = strip
+
+			for position, def in pets do
+				number += 1
+				local rtone = tierColor(def.rarity)
+				local button = Instance.new("TextButton")
+				button.LayoutOrder = position
+				button.Size = UDim2.fromOffset(CARD_W, CARD_H)
+				button.BackgroundColor3 = UiKit.ROW
+				button.BorderSizePixel = 0
+				button.AutoButtonColor = false
+				button.Text = ""
+				button.ZIndex = Z + 4
+				button.Parent = strip
+				UiKit.Corner(button, 10)
+				local cstroke = UiKit.Stroke(button, rtone, 1.2, 0.7)
+				local cap = Instance.new("Frame")
+				cap.Size = UDim2.new(1, 0, 0, 6)
+				cap.BackgroundColor3 = rtone
+				cap.BorderSizePixel = 0
+				cap.ZIndex = Z + 5
+				cap.Parent = button
+				UiKit.Corner(cap, 3)
+				local figure = Instance.new("Frame")
+				figure.AnchorPoint = Vector2.new(0.5, 0)
+				figure.Position = UDim2.new(0.5, 0, 0, 14)
+				figure.Size = UDim2.fromOffset(56, 56)
+				figure.BackgroundTransparency = 1
+				figure.ZIndex = Z + 5
+				figure.Parent = button
+				local name = label(button, {
+					Position = UDim2.fromOffset(4, 74), Size = UDim2.new(1, -8, 0, 16),
+					TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center,
+					TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 5,
+				})
+				label(button, {
+					Position = UDim2.fromOffset(8, 94), Size = UDim2.new(0.5, 0, 0, 16),
+					TextSize = 10, Font = Enum.Font.GothamBlack, TextColor3 = rtone,
+					Text = string.upper(string.sub(def.rarity, 1, 3)), ZIndex = Z + 5,
+				})
+				local count = label(button, {
+					AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 94),
+					Size = UDim2.new(0.5, 0, 0, 16), TextSize = 11, Font = Enum.Font.GothamBlack,
+					TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = UiKit.GOOD, ZIndex = Z + 5,
+				})
+				local card: PetCard = { def = def, egg = egg, number = number, button = button, figure = figure, name = name, count = count, stroke = cstroke, known = nil }
+				table.insert(petCards, card)
+				button.MouseButton1Click:Connect(function()
+					showPetDetail(card)
+				end)
+			end
+		end
+	end
+
+	local function refreshPets()
+		local foundCount = 0
+		for _, card in petCards do
+			local isKnown = petsFound[card.def.id] == true
+			if isKnown then
+				foundCount += 1
+			end
+			if card.known ~= isKnown then
+				card.known = isKnown
+				drawPetFigure(card.figure, card.def, isKnown, 44)
+				card.name.Text = if isKnown then card.def.name else "???"
+				card.name.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
+				card.button.BackgroundTransparency = if isKnown then 0 else 0.35
+			end
+			local have = petsOwned[card.def.id] or 0
+			card.count.Text = if have > 0 then "x" .. have else ""
+		end
+		local total = #petCards
+		petDiscovered.Text = string.format("Discovered %d / %d", foundCount, total)
+		petPercent.Text = string.format("%d%% complete", math.floor(foundCount / math.max(1, total) * 100 + 0.5))
+		petFill.Size = UDim2.new(foundCount / math.max(1, total), 0, 1, 0)
+		if mode == "pets" and selectedPet then
+			showPetDetail(selectedPet)
+		end
+	end
+
+	-- Arka planda: indeks ana HUD akışında kuruluyor, remote'u beklemek HUD'u durdurmasın
+	task.spawn(function()
+	Net.Get("Pets").OnClientEvent:Connect(function(payload)
+		if typeof(payload) ~= "table" then
+			return
+		end
+		table.clear(petsFound)
+		table.clear(petsOwned)
+		if typeof(payload.found) == "table" then
+			for _, id in payload.found do
+				if typeof(id) == "string" then
+					petsFound[id] = true
+				end
+			end
+		end
+		if typeof(payload.owned) == "table" then
+			for key, n in payload.owned do
+				local def = typeof(key) == "string" and Config.ParsePetKey(key) or nil
+				if def and typeof(n) == "number" then
+					petsOwned[def.id] = (petsOwned[def.id] or 0) + n
+					petsFound[def.id] = true
+				end
+			end
+		end
+		refreshPets()
+	end)
+	end)
+
+	-- Başlık bandında CREW / PETS anahtarı
+	local switch = Instance.new("Frame")
+	switch.AnchorPoint = Vector2.new(1, 0.5)
+	switch.Position = UDim2.new(1, -56, 0.5, 0)
+	switch.Size = UDim2.fromOffset(176, 30)
+	switch.BackgroundColor3 = UiKit.SHELL_DEEP
+	switch.ZIndex = Z + 2
+	switch.Parent = band
+	UiKit.Corner(switch, 15)
+	local modeButtons: { [string]: TextButton } = {}
+	local function setMode(m: string)
+		mode = m
+		left.Visible = m == "crew"
+		petLeft.Visible = m == "pets"
+		titleLabel.Text = if m == "crew" then "CREW INDEX" else "PET INDEX"
+		for id, b in modeButtons do
+			local on = id == m
+			b.BackgroundColor3 = if on then (if id == "crew" then ACCENT else UiKit.CREW.PINK) else UiKit.SHELL_DEEP
+			b.TextColor3 = if on then Color3.fromRGB(16, 18, 28) else UiKit.MUTED
+		end
+		if m == "pets" then
+			refreshPets()
+			if selectedPet or petCards[1] then
+				showPetDetail((selectedPet or petCards[1]) :: PetCard)
+			end
+		else
+			refresh()
+			if selected then
+				shownState = ""
+				showDetail(selected)
+			elseif cards[1] then
+				showDetail(cards[1])
+			end
+		end
+	end
+	for i, id in { "crew", "pets" } do
+		local b = Instance.new("TextButton")
+		b.Position = UDim2.new((i - 1) * 0.5, 2, 0, 2)
+		b.Size = UDim2.new(0.5, -4, 1, -4)
+		b.AutoButtonColor = false
+		b.Font = Enum.Font.GothamBlack
+		b.TextSize = 13
+		b.Text = string.upper(id)
+		b.ZIndex = Z + 3
+		b.Parent = switch
+		UiKit.Corner(b, 13)
+		modeButtons[id] = b
+		b.MouseButton1Click:Connect(function()
+			setMode(id)
+		end)
+	end
+
 	-- ─── Açma / kapama ──────────────────────────────────────────────────────
 
 	local function toggle()
 		root.Visible = not root.Visible
 		if root.Visible then
-			refresh()
-			if not selected and cards[1] then
-				showDetail(cards[1])
-			end
+			setMode(mode)
 		end
 	end
 
@@ -682,11 +1002,17 @@ function Index.Create(screen: ScreenGui): Catalog
 	return {
 		-- Ana döngü 0.2 sn'de bir çağırıyor; kapalıyken iş yapmıyor
 		Update = function()
-			if root.Visible then
+			-- PETS sekmesi Pets remote'uyla tazeleniyor; ekip ayrıntısını üstüne yazmasın
+			if root.Visible and mode == "crew" then
 				refresh()
 			end
 		end,
 		Toggle = toggle,
+		-- Pencereyi PETS sekmesinde açar (Studio önizlemesi, ileride kısayol)
+		ShowPets = function()
+			root.Visible = true
+			setMode("pets")
+		end,
 	}
 end
 

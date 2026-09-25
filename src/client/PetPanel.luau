@@ -538,7 +538,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			-- Bu yumurtanın sahip olunan anahtarları ve hiç bulunmamış petleri
 			type Slot = { def: Config.PetDef, key: string?, count: number }
 			local slots: { Slot } = {}
-			local found: { [string]: boolean } = {}
 
 			for key, count in owned do
 				local def, _, size = Config.ParsePetKey(key)
@@ -549,7 +548,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 						table.insert(slots, { def = def, key = key, count = count })
 						anyFusable = anyFusable or fusable
 					end
-					found[def.id] = true
 				end
 			end
 			table.sort(slots, function(a, b)
@@ -571,26 +569,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 				end
 				return (MUTATION_ORDER[if ma then ma.id else ""] or 0) < (MUTATION_ORDER[if mb then mb.id else ""] or 0)
 			end)
-			if not fusing then
-				-- Bulunmamış petler kendi kademe yerinde, sönük
-				for _, def in Config.GetEggPets(egg.id) do
-					if not found[def.id] then
-						table.insert(slots, { def = def, key = nil, count = 0 })
-					end
-				end
-				table.sort(slots, function(a, b)
-					local oa = Config.Rarities[a.def.rarity].order
-					local ob = Config.Rarities[b.def.rarity].order
-					if oa ~= ob then
-						return oa < ob
-					end
-					if a.def.id ~= b.def.id then
-						return a.def.name < b.def.name
-					end
-					return (a.key or "") < (b.key or "")
-				end)
-			end
-
+			--[[
+				Yalnızca ELDE OLAN petler. Hiç bulunmamış petler ("???") artık
+				burada değil, INDEX penceresinin PETS sekmesinde: envanter
+				"neyim var", indeks "neler var" sorusu.
+			]]
 			if #slots == 0 then
 				continue
 			end
@@ -605,10 +588,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			label.TextXAlignment = Enum.TextXAlignment.Left
 			label.TextColor3 = tint
 			local have = 0
-			for _ in found do
-				have += 1
+			for _, slot in slots do
+				have += slot.count
 			end
-			label.Text = string.format("%s  ·  %d/%d FOUND", string.upper(egg.name), have, #Config.GetEggPets(egg.id))
+			label.Text = string.format("%s  ·  %d PET%s", string.upper(egg.name), have, if have == 1 then "" else "S")
 			label.ZIndex = 42
 			label.Parent = list
 			table.insert(rows, label)
@@ -631,6 +614,22 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			for index, slot in slots do
 				makeCard(row, index, slot.def, slot.key, slot.count)
 			end
+		end
+
+		-- Hiç pet yoksa boş liste değil, nereden bulunacağı
+		if not fusing and order == 0 then
+			local empty = Instance.new("TextLabel")
+			empty.LayoutOrder = 1
+			empty.Size = UDim2.new(1, -6, 0, 80)
+			empty.BackgroundTransparency = 1
+			empty.Font = Enum.Font.GothamBold
+			empty.TextSize = 15
+			empty.TextWrapped = true
+			empty.TextColor3 = MUTED
+			empty.Text = "No pets yet.\nHatch an egg above or at the MedBay! Every pet is listed in the INDEX."
+			empty.ZIndex = 42
+			empty.Parent = list
+			table.insert(rows, empty)
 		end
 
 		-- Makinede birleştirilecek bir şey yoksa boş ekran değil, ne gerektiği

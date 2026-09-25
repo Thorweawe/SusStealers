@@ -1,7 +1,8 @@
 --!strict
 --[[
-	Oyuncu ayarları: müzik ve efekt sesi, kamera sarsıntısı. Başlangıç
-	ekranındaki SETTINGS penceresi değiştiriyor.
+	Oyuncu ayarları: müzik ve efekt sesi, kamera sarsıntısı (başlangıç
+	ekranındaki SETTINGS) ve yumurtadan çıkınca silinecek pet kademeleri
+	(yumurta panelindeki AUTO-DELETE, uygulaması PetService.TryHatch).
 
 	Ayarlar profilde duruyor ki oyuncu her girişte yeniden kurmasın. Sunucu
 	onları oyuncuya nitelik olarak yazıyor (SettingMusic, SettingSfx,
@@ -24,10 +25,23 @@ local SettingsService = {}
 local MIN_INTERVAL = 0.25
 local lastAt: { [Player]: number } = {}
 
-local function publish(player: Player, settings: { music: number, sfx: number, shake: boolean })
+type Settings = { music: number, sfx: number, shake: boolean, autoDelete: { [string]: boolean }? }
+
+local function publish(player: Player, settings: Settings)
 	player:SetAttribute("SettingMusic", settings.music)
 	player:SetAttribute("SettingSfx", settings.sfx)
 	player:SetAttribute("SettingShake", settings.shake)
+	-- Otomatik silinen kademeler virgüllü liste (nitelik tablo tutamıyor), kademe sırasıyla
+	local list = {}
+	for rarity, on in settings.autoDelete or {} do
+		if on then
+			table.insert(list, rarity)
+		end
+	end
+	table.sort(list, function(a, b)
+		return Config.Rarities[a].order < Config.Rarities[b].order
+	end)
+	player:SetAttribute("SettingAutoDelete", table.concat(list, ","))
 end
 
 --[[
@@ -35,7 +49,7 @@ end
 	yanlış tür yok sayılıyor; sayı 0..1'e sıkıştırılıyor. Yazılan tabloyu
 	döndürür, reddedilirse nil.
 ]]
-function SettingsService.Apply(player: Player, payload: any, now: number?): { music: number, sfx: number, shake: boolean }?
+function SettingsService.Apply(player: Player, payload: any, now: number?): Settings?
 	local profile = DataService.Get(player)
 	if not profile or typeof(payload) ~= "table" then
 		return nil
@@ -56,6 +70,20 @@ function SettingsService.Apply(player: Player, payload: any, now: number?): { mu
 	end
 	if typeof(payload.shake) == "boolean" then
 		settings.shake = payload.shake
+	end
+	--[[
+		Otomatik silme (yumurta panelindeki Auto-Delete): kademe -> açık mı.
+		Yalnızca tanınan kademeler; tablo verilmişse tamamı yeniden yazılıyor
+		(kapatılan kademe listeden çıksın).
+	]]
+	if typeof(payload.autoDelete) == "table" then
+		local fresh: { [string]: boolean } = {}
+		for rarity, on in payload.autoDelete do
+			if typeof(rarity) == "string" and Config.Rarities[rarity] and on == true then
+				fresh[rarity] = true
+			end
+		end
+		settings.autoDelete = fresh
 	end
 	publish(player, settings)
 	return settings

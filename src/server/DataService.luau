@@ -118,8 +118,11 @@ export type Profile = {
 	sabotages: { [string]: number },
 	-- Son sabotaj kullanımı (unix saati); bekleme çıkıp girince sıfırlanmasın
 	lastSabotageAt: number,
-	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor
-	settings: { music: number, sfx: number, shake: boolean },
+	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor.
+	-- autoDelete: yumurtadan çıkınca envantere girmeden silinecek kademeler
+	settings: { music: number, sfx: number, shake: boolean, autoDelete: { [string]: boolean } },
+	-- Pet indeksi: bir kez bile elde edilmiş (ya da otomatik silinmiş) pet kimlikleri
+	petsFound: { [string]: boolean },
 }
 
 export type QuestEntry = {
@@ -199,7 +202,13 @@ local function newProfile(): Profile
 		trail = "",
 		sabotages = {},
 		lastSabotageAt = 0,
-		settings = table.clone(Config.DefaultSettings),
+		settings = {
+			music = Config.DefaultSettings.music,
+			sfx = Config.DefaultSettings.sfx,
+			shake = Config.DefaultSettings.shake,
+			autoDelete = {},
+		},
+		petsFound = {},
 	}
 end
 
@@ -509,6 +518,21 @@ local function sanitize(raw: any): Profile
 		if typeof(s.shake) == "boolean" then
 			profile.settings.shake = s.shake
 		end
+		if typeof(s.autoDelete) == "table" then
+			for rarity, on in s.autoDelete do
+				if typeof(rarity) == "string" and Config.Rarities[rarity] and on == true then
+					profile.settings.autoDelete[rarity] = true
+				end
+			end
+		end
+	end
+
+	if typeof(raw.petsFound) == "table" then
+		for id, on in raw.petsFound do
+			if typeof(id) == "string" and on == true and Config.GetPet(id) then
+				profile.petsFound[id] = true
+			end
+		end
 	end
 
 	return profile
@@ -619,6 +643,8 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.sabotages = table.clone(profile.sabotages)
 	snapshot.settings = table.clone(profile.settings)
+	snapshot.settings.autoDelete = table.clone(profile.settings.autoDelete)
+	snapshot.petsFound = table.clone(profile.petsFound)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 

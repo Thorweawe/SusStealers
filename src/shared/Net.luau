@@ -148,10 +148,12 @@ local CLIENT_TO_SERVER = {
 	]]
 	SabotageAction = true,
 	--[[
-		SettingsSave hiçbir şey VERMİYOR ve hiçbir şeyi değiştirmiyor, yalnızca
-		oyuncunun KENDİ ses/sarsıntı tercihini profile yazıyor. Değerler
-		sunucuda sınırlanıyor (0..1, boolean), bilinmeyen alan yok sayılıyor,
-		sıklık sınırlı (SettingsService).
+		SettingsService hiçbir şey VERMİYOR, yalnızca oyuncunun KENDİ
+		tercihlerini profile yazıyor: ses/sarsıntı ve yumurtadan çıkınca
+		silinecek pet kademeleri (autoDelete — yalnızca kendi gelecekteki
+		petlerini etkiliyor, mutasyonlular hiç silinmiyor). Değerler sunucuda
+		sınırlanıyor (0..1, boolean, tanınan kademe), bilinmeyen alan yok
+		sayılıyor, sıklık sınırlı.
 	]]
 	SettingsSave = true,
 }

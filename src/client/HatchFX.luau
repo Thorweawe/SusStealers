@@ -207,7 +207,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 
 	-- ─── Tek bir gösterim ───────────────────────────────────────────────────
 
-	local queue: { { keys: { string }, source: string, eggId: string? } } = {}
+	local queue: { { keys: { string }, source: string, eggId: string?, deleted: { boolean }? } } = {}
 	local playing = false
 	local closeRequested = false
 
@@ -321,7 +321,9 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		task.wait(0.08)
 	end
 
-	local function play(keys: { string }, source: string, eggId: string?)
+	local stamps: { GuiObject } = {}
+
+	local function play(keys: { string }, source: string, eggId: string?, deleted: { boolean }?)
 		local count = math.min(#keys, #slots)
 		-- Birleştirmede yumurta yok; nötr stil
 		local style = EggStyle.Get(if source == "fuse" then nil else eggId)
@@ -417,6 +419,34 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			for _, t in { slot.name, slot.tier, slot.stat } do
 				fadeText(t, true, 0.25)
 			end
+
+			--[[
+				Otomatik silindi: pet yine gösteriliyor (ne çıktığını bilmek
+				istiyor) ama üstünde kırmızı çapraz damga, ışınlar sönük.
+			]]
+			if deleted and deleted[i] then
+				local stamp = Instance.new("TextLabel")
+				stamp.Name = "DeletedStamp"
+				stamp.AnchorPoint = Vector2.new(0.5, 0.5)
+				stamp.Position = UDim2.new(0.5, 0, 0, 110)
+				stamp.Size = UDim2.fromOffset(190, 46)
+				stamp.Rotation = -14
+				stamp.BackgroundColor3 = Color3.fromRGB(30, 10, 12)
+				stamp.BackgroundTransparency = 0.25
+				stamp.Font = Enum.Font.FredokaOne
+				stamp.TextSize = 30
+				stamp.TextColor3 = Color3.fromRGB(255, 80, 80)
+				stamp.Text = "DELETED"
+				stamp.ZIndex = Z + 6
+				stamp.Parent = slot.root
+				UiKit.Corner(stamp, 8)
+				UiKit.Stroke(stamp, Color3.fromRGB(255, 80, 80), 3, 0)
+				table.insert(stamps, stamp)
+				slot.stat.Text = "Auto-deleted (still added to your Pet Index)"
+				for _, bar in slot.bars do
+					bar.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+				end
+			end
 		end
 
 		-- Işınlar dönüyor; tıklanana kadar ya da süre dolana kadar
@@ -443,6 +473,10 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		for i = 1, count do
 			UiKit.ClearSlot(slots[i].figure)
 		end
+		for _, stamp in stamps do
+			stamp:Destroy()
+		end
+		table.clear(stamps)
 		layer.Visible = false
 	end
 
@@ -453,7 +487,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		playing = true
 		while #queue > 0 do
 			local item = table.remove(queue, 1)
-			local ok, err = pcall(play, item.keys, item.source, item.eggId)
+			local ok, err = pcall(play, item.keys, item.source, item.eggId, item.deleted)
 			if not ok then
 				warn("[HatchFX] " .. tostring(err))
 				layer.Visible = false
@@ -466,7 +500,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		closeRequested = true
 	end)
 
-	local connection = Net.Get("PetHatched").OnClientEvent:Connect(function(keys, source, fromKey)
+	local connection = Net.Get("PetHatched").OnClientEvent:Connect(function(keys, source, fromKey, deletedRaw)
 		-- Birleştirme makinede dünyada oynuyor (FuseFX); kart yalnızca makine yoksa
 		if source == "fuse" and typeof(fromKey) == "string" and FuseFX.Available() then
 			return
@@ -485,10 +519,18 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			return
 		end
 		-- Yumurta açılışında üçüncü argüman yumurtanın kimliği (stil için)
+		-- Dördüncü argüman: otomatik silinen sonuçlar (PetService.TryHatch, AUTO-DELETE)
+		local deleted: { boolean } = {}
+		if typeof(deletedRaw) == "table" then
+			for i = 1, #list do
+				deleted[i] = deletedRaw[i] == true
+			end
+		end
 		table.insert(queue, {
 			keys = list,
 			source = if typeof(source) == "string" then source else "egg",
 			eggId = if source ~= "fuse" and typeof(fromKey) == "string" then fromKey else nil,
+			deleted = deleted,
 		})
 		task.spawn(drain)
 	end)

@@ -92,10 +92,24 @@ local function push(player: Player)
 		return
 	end
 
+	-- Pet indeksi: bir kez bile elde edilmiş pet kimlikleri (istemci Index'te gösteriyor)
+	local found = {}
+	for id in profile.petsFound do
+		table.insert(found, id)
+	end
 	petsRemote:FireClient(player, {
 		owned = table.clone(profile.pets),
 		equipped = table.clone(profile.equippedPets),
+		found = found,
 	})
+end
+
+--[[ Peti indekse işler (kimliğiyle; mutasyon ve boyut aynı pet sayılıyor). ]]
+local function markFound(profile: any, key: string)
+	local def = Config.ParsePetKey(key)
+	if def then
+		profile.petsFound[def.id] = true
+	end
 end
 
 --[[
@@ -237,6 +251,7 @@ local function grant(player: Player, key: string): boolean
 	end
 
 	profile.pets[key] = have + 1
+	markFound(profile, key)
 	if #profile.equippedPets < Config.PetEquipSlots and not table.find(profile.equippedPets, key) then
 		table.insert(profile.equippedPets, key)
 	end
@@ -310,6 +325,11 @@ function PetService.CanAutoHatch(player: Player): boolean
 	return inGroup
 end
 
+--[[ Açılış beklemesini sıfırlar (yalnızca testler: art arda açılış deneyen testler birbirini bekletmesin). ]]
+function PetService._ResetBusy(player: Player)
+	busyUntil[player] = nil
+end
+
 --[[ Üçlü açma gamepass'e bağlı; Studio'da deneme için açık. ]]
 function PetService.CanTripleHatch(player: Player): boolean
 	return RunService:IsStudio() or MonetizationService.HasPass(player, "TripleHatch")
@@ -356,7 +376,16 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 		return nil
 	end
 
+	--[[
+		Otomatik silme (yumurta panelindeki AUTO-DELETE, profildeki
+		settings.autoDelete): o kademeden çıkan pet envantere GİRMİYOR ama
+		indekse işleniyor ve animasyonda "DELETED" damgasıyla görünüyor.
+		Mutasyonlu (Golden/Crystal/Cosmic) pet asla silinmiyor — nadir bir
+		şans oyuncunun bir ayar yüzünden kaybetmesine değmez.
+	]]
+	local autoDelete = profile.settings.autoDelete or {}
 	local keys: { string } = {}
+	local deleted: { boolean } = {}
 	local pending: { [string]: number } = {}
 	for _ = 1, amount do
 		local def = Config.RollPet(rng, eggId)
@@ -366,12 +395,16 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 		end
 		local mutation = Config.RollPetMutation(rng)
 		local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
-		pending[key] = (pending[key] or 0) + 1
-		if (profile.pets[key] or 0) + pending[key] > Config.PetStackLimit then
-			notify(player, string.format("You already have %d %s", Config.PetStackLimit, displayName(key)), true)
-			return nil
+		local drop = autoDelete[def.rarity] == true and mutation == nil
+		if not drop then
+			pending[key] = (pending[key] or 0) + 1
+			if (profile.pets[key] or 0) + pending[key] > Config.PetStackLimit then
+				notify(player, string.format("You already have %d %s", Config.PetStackLimit, displayName(key)), true)
+				return nil
+			end
 		end
 		table.insert(keys, key)
+		table.insert(deleted, drop)
 	end
 
 	if not EconomyService.TrySpend(player, egg.price * amount) then
@@ -381,19 +414,30 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 
 	busyUntil[player] = now + Config.HatchDuration
 
-	for _, key in keys do
-		grant(player, key)
+	local kept = 0
+	for i, key in keys do
+		if deleted[i] then
+			markFound(profile, key)
+		else
+			grant(player, key)
+			kept += 1
+		end
 	end
 	apply(player)
 
 	if amount == 1 then
-		notify(player, string.format("%s hatched a %s!", egg.name, displayName(keys[1])), false)
+		notify(player, string.format(if deleted[1] then "%s: %s auto-deleted" else "%s hatched a %s!",
+			egg.name, displayName(keys[1])), false)
 	else
-		notify(player, string.format("%s x%d hatched!", egg.name, amount), false)
+		notify(player, string.format("%s x%d hatched!%s", egg.name, amount,
+			if kept < amount then string.format(" (%d auto-deleted)", amount - kept) else ""), false)
 	end
-	-- Üçüncü argüman yumurtanın kimliği: istemci açılışı o yumurtanın stilinde oynatıyor
+	--[[
+		Üçüncü argüman yumurtanın kimliği: istemci açılışı o yumurtanın
+		stilinde oynatıyor. Dördüncü: hangi sonucun otomatik silindiği.
+	]]
 	if hatchedRemote then
-		hatchedRemote:FireClient(player, keys, "egg", eggId)
+		hatchedRemote:FireClient(player, keys, "egg", eggId, deleted)
 	end
 	for _, key in keys do
 		announce(player, key, "hatched")
@@ -623,6 +667,9 @@ function PetService.WireHatchery(): boolean
 			continue
 		end
 
+		-- İstemci (EggPanel) yumurtayı bu nitelikle buluyor
+		shell:SetAttribute("EggId", egg.id)
+
 		local raw = eggTint(egg)
 		local tint = readable(raw)
 		-- Kabuk: açık tonlu; koyu (Void) yumurta koyu mor kalıyor ki "boşluk" gibi dursun
@@ -766,7 +813,24 @@ function PetService.OnProfileReady(player: Player)
 	end
 	profile.equippedPets = cleaned
 
+	-- İndeks eski kayıtlarda yok: elde tutulan her pet bulunmuş sayılıyor
+	for key, count in profile.pets do
+		if count > 0 then
+			markFound(profile, key)
+		end
+	end
+
 	apply(player)
+	--[[
+		İkinci gönderim: istemcinin panelleri (indeks, yumurta paneli)
+		başlangıç ekranı açıkken kuruluyor ve ilk gönderimi kaçırabiliyor.
+		Kaçırırsa bir sonraki envanter değişikliğine kadar boş kalırdı.
+	]]
+	task.delay(5, function()
+		if player.Parent then
+			push(player)
+		end
+	end)
 end
 
 function PetService.Start()

@@ -2534,6 +2534,36 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 	ok("Supply Epic hâlâ Void Common'dan iyi", supply.Epic.incomeBonus > void.Common.incomeBonus)
 end)
 
+case("Pet: otomatik silme envantere koymuyor ama indekse işliyor", function(ctx)
+	ctx.profile.pets = {}
+	ctx.profile.equippedPets = {}
+	ctx.profile.petsFound = {}
+	SettingsService._Reset(ctx.player)
+	SettingsService.Apply(ctx.player, { autoDelete = { Common = true, Uncommon = true, Rare = true, Epic = true, Bogus = true } }, 5000)
+	eq("nitelik kademe sırasıyla", ctx.player:GetAttribute("SettingAutoDelete"), "Common,Uncommon,Rare,Epic")
+	ok("tanınmayan kademe girmedi", ctx.profile.settings.autoDelete.Bogus == nil)
+
+	setCash(ctx.player, 10000000)
+	local keys = PetService.TryHatch(ctx.player, "SupplyEgg", 1, false)
+	ok("açıldı", keys ~= nil and #keys == 1)
+	if keys then
+		local def, mutation = Config.ParsePetKey(keys[1])
+		if mutation then
+			-- Mutasyonlu pet asla silinmiyor
+			eq("mutasyonlu kaldı", ctx.profile.pets[keys[1]], 1)
+		else
+			eq("silinen envantere girmedi", ctx.profile.pets[keys[1]], nil)
+		end
+		ok("indekse işlendi", def ~= nil and ctx.profile.petsFound[def.id] == true)
+	end
+
+	SettingsService._Reset(ctx.player)
+	SettingsService.Apply(ctx.player, { autoDelete = {} }, 6000)
+	eq("kapatınca liste boş", ctx.player:GetAttribute("SettingAutoDelete"), "")
+	SettingsService._Reset(ctx.player)
+	PetService._ResetBusy(ctx.player)
+end)
+
 case("Pet: sahadaki model istemcinin yürütmesi için işaretli", function(ctx)
 	ctx.profile.pets = { Bolt = 1, VentRat = 1 }
 	ctx.profile.equippedPets = { "Bolt", "VentRat" }

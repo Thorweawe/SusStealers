@@ -22,6 +22,7 @@ local DecorFX = require(script.DecorFX)
 local PetFollow = require(script.PetFollow)
 local SecurityCams = require(script.SecurityCams)
 local AdminView = require(script.AdminView)
+local EggPanel = require(script.EggPanel)
 local EggStyle = require(script.EggStyle)
 local EventFX = require(script.EventFX)
 local FloorStyle = require(script.FloorStyle)
@@ -635,6 +636,8 @@ mountPanel("Inventory", function()
 		]]
 		local hatchFX = HatchFX.Create(screen)
 		local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
+		-- Kuluçkadaki yumurtanın üstünde: petler, şanslar, AUTO-DELETE, E/R/T
+		EggPanel.Create(auto)
 		local panel = PetPanel.Create(screen, auto, content, function(text)
 			inventory.SetCount("pets", text)
 		end)
@@ -842,6 +845,9 @@ mountPanel("SideRail", function()
 
 	previews.Shop = shop.Toggle
 	previews.Index = catalog.Toggle
+	previews.PetIndex = function()
+		catalog.ShowPets()
+	end
 	previews.Quests = function()
 		if quests then
 			quests.Toggle()
