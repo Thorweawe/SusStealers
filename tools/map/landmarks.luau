@@ -171,20 +171,11 @@ return {
 		vent(M.IX1 - 16, M.IZ1 - 24, 90)
 
 		-- ─── Güvenlik kameraları: koridor köşelerinde, kırmızı kayıt lambası ─
+		-- Görüntüleri Security odasındaki ekrandan izleniyor (K.securityCamera, SecurityCams)
 		local cams = K.folder("Cameras", lm)
-		local function camera(pos: Vector3, lookAt: Vector3)
-			local cf = CFrame.lookAt(pos, lookAt)
-			K.boxAt(cams, "CamBody", cf, Vector3.new(1.8, 1.8, 3.4), C.frame)
-			K.boxAt(cams, "CamLens", cf * CFrame.new(0, 0, -1.8) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.3, 1.3, 1.3), C.shadow,
-				{ shape = Enum.PartType.Cylinder })
-			local rec = K.boxAt(cams, "CamLight", cf * CFrame.new(0.6, 1.05, -1), Vector3.new(0.45, 0.45, 0.45), C.red,
-				{ shape = Enum.PartType.Ball, emit = "Fixture" })
-			rec:SetAttribute("PulsePeriod", 1.3)
-			K.boxAt(cams, "CamArm", cf * CFrame.new(0, 0, 2.3), Vector3.new(0.5, 0.5, 1.4), C.metalDark)
-		end
-		camera(Vector3.new(M.centerX - 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX - 60, 2, midZ))
-		camera(Vector3.new(M.centerX + 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX + 60, 2, midZ))
-		camera(Vector3.new(M.IX0 + 2.7, 18.6, M.IZ0 + 30), Vector3.new(M.IX0 + 60, 2, midZ))
-		camera(Vector3.new(M.IX1 - 2.7, 18.6, M.IZ0 + 30), Vector3.new(M.IX1 - 60, 2, midZ))
+		K.securityCamera(cams, Vector3.new(M.centerX - 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX - 60, 2, midZ), "Gate West", 1)
+		K.securityCamera(cams, Vector3.new(M.centerX + 22, 18.6, M.IZ1 - 2.7), Vector3.new(M.centerX + 60, 2, midZ), "Gate East", 2)
+		K.securityCamera(cams, Vector3.new(M.IX0 + 2.7, 18.6, M.IZ0 + 30), Vector3.new(M.IX0 + 60, 2, midZ), "Reactor Wing", 3)
+		K.securityCamera(cams, Vector3.new(M.IX1 - 2.7, 18.6, M.IZ0 + 30), Vector3.new(M.IX1 - 60, 2, midZ), "Navigation Wing", 4)
 	end,
 }

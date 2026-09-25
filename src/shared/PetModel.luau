@@ -45,6 +45,9 @@ local FORMS: { [string]: string } = {
 	MiniImp = "blob",      EscapePod = "orb",    SnowPal = "blob",
 	GhostCrew = "blob",    MeetingBell = "orb",
 	TheEgg = "orb",        VoidShard = "shard",
+	-- Void yumurtası
+	VoidMite = "crab",     StarJelly = "blob",   CometPup = "orb",
+	NebulaEye = "orb",
 }
 
 --[[ Petin biçim adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
@@ -170,6 +173,11 @@ local function buildBlob(b: Builder): (Part, number)
 	b.capsule("Backpack", Vector3.new(0.9, 0.95, 0.5), CFrame.new(0, 1.0, 0.72), b.color:Lerp(Color3.new(0, 0, 0), 0.18))
 	for index, side in { -0.36, 0.36 } do
 		b.ellipsoid("Leg" .. index, Vector3.new(0.55, 0.5, 0.6), CFrame.new(side, 0.27, -0.02), b.color)
+	end
+	-- Yanak allığı: vizörün altında iki pembe leke; chibi yüzü tamamlıyor
+	for _, side in { -1, 1 } do
+		local blush = b.ellipsoid("Blush", Vector3.new(0.28, 0.14, 0.08), CFrame.new(side * 0.5, 1.02, -0.57) * CFrame.Angles(0, math.rad(side * 32), 0), PINK)
+		blush.Transparency = 0.25
 	end
 	return body, 2.05
 end
@@ -337,6 +345,63 @@ local DETAILS: { [string]: (b: Builder, top: number) -> () } = {
 	end,
 	BrainSlug = function(b, _)
 		b.ellipsoid("Brain", Vector3.new(1.0, 0.5, 0.8), CFrame.new(0, 1.05, 0.2), PINK:Lerp(Color3.new(1, 1, 1), 0.2))
+	end,
+
+	-- ── Void yumurtası ──────────────────────────────────────────────────────
+	VoidMite = function(b, _)
+		-- Sırtında parlayan iki boşluk lekesi, gözleri mor ışık
+		for _, side in { -0.35, 0.35 } do
+			b.ellipsoid("VoidSpot", Vector3.new(0.34, 0.14, 0.34), CFrame.new(side, 1.17, 0.15), Color3.fromRGB(190, 120, 255), Enum.Material.Neon)
+		end
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "EyePupil" then
+				p.Color = Color3.fromRGB(170, 90, 255)
+				p.Material = Enum.Material.Neon
+			end
+		end
+	end,
+	StarJelly = function(b, top)
+		-- Yarı saydam jöle gövde, altında dokunaçlar, tepede yıldız
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Body" or p.Name == "Backpack" or string.find(p.Name, "Leg")) then
+				p.Material = Enum.Material.Glass
+				p.Transparency = math.max(p.Transparency, 0.25)
+			end
+		end
+		for i = 0, 3 do
+			local a = math.rad(45 + i * 90)
+			b.ellipsoid("Tentacle", Vector3.new(0.22, 0.7, 0.22), CFrame.new(math.cos(a) * 0.45, 0.2, math.sin(a) * 0.4), b.color:Lerp(Color3.new(1, 1, 1), 0.3), Enum.Material.Glass).Transparency = 0.2
+		end
+		for k = 0, 1 do
+			b.part("Star", Vector3.new(0.42, 0.42, 0.1), CFrame.new(0, top + 0.15, 0) * CFrame.Angles(0, 0, math.rad(45 * k)), Color3.fromRGB(255, 230, 90), Enum.Material.Neon)
+		end
+	end,
+	CometPup = function(b, top)
+		-- Kulaklar ve arkasında kuyruklu yıldız izi
+		for _, side in { -0.45, 0.45 } do
+			b.ellipsoid("Ear", Vector3.new(0.3, 0.5, 0.18), CFrame.new(side, top - 0.05, 0.1) * CFrame.Angles(0, 0, math.rad(side * -30)), b.color:Lerp(Color3.new(0, 0, 0), 0.15))
+		end
+		for i, s in { 0.62, 0.46, 0.3 } do
+			local tail = b.ellipsoid("CometTail", Vector3.new(s, s, s * 1.3), CFrame.new(0, 0.95 + i * 0.08, 0.7 + i * 0.42), Color3.fromRGB(180, 245, 255), Enum.Material.Neon)
+			tail.Transparency = 0.15 + i * 0.18
+		end
+	end,
+	NebulaEye = function(b, top)
+		-- Vizör yerine tek iri göz: nebula gözü
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Visor" or p.Name == "VisorRim" or p.Name == "VisorGlint") then
+				p:Destroy()
+			end
+		end
+		b.ellipsoid("EyeWhite", Vector3.new(1.0, 1.0, 0.5), CFrame.new(0, 0.98, -0.62), WHITE)
+		b.ellipsoid("EyeIris", Vector3.new(0.6, 0.6, 0.2), CFrame.new(0, 0.98, -0.84), Color3.fromRGB(255, 120, 220), Enum.Material.Neon)
+		b.ellipsoid("EyePupil", Vector3.new(0.3, 0.3, 0.12), CFrame.new(0, 0.98, -0.92), DARK)
+		b.ellipsoid("VisorGlint", Vector3.new(0.16, 0.16, 0.05), CFrame.new(0.14, 1.12, -0.96), WHITE, Enum.Material.Neon)
+		-- Tepede küçük nebula bulutları
+		for i, spec in { { -0.3, 0.3 }, { 0.25, 0.26 }, { 0, 0.34 } } do
+			local puff = b.ellipsoid("Nebula" .. i, Vector3.new(spec[2] * 2, spec[2] * 1.4, spec[2] * 2), CFrame.new(spec[1], top - 0.05 + i * 0.05, 0.1), Color3.fromRGB(120, 200, 255):Lerp(b.color, i / 3), Enum.Material.Neon)
+			puff.Transparency = 0.35
+		end
 	end,
 }
 

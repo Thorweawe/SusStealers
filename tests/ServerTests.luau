@@ -2495,6 +2495,83 @@ case("Pet: birleştirme boyutu büyütüyor, türü ve mutasyonu koruyor", funct
 	eq("uzaktan birleşmiyor", PetService.TryFuse(ctx.player, "MiniCrew"), nil)
 end)
 
+case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", function()
+	local byEgg: { [string]: { [string]: Config.PetDef } } = {}
+	for _, def in Config.Pets do
+		ok(def.id .. " yumurtası var", Config.GetEgg(def.egg) ~= nil, def.egg)
+		byEgg[def.egg] = byEgg[def.egg] or {}
+		ok(def.id .. " kademesi yumurtada tek", byEgg[def.egg][def.rarity] == nil, def.rarity)
+		byEgg[def.egg][def.rarity] = def
+	end
+	for _, egg in Config.Eggs do
+		for rarity in egg.weights do
+			ok(egg.id .. " " .. rarity .. " peti var", byEgg[egg.id] ~= nil and byEgg[egg.id][rarity] ~= nil)
+		end
+		-- Yumurta içinde kademe arttıkça güç artıyor
+		local pets = Config.GetEggPets(egg.id)
+		for i = 2, #pets do
+			ok(egg.id .. " sıralı güç", pets[i].incomeBonus > pets[i - 1].incomeBonus, pets[i].id)
+		end
+		-- Çekiliş yalnızca o yumurtanın petlerini veriyor
+		local rng = Random.new(7)
+		local foreign = 0
+		for _ = 1, 300 do
+			local def = Config.RollPet(rng, egg.id)
+			if not def or def.egg ~= egg.id then
+				foreign += 1
+			end
+		end
+		eq(egg.id .. " başka yumurtanın peti çıkmıyor", foreign, 0)
+	end
+	-- Kademeler: ucuz yumurta Epic'e kadar, sonraki Legendary, son ikisi Secret
+	local supply, skeld, polus, void = byEgg.SupplyEgg, byEgg.SkeldEgg, byEgg.PolusEgg, byEgg.VoidEgg
+	ok("Supply'da Common..Epic", supply.Common ~= nil and supply.Epic ~= nil and supply.Legendary == nil)
+	ok("Skeld'de Legendary", skeld.Legendary ~= nil and skeld.Secret == nil)
+	ok("Polus ve Void'de Secret", polus.Secret ~= nil and void.Secret ~= nil)
+	-- Pahalı yumurtanın Common'ı ucuzunkinden güçlü
+	ok("Void Common > Supply Common", void.Common.incomeBonus > supply.Common.incomeBonus)
+	ok("Polus Common > Skeld Common", polus.Common.incomeBonus > skeld.Common.incomeBonus)
+	ok("Supply Epic hâlâ Void Common'dan iyi", supply.Epic.incomeBonus > void.Common.incomeBonus)
+end)
+
+case("Pet: sahadaki model istemcinin yürütmesi için işaretli", function(ctx)
+	ctx.profile.pets = { Bolt = 1, VentRat = 1 }
+	ctx.profile.equippedPets = { "Bolt", "VentRat" }
+	PetService.Apply(ctx.player)
+	local found = 0
+	local folder = workspace:FindFirstChild("Pets")
+	for _, model in (if folder then folder:GetChildren() else {}) do
+		if model:IsA("Model") and model:GetAttribute("OwnerId") == ctx.player.UserId then
+			found += 1
+			ok(model.Name .. " sırası", typeof(model:GetAttribute("Slot")) == "number")
+			eq(model.Name .. " toplam", model:GetAttribute("SlotCount"), 2)
+			eq(model.Name .. " kalıcı akış", model.ModelStreamingMode, Enum.ModelStreamingMode.Persistent)
+		end
+	end
+	eq("iki pet sahada", found, 2)
+	ctx.profile.equippedPets = {}
+	PetService.Apply(ctx.player)
+end)
+
+case("Harita: Security ve Admin odaları, kameralar", function()
+	local rooms = workspace.Decor:FindFirstChild("UnderRooms")
+	ok("yeraltı odaları", rooms ~= nil and rooms:FindFirstChild("Security") ~= nil and rooms:FindFirstChild("Admin") ~= nil)
+	local security = workspace.Decor:FindFirstChild("SecurityRoom")
+	ok("kamera konsolu promptu", security ~= nil and security:FindFirstChild("SecurityPrompt", true) ~= nil)
+	ok("admin promptu", workspace.Decor.AdminTable:FindFirstChild("AdminPrompt", true) ~= nil)
+	local cams, names = 0, {}
+	for _, d in workspace.Decor:GetDescendants() do
+		if d:IsA("BasePart") and typeof(d:GetAttribute("CamName")) == "string" then
+			cams += 1
+			ok("kamera adı tek: " .. d:GetAttribute("CamName"), names[d:GetAttribute("CamName")] == nil)
+			names[d:GetAttribute("CamName")] = true
+		end
+	end
+	ok("en az 7 kamera", cams >= 7, tostring(cams))
+	-- Üslerin üstünde oda tabelası yok
+	ok("oda tabelaları kalktı", workspace.Decor:FindFirstChild("RoomSign", true) == nil)
+end)
+
 case("Pet: açılış bitmeden ikinci yumurta açılmıyor", function(ctx)
 	ctx.profile.pets = {}
 	ctx.profile.equippedPets = {}
@@ -3302,11 +3379,20 @@ case("Admin masası: bölgeler ölçülüyor, konum doğru odaya düşüyor", fu
 	local base = ctx.plot:FindFirstChild("Base") :: BasePart
 	local z = AdminMapService.Classify(base.Position + Vector3.new(0, 3, 0))
 	eq("üs", z and z.name, ctx.plot.Name)
+	-- Tünel zemininin ortası omurganın altındaki odada; tünel noktası oradan 30 stud güneyde
 	local tunnelFloor = workspace.Decor.Tunnels.Tunnel1.TunnelFloor :: BasePart
-	local t = AdminMapService.Classify(tunnelFloor.Position + Vector3.new(0, 2, 0))
+	local t = AdminMapService.Classify(tunnelFloor.Position + Vector3.new(0, 2, -30))
 	eq("tünel", t and t.kind, "tunnel")
-	local lobby = AdminMapService.Classify(screen.Position + Vector3.new(0, 1, -8))
-	eq("cafeteria", lobby and lobby.name, "Lobby")
+	local security = AdminMapService.Classify(tunnelFloor.Position + Vector3.new(0, 2, 0))
+	eq("tünelin ortası Security odası", security and security.name, "Security")
+	local adminRoom = AdminMapService.Classify(screen.Position + Vector3.new(0, 1, 0))
+	eq("masa Admin odasında", adminRoom and adminRoom.name, "Admin")
+	local pad = workspace.Decor:FindFirstChild("TeleportPad")
+	local padPart = pad and pad:FindFirstChildWhichIsA("BasePart", true)
+	if padPart then
+		local lobby = AdminMapService.Classify(padPart.Position + Vector3.new(0, 2, -12))
+		eq("cafeteria", lobby and lobby.name, "Lobby")
+	end
 	local hall = AdminMapService.Classify(Vector3.new(180, 3, 58))
 	eq("koridor", hall and hall.kind, "hall")
 

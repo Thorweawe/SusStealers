@@ -137,6 +137,16 @@ M.TUNNEL_FLOOR = -13.1   -- tünel zemininin üst yüzü
 M.TUNNEL_S0 = M.IZ0 + M.TUNNEL_EDGE   -- güney rampanın üst ucu
 M.TUNNEL_N1 = M.IZ1 - M.TUNNEL_EDGE   -- kuzey rampanın üst ucu
 
+--[[
+	Yeraltı odaları: tünel omurga koridorunun altından geçerken bir odaya
+	açılıyor. Batı tünelinde SECURITY (kameralar), doğudakinde ADMIN
+	(oyuncu haritası). Oda tünelin iki yanına genişliyor; ortası tünelin
+	yürüme yolu olarak açık kalıyor, masalar yanlarda.
+]]
+M.UNDER_ROOM_W = 48     -- x
+M.UNDER_ROOM_D = 30     -- z
+M.UNDER_ROOM_NAMES = { "Security", "Admin" }
+
 -- Yüzeye yatan ince parçaların çakışmasını önleyen küçük pay
 M.LIFT = 0.03
 -- Karo üst yüzü (istasyon ve lobi zemini)
@@ -191,14 +201,53 @@ function K.tunnelOpenings(): { { number } }
 	return out
 end
 
---[[ Tünelin gövde içindeki tüm izi (rampa + tünel): gövde bloklarından oyuluyor. ]]
+--[[
+	Yeraltı odalarının dikdörtgenleri {x0, z0, x1, z1}, tünel sırasıyla
+	(M.TUNNEL_X): 1 = Security, 2 = Admin. Omurga koridorunun ortasının altında.
+]]
+function K.underRooms(): { { number } }
+	local out = {}
+	local midZ = (M.SPINE_Z0 + M.SPINE_Z1) / 2
+	for _, x in M.TUNNEL_X do
+		table.insert(out, {
+			x - M.UNDER_ROOM_W / 2, midZ - M.UNDER_ROOM_D / 2,
+			x + M.UNDER_ROOM_W / 2, midZ + M.UNDER_ROOM_D / 2,
+		})
+	end
+	return out
+end
+
+--[[ Tünelin gövde içindeki tüm izi (rampa + tünel + yeraltı odası): gövde bloklarından oyuluyor. ]]
 function K.tunnelFootprints(): { { number } }
 	local out = {}
 	for _, x in M.TUNNEL_X do
 		local hw = M.TUNNEL_W / 2
 		table.insert(out, { x - hw, M.TUNNEL_S0, x + hw, M.TUNNEL_N1 })
 	end
+	for _, r in K.underRooms() do
+		table.insert(out, r)
+	end
 	return out
+end
+
+--[[
+	Güvenlik kamerası (Skeld'deki gibi): duvara kollu gövde, lens, kırmızı
+	kayıt lambası. `name` Security odasındaki ekranda görünen ad; gövdeye
+	"CamName"/"CamOrder" niteliği olarak yazılıyor, istemci (SecurityCams)
+	bunlardan buluyor. Görüş = gövdenin baktığı yön.
+]]
+function K.securityCamera(parent: Instance, pos: Vector3, lookAt: Vector3, name: string, order: number)
+	local cf = CFrame.lookAt(pos, lookAt)
+	local body = K.boxAt(parent, "CamBody", cf, Vector3.new(1.8, 1.8, 3.4), K.C.frame)
+	body:SetAttribute("CamName", name)
+	body:SetAttribute("CamOrder", order)
+	K.boxAt(parent, "CamLens", cf * CFrame.new(0, 0, -1.8) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.3, 1.3, 1.3), K.C.shadow,
+		{ shape = Enum.PartType.Cylinder })
+	local rec = K.boxAt(parent, "CamLight", cf * CFrame.new(0.6, 1.05, -1), Vector3.new(0.45, 0.45, 0.45), K.C.red,
+		{ shape = Enum.PartType.Ball, emit = "Fixture" })
+	rec:SetAttribute("PulsePeriod", 1.3)
+	K.boxAt(parent, "CamArm", cf * CFrame.new(0, 0, 2.3), Vector3.new(0.5, 0.5, 1.4), K.C.metalDark)
+	return body
 end
 
 function K.plotRect(index: number, pad: number?): { number }

@@ -175,13 +175,37 @@ function PetService.Respawn(player: Player)
 		folder.Parent = workspace
 	end
 
+	--[[
+		Petleri SUNUCU taşımıyor: her istemci bütün petleri kendi karesinde
+		kendisi yürütüyor (src/client/PetFollow). Eskiden sunucu her
+		Heartbeat'te PivotTo yapıyordu; konum ağdan saniyede ~20 kez ve
+		gecikmeli geldiği için pet kesik kesik, sahibinin arkasından
+		"laglı" geliyordu. İstemci bunun yerine sahibin (zaten akıcı olan)
+		karakterini izliyor.
+
+		Kimin peti olduğu ve kaçıncı sırada durduğu nitelikte. Model
+		Persistent: sunucudaki konumu hiç değişmediği için akış (streaming)
+		onu uzak sanıp istemciden silebilirdi.
+	]]
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local start = if root and root:IsA("BasePart") then root.CFrame * CFrame.new(0, 0, 4) else nil
+
 	local models: { Model } = {}
+	local count = math.min(#wanted, Config.PetEquipSlots)
 	for index, id in wanted do
 		if index > Config.PetEquipSlots then
 			break
 		end
 		local model = PetModel.Build(id)
 		if model then
+			model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+			model:SetAttribute("OwnerId", player.UserId)
+			model:SetAttribute("Slot", index)
+			model:SetAttribute("SlotCount", count)
+			if start then
+				model:PivotTo(start)
+			end
 			model.Parent = folder
 			table.insert(models, model)
 		end
@@ -189,85 +213,6 @@ function PetService.Respawn(player: Player)
 
 	if #models > 0 then
 		spawned[player] = models
-	end
-end
-
---[[
-	Petleri oyuncunun arkasına dizer.
-
-	Yerleşim: oyuncunun ARKASINDA, yana yayılmış ve hafif salınan bir yay.
-	Öne koysaydık görüşü kapatırlardı; tam arkaya üst üste koysaydık üç pet
-	tek pet gibi görünürdü.
-
-	Yumuşatma (lerp) şart: doğrudan hedefe yazmak peti oyuncuya kilitliyor
-	ve pet "takip eden bir şey" değil "karaktere yapışmış bir parça" gibi
-	duruyor.
-]]
-local function stepFollow(delta: number)
-	local now = os.clock()
-	local alpha = math.clamp(delta * 6, 0, 1)
-
-	for player, models in spawned do
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-
-		if not root then
-			for _, model in models do
-				model.Parent = nil
-			end
-			continue
-		end
-
-		--[[
-			Petler büyüdükçe (Big/Huge/Titan) araları da açılıyor: sabit
-			aralıkla Titan komşusunun içine giriyordu. Her modelin yarıçapı
-			kurulurken "Radius" niteliğine yazılıyor (PetModel).
-		]]
-		local widest = 0
-		for _, model in models do
-			local r = model:GetAttribute("Radius")
-			widest = math.max(widest, if typeof(r) == "number" then r else 1.5)
-		end
-
-		local count = #models
-		for index, model in models do
-			local primary = model.PrimaryPart
-			if not primary then
-				continue
-			end
-
-			if not model.Parent then
-				local folder = workspace:FindFirstChild("Pets")
-				if folder then
-					model.Parent = folder
-				end
-			end
-
-			local radius = model:GetAttribute("Radius")
-			radius = if typeof(radius) == "number" then radius else 1.5
-
-			-- Yay: tek pet tam arkada, üç pet -1/0/+1 sütunlarda
-			local spread = if count > 1 then (index - 1) / (count - 1) - 0.5 else 0
-			local gap = math.max(5.5, widest * 2 * 1.25 + 1)
-			local offset = Vector3.new(spread * gap, 0, 2.8 + radius + math.abs(spread) * 1.2)
-
-			--[[
-				Yükseklik: normal pet bel hizasında süzülüyor (1.4). Büyük
-				pet aynı yükseklikte dursa gövdesi yerin içine gömülürdü;
-				gövdesinin tabanı yine bel hizasına gelecek kadar yukarı.
-			]]
-			local lift = model:GetAttribute("Lift")
-			lift = if typeof(lift) == "number" then lift else 1.5
-			local rise = 1.4 + math.max(0, lift - 1.5)
-
-			-- Her pet kendi fazında süzülüyor; aynı anda inip kalkarlarsa
-			-- tek bir nesnenin kopyaları gibi duruyorlar
-			local bob = math.sin(now * 2.4 + index * 1.7) * 0.22
-			local target = root.CFrame * CFrame.new(offset) + Vector3.new(0, rise + bob, 0)
-			local goal = CFrame.new(target.Position, target.Position + root.CFrame.LookVector)
-
-			model:PivotTo(primary.CFrame:Lerp(goal, alpha))
-		end
 	end
 end
 
@@ -609,15 +554,9 @@ end
 local FUSE_RANGE = 18
 local fuseCore: BasePart? = nil
 
+-- Yumurtanın kendi rengi (Config.Eggs.tint)
 local function eggTint(egg: Config.EggDef): Color3
-	local best, bestOrder = Color3.fromRGB(236, 228, 210), 0
-	for rarity in egg.weights do
-		local info = Config.Rarities[rarity]
-		if info and info.order > bestOrder then
-			best, bestOrder = info.color, info.order
-		end
-	end
-	return best
+	return egg.tint
 end
 
 --[[
@@ -883,8 +822,6 @@ function PetService.Start()
 		busyUntil[player] = nil
 		groupCache[player] = nil
 	end)
-
-	RunService.Heartbeat:Connect(stepFollow)
 
 	-- Kuluçkahane lobide; harita yoksa atlanıyor, oyun çalışmaya devam ediyor
 	local ok, err = pcall(PetService.WireHatchery)

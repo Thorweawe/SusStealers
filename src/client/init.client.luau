@@ -19,6 +19,9 @@ local SabotagePanel = require(script.SabotagePanel)
 local AlertBanner = require(script.AlertBanner)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
+local PetFollow = require(script.PetFollow)
+local SecurityCams = require(script.SecurityCams)
+local AdminView = require(script.AdminView)
 local EggStyle = require(script.EggStyle)
 local EventFX = require(script.EventFX)
 local FloorStyle = require(script.FloorStyle)
@@ -422,6 +425,8 @@ task.spawn(function()
 end)
 
 DecorFX.Start()
+-- Petleri istemci yürütüyor (sunucu yalnızca kuruyor): akıcı takip
+PetFollow.Start()
 ConveyorFX.Start()
 ThiefTrail.Start()
 
@@ -519,6 +524,12 @@ local function mountPanel(name: string, mount: () -> ())
 		end
 	end)
 end
+
+-- Yeraltı odaları: Security'de kamera ekranı, Admin'de büyük harita
+mountPanel("SecurityCams", SecurityCams.Start)
+mountPanel("AdminView", function()
+	AdminView.Create(screen)
+end)
 
 --[[
 	STUDIO ÖNİZLEMESİ: pencereleri koddan açmak için. Studio testinde sunucu

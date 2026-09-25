@@ -59,12 +59,6 @@ local COLS = 5
 local CARD_W, CARD_H = 96, 108
 
 --[[
-	Kademe sırası. Config.Rarities sözlük, yani sırasız; koleksiyon her
-	açılışta farklı dizilseydi oyuncu aradığını bulamazdı.
-]]
-local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
-
---[[
 	host verilirse panel kendi penceresini açmıyor, o çerçevenin içine
 	sayfa olarak kuruluyor (Envanter'in PETS sekmesi). Kapatma düğmesi de
 	yok; pencereyi sahibi kapatıyor. İçerik konumları kökün içine göre,
@@ -141,18 +135,16 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 	eggLayout.Parent = eggRow
 
 	--[[
-		Yumurtanın rengi havuzunun EN İYİ kademesinden geliyor. Oyuncu dört
+		Yumurtanın rengi Config'te (en iyi kademesinin rengi). Oyuncu dört
 		kutudan hangisinin daha değerli olduğunu fiyatı okumadan görüyor.
+		Çok koyu (Void, Secret siyahı) arayüzde okunmuyor: mora çekiliyor.
 	]]
 	local function eggTint(egg: Config.EggDef): Color3
-		local best, bestOrder = ACCENT, 0
-		for rarity in egg.weights do
-			local info = Config.Rarities[rarity]
-			if info and info.order > bestOrder then
-				best, bestOrder = info.color, info.order
-			end
+		local t = egg.tint
+		if t.R + t.G + t.B < 0.5 then
+			return Color3.fromRGB(170, 120, 255)
 		end
-		return best
+		return t
 	end
 
 	type EggCard = { def: Config.EggDef, price: TextLabel, button: TextButton, autoChip: TextButton }
@@ -384,8 +376,14 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		tag.BackgroundTransparency = 1
 		tag.Font = Enum.Font.GothamBlack
 		tag.TextSize = 10
-		tag.TextColor3 = if mutation then mutation.tint else UiKit.DIM
-		tag.Text = if mutation then string.upper(mutation.name) .. string.format(" x%.1f", mutation.multiplier) else ""
+		--[[
+			Mutasyonsuz kartta KADEME yazıyor: koleksiyon artık yumurtaya
+			göre gruplu, kademe başlıktan okunmuyor. Secret'ın rengi siyah;
+			koyu kartta mora çekiliyor.
+		]]
+		local rarityTone = if def.rarity == "Secret" then Color3.fromRGB(190, 150, 255) else info.color
+		tag.TextColor3 = if mutation then mutation.tint elseif key then rarityTone else UiKit.DIM
+		tag.Text = if mutation then string.upper(mutation.name) .. string.format(" x%.1f", mutation.multiplier) else string.upper(def.rarity)
 		tag.ZIndex = 44
 		tag.Parent = card
 
@@ -528,17 +526,23 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 		local order = 0
 		local anyFusable = false
-		for _, tier in TIERS do
-			local info = Config.Rarities[tier]
+		--[[
+			Koleksiyon YUMURTALARA göre: her yumurtanın kendi pet takımı var
+			(Config.Pets.egg), oyuncu "Skeld yumurtasında neler var, hangisi
+			eksik" sorusunu tek bakışta cevaplasın. Yumurta içinde kademe
+			sırası (Common önce); kademe kartın alt satırında yazıyor.
+		]]
+		for _, egg in Config.Eggs do
+			local tint = eggTint(egg)
 
-			-- Bu kademenin sahip olunan anahtarları ve hiç bulunmamış petleri
+			-- Bu yumurtanın sahip olunan anahtarları ve hiç bulunmamış petleri
 			type Slot = { def: Config.PetDef, key: string?, count: number }
 			local slots: { Slot } = {}
 			local found: { [string]: boolean } = {}
 
 			for key, count in owned do
 				local def, _, size = Config.ParsePetKey(key)
-				if def and def.rarity == tier and count > 0 then
+				if def and def.egg == egg.id and count > 0 then
 					-- Birleştirme modunda yalnızca üç kopyası olan ve daha büyüyebilen
 					local fusable = count >= Config.PetFuseCount and Config.GetNextPetSize(size) ~= nil
 					if not fusing or fusable then
@@ -550,6 +554,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			end
 			table.sort(slots, function(a, b)
 				if a.def.id ~= b.def.id then
+					local oa = Config.Rarities[a.def.rarity].order
+					local ob = Config.Rarities[b.def.rarity].order
+					if oa ~= ob then
+						return oa < ob
+					end
 					return a.def.name < b.def.name
 				end
 				-- Aynı pet: önce boyut (düz → Titan), sonra mutasyon
@@ -563,11 +572,23 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 				return (MUTATION_ORDER[if ma then ma.id else ""] or 0) < (MUTATION_ORDER[if mb then mb.id else ""] or 0)
 			end)
 			if not fusing then
-				for _, def in Config.Pets do
-					if def.rarity == tier and not found[def.id] then
+				-- Bulunmamış petler kendi kademe yerinde, sönük
+				for _, def in Config.GetEggPets(egg.id) do
+					if not found[def.id] then
 						table.insert(slots, { def = def, key = nil, count = 0 })
 					end
 				end
+				table.sort(slots, function(a, b)
+					local oa = Config.Rarities[a.def.rarity].order
+					local ob = Config.Rarities[b.def.rarity].order
+					if oa ~= ob then
+						return oa < ob
+					end
+					if a.def.id ~= b.def.id then
+						return a.def.name < b.def.name
+					end
+					return (a.key or "") < (b.key or "")
+				end)
 			end
 
 			if #slots == 0 then
@@ -582,8 +603,12 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			label.Font = Enum.Font.GothamBlack
 			label.TextSize = 12
 			label.TextXAlignment = Enum.TextXAlignment.Left
-			label.TextColor3 = info.color
-			label.Text = string.upper(tier)
+			label.TextColor3 = tint
+			local have = 0
+			for _ in found do
+				have += 1
+			end
+			label.Text = string.format("%s  ·  %d/%d FOUND", string.upper(egg.name), have, #Config.GetEggPets(egg.id))
 			label.ZIndex = 42
 			label.Parent = list
 			table.insert(rows, label)

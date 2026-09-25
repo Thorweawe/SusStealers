@@ -1,10 +1,12 @@
 --!strict
 --[[
-	Admin masası (Among Us'taki gibi): Cafeteria'daki masanın ekranında
-	istasyonun haritası ve her odada / üste kaç kişi olduğu (nokta olarak).
-	Masanın gövdesi haritada (tools/map/admin.luau, "AdminScreen"); harita
-	ve noktalar burada, sunucuda çiziliyor — SurfaceGui dünyada olduğu için
-	herkese aynı görünüyor, istemci kodu gerekmiyor.
+	Admin masası (Among Us'taki gibi): doğu tünelinin altındaki ADMIN
+	odasında, masanın ekranında istasyonun haritası ve her odada / üste kaç
+	kişi olduğu (nokta olarak). Masanın gövdesi haritada (tools/map/admin.luau,
+	"AdminScreen"); harita ve noktalar burada, sunucuda çiziliyor —
+	SurfaceGui dünyada olduğu için herkese aynı görünüyor. Masadaki prompt
+	aynı haritayı istemcide ekranın ortasında büyük açıyor (AdminView).
+	Yeraltı odaları (Security, Admin) ayrı bölge.
 
 	  - Nokta = oyuncu, TAM YERİ değil odası: Among Us'taki gibi sayı
 	    veriyor, kimin nerede olduğunu değil.
@@ -85,6 +87,17 @@ local function collectZones(): { Zone }
 		return out
 	end
 
+	-- Yeraltı odaları (Security, Admin) tünelden ÖNCE: tünelin içinden geçtiği yer oda sayılsın
+	local underRooms = decor:FindFirstChild("UnderRooms")
+	if underRooms then
+		for _, r in underRooms:GetChildren() do
+			local rect = extents(r)
+			if rect then
+				table.insert(out, { name = r.Name, label = string.upper(r.Name), kind = "underroom", rect = rect })
+			end
+		end
+	end
+
 	local tunnels = decor:FindFirstChild("Tunnels")
 	if tunnels then
 		for _, t in tunnels:GetChildren() do
@@ -137,7 +150,8 @@ end
 function AdminMapService.Classify(pos: Vector3): Zone?
 	local underground = pos.Y < UNDERGROUND_Y
 	for _, zone in zones do
-		if (zone.kind == "tunnel") == underground and inside(zone.rect, pos.X, pos.Z) then
+		local below = zone.kind == "tunnel" or zone.kind == "underroom"
+		if below == underground and inside(zone.rect, pos.X, pos.Z) then
 			return zone
 		end
 	end
@@ -157,21 +171,25 @@ local COLORS = {
 	plotEmpty = Color3.fromRGB(52, 66, 76),
 	intruder = Color3.fromRGB(200, 50, 60),
 	tunnel = Color3.fromRGB(240, 160, 40),
+	underroom = Color3.fromRGB(150, 110, 40),
 	text = Color3.fromRGB(210, 236, 250),
 	dot = Color3.fromRGB(245, 250, 255),
 	rogue = Color3.fromRGB(255, 50, 50),
 }
 
 --[[
-	Dünya → harita. Masaya güneyden (Cafeteria tarafından, -z) bakan
-	oyuncu için: ileri (+z) haritada yukarı, +x ise solunda kalıyor.
+	Dünya → harita: KUZEY (-z, istasyonun arka duvarı) yukarıda, DOĞU (+x,
+	Navigation) sağda — standart harita yönü. Eskiden masaya güneyden bakan
+	biri için +z yukarı çiziliyordu; ekranda büyük açılınca (AdminView)
+	doğu solda kalıyor, harita ayna görüntüsü gibi okunuyordu. Masa da
+	artık bu yöne göre döndürülmüş (tools/map/admin.luau).
 ]]
 local function toScale(r: Rect): (UDim2, UDim2)
 	local w, h = bounds[3] - bounds[1], bounds[4] - bounds[2]
-	local u0 = (bounds[3] - r[3]) / w
-	local u1 = (bounds[3] - r[1]) / w
-	local v0 = (bounds[4] - r[4]) / h
-	local v1 = (bounds[4] - r[2]) / h
+	local u0 = (r[1] - bounds[1]) / w
+	local u1 = (r[3] - bounds[1]) / w
+	local v0 = (r[2] - bounds[2]) / h
+	local v1 = (r[4] - bounds[2]) / h
 	return UDim2.fromScale(u0, v0), UDim2.fromScale(u1 - u0, v1 - v0)
 end
 
@@ -296,7 +314,7 @@ local function build(screen: BasePart)
 
 	-- Çizim sırası: koridor altta, Cafeteria + köprü, odalar, üsler, tüneller üstte
 	-- (Cafeteria'nın sınırı kanatlara biniyor, kanatlar onun üstünde çizilsin)
-	local order = { hall = 1, room = 3, plot = 5, tunnel = 7 }
+	local order = { hall = 1, room = 3, plot = 5, tunnel = 7, underroom = 8 }
 	for _, zone in zones do
 		local z = if zone.name == "Lobby" or zone.name == "Bridge" then 2 else order[zone.kind] or 3
 		drawZone(map, zone, z)

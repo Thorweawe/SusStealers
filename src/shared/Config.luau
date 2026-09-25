@@ -1657,15 +1657,16 @@ end
 	kademesi anlamsızlaşır. Yumurta ise PARAYLA ALINIYOR ama içinden ne
 	çıkacağı şansa bağlı: para sadece daha iyi bir havuza giriş bileti.
 
-	Her yumurtanın kendi kademe ağırlıkları var ve havuzlar üst üste
-	biniyor (Skeld yumurtası hâlâ Uncommon verebiliyor). Bu kasten:
-	pahalı yumurtanın kötü sonucu da olsun ki açmak heyecanlı kalsın.
+	Her yumurtanın KENDİ pet takımı var ve her yumurta Common'dan
+	başlıyor. Bu kasten: pahalı yumurtanın kötü sonucu da olsun ki açmak
+	heyecanlı kalsın — ama o kötü sonuç bile alt yumurtanın aynı
+	kademesinden güçlü (aşağıda, PET_TIER x EGG_TIER).
 
 	═══ DENGE ══════════════════════════════════════════════════════════════
 
-	Üç pet takılabiliyor ve bonuslar TOPLANIYOR. Üç Secret pet +%375 gelir
-	demek — çok gibi duruyor ama Secret yalnızca en pahalı yumurtadan ve
-	%6 ağırlıkla çıkıyor; oraya gelen oyuncu zaten oyunun sonunda.
+	Üç pet takılabiliyor ve bonuslar TOPLANIYOR. Üç Void Secret +%600
+	gelir demek — çok gibi duruyor ama Secret yalnızca son iki yumurtadan
+	ve binde 3-5 ağırlıkla çıkıyor; oraya gelen oyuncu zaten oyunun sonunda.
 
 	Gelir çarpanı rebirth ve gamepass ile ÇARPILIYOR (EconomyService),
 	toplanmıyor. Yani pet her kademede aynı oranda işe yarıyor.
@@ -1674,77 +1675,113 @@ export type PetDef = {
 	id: string,
 	name: string,
 	rarity: Rarity,
+	egg: string,           -- çıktığı TEK yumurta (Config.Eggs kimliği)
 	incomeBonus: number,   -- gelire eklenen oran (0.25 = +%25)
 	speedBonus: number,    -- taşıma hızına eklenen stud/s
 	color: Color3,
 }
 
 --[[
-	Kademe başına bonus. Pet tanımları bunu kullanıyor ki aynı kademedeki
-	iki pet aynı gücü versin — fark yalnızca görünüşte olsun.
+	═══ PET GÜCÜ = KADEME x YUMURTA ═════════════════════════════════════════
 
-	Denge değiştirmek isteyen tek yere bakıyor: aşağıdaki dört sayı.
+	Her pet TEK bir yumurtadan çıkıyor ve her yumurtanın kendi pet takımı
+	var (kademe başına bir pet). Eskiden petler yumurtadan bağımsızdı ve
+	bonus yalnızca kademeye bağlıydı: 9 milyarlık Void yumurtasının
+	Common'ı 50 binlik Supply yumurtasının Common'ıyla birebir aynı gücü
+	veriyordu. Artık:
+
+	    bonus = kademe tabanı (PET_TIER) x yumurta çarpanı (EGG_TIER)
+
+	Kademe tabanı yumurta içinde sıralamayı, yumurta çarpanı yumurtalar
+	arasındaki farkı veriyor. Sonuç (gelir, düz boy):
+
+	              Common Uncommon Rare  Epic  Legendary Mythic Secret
+	    Supply      2%     4%     7%    12%      -        -      -
+	    Skeld       3%     6%    11%    19%     32%       -      -
+	    Polus       5%    10%    18%    30%     50%      80%   125%
+	    Void        8%    16%    28%    48%     80%     128%   200%
+
+	Pahalı yumurtanın en kötü sonucu da ucuzunkinden iyi (Void Common %8 >
+	Supply Common %2), ama bir alt yumurtanın iyi sonucu hâlâ değerli
+	(Supply Epic %12 > Void Common %8): alt yumurtayı açmak boşa gitmiyor.
+
+	Denge değiştirmek isteyen iki küçük tabloya bakıyor.
 ]]
 local PET_TIER = {
 	Common    = { income = 0.02, speed = 0.05 },
-	Uncommon  = { income = 0.05, speed = 0.10 },
-	Rare      = { income = 0.10, speed = 0.20 },
-	Epic      = { income = 0.20, speed = 0.35 },
-	Legendary = { income = 0.40, speed = 0.55 },
-	Mythic    = { income = 0.75, speed = 0.85 },
-	Secret    = { income = 1.25, speed = 1.20 },
+	Uncommon  = { income = 0.04, speed = 0.09 },
+	Rare      = { income = 0.07, speed = 0.15 },
+	Epic      = { income = 0.12, speed = 0.24 },
+	Legendary = { income = 0.20, speed = 0.36 },
+	Mythic    = { income = 0.32, speed = 0.50 },
+	Secret    = { income = 0.50, speed = 0.70 },
 }
 
-local function pet(id: string, name: string, rarity: Rarity, color: Color3): PetDef
+local EGG_TIER = {
+	SupplyEgg = { income = 1.0, speed = 1.0 },
+	SkeldEgg  = { income = 1.6, speed = 1.25 },
+	PolusEgg  = { income = 2.5, speed = 1.55 },
+	VoidEgg   = { income = 4.0, speed = 1.9 },
+}
+
+local function pet(id: string, name: string, rarity: Rarity, egg: string, color: Color3): PetDef
 	local tier = PET_TIER[rarity]
+	local eggTier = EGG_TIER[egg]
+	-- Binde bire yuvarla: kayan nokta artığı arayüzde "+%3" yerine "+%2.99..." olmasın
+	local function round(x: number): number
+		return math.floor(x * 1000 + 0.5) / 1000
+	end
 	return {
 		id = id,
 		name = name,
 		rarity = rarity,
-		incomeBonus = tier.income,
-		speedBonus = tier.speed,
+		egg = egg,
+		incomeBonus = round(tier.income * eggTier.income),
+		speedBonus = round(tier.speed * eggTier.speed),
 		color = color,
 	}
 end
 
 --[[
-	Petler. Hepsi Skeld'in kendi eşyalarından: bir görev konsolu, bir
-	yedek kask, havalandırmadan çıkan bir şey. Among Us'tan HAZIR VARLIK
-	kopyalanmıyor — alınan şey mekânın dili.
+	Petler, yumurtalara göre. Hepsi Skeld'in / Among Us evreninin kendi
+	eşyalarından: bir görev konsolu, bir yedek kask, havalandırmadan çıkan
+	bir şey. Among Us'tan HAZIR VARLIK kopyalanmıyor — alınan şey mekânın
+	dili.
+
+	Kimlikler eski kayıtlarla aynı: petlerin yumurtası ve kademesi değişti,
+	oyuncunun envanteri olduğu gibi okunuyor (yalnızca bonus yeni tablodan).
 ]]
 Config.Pets = {
-	-- Common
-	pet("MiniCrew",   "Mini Crew",        "Common",    Color3.fromRGB(197,  17,  17)),
-	pet("Bolt",       "Loose Bolt",       "Common",    Color3.fromRGB(176, 184, 196)),
-	pet("VentRat",    "Vent Rat",         "Common",    Color3.fromRGB(113,  73,  30)),
+	-- Supply Egg: erzak dolabından çıkanlar
+	pet("Bolt",       "Loose Bolt",       "Common",    "SupplyEgg", Color3.fromRGB(176, 184, 196)),
+	pet("VentRat",    "Vent Rat",         "Uncommon",  "SupplyEgg", Color3.fromRGB(113,  73,  30)),
+	pet("Hamster",    "Cargo Hamster",    "Rare",      "SupplyEgg", Color3.fromRGB(226, 186, 120)),
+	pet("SparePod",   "Spare Helmet",     "Epic",      "SupplyEgg", Color3.fromRGB(150, 222, 236)),
 
-	-- Uncommon
-	pet("BrainSlug",  "Brain Slug",       "Uncommon",  Color3.fromRGB(238, 132, 195)),
-	pet("SparePod",   "Spare Helmet",     "Uncommon",  Color3.fromRGB(150, 222, 236)),
-	pet("Hamster",    "Cargo Hamster",    "Uncommon",  Color3.fromRGB(226, 186, 120)),
+	-- Skeld Egg: geminin mürettebatı ve makineleri
+	pet("MiniCrew",   "Mini Crew",        "Common",    "SkeldEgg",  Color3.fromRGB(197,  17,  17)),
+	pet("BrainSlug",  "Brain Slug",       "Uncommon",  "SkeldEgg",  Color3.fromRGB(238, 132, 195)),
+	pet("TaskBot",    "Task Bot",         "Rare",      "SkeldEgg",  Color3.fromRGB( 56, 254, 220)),
+	pet("MedDrone",   "Medbay Drone",     "Epic",      "SkeldEgg",  Color3.fromRGB( 90, 200, 255)),
+	pet("SecurityCam","Security Cam",     "Legendary", "SkeldEgg",  Color3.fromRGB(120, 220, 255)),
 
-	-- Rare
-	pet("MedDrone",   "Medbay Drone",     "Rare",      Color3.fromRGB( 90, 200, 255)),
-	pet("TaskBot",    "Task Bot",         "Rare",      Color3.fromRGB( 56, 254, 220)),
-	pet("VentCrab",   "Vent Crab",        "Rare",      Color3.fromRGB( 62,  71,  78)),
+	-- Polus Egg: buzul üssü ve reaktör
+	pet("SnowPal",    "Polus Snow Pal",   "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
+	pet("VentCrab",   "Vent Crab",        "Uncommon",  "PolusEgg",  Color3.fromRGB( 62,  71,  78)),
+	pet("CoreShard",  "Reactor Shard",    "Rare",      "PolusEgg",  Color3.fromRGB(255, 120,  20)),
+	pet("EscapePod",  "Escape Pod",       "Epic",      "PolusEgg",  Color3.fromRGB(215, 224, 240)),
+	pet("SusShadow",  "Sus Shadow",       "Legendary", "PolusEgg",  Color3.fromRGB(107,  47, 187)),
+	pet("MeetingBell","Emergency Bell",   "Mythic",    "PolusEgg",  Color3.fromRGB(255,  70, 110)),
+	pet("TheEgg",     "The Egg",          "Secret",    "PolusEgg",  Color3.fromRGB(238, 230, 214)),
 
-	-- Epic
-	pet("SusShadow",  "Sus Shadow",       "Epic",      Color3.fromRGB(107,  47, 187)),
-	pet("CoreShard",  "Reactor Shard",    "Epic",      Color3.fromRGB(255, 120,  20)),
-	pet("SecurityCam","Security Cam",     "Epic",      Color3.fromRGB(120, 220, 255)),
-
-	-- Legendary
-	pet("MiniImp",    "Mini Impostor",    "Legendary", Color3.fromRGB(190,   0,  55)),
-	pet("EscapePod",  "Escape Pod",       "Legendary", Color3.fromRGB(215, 224, 240)),
-	pet("SnowPal",    "Polus Snow Pal",   "Legendary", Color3.fromRGB(190, 210, 225)),
-
-	-- Mythic
-	pet("GhostCrew",  "Ejected Ghost",    "Mythic",    Color3.fromRGB(170, 190, 255)),
-	pet("MeetingBell","Emergency Bell",   "Mythic",    Color3.fromRGB(255,  70, 110)),
-
-	-- Secret
-	pet("TheEgg",     "The Egg",          "Secret",    Color3.fromRGB(238, 230, 214)),
-	pet("VoidShard",  "Void Shard",       "Secret",    Color3.fromRGB( 18,  18,  26)),
+	-- Void Egg: geminin dışı, boşluk
+	pet("VoidMite",   "Void Mite",        "Common",    "VoidEgg",   Color3.fromRGB( 96,  64, 150)),
+	pet("StarJelly",  "Star Jelly",       "Uncommon",  "VoidEgg",   Color3.fromRGB(255, 140, 220)),
+	pet("CometPup",   "Comet Pup",        "Rare",      "VoidEgg",   Color3.fromRGB(110, 230, 255)),
+	pet("GhostCrew",  "Ejected Ghost",    "Epic",      "VoidEgg",   Color3.fromRGB(170, 190, 255)),
+	pet("MiniImp",    "Mini Impostor",    "Legendary", "VoidEgg",   Color3.fromRGB(190,   0,  55)),
+	pet("NebulaEye",  "Nebula Eye",       "Mythic",    "VoidEgg",   Color3.fromRGB(200,  90, 255)),
+	pet("VoidShard",  "Void Shard",       "Secret",    "VoidEgg",   Color3.fromRGB( 18,  18,  26)),
 } :: { PetDef }
 
 -- Aynı anda takılabilecek pet sayısı. Üç: sıralı bir seçim yapacak kadar
@@ -1934,11 +1971,14 @@ end
 
 -- Aynı anahtardan kaç kopya bir üst boyuta birleşiyor
 Config.PetFuseCount = 3
---[[ Verilen kademeden eşit şansla bir pet. Yumurta çekilişinin ikinci aşaması. ]]
-function Config.RollPetOfRarity(rng: Random, rarity: string): PetDef?
+--[[
+	Verilen kademeden eşit şansla bir pet. Yumurta çekilişinin ikinci
+	aşaması; `eggId` verilirse yalnızca o yumurtanın petleri.
+]]
+function Config.RollPetOfRarity(rng: Random, rarity: string, eggId: string?): PetDef?
 	local pool = {}
 	for _, def in Config.Pets do
-		if def.rarity == rarity then
+		if def.rarity == rarity and (eggId == nil or def.egg == eggId) then
 			table.insert(pool, def)
 		end
 	end
@@ -1953,22 +1993,50 @@ export type EggDef = {
 	name: string,
 	price: number,
 	weights: { [string]: number },  -- nadirlik -> ağırlık
+	tint: Color3,                   -- yumurtanın ışık/yazı rengi (kuluçka ve arayüz)
 }
 
 --[[
 	Yumurtalar. Fiyatları o kademedeki karakterlerin fiyatına yakın:
 	yumurta, kaideye bir karakter daha koymakla yarışmalı.
+
+	Her yumurta Common'dan başlıyor ve pahalandıkça üst kademe ekliyor:
+	Supply en fazla Epic, Skeld Legendary'ye kadar, Polus ve Void'de
+	Mythic ve Secret de var. Kademe oranları bütün yumurtalarda aynı
+	merdiven (Common en sık, Secret binde birkaç); fark petlerin gücünde
+	(EGG_TIER) ve yeni kademelerde.
+
+	`tint` eskiden havuzun en iyi kademesinden hesaplanıyordu; artık iki
+	yumurtada Secret var ve ikisi aynı renge düşerdi, o yüzden elle.
 ]]
 Config.Eggs = {
 	{ id = "SupplyEgg", name = "Supply Egg", price =         50000,
-		weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 2 } },
+		weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 2 },
+		tint = Color3.fromRGB(170, 95, 255) },
 	{ id = "SkeldEgg",  name = "Skeld Egg",  price =       2500000,
-		weights = { Uncommon = 45, Rare = 33, Epic = 17, Legendary = 5 } },
+		weights = { Common = 46, Uncommon = 30, Rare = 15, Epic = 7, Legendary = 2 },
+		tint = Color3.fromRGB(255, 175, 45) },
 	{ id = "PolusEgg",  name = "Polus Egg",  price =     150000000,
-		weights = { Rare = 40, Epic = 34, Legendary = 20, Mythic = 6 } },
+		weights = { Common = 42, Uncommon = 28, Rare = 16, Epic = 8.5, Legendary = 4, Mythic = 1.2, Secret = 0.3 },
+		tint = Color3.fromRGB(255, 70, 110) },
 	{ id = "VoidEgg",   name = "Void Egg",   price =    9000000000,
-		weights = { Epic = 36, Legendary = 36, Mythic = 22, Secret = 6 } },
+		weights = { Common = 38, Uncommon = 27, Rare = 17, Epic = 10, Legendary = 5.5, Mythic = 2, Secret = 0.5 },
+		tint = Color3.fromRGB(30, 30, 40) },
 } :: { EggDef }
+
+--[[ Bir yumurtanın petleri, kademe sırasıyla (Common önce). ]]
+function Config.GetEggPets(eggId: string): { PetDef }
+	local out = {}
+	for _, def in Config.Pets do
+		if def.egg == eggId then
+			table.insert(out, def)
+		end
+	end
+	table.sort(out, function(a, b)
+		return Config.Rarities[a.rarity].order < Config.Rarities[b.rarity].order
+	end)
+	return out
+end
 
 local petsById: { [string]: PetDef } = {}
 for _, def in Config.Pets do
@@ -2023,7 +2091,7 @@ function Config.RollPet(rng: Random, eggId: string): PetDef?
 		return nil
 	end
 
-	return Config.RollPetOfRarity(rng, chosen)
+	return Config.RollPetOfRarity(rng, chosen, eggId)
 end
 
 --[[

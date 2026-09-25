@@ -4,10 +4,7 @@
 	kuruluyor, çünkü diğer bölümlerin parçalarına da bakıyor (gölgeler,
 	vent kopyaları).
 
-	  Tabelalar  — her üs odasının koridora bakan ağzında, tavandan sarkan
-	               oda adı (Skeld'in oda etiketleri). Oyuncu "Electrical'a
-	               koş" diyebilsin.
-	  Kasalar    — odalar arasındaki boşlukların duvar dibinde erzak yığını
+	  Kasalar   — odalar arasındaki boşlukların duvar dibinde erzak yığını
 	  İşaret lambaları — duvardaki kırmızı uyarı lambaları. Yanıp sönmesi
 	               istemcide (MapLife): sunucudan her karede ışık değiştirmek
 	               ağı boşuna meşgul ederdi.
@@ -66,42 +63,12 @@ return {
 			table.insert(gaps, (a + b) / 2)
 		end
 
-		-- ─── Oda tabelaları ──────────────────────────────────────────────────
-
-		local ceilingY = 52
-		local ceiling = K.root:FindFirstChild("Ceiling")
-		if ceiling then
-			for _, d in ceiling:GetDescendants() do
-				if d:IsA("BasePart") and d.Name == "CeilingSlab" then
-					ceilingY = d.Position.Y - d.Size.Y / 2
-				end
-			end
-		end
-
-		local signs = K.folder("RoomSigns", root)
-		local SIGN_Y, SIGN_W, SIGN_H = 17, 24, 4.2
-		for i = 1, M.PLOT_COUNT do
-			local origin = K.plotOrigin(i)
-			local theme = K.theme(i)
-			local back = origin.Z < corridorZ
-			-- Tabela odanın koridora açılan kenarında, yazısı koridora bakıyor
-			local rect = K.roomRect(i)
-			local edgeZ = if back then rect[4] else rect[2]
-			local pos = Vector3.new(origin.X, SIGN_Y, edgeZ)
-			local facing = if back then Vector3.zAxis else -Vector3.zAxis
-			local cf = CFrame.lookAt(pos, pos + facing)
-			K.sign(signs, "RoomSign", cf, SIGN_W, SIGN_H, theme.name, theme.accent)
-			-- Arkası da okunsun: odanın içinden bakan da adı görsün
-			local rear = K.boxAt(signs, "RoomSignRear", cf * CFrame.new(0, 0, 0.62), Vector3.new(SIGN_W, SIGN_H, 0.1), C.shadow)
-			K.text(rear, Enum.NormalId.Back, theme.name, C.white, { h = 0.78, y = 0.08 })
-			-- Tavana iki askı
-			local rodLength = ceilingY - (SIGN_Y + SIGN_H / 2 + 0.6)
-			for _, x in { -SIGN_W * 0.36, SIGN_W * 0.36 } do
-				K.boxAt(signs, "SignRod",
-					cf * CFrame.new(x, SIGN_H / 2 + 0.6 + rodLength / 2, 0.3),
-					Vector3.new(0.3, rodLength, 0.3), C.metalDark)
-			end
-		end
+		--[[
+			Oda tabelaları KALDIRILDI: üslerin önünde tavandan sarkan "UPPER
+			ENGINE" gibi tabelalar üssün tam üstünde duruyor, görüşü kesiyor
+			ve kalabalık yapıyordu (kullanıcı ikinci kez istedi). Odanın rengi
+			(zemin karoları) ve üssün sahip adı yeri zaten söylüyor.
+		]]
 
 		-- ─── Kasalar ve işaret lambaları ─────────────────────────────────────
 

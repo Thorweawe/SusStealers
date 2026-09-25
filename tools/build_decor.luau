@@ -39,7 +39,7 @@ local function load(name: string): any
 end
 
 -- polish EN SONDA: diğer bölümlerin parçalarına bakıyor (vent kopyası, gölge)
-local SECTIONS = { "station", "bays", "rooms", "landmarks", "exterior", "lobby", "admin", "wings", "annex", "tunnels", "finish", "polish" }
+local SECTIONS = { "station", "bays", "rooms", "landmarks", "exterior", "lobby", "admin", "wings", "annex", "tunnels", "security", "finish", "polish" }
 
 local only = _G.MAP_ONLY
 local K = load("kit")
