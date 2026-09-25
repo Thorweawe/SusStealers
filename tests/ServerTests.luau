@@ -2525,8 +2525,10 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 	end
 	-- Kademeler: ucuz yumurta Epic'e kadar, sonraki Legendary, son ikisi Secret
 	local supply, skeld, polus, void = byEgg.SupplyEgg, byEgg.SkeldEgg, byEgg.PolusEgg, byEgg.VoidEgg
-	ok("Supply'da Common..Epic", supply.Common ~= nil and supply.Epic ~= nil and supply.Legendary == nil)
-	ok("Skeld'de Legendary", skeld.Legendary ~= nil and skeld.Secret == nil)
+	ok("Supply'da Common..Epic + tek Legendary", supply.Common ~= nil and supply.Epic ~= nil and supply.Legendary ~= nil and supply.Mythic == nil)
+	ok("Skeld'de Legendary + tek Mythic", skeld.Legendary ~= nil and skeld.Mythic ~= nil and skeld.Secret == nil)
+	ok("Supply Legendary nadir (<%1)", (Config.Eggs[1].weights.Legendary or 0) < 1)
+	ok("Skeld Mythic nadir (<%1)", (Config.Eggs[2].weights.Mythic or 0) < 1)
 	ok("Polus ve Void'de Secret", polus.Secret ~= nil and void.Secret ~= nil)
 	-- Pahalı yumurtanın Common'ı ucuzunkinden güçlü
 	ok("Void Common > Supply Common", void.Common.incomeBonus > supply.Common.incomeBonus)
@@ -2726,6 +2728,65 @@ case("Ekipman: parası yetmeden alınmıyor, alınca kalıcı ve çantaya geliyo
 			end
 		end
 	end
+end)
+
+case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
+	local kinds = { slap = true, speed = true, stun = true, cloak = true, blast = true }
+	for _, def in Config.Gear do
+		ok(def.id .. " türü tanınıyor", kinds[def.kind] == true, def.kind)
+		ok(def.id .. " zıplama vermiyor", (def :: any).jumpHeight == nil)
+		if def.kind ~= "speed" then
+			ok(def.id .. " bekleme süresi var", (def.cooldown or 0) > 0)
+		end
+	end
+	ok("Gravity Coil satılmıyor", Config.GetGear("GravityCoil") == nil)
+	local coil = Config.GetGear("SpeedCoil") :: Config.GearDef
+	ok("bobin yürüyüşü koşudan hızlı", (coil.walkSpeed or 0) > Config.SprintWalkSpeed)
+	ok("bobinle koşu daha da hızlı", (coil.sprintSpeed or 0) > (coil.walkSpeed or 0))
+
+	-- Hız: bobin eldeyken yürüme / Shift
+	local humanoid = ctx.player.Character and ctx.player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		ctx.player:SetAttribute("GearSpeed", coil.walkSpeed)
+		ctx.player:SetAttribute("GearSprint", coil.sprintSpeed)
+		StealService.SetSprinting(ctx.player, false)
+		eq("bobinle yürüme", humanoid.WalkSpeed, coil.walkSpeed)
+		StealService.SetSprinting(ctx.player, true)
+		eq("bobinle koşu", humanoid.WalkSpeed, coil.sprintSpeed)
+		ctx.player:SetAttribute("GearSpeed", nil)
+		ctx.player:SetAttribute("GearSprint", nil)
+		StealService.RefreshSpeed(ctx.player)
+		eq("bobinsiz koşu", humanoid.WalkSpeed, Config.SprintWalkSpeed)
+		StealService.SetSprinting(ctx.player, false)
+		eq("normal", humanoid.WalkSpeed, Config.NormalWalkSpeed)
+	end
+
+	-- Kaldırılan alet: parası bir kez iade
+	local profile = DataService._Sanitize({ cash = 1000, gear = { GravityCoil = true, SlapGlove = true } })
+	eq("iade edildi", profile.cash, 1000 + Config.RetiredGear.GravityCoil)
+	ok("kayıttan düştü", profile.gear.GravityCoil == nil)
+	ok("diğer alet kaldı", profile.gear.SlapGlove == true)
+end)
+
+case("Ekipman: bekleme süresi sunucuda, görünmezlik açılıp kapanıyor", function(ctx)
+	GearService._ResetCooldowns(ctx.player)
+	ok("tokat atıldı", GearService.Use(ctx.player, "SlapGlove"))
+	ok("hemen ikinci tokat yok", not GearService.Use(ctx.player, "SlapGlove"))
+	ok("bobin kullanılmıyor", not GearService.Use(ctx.player, "SpeedCoil"))
+	ok("tanınmayan alet yok", not GearService.Use(ctx.player, "GravityCoil"))
+
+	local character = ctx.player.Character
+	local head = character and character:FindFirstChild("Head")
+	if head and head:IsA("BasePart") then
+		local before = head.Transparency
+		ok("serum içildi", GearService.Use(ctx.player, "GhostSerum"))
+		eq("görünmez niteliği", ctx.player:GetAttribute("Cloaked"), true)
+		eq("kafa görünmez", head.Transparency, 1)
+		GearService.EndCloak(ctx.player)
+		eq("kafa geri geldi", head.Transparency, before)
+		eq("nitelik kalktı", ctx.player:GetAttribute("Cloaked"), nil)
+	end
+	GearService._ResetCooldowns(ctx.player)
 end)
 
 case("Görev: asteroit ödülü sunucuda doğrulanıyor", function(ctx)
@@ -3511,6 +3572,13 @@ function ServerTests.Run(player: Player?): number
 		return -1
 	end
 
+	--[[
+		Testler sürerken gerçek kayda hiçbir şey yazılmıyor (servisler
+		rebirth/kat/çark sonrası hemen kaydediyor; deneme parası oyuncunun
+		kaydına geçiyordu). Sonda geri yüklenen profil bir kez kaydediliyor.
+	]]
+	DataService._SetSavingPaused(true)
+
 	-- Testler profili değiştiriyor; sonunda geri yüklenecek
 	local backup = {
 		cash = profile.cash,
@@ -3674,6 +3742,10 @@ function ServerTests.Run(player: Player?): number
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	FloorService.Publish(player)
 	clearPlot(plot)
+
+	-- Kayıt yeniden açık; diskteki kopya geri yüklenen profille aynı olsun
+	DataService._SetSavingPaused(false)
+	DataService.Save(player)
 
 	print("═══════════════════════════════════")
 	print(string.format("  %d test, %d başarısız", #cases, failedCases))

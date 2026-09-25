@@ -53,6 +53,7 @@ type State = {
 	flying: boolean,
 	shadow: BasePart?,
 	seed: number,
+	hidden: number,     -- uygulanan saydamlık (Ghost Serum), 0 = görünür
 }
 
 local states: { [Model]: State } = {}
@@ -107,6 +108,7 @@ local function track(model: Model)
 		flying = flyingForm(model),
 		shadow = makeShadow(model),
 		seed = math.random() * 10,
+		hidden = 0,
 	}
 end
 
@@ -163,6 +165,27 @@ local function step(dt: number)
 		if not rootCf then
 			-- Sahibi yok ya da öldü: pet olduğu yerde bekliyor, gölgesi de
 			continue
+		end
+
+		--[[
+			Sahibi görünmezse (Ghost Serum, "Cloaked") petleri de onu ele
+			vermesin: başkalarında tamamen, sahibinde soluk.
+		]]
+		local owner = Players:GetPlayerByUserId(ownerId)
+		local hide = 0
+		if owner and owner:GetAttribute("Cloaked") == true then
+			hide = if owner == Players.LocalPlayer then 0.6 else 1
+		end
+		if hide ~= s.hidden then
+			s.hidden = hide
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.LocalTransparencyModifier = hide
+				end
+			end
+			if s.shadow then
+				s.shadow.LocalTransparencyModifier = hide
+			end
 		end
 
 		local slot = numberAttr(model, "Slot", 1)

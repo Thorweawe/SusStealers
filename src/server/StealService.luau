@@ -128,16 +128,18 @@ local function applyWalkSpeed(player: Player)
 	--[[
 		Ekipman hızı (Speed Coil) nitelikten okunuyor: GearService yazıyor.
 		Yalnızca TAŞIMIYORKEN sayılıyor — çalınan karakterle kaçarken
-		hızlanmak çalmanın riskini silerdi. Koşuyla üst üste binmiyor,
-		büyüğü geçerli.
+		hızlanmak çalmanın riskini silerdi. Bobin elindeyken Shift'e basınca
+		bobinin koşu hızı ("GearSprint") geçerli; her durumda büyüğü.
 	]]
 	local gearSpeed = player:GetAttribute("GearSpeed")
 	local boost = if typeof(gearSpeed) == "number" then gearSpeed else 0
+	local gearSprint = player:GetAttribute("GearSprint")
+	local sprintBoost = if typeof(gearSprint) == "number" then gearSprint else boost
 
 	if carrying[player] then
 		humanoid.WalkSpeed = carrySpeedFor(player)
 	elseif sprinting[player] then
-		humanoid.WalkSpeed = math.max(Config.SprintWalkSpeed, boost)
+		humanoid.WalkSpeed = math.max(Config.SprintWalkSpeed, sprintBoost)
 	else
 		humanoid.WalkSpeed = math.max(Config.NormalWalkSpeed, boost)
 	end

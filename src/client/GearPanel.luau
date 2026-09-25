@@ -31,13 +31,21 @@ export type Panel = {
 }
 
 --[[ Kartın sayı satırı: aletin ölçülebilir etkisi. ]]
+local function fmt(n: number): string
+	return if n == math.floor(n) then tostring(n) else string.format("%.1f", n)
+end
+
 local function statLine(def: Config.GearDef): string
-	if def.walkSpeed then
-		return string.format("Speed %d  (normal %d)", def.walkSpeed, Config.NormalWalkSpeed)
-	elseif def.jumpHeight then
-		return string.format("Jump %d  (normal 7)", def.jumpHeight)
-	elseif def.cooldown then
-		return string.format("Range %d  ·  cooldown %ds", def.range or 8, def.cooldown)
+	if def.kind == "speed" then
+		return string.format("Speed %d · Shift %d  (run %d)", def.walkSpeed or 0, def.sprintSpeed or 0, Config.SprintWalkSpeed)
+	elseif def.kind == "slap" then
+		return string.format("Range %d · cooldown %ss", def.range or 0, fmt(def.cooldown or 0))
+	elseif def.kind == "stun" then
+		return string.format("Range %d · freeze %ss · cd %ss", def.range or 0, fmt(def.stun or 0), fmt(def.cooldown or 0))
+	elseif def.kind == "cloak" then
+		return string.format("Invisible %ss · cooldown %ss", fmt(def.duration or 0), fmt(def.cooldown or 0))
+	elseif def.kind == "blast" then
+		return string.format("Radius %d · cooldown %ss", def.range or 0, fmt(def.cooldown or 0))
 	end
 	return ""
 end
@@ -46,7 +54,7 @@ function GearPanel.Create(screen: ScreenGui): Panel
 	local root = UiKit.Window(screen, "GearPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(560, 340)
+	root.Size = UDim2.fromOffset(40 + #Config.Gear * 146, 372)
 	root.Visible = false
 	root.ZIndex = Z
 
@@ -94,7 +102,7 @@ function GearPanel.Create(screen: ScreenGui): Panel
 	hint.TextSize = 12
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 	hint.TextColor3 = UiKit.MUTED
-	hint.Text = "Bought once, yours forever. Equip from your hotbar (1-3)."
+	hint.Text = string.format("Bought once, yours forever. Equip from your hotbar (1-%d), click to use.", #Config.Gear)
 	hint.ZIndex = Z + 2
 	hint.Parent = band
 
@@ -154,7 +162,7 @@ function GearPanel.Create(screen: ScreenGui): Panel
 
 		local blurb = Instance.new("TextLabel")
 		blurb.Position = UDim2.fromOffset(8, 116)
-		blurb.Size = UDim2.new(1, -16, 0, 44)
+		blurb.Size = UDim2.new(1, -16, 0, 56)
 		blurb.BackgroundTransparency = 1
 		blurb.Font = Enum.Font.GothamMedium
 		blurb.TextSize = 11
@@ -166,11 +174,12 @@ function GearPanel.Create(screen: ScreenGui): Panel
 		blurb.Parent = card
 
 		local stat = Instance.new("TextLabel")
-		stat.Position = UDim2.fromOffset(6, 160)
-		stat.Size = UDim2.new(1, -12, 0, 16)
+		stat.Position = UDim2.fromOffset(6, 176)
 		stat.BackgroundTransparency = 1
 		stat.Font = Enum.Font.GothamBold
 		stat.TextSize = 11
+		stat.TextWrapped = true
+		stat.Size = UDim2.new(1, -12, 0, 28)
 		stat.TextColor3 = ACCENT:Lerp(Color3.new(1, 1, 1), 0.3)
 		stat.Text = statLine(def)
 		stat.ZIndex = Z + 3

@@ -42,6 +42,7 @@ local EVENTS = {
 	"CosmeticAction", -- client -> server (action: "buy"|"equip"|"unequip", id: string)
 	"SabotageAction", -- client -> server (action: "buy"|"use", id: string, targetUserId: number?)
 	"SettingsSave", -- client -> server (settings: { music: number, sfx: number, shake: boolean })
+	"GearFX",       -- server -> client (kind: "use"|"hit"|"cloak", ...) — ekipman animasyon/etkileri
 }
 
 --[[

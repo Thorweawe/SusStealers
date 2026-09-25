@@ -10,7 +10,7 @@
 	WEAPONS (batı) — ekipman dükkânı. Tezgâh + görevli, üç vitrin kaidesi,
 	duvarda silah rafları, güney duvarında asteroit hedef ekranı ve topçu
 	koltuğu (Skeld'in "Clear Asteroids" görevi).
-	  Adı sabit: GearShop.GearCounter, GearPlinth1..3
+	  Adı sabit: GearShop.GearCounter, GearPlinth1..N (N = #Config.Gear)
 ]]
 
 return {
@@ -280,10 +280,18 @@ return {
 			local shopSign = CFrame.lookAt(shopPos, shopPos + Vector3.xAxis)
 			K.sign(g, "ShopSign", shopSign, 22, 4, "GEAR SHOP", C.orange)
 
-			-- Vitrin kaideleri: kuzey duvarı boyunca, güneye (odaya) bakıyor
+			--[[
+				Vitrin kaideleri: kuzey duvarı boyunca, güneye (odaya) bakıyor.
+				Ekipman başına bir kaide (Config.Gear sırasıyla); sayı değişince
+				aralık daralıyor, dizi tezgâhın önünden kapıya kadar ortalı.
+			]]
 			local gear = K.Config.Gear or {}
-			for i = 1, 3 do
-				local px = xb + 30 + (i - 1) * 18
+			local count = math.max(1, #gear)
+			local span = 52
+			local step = if count > 1 then math.min(18, span / (count - 1)) else 0
+			local startX = xb + 50 - step * (count - 1) / 2
+			for i = 1, count do
+				local px = startX + (i - 1) * step
 				local pz = wz0 + 10
 				local cf = CFrame.lookAt(Vector3.new(px, FLOOR + 1.8, pz), Vector3.new(px, FLOOR + 1.8, pz + 1))
 				local plinth = K.boxAt(g, "GearPlinth" .. i, cf, Vector3.new(4.4, 3.6, 4.4), C.frame)

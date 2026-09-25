@@ -48,6 +48,8 @@ local FORMS: { [string]: string } = {
 	-- Void yumurtası
 	VoidMite = "crab",     StarJelly = "blob",   CometPup = "orb",
 	NebulaEye = "orb",
+	-- Tek nadirler: Supply'ın Legendary'si, Skeld'in Mythic'i
+	FuelCan = "bot",       PrimeShield = "orb",
 }
 
 --[[ Petin biçim adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
@@ -342,6 +344,38 @@ local DETAILS: { [string]: (b: Builder, top: number) -> () } = {
 		end
 		b.cylinder("Lens", 0.35, 0.75, CFrame.new(0, 1.0, -0.72) * CFrame.Angles(0, math.rad(90), 0), DARK)
 		b.ellipsoid("LensGlass", Vector3.new(0.5, 0.5, 0.1), CFrame.new(0, 1.0, -0.9), Color3.fromRGB(255, 60, 70), Enum.Material.Neon)
+	end,
+	FuelCan = function(b, _)
+		-- Yakıt bidonu: anten yerine kapaklı ağız ve taşıma kulpu, belinde kırmızı şerit
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Antenna" or p.Name == "AntennaTip") then
+				p:Destroy()
+			end
+		end
+		b.part("FuelStripe", Vector3.new(1.6, 0.26, 1.3), CFrame.new(0, 0.5, 0), Color3.fromRGB(220, 40, 45))
+		b.cylinder("Spout", 0.34, 0.34, CFrame.new(0.38, 1.66, 0.1) * CFrame.Angles(0, 0, math.rad(90)), METAL, Enum.Material.Metal)
+		b.cylinder("Cap", 0.14, 0.44, CFrame.new(0.38, 1.88, 0.1) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(220, 40, 45))
+		b.part("Grip", Vector3.new(0.12, 0.12, 0.8), CFrame.new(-0.25, 1.78, 0.1), DARK)
+		for _, z in { -0.26, 0.46 } do
+			b.part("GripPost", Vector3.new(0.1, 0.24, 0.1), CFrame.new(-0.25, 1.66, z), DARK)
+		end
+	end,
+	PrimeShield = function(b, top)
+		-- Skeld'in Shields odası: halka parlayan kalkan ışığı, yanlarda ve arkada
+		-- altıgen kalkan plakaları (önde değil: vizörü örtmesin), tepede arma
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p.Color = Color3.fromRGB(150, 225, 255)
+				p.Material = Enum.Material.Neon
+			end
+		end
+		for i, deg in { 70, 130, 180, 230, 290 } do
+			local plate = b.part("Hex" .. i, Vector3.new(0.52, 0.52, 0.08),
+				CFrame.new(0, 0.95, 0) * CFrame.Angles(0, math.rad(deg), 0) * CFrame.new(0, 0, -1.2) * CFrame.Angles(0, 0, math.rad(45)),
+				Color3.fromRGB(110, 200, 255), Enum.Material.Neon)
+			plate.Transparency = 0.3
+		end
+		b.ellipsoid("ShieldCrest", Vector3.new(0.42, 0.42, 0.42), CFrame.new(0, top + 0.15, 0), Color3.fromRGB(235, 250, 255), Enum.Material.Neon)
 	end,
 	BrainSlug = function(b, _)
 		b.ellipsoid("Brain", Vector3.new(1.0, 0.5, 0.8), CFrame.new(0, 1.05, 0.2), PINK:Lerp(Color3.new(1, 1, 1), 0.2))

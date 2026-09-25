@@ -56,6 +56,8 @@ local function stroke(parent: Instance, color: Color3, thickness: number, transp
 	s.Color = color
 	s.Thickness = thickness
 	s.Transparency = transparency
+	-- Yazılı düğmede çizgi harflere değil kenara (UiKit.Stroke'la aynı)
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	s.Parent = parent
 	return s
 end

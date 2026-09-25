@@ -28,7 +28,6 @@ local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
-local EggStyle = require(script.Parent.EggStyle)
 local AutoHatch = require(script.Parent.AutoHatch)
 
 local PetPanel = {}
@@ -115,7 +114,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		close.ZIndex = 41
 	end
 
-	local hatchRemote = Net.Get("PetHatch")
 	local equipRemote = Net.Get("PetEquip")
 
 	--[[
@@ -169,21 +167,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 	hint.Size = UDim2.new(1, -290, 0, 16)
 	hint.TextTruncate = Enum.TextTruncate.AtEnd
 
-	-- ─── Yumurtalar ─────────────────────────────────────────────────────────
-
-	local eggRow = Instance.new("Frame")
-	eggRow.Name = "Eggs"
-	eggRow.Position = UDim2.fromOffset(14, 60)
-	eggRow.Size = UDim2.new(1, -28, 0, 98)
-	eggRow.BackgroundTransparency = 1
-	eggRow.ZIndex = 41
-	eggRow.Parent = overlay
-
-	local eggLayout = Instance.new("UIListLayout")
-	eggLayout.FillDirection = Enum.FillDirection.Horizontal
-	eggLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	eggLayout.Padding = UDim.new(0, 8)
-	eggLayout.Parent = eggRow
+	--[[
+		Yumurta açma burada YOK: envanterde yalnızca eldeki petler. Yumurtalar
+		MedBay'deki kuluçkada açılıyor (EggPanel: petler, şanslar, E/R/T).
+	]]
 
 	--[[
 		Yumurtanın rengi Config'te (en iyi kademesinin rengi). Oyuncu dört
@@ -198,123 +185,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		return t
 	end
 
-	type EggCard = { def: Config.EggDef, price: TextLabel, button: TextButton, autoChip: TextButton }
-	local eggCards: { EggCard } = {}
-
-	--[[
-		Küçük seçenek düğmesi: yumurta kartının altında x3 ve AUTO. Kartın
-		kendisine basmak tek açılış; seçenekler ayrı, yanlışlıkla üç yumurta
-		parası harcanmasın.
-	]]
-	local function chip(parent: Instance, text: string, x: number, tint: Color3): TextButton
-		local b = Instance.new("TextButton")
-		b.Position = UDim2.fromOffset(x, 70)
-		b.Size = UDim2.fromOffset(62, 24)
-		b.BackgroundColor3 = tint:Lerp(UiKit.ROW, 0.55)
-		b.BorderSizePixel = 0
-		b.AutoButtonColor = false
-		b.Font = Enum.Font.GothamBlack
-		b.TextSize = 11
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Text = text
-		b.ZIndex = 44
-		b.Parent = parent
-		UiKit.Corner(b, 8)
-		UiKit.Stroke(b, tint, 1.2, 0.4)
-		return b
-	end
-
-	for index, egg in Config.Eggs do
-		local tint = eggTint(egg)
-		local column = Instance.new("Frame")
-		column.Name = egg.id
-		column.LayoutOrder = index
-		column.Size = UDim2.fromOffset(130, 96)
-		column.BackgroundTransparency = 1
-		column.ZIndex = 41
-		column.Parent = eggRow
-
-		local holder, button = UiKit.Raised(column, "Hatch", tint, UDim2.fromOffset(130, 66), 12)
-		holder.ZIndex = 41
-
-		local slot = Instance.new("Frame")
-		slot.AnchorPoint = Vector2.new(0, 0.5)
-		slot.Position = UDim2.new(0, 8, 0.5, 0)
-		slot.Size = UDim2.fromOffset(34, 34)
-		slot.BackgroundTransparency = 1
-		slot.ZIndex = 44
-		slot.Parent = button
-		-- Yumurtanın rengi havuzunun en iyi kademesinden; açık tonu
-		-- kullanıyoruz ki düğmenin kendi dolgusunun içinde kaybolmasın
-		-- Yumurtanın kendi stili (EggStyle): kuluçkadaki ve açılıştaki görünüşün aynısı
-		EggStyle.Draw(slot, 32, egg.id)
-
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.fromOffset(46, 12)
-		name.Size = UDim2.new(1, -52, 0, 18)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBlack
-		name.TextSize = 13
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextColor3 = Color3.new(1, 1, 1)
-		name.TextStrokeTransparency = 0.5
-		name.Text = string.upper(string.gsub(egg.name, " Egg", ""))
-		name.ZIndex = 45
-		name.Parent = button
-
-		local price = Instance.new("TextLabel")
-		price.Position = UDim2.fromOffset(46, 32)
-		price.Size = UDim2.new(1, -52, 0, 18)
-		price.BackgroundTransparency = 1
-		price.Font = Enum.Font.GothamBold
-		price.TextSize = 12
-		price.TextXAlignment = Enum.TextXAlignment.Left
-		price.TextColor3 = Color3.new(1, 1, 1)
-		price.TextStrokeTransparency = 0.6
-		price.Text = "$" .. Config.FormatCash(egg.price)
-		price.ZIndex = 45
-		price.Parent = button
-
-		local id = egg.id
-		button.MouseButton1Click:Connect(function()
-			hatchRemote:FireServer(id, 1, false)
-		end)
-
-		-- x3: Triple Hatch pass'i; yoksa sunucu nedenini bildirimle söylüyor
-		local triple = chip(column, "x3", 0, tint)
-		triple.MouseButton1Click:Connect(function()
-			hatchRemote:FireServer(id, Config.TripleHatchCount, false)
-		end)
-
-		-- AUTO: istemci döngüsü (AutoHatch); grup şartı sunucuda
-		local autoChip = chip(column, "AUTO", 68, UiKit.CREW.PINK)
-		autoChip.MouseButton1Click:Connect(function()
-			if auto then
-				auto.Toggle(id, 1)
-			end
-		end)
-
-		table.insert(eggCards, { def = egg, price = price, button = button, autoChip = autoChip })
-	end
-
-	-- AUTO açık olan yumurtanın düğmesi yanık: hangisinin döndüğü belli olsun
-	local function refreshAuto()
-		local running = if auto then auto.Current() else nil
-		for _, card in eggCards do
-			local on = running == card.def.id
-			card.autoChip.Text = if on then "STOP" else "AUTO"
-			card.autoChip.BackgroundColor3 = if on then UiKit.CREW.RED else UiKit.CREW.PINK:Lerp(UiKit.ROW, 0.55)
-		end
-	end
-	if auto then
-		auto.Changed.Event:Connect(refreshAuto)
-	end
-
 	-- ─── Koleksiyon ─────────────────────────────────────────────────────────
 
 	local list = Instance.new("ScrollingFrame")
-	list.Position = UDim2.fromOffset(14, 166)
-	list.Size = UDim2.new(1, -28, 1, -180)
+	list.Position = UDim2.fromOffset(14, 60)
+	list.Size = UDim2.new(1, -28, 1, -74)
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
 	list.ScrollBarThickness = 4
@@ -595,10 +470,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		table.clear(rows)
 
 		local fusing = mode == "fuse"
-		eggRow.Visible = not fusing
 		quick.Visible = not fusing
-		list.Position = UDim2.fromOffset(14, if fusing then 60 else 166)
-		list.Size = UDim2.new(1, -28, 1, if fusing then -74 else -180)
 		heading.Text = if fusing then "FUSE MACHINE" else "PETS"
 
 		local slotsUsed = #equipped
@@ -717,7 +589,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			empty.TextSize = 15
 			empty.TextWrapped = true
 			empty.TextColor3 = MUTED
-			empty.Text = "No pets yet.\nHatch an egg above or at the MedBay! Every pet is listed in the INDEX."
+			empty.Text = "No pets yet.\nHatch an egg at the MedBay! Every pet is listed in the INDEX."
 			empty.ZIndex = 42
 			empty.Parent = list
 			table.insert(rows, empty)
@@ -737,20 +609,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			empty.ZIndex = 42
 			empty.Parent = list
 			table.insert(rows, empty)
-		end
-	end
-
-	--[[
-		Yumurta düğmeleri parası yetmeyende sönük. Tıklama yine gidiyor ve
-		sunucu reddediyor — istemcide engellemek yanlış bir güven olurdu,
-		bu yalnızca görsel bir uyarı.
-	]]
-	local function refreshEggs()
-		local cash = player:GetAttribute("Cash") :: number?
-		for _, card in eggCards do
-			local afford = (cash or 0) >= card.def.price
-			card.button.BackgroundTransparency = if afford then 0 else 0.45
-			card.price.TextTransparency = if afford then 0 else 0.35
 		end
 	end
 
@@ -775,10 +633,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		end
 	end)
 
-	local cashConnection = player:GetAttributeChangedSignal("Cash"):Connect(refreshEggs)
-
-	refreshEggs()
-
 	if close then
 		close.Activated:Connect(function()
 			overlay.Visible = false
@@ -798,7 +652,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			-- Kapalıyken çizilmiyor (kartlar her seferinde yeniden kuruluyor);
 			-- açılırken son veriyle çiz
 			if overlay.Visible then
-				refreshEggs()
 				redraw()
 			end
 		end,
@@ -815,7 +668,6 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		end,
 		Destroy = function()
 			petsConnection:Disconnect()
-			cashConnection:Disconnect()
 			overlay:Destroy()
 		end,
 	}

@@ -1696,8 +1696,8 @@ export type PetDef = {
 	arasındaki farkı veriyor. Sonuç (gelir, düz boy):
 
 	              Common Uncommon Rare  Epic  Legendary Mythic Secret
-	    Supply      2%     4%     7%    12%      -        -      -
-	    Skeld       3%     6%    11%    19%     32%       -      -
+	    Supply      2%     4%     7%    12%     20%       -      -
+	    Skeld       3%     6%    11%    19%     32%      51%     -
 	    Polus       5%    10%    18%    30%     50%      80%   125%
 	    Void        8%    16%    28%    48%     80%     128%   200%
 
@@ -1757,6 +1757,7 @@ Config.Pets = {
 	pet("VentRat",    "Vent Rat",         "Uncommon",  "SupplyEgg", Color3.fromRGB(113,  73,  30)),
 	pet("Hamster",    "Cargo Hamster",    "Rare",      "SupplyEgg", Color3.fromRGB(226, 186, 120)),
 	pet("SparePod",   "Spare Helmet",     "Epic",      "SupplyEgg", Color3.fromRGB(150, 222, 236)),
+	pet("FuelCan",    "Fuel Canister",    "Legendary", "SupplyEgg", Color3.fromRGB(255, 196,  40)),
 
 	-- Skeld Egg: geminin mürettebatı ve makineleri
 	pet("MiniCrew",   "Mini Crew",        "Common",    "SkeldEgg",  Color3.fromRGB(197,  17,  17)),
@@ -1764,6 +1765,7 @@ Config.Pets = {
 	pet("TaskBot",    "Task Bot",         "Rare",      "SkeldEgg",  Color3.fromRGB( 56, 254, 220)),
 	pet("MedDrone",   "Medbay Drone",     "Epic",      "SkeldEgg",  Color3.fromRGB( 90, 200, 255)),
 	pet("SecurityCam","Security Cam",     "Legendary", "SkeldEgg",  Color3.fromRGB(120, 220, 255)),
+	pet("PrimeShield","Prime Shield",     "Mythic",    "SkeldEgg",  Color3.fromRGB( 70, 150, 255)),
 
 	-- Polus Egg: buzul üssü ve reaktör
 	pet("SnowPal",    "Polus Snow Pal",   "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
@@ -2001,8 +2003,9 @@ export type EggDef = {
 	yumurta, kaideye bir karakter daha koymakla yarışmalı.
 
 	Her yumurta Common'dan başlıyor ve pahalandıkça üst kademe ekliyor:
-	Supply en fazla Epic, Skeld Legendary'ye kadar, Polus ve Void'de
-	Mythic ve Secret de var. Kademe oranları bütün yumurtalarda aynı
+	Supply'da tek bir Legendary (binde 6), Skeld'de tek bir Mythic (binde
+	4) — ucuz yumurtanın da "belki çıkar" diye açılan bir ödülü olsun;
+	Polus ve Void'de Mythic ve Secret de var. Kademe oranları bütün yumurtalarda aynı
 	merdiven (Common en sık, Secret binde birkaç); fark petlerin gücünde
 	(EGG_TIER) ve yeni kademelerde.
 
@@ -2011,10 +2014,10 @@ export type EggDef = {
 ]]
 Config.Eggs = {
 	{ id = "SupplyEgg", name = "Supply Egg", price =         50000,
-		weights = { Common = 60, Uncommon = 28, Rare = 10, Epic = 2 },
+		weights = { Common = 59.4, Uncommon = 28, Rare = 10, Epic = 2, Legendary = 0.6 },
 		tint = Color3.fromRGB(170, 95, 255) },
 	{ id = "SkeldEgg",  name = "Skeld Egg",  price =       2500000,
-		weights = { Common = 46, Uncommon = 30, Rare = 15, Epic = 7, Legendary = 2 },
+		weights = { Common = 45.6, Uncommon = 30, Rare = 15, Epic = 7, Legendary = 2, Mythic = 0.4 },
 		tint = Color3.fromRGB(255, 175, 45) },
 	{ id = "PolusEgg",  name = "Polus Egg",  price =     150000000,
 		weights = { Common = 42, Uncommon = 28, Rare = 16, Epic = 8.5, Legendary = 4, Mythic = 1.2, Secret = 0.3 },
@@ -2130,35 +2133,60 @@ end
 --[[
 	Oyun içi parayla bir kez alınan, kalıcı aletler. Her doğuşta sırt
 	çantasına geliyor. Steal a Brainrot'u sürükleyici yapan şey bu katman:
-	kilit dışında AKTİF bir savunma (tokat) ve hareket araçları.
+	kilit dışında AKTİF bir savunma (tokat, şok) ve hareket araçları.
 
 	Güç sınırları bilinçli:
 	  - Speed Coil yalnızca TAŞIMIYORKEN işe yarıyor: çalınan karakterle
-	    kaçarken hızlanmak çalmanın riskini silerdi.
-	  - Gravity Coil zıplamayı iki katına çıkarıyor ama emniyet duvarları
-	    40-70 stud; haritadan çıkılamıyor. Kilit fiziksel bir duvar değil,
-	    zıplayarak atlatılamıyor.
-	  - Slap Glove'un bekleme süresi var; hırsızı durdurur, öldürmez.
+	    kaçarken hızlanmak çalmanın riskini silerdi. Shift'ten (24) belirgin
+	    hızlı; elde tutup Shift'e basınca daha da hızlı.
+	  - Zıplama aleti YOK (eski Gravity Coil kaldırıldı, sahiplerine parası
+	    iade ediliyor — RetiredGear). Yüksek zıplama duvar ve kapıların
+	    üstünden kestirme demekti.
+	  - Vuran aletlerin hepsinin bekleme süresi var; hırsızı durdurur,
+	    öldürmez. Taşınan ganimeti düşürtüyor (kurbanın üssüne dönüyor).
+	  - Ghost Serum görünmez yapıyor ama bir şey taşımaya başlayınca
+	    bozuluyor: görünmez hırsız olmuyor.
 ]]
 export type GearDef = {
 	id: string,
 	name: string,
 	price: number,
 	blurb: string,
-	walkSpeed: number?,    -- Speed Coil: elde tutarken yürüme hızı
-	jumpHeight: number?,   -- Gravity Coil: elde tutarken zıplama yüksekliği
-	cooldown: number?,     -- Slap Glove: iki tokat arası saniye
-	range: number?,        -- Slap Glove: menzil (stud)
+	kind: string,          -- "slap" | "speed" | "stun" | "cloak" | "blast"
+	walkSpeed: number?,    -- speed: elde tutarken yürüme hızı
+	sprintSpeed: number?,  -- speed: elde tutup Shift'e basınca
+	cooldown: number?,     -- iki kullanım arası saniye
+	range: number?,        -- menzil / etki yarıçapı (stud)
+	stun: number?,         -- vurulanın sersem kaldığı saniye
+	knock: number?,        -- vurulanın savrulma hızı (stud/sn)
+	duration: number?,     -- cloak: görünmezlik süresi
 }
 
 Config.Gear = {
-	{ id = "SlapGlove",   name = "Slap Glove",   price =    250000, cooldown = 5, range = 8,
-		blurb = "Slap a thief and they drop what they stole." },
-	{ id = "GravityCoil", name = "Gravity Coil", price =    800000, jumpHeight = 15,
-		blurb = "Jump twice as high while holding it." },
-	{ id = "SpeedCoil",   name = "Speed Coil",   price =   1500000, walkSpeed = 27,
-		blurb = "Run faster while holding it (not while carrying)." },
+	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
+		cooldown = 2.5, range = 10, stun = 1.4, knock = 60,
+		blurb = "Slap players flying. Thieves drop what they stole." },
+	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
+		walkSpeed = 32, sprintSpeed = 40,
+		blurb = "Run way faster than sprinting while holding it. Not while carrying." },
+	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
+		cooldown = 10, range = 45, stun = 3,
+		blurb = "Zap a player from afar: frozen for 3s, thieves drop their loot." },
+	{ id = "GhostSerum",      name = "Ghost Serum",      price =    75000000, kind = "cloak",
+		cooldown = 40, duration = 8,
+		blurb = "Drink to turn invisible for 8s. Wears off if you grab something." },
+	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
+		cooldown = 30, range = 20, stun = 2, knock = 85,
+		blurb = "Slam it: everyone around you is blasted away and drops their loot." },
 } :: { GearDef }
+
+--[[
+	Kaldırılan aletler -> iade. Kayıtta bulunursa (DataService sanitize)
+	aletin fiyatı paraya ekleniyor ve kayıttan siliniyor; bir kez oluyor.
+]]
+Config.RetiredGear = {
+	GravityCoil = 800000,
+} :: { [string]: number }
 
 function Config.GetGear(id: string): GearDef?
 	for _, def in Config.Gear do

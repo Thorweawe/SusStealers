@@ -97,6 +97,13 @@ function UiKit.Stroke(parent: Instance, color: Color3, thickness: number, transp
 	s.Color = color
 	s.Thickness = thickness
 	s.Transparency = transparency
+	--[[
+		Her zaman KENARA çiziliyor. Varsayılan (Contextual) yazı taşıyan
+		nesnede çizgiyi YAZININ harflerine uyguluyor: bildirim rozetindeki
+		beyaz "1" beyaz 2 piksellik çizgiyle bir lekeye dönüyor, sekme
+		düğmelerinin yazısı kalınlaşıp okunmaz oluyordu.
+	]]
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	s.Parent = parent
 	return s
 end
@@ -891,8 +898,10 @@ function UiKit.Badge(parent: GuiObject): TextLabel
 	dot.BackgroundColor3 = UiKit.CREW.RED
 	dot.BorderSizePixel = 0
 	dot.Font = Enum.Font.GothamBlack
-	dot.TextSize = 13
+	dot.TextSize = 14
 	dot.TextColor3 = Color3.new(1, 1, 1)
+	dot.TextStrokeColor3 = Color3.fromRGB(90, 0, 10)
+	dot.TextStrokeTransparency = 0.55
 	dot.Text = ""
 	dot.Visible = false
 	dot.ZIndex = parent.ZIndex + 5
@@ -1012,8 +1021,8 @@ end
 
 --[[
 	Ekipman ikonu: Gear Shop'taki aletin 2B hâli (GearModel ile aynı renkler).
-	  SlapGlove   — kırmızı el: avuç + dört parmak + başparmak
-	  GravityCoil — mor yay, SpeedCoil — kırmızı-mavi yay
+	  SlapGlove — kırmızı el, SpeedCoil — kırmızı-mavi yay, StunGun — sarı
+	  tabanca, GhostSerum — yeşil sıvılı şişe, EmergencyButton — kubbeli düğme
 ]]
 function UiKit.GearIcon(parent: Instance, size: number, id: string): Frame
 	local z = baseZ(parent)
@@ -1050,10 +1059,45 @@ function UiKit.GearIcon(parent: Instance, size: number, id: string): Frame
 		end
 		blob(UDim2.fromScale(0.2, 0.62), UDim2.fromScale(0.14, 0.3), red, 2, 35)
 		blob(UDim2.fromScale(0.5, 0.9), UDim2.fromScale(0.4, 0.14), Color3.fromRGB(240, 240, 245), 1)
+	elseif id == "StunGun" then
+		local yellow = Color3.fromRGB(250, 196, 40)
+		local dark = Color3.fromRGB(40, 44, 52)
+		local body = blob(UDim2.fromScale(0.46, 0.42), UDim2.fromScale(0.72, 0.26), yellow, 1)
+		local bodyCorner = body:FindFirstChildOfClass("UICorner") :: UICorner
+		bodyCorner.CornerRadius = UDim.new(0.3, 0)
+		local grip = blob(UDim2.fromScale(0.34, 0.66), UDim2.fromScale(0.18, 0.36), dark, 0, -12)
+		local gripCorner = grip:FindFirstChildOfClass("UICorner") :: UICorner
+		gripCorner.CornerRadius = UDim.new(0.3, 0)
+		blob(UDim2.fromScale(0.46, 0.42), UDim2.fromScale(0.5, 0.07), dark, 2)
+		blob(UDim2.fromScale(0.86, 0.42), UDim2.fromScale(0.16, 0.16), Color3.fromRGB(120, 210, 255), 2)
+		-- Uçtan çıkan kıvılcım
+		blob(UDim2.fromScale(0.95, 0.28), UDim2.fromScale(0.07, 0.07), Color3.fromRGB(190, 235, 255), 3)
+		blob(UDim2.fromScale(0.97, 0.55), UDim2.fromScale(0.06, 0.06), Color3.fromRGB(190, 235, 255), 3)
+	elseif id == "GhostSerum" then
+		local glass = Color3.fromRGB(200, 240, 250)
+		local body = blob(UDim2.fromScale(0.5, 0.64), UDim2.fromScale(0.52, 0.56), glass, 1)
+		body.BackgroundTransparency = 0.35
+		blob(UDim2.fromScale(0.5, 0.7), UDim2.fromScale(0.42, 0.4), Color3.fromRGB(120, 255, 220), 2)
+		local neck = blob(UDim2.fromScale(0.5, 0.3), UDim2.fromScale(0.18, 0.22), glass, 1)
+		neck.BackgroundTransparency = 0.35
+		local cork = blob(UDim2.fromScale(0.5, 0.16), UDim2.fromScale(0.2, 0.12), Color3.fromRGB(160, 110, 60), 2)
+		local corkCorner = cork:FindFirstChildOfClass("UICorner") :: UICorner
+		corkCorner.CornerRadius = UDim.new(0.25, 0)
+		-- Sıvıda küçük hayalet: iki göz
+		blob(UDim2.fromScale(0.44, 0.68), UDim2.fromScale(0.07, 0.09), Color3.fromRGB(40, 90, 80), 3)
+		blob(UDim2.fromScale(0.56, 0.68), UDim2.fromScale(0.07, 0.09), Color3.fromRGB(40, 90, 80), 3)
+	elseif id == "EmergencyButton" then
+		blob(UDim2.fromScale(0.5, 0.74), UDim2.fromScale(0.86, 0.3), Color3.fromRGB(150, 158, 170), 1)
+		blob(UDim2.fromScale(0.5, 0.78), UDim2.fromScale(0.86, 0.08), Color3.fromRGB(250, 196, 40), 2)
+		local dome = blob(UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.66, 0.56), Color3.fromRGB(200, 230, 255), 2)
+		dome.BackgroundTransparency = 0.45
+		blob(UDim2.fromScale(0.5, 0.56), UDim2.fromScale(0.42, 0.3), Color3.fromRGB(230, 30, 40), 3)
+		blob(UDim2.fromScale(0.42, 0.5), UDim2.fromScale(0.1, 0.07), Color3.fromRGB(255, 150, 150), 4)
 	else
-		local tint = if id == "SpeedCoil" then Color3.fromRGB(220, 50, 60) else Color3.fromRGB(150, 80, 240)
-		local accent = if id == "SpeedCoil" then Color3.fromRGB(50, 120, 245) else Color3.fromRGB(230, 205, 255)
-		local rings = if id == "SpeedCoil" then 6 else 5
+		-- Speed Coil
+		local tint = Color3.fromRGB(220, 50, 60)
+		local accent = Color3.fromRGB(50, 120, 245)
+		local rings = 6
 		for i = 1, rings do
 			local y = 0.8 - (i - 1) * (0.62 / (rings - 1))
 			blob(UDim2.fromScale(0.5, y), UDim2.fromScale(0.7, 0.13), if i % 2 == 0 then accent else tint, 1)

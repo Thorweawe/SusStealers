@@ -2,8 +2,8 @@
 --[[
 	Ekipman çubuğu: Roblox'un hazır sırt çantası çubuğunun yerine.
 
-	NEDEN: hazır çubuk düz gri kutulardı ("Slap Glove / Gravity Coil /
-	Speed Coil" yazıları) ve ekranın tam ortasında her pencerenin ÜSTÜNE
+	NEDEN: hazır çubuk düz gri kutulardı ("Slap Glove / Speed Coil"
+	yazıları) ve ekranın tam ortasında her pencerenin ÜSTÜNE
 	biniyordu — Rebirth penceresinin satın alma düğmesi bile altında
 	kalıyordu. Bu çubuk arayüzün geri kalanıyla aynı kabartma dilinde,
 	ekipmanın resmini gösteriyor ve pencerelerin ALTINDA kalıyor.

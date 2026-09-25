@@ -35,6 +35,7 @@ local OwnerColors = require(script.OwnerColors)
 local PromptFilter = require(script.PromptFilter)
 local RarityFX = require(script.RarityFX)
 local ScreenFX = require(script.ScreenFX)
+local GearFX = require(script.GearFX)
 local SoundFX = require(script.SoundFX)
 local TaskGames = require(script.TaskGames)
 local ThiefTrail = require(script.ThiefTrail)
@@ -581,6 +582,11 @@ end)
 
 mountPanel("Sprint", function()
 	Sprint.Create(screen)
+end)
+
+-- Ekipman: kol animasyonları, vuruş efektleri, savrulma (GearFX)
+mountPanel("GearFX", function()
+	GearFX.Start(effects)
 end)
 
 --[[

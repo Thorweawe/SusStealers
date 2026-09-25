@@ -472,6 +472,9 @@ local function sanitize(raw: any): Profile
 		for id, flag in raw.gear do
 			if typeof(id) == "string" and Config.GetGear(id) and flag == true then
 				profile.gear[id] = true
+			elseif typeof(id) == "string" and flag == true and Config.RetiredGear[id] then
+				-- Kaldırılan alet: parası iade, kayıttan düşüyor (bir kez)
+				profile.cash += Config.RetiredGear[id]
 			end
 		end
 	end
@@ -602,11 +605,29 @@ end
 
 -- ─── Kaydetme ───────────────────────────────────────────────────────────────
 
+--[[
+	Testler çalışırken diske yazma durduruluyor. Testler rebirth, kat ve
+	çark gibi işlemleri deneme parasıyla yapıyor ve o servisler hemen
+	kaydediyor (DataService.Save): deneme değerleri oyuncunun GERÇEK
+	kaydına yazılıyordu. Sonda profil bellekte geri yükleniyordu ama
+	Studio durdurulunca son kayıt çoğu zaman yetişmiyor — kayıtta deneme
+	parası (ör. 250) kalıyordu.
+]]
+local savingPaused = false
+
+function DataService._SetSavingPaused(paused: boolean)
+	savingPaused = paused
+end
+
 --[[ Profili diske yazar. releaseLock true ise oturum kilidini de bırakır. ]]
 local function saveProfile(player: Player, releaseLock: boolean): boolean
 	local profile = profiles[player]
 	if not profile or not storeAvailable then
 		return false
+	end
+	if savingPaused then
+		-- Testler sürüyor: yazılmış gibi davran, diske dokunma
+		return true
 	end
 
 	-- Yazarken profil değişebilir; anlık kopya al
@@ -913,5 +934,8 @@ function DataService.Start()
 		end
 	end)
 end
+
+-- Testler için: ham kaydı profile çevirir (yükleme sırasındaki temizlikle aynı)
+DataService._Sanitize = sanitize
 
 return DataService

@@ -57,6 +57,13 @@ local ID = {
 	CardSwipe  = "rbxassetid://9113722807",   -- Card Swipe 8
 	CardAccept = "rbxassetid://9119764754",   -- Synth Beeps High Pitch 6
 
+	-- Ekipman (GearFX): savurma, tokat, şok, patlama, hayalet serumu
+	GearSwing = "rbxassetid://9120718279",   -- Whoosh Fast Swish By 1
+	GearSlap  = "rbxassetid://9113512874",   -- Body Hit Slaps 10
+	GearZap   = "rbxassetid://9114277338",   -- Electric Zaps 4
+	GearBlast = "rbxassetid://9114362774",   -- Explosions 5
+	GearPoof  = "rbxassetid://9116406375",   -- Magic Poofs Thumpy Wheezy Exhale 1
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -459,6 +466,40 @@ function SoundFX.StopAlarm()
 end
 
 --[[
+	Ekipman sesleri DÜNYADA çalıyor: başka oyuncunun tokadı uzaktan kısık
+	duyuluyor. Şablonlar Preload'da bir kez yükleniyor, her çalışta
+	kopyası o noktaya konup bitince siliniyor (yüklü kopya anında çalıyor).
+]]
+local GEAR_SOUNDS: { [string]: { volume: number, length: number } } = {
+	GearSwing = { volume = 0.5, length = 0.5 },
+	GearSlap = { volume = 0.9, length = 0.8 },
+	GearZap = { volume = 0.6, length = 0.9 },
+	GearBlast = { volume = 0.7, length = 1.6 },
+	GearPoof = { volume = 0.7, length = 1.0 },
+}
+
+function SoundFX.GearSound(key: string, position: Vector3)
+	local spec = GEAR_SOUNDS[key]
+	if not spec then
+		return
+	end
+	local template = effect(key, ID[key], spec.volume)
+	local holder = Instance.new("Attachment")
+	holder.Name = "GearSound"
+	holder.WorldPosition = position
+	holder.Parent = workspace.Terrain
+	local s = template:Clone()
+	s.RollOffMinDistance = 12
+	s.RollOffMaxDistance = 140
+	s.RollOffMode = Enum.RollOffMode.InverseTapered
+	s.Parent = holder
+	s:Play()
+	task.delay(spec.length, function()
+		holder:Destroy()
+	end)
+end
+
+--[[
 	Sesleri önden yükler. Oyuna girer girmez çağrılmalı: ilk tetiklemeden
 	önce hazır olsunlar diye.
 ]]
@@ -472,6 +513,9 @@ function SoundFX.Preload()
 	effect("WireZap", ID.WireZap, 0.4)
 	effect("CardSwipe", ID.CardSwipe, 0.6)
 	effect("CardAccept", ID.CardAccept, 0.4)
+	for key, spec in GEAR_SOUNDS do
+		effect(key, ID[key], spec.volume)
+	end
 
 	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
 	-- sessizlik olmasın
