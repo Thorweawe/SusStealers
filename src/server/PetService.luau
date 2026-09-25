@@ -104,6 +104,38 @@ local function push(player: Player)
 	})
 end
 
+--[[ Takılı listede bu anahtardan kaç kopya var (aynı pet birden fazla takılabiliyor). ]]
+local function equippedCount(list: { string }, key: string): number
+	local n = 0
+	for _, k in list do
+		if k == key then
+			n += 1
+		end
+	end
+	return n
+end
+
+--[[
+	Takılı listeyi envantere uydurur: bir anahtardan en fazla elde olan
+	kopya kadar, toplamda en fazla slot kadar. Birleştirme kopyaları
+	azaltınca fazla takılılar düşüyor.
+]]
+local function trimEquipped(profile: any)
+	local out: { string } = {}
+	local used: { [string]: number } = {}
+	for _, key in profile.equippedPets do
+		if #out >= Config.PetEquipSlots then
+			break
+		end
+		local have = profile.pets[key] or 0
+		if (Config.ParsePetKey(key)) ~= nil and (used[key] or 0) < have then
+			used[key] = (used[key] or 0) + 1
+			table.insert(out, key)
+		end
+	end
+	profile.equippedPets = out
+end
+
 --[[ Peti indekse işler (kimliğiyle; mutasyon ve boyut aynı pet sayılıyor). ]]
 local function markFound(profile: any, key: string)
 	local def = Config.ParsePetKey(key)
@@ -252,7 +284,8 @@ local function grant(player: Player, key: string): boolean
 
 	profile.pets[key] = have + 1
 	markFound(profile, key)
-	if #profile.equippedPets < Config.PetEquipSlots and not table.find(profile.equippedPets, key) then
+	-- Boş slot varsa yeni pet kendiliğinden takılıyor (aynı petin ikinci kopyası da)
+	if #profile.equippedPets < Config.PetEquipSlots and equippedCount(profile.equippedPets, key) < profile.pets[key] then
 		table.insert(profile.equippedPets, key)
 	end
 	return true
@@ -521,12 +554,8 @@ function PetService.TryFuse(player: Player, key: string): string?
 
 	local left = have - Config.PetFuseCount
 	profile.pets[key] = if left > 0 then left else nil
-	if left <= 0 then
-		local index = table.find(profile.equippedPets, key)
-		if index then
-			table.remove(profile.equippedPets, index)
-		end
-	end
+	-- Kalan kopyadan fazla takılı olan düşsün (aynı petten birkaç kopya takılı olabilir)
+	trimEquipped(profile)
 
 	grant(player, newKey)
 	apply(player)
@@ -540,11 +569,14 @@ function PetService.TryFuse(player: Player, key: string): string?
 	return newKey
 end
 --[[
-	Peti takar ya da çıkarır. Dönen değer işlemin tuttuğu.
+	Peti takar ya da çıkarır (bir kopya). Dönen değer işlemin tuttuğu.
 
-	Aynı anahtar iki slotta duramıyor: kopya takmak bonusu katlardı ve
-	"çeşit topla" hedefi anlamsızlaşırdı. Düz ve Golden aynı pet farklı
-	anahtar sayılıyor — mutasyonlu kopya ayrı bir eşya.
+	AYNI PETTEN BİRDEN FAZLA takılabiliyor, elde kaç kopya varsa o kadar:
+	üç Mini Crew'u olan üçünü birden takabiliyor. Eskiden aynı anahtar tek
+	slota sınırlıydı ("çeşit topla" diye); oyuncular aynı petin kopyalarını
+	boşa biriktiriyordu. Toplam yine Config.PetEquipSlots.
+
+	Düz ve Golden aynı pet farklı anahtar — mutasyonlu kopya ayrı eşya.
 ]]
 function PetService.TryEquip(player: Player, key: string, equip: boolean): boolean
 	local profile = DataService.Get(player)
@@ -552,23 +584,26 @@ function PetService.TryEquip(player: Player, key: string, equip: boolean): boole
 		return false
 	end
 
-	local index = table.find(profile.equippedPets, key)
-
 	if not equip then
-		if not index then
-			return false
+		-- Bir kopya çıkar: listedeki SON kopya (sıradaki diğerleri kaymasın)
+		for i = #profile.equippedPets, 1, -1 do
+			if profile.equippedPets[i] == key then
+				table.remove(profile.equippedPets, i)
+				apply(player)
+				return true
+			end
 		end
-		table.remove(profile.equippedPets, index)
-		apply(player)
-		return true
-	end
-
-	if index then
 		return false
 	end
 
-	if (profile.pets[key] or 0) <= 0 then
+	local have = profile.pets[key] or 0
+	if have <= 0 then
 		notify(player, "You do not own that pet", true)
+		return false
+	end
+
+	if equippedCount(profile.equippedPets, key) >= have then
+		notify(player, string.format("All your %s are already equipped", displayName(key)), true)
 		return false
 	end
 
@@ -578,6 +613,55 @@ function PetService.TryEquip(player: Player, key: string, equip: boolean): boole
 	end
 
 	table.insert(profile.equippedPets, key)
+	apply(player)
+	return true
+end
+
+--[[
+	EN İYİLERİ TAK: gelir bonusu en yüksek petleri (kopyaları dahil) slot
+	sayısı kadar takar. Eşitlikte hız bonusu. Pet simülatörlerinin
+	alışılmış "Equip Best" düğmesi; envanter büyüyünce elle seçmek zor.
+]]
+function PetService.EquipBest(player: Player): boolean
+	local profile = DataService.Get(player)
+	if not profile then
+		return false
+	end
+	type Entry = { key: string, income: number, speed: number }
+	local pool: { Entry } = {}
+	for key, count in profile.pets do
+		local income, speed = Config.GetPetKeyBonus(key)
+		if (Config.ParsePetKey(key)) ~= nil then
+			for _ = 1, math.min(count, Config.PetEquipSlots) do
+				table.insert(pool, { key = key, income = income, speed = speed })
+			end
+		end
+	end
+	table.sort(pool, function(a, b)
+		if a.income ~= b.income then
+			return a.income > b.income
+		end
+		if a.speed ~= b.speed then
+			return a.speed > b.speed
+		end
+		return a.key < b.key
+	end)
+	local best: { string } = {}
+	for i = 1, math.min(#pool, Config.PetEquipSlots) do
+		table.insert(best, pool[i].key)
+	end
+	profile.equippedPets = best
+	apply(player)
+	return #best > 0
+end
+
+--[[ Hepsini çıkar. ]]
+function PetService.UnequipAll(player: Player): boolean
+	local profile = DataService.Get(player)
+	if not profile then
+		return false
+	end
+	profile.equippedPets = {}
 	apply(player)
 	return true
 end
@@ -802,16 +886,7 @@ function PetService.OnProfileReady(player: Player)
 		return
 	end
 
-	local cleaned: { string } = {}
-	for _, key in profile.equippedPets do
-		if #cleaned >= Config.PetEquipSlots then
-			break
-		end
-		if (Config.ParsePetKey(key)) ~= nil and (profile.pets[key] or 0) > 0 and not table.find(cleaned, key) then
-			table.insert(cleaned, key)
-		end
-	end
-	profile.equippedPets = cleaned
+	trimEquipped(profile)
 
 	-- İndeks eski kayıtlarda yok: elde tutulan her pet bulunmuş sayılıyor
 	for key, count in profile.pets do
@@ -847,8 +922,20 @@ function PetService.Start()
 		PetService.TryHatch(player, eggId, amount, auto == true)
 	end)
 
+	--[[
+		(key, equip). İki özel anahtar pet kimliği olamaz (Config kimlikleri
+		harf/rakam): "@best" + true en iyileri takar, "@all" + false hepsini
+		çıkarır. Yeni bir remote açmamak için aynı kanal.
+	]]
 	Net.Get("PetEquip").OnServerEvent:Connect(function(player, key, equip)
-		if typeof(key) == "string" and typeof(equip) == "boolean" then
+		if typeof(key) ~= "string" or typeof(equip) ~= "boolean" then
+			return
+		end
+		if key == "@best" and equip then
+			PetService.EquipBest(player)
+		elseif key == "@all" and not equip then
+			PetService.UnequipAll(player)
+		else
 			PetService.TryEquip(player, key, equip)
 		end
 	end)

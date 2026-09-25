@@ -2564,6 +2564,50 @@ case("Pet: otomatik silme envantere koymuyor ama indekse işliyor", function(ctx
 	PetService._ResetBusy(ctx.player)
 end)
 
+case("Pet: aynı petten kopya sayısı kadar takılıyor, en iyiler seçiliyor", function(ctx)
+	ctx.profile.pets = { MiniCrew = 3, Bolt = 1 }
+	ctx.profile.equippedPets = {}
+	ok("1. kopya", PetService.TryEquip(ctx.player, "MiniCrew", true))
+	ok("2. kopya", PetService.TryEquip(ctx.player, "MiniCrew", true))
+	ok("3. kopya", PetService.TryEquip(ctx.player, "MiniCrew", true))
+	eq("üç kopya takılı", #ctx.profile.equippedPets, 3)
+	ok("slot dolu, dördüncü yok", not PetService.TryEquip(ctx.player, "Bolt", true))
+	local income = Config.GetPetBonus(ctx.profile.equippedPets)
+	near("bonus üç katı", income, Config.GetPetKeyBonus("MiniCrew") * 3, 0.0001)
+
+	ok("bir kopya çıkıyor", PetService.TryEquip(ctx.player, "MiniCrew", false))
+	eq("iki kaldı", #ctx.profile.equippedPets, 2)
+	ctx.profile.pets = { MiniCrew = 2, Bolt = 1 }
+	ok("elde olandan fazla takılmıyor", not PetService.TryEquip(ctx.player, "MiniCrew", true))
+
+	-- En iyiler: Skeld Common (Mini Crew) Supply Common'dan (Bolt) güçlü
+	ctx.profile.pets = { MiniCrew = 1, Bolt = 5 }
+	PetService.EquipBest(ctx.player)
+	eq("en iyi önce", ctx.profile.equippedPets[1], "MiniCrew")
+	eq("sonra kopyalar", ctx.profile.equippedPets[2], "Bolt")
+	eq("üç slot", #ctx.profile.equippedPets, 3)
+	PetService.UnequipAll(ctx.player)
+	eq("hepsi çıktı", #ctx.profile.equippedPets, 0)
+
+	-- Birleştirme kopyaları azaltınca fazla takılı düşüyor
+	local original = PetService.NearFuseMachine
+	PetService.NearFuseMachine = function() return true end
+	ctx.profile.pets = { MiniCrew = 4 }
+	ctx.profile.equippedPets = { "MiniCrew", "MiniCrew", "MiniCrew" }
+	PetService.TryFuse(ctx.player, "MiniCrew")
+	PetService.NearFuseMachine = original
+	eq("bir düz kopya kaldı", ctx.profile.pets.MiniCrew, 1)
+	local plain = 0
+	for _, k in ctx.profile.equippedPets do
+		if k == "MiniCrew" then
+			plain += 1
+		end
+	end
+	eq("takılı düz kopya da bire indi", plain, 1)
+	ctx.profile.equippedPets = {}
+	PetService.Apply(ctx.player)
+end)
+
 case("Pet: sahadaki model istemcinin yürütmesi için işaretli", function(ctx)
 	ctx.profile.pets = { Bolt = 1, VentRat = 1 }
 	ctx.profile.equippedPets = { "Bolt", "VentRat" }

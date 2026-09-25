@@ -118,6 +118,57 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 	local hatchRemote = Net.Get("PetHatch")
 	local equipRemote = Net.Get("PetEquip")
 
+	--[[
+		EQUIP BEST / UNEQUIP ALL: başlığın sağında. En iyiler sunucuda
+		seçiliyor (PetService.EquipBest: gelir bonusu en yüksek kopyalar,
+		aynı petten birden fazla olabilir).
+	]]
+	local quick = Instance.new("Frame")
+	quick.Name = "QuickEquip"
+	quick.AnchorPoint = Vector2.new(1, 0)
+	quick.Position = UDim2.new(1, if host then -14 else -50, 0, 12)
+	quick.Size = UDim2.fromOffset(210, 28)
+	quick.BackgroundTransparency = 1
+	quick.ZIndex = 41
+	quick.Parent = overlay
+	local ql = Instance.new("UIListLayout")
+	ql.FillDirection = Enum.FillDirection.Horizontal
+	ql.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	ql.Padding = UDim.new(0, 6)
+	ql.Parent = quick
+	local function quickButton(text: string, tint: Color3, order: number, fire: () -> ()): TextButton
+		local b = Instance.new("TextButton")
+		b.LayoutOrder = order
+		b.Size = UDim2.fromOffset(0, 26)
+		b.AutomaticSize = Enum.AutomaticSize.X
+		b.BackgroundColor3 = tint
+		b.AutoButtonColor = true
+		b.Font = Enum.Font.GothamBlack
+		b.TextSize = 11
+		b.TextColor3 = Color3.new(1, 1, 1)
+		b.TextStrokeTransparency = 0.5
+		b.Text = text
+		b.ZIndex = 42
+		b.Parent = quick
+		UiKit.Corner(b, 8)
+		UiKit.Stroke(b, tint:Lerp(Color3.new(0, 0, 0), 0.5), 1.4, 0)
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
+		pad.Parent = b
+		b.MouseButton1Click:Connect(fire)
+		return b
+	end
+	quickButton("EQUIP BEST", Color3.fromRGB(60, 180, 90), 1, function()
+		equipRemote:FireServer("@best", true)
+	end)
+	quickButton("UNEQUIP ALL", Color3.fromRGB(190, 60, 70), 2, function()
+		equipRemote:FireServer("@all", false)
+	end)
+	-- İpucu satırı düğmelerin altına taşmasın
+	hint.Size = UDim2.new(1, -290, 0, 16)
+	hint.TextTruncate = Enum.TextTruncate.AtEnd
+
 	-- ─── Yumurtalar ─────────────────────────────────────────────────────────
 
 	local eggRow = Instance.new("Frame")
@@ -308,7 +359,16 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 	local function makeCard(parent: Instance, orderIndex: number, def: Config.PetDef, key: string?, count: number)
 		local info = Config.Rarities[def.rarity]
-		local isOn = key ~= nil and table.find(equipped, key) ~= nil
+		-- Aynı petten birkaç kopya takılı olabilir (PetService.TryEquip)
+		local onCount = 0
+		if key then
+			for _, k in equipped do
+				if k == key then
+					onCount += 1
+				end
+			end
+		end
+		local isOn = onCount > 0
 
 		--[[
 			Açık if bloğu, if-ifadesi DEĞİL: `if k then f(k) else nil, nil`
@@ -437,7 +497,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		countLabel.TextSize = 11
 		countLabel.TextXAlignment = Enum.TextXAlignment.Right
 		countLabel.TextColor3 = if isOn then GOOD else MUTED
-		countLabel.Text = if count > 1 then "x" .. count else ""
+		-- Takılıysa "takılı/adet" (2/3), değilse adet (x3)
+		countLabel.Text = if isOn and count > 1 then string.format("%d/%d", onCount, count)
+			elseif count > 1 then "x" .. count
+			else ""
 		countLabel.ZIndex = 45
 		countLabel.Parent = card
 
@@ -489,10 +552,34 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			return
 		end
 
+		--[[
+			Kart tıklaması: takılı değilse bir kopya tak, takılıysa bir kopya
+			çıkar. Aynı petin başka kopyasını eklemek için sağ alttaki "+"
+			(yalnızca elde takılmamış kopya ve boş slot varken görünüyor).
+		]]
 		card.MouseButton1Click:Connect(function()
-			-- Takılıysa çıkar, değilse tak: tek düğme, iki yön
 			equipRemote:FireServer(k, not isOn)
 		end)
+		local canAdd = isOn and onCount < count and #equipped < Config.PetEquipSlots
+		if canAdd then
+			local plus = Instance.new("TextButton")
+			plus.Name = "AddCopy"
+			plus.AnchorPoint = Vector2.new(1, 1)
+			plus.Position = UDim2.new(1, -5, 1, -9)
+			plus.Size = UDim2.fromOffset(22, 22)
+			plus.BackgroundColor3 = GOOD
+			plus.AutoButtonColor = true
+			plus.Font = Enum.Font.GothamBlack
+			plus.TextSize = 16
+			plus.TextColor3 = Color3.fromRGB(16, 40, 20)
+			plus.Text = "+"
+			plus.ZIndex = 47
+			plus.Parent = card
+			UiKit.Corner(plus, 11)
+			plus.MouseButton1Click:Connect(function()
+				equipRemote:FireServer(k, true)
+			end)
+		end
 		card.MouseEnter:Connect(function()
 			stroke.Transparency = 0.1
 		end)
@@ -509,6 +596,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 		local fusing = mode == "fuse"
 		eggRow.Visible = not fusing
+		quick.Visible = not fusing
 		list.Position = UDim2.fromOffset(14, if fusing then 60 else 166)
 		list.Size = UDim2.new(1, -28, 1, if fusing then -74 else -180)
 		heading.Text = if fusing then "FUSE MACHINE" else "PETS"
@@ -518,9 +606,12 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		if fusing then
 			hint.Text = string.format("Fuse %d of the same pet into a bigger one: Big → Huge → Titan.", Config.PetFuseCount)
 		else
-			hint.Text = string.format("%d / %d equipped  ·  click to equip  ·  fuse at the Pet Hatchery", slotsUsed, Config.PetEquipSlots)
+			-- Kısa: sağda EQUIP BEST / UNEQUIP ALL var; "+" aynı petin bir kopyasını daha takar
+			hint.Text = string.format("%d / %d equipped", slotsUsed, Config.PetEquipSlots)
 			if slotsUsed > 0 then
 				hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed", math.floor(income * 100 + 0.5), speed)
+			else
+				hint.Text ..= "  ·  click a pet to equip"
 			end
 		end
 

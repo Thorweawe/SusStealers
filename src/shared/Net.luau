@@ -80,8 +80,9 @@ local CLIENT_TO_SERVER = {
 		Tanınmayan kimlik reddediliyor.
 
 		PetEquip hiçbir şey vermiyor, zaten SAHİP OLUNAN bir peti takıp
-		çıkarıyor. Sahiplik profilden doğrulanıyor ve slot sayısı
-		sunucuda sınırlanıyor.
+		çıkarıyor. Sahiplik profilden doğrulanıyor, aynı petten en fazla
+		elde olan kopya kadar ve toplamda slot sayısı kadar takılabiliyor
+		(sunucuda). "@best"/"@all" yalnızca sahip olunanları takıp çıkarıyor.
 
 		PetFuse üç kopyayı YAKIP bir tane veriyor: adet sunucuda sayılıyor,
 		sonuç sunucuda çekiliyor. İstemci yalnızca hangi anahtar olduğunu

@@ -329,14 +329,14 @@ local function sanitize(raw: any): Profile
 	end
 
 	if typeof(raw.equippedPets) == "table" then
+		-- Aynı pet birden fazla takılı olabilir: elde olan kopya kadar
+		local used: { [string]: number } = {}
 		for _, id in raw.equippedPets do
 			if #profile.equippedPets >= Config.PetEquipSlots then
 				break
 			end
-			if typeof(id) == "string"
-				and (profile.pets[id] or 0) > 0
-				and not table.find(profile.equippedPets, id)
-			then
+			if typeof(id) == "string" and (used[id] or 0) < (profile.pets[id] or 0) then
+				used[id] = (used[id] or 0) + 1
 				table.insert(profile.equippedPets, id)
 			end
 		end
