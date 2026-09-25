@@ -180,7 +180,8 @@ local function outlinedButton(parent: Instance, text: string, size: Vector2, z: 
 	b.AnchorPoint = Vector2.new(0.5, 0.5)
 	b.Size = UDim2.fromOffset(size.X, size.Y)
 	b.BackgroundColor3 = Color3.fromRGB(14, 16, 26)
-	b.BackgroundTransparency = 0.15
+	-- Opak: arkadan süzülen mürettebat düğmenin içinden görünmesin
+	b.BackgroundTransparency = 0
 	b.AutoButtonColor = false
 	b.Font = Enum.Font.FredokaOne
 	b.TextSize = 24
@@ -655,21 +656,16 @@ function TitleScreen.Show(options: Options?): Handle
 	server.Position = UDim2.fromOffset(REF.X - 32, REF.Y - 36)
 	server.Size = UDim2.fromOffset(300, 22)
 	server.TextXAlignment = Enum.TextXAlignment.Right
-	local dot = frame(content, "OnlineDot", 11)
-	dot.AnchorPoint = Vector2.new(1, 0.5)
-	dot.Size = UDim2.fromOffset(12, 12)
-	dot.BackgroundColor3 = UiKit.CREW.LIME
-	corner(dot, UDim.new(0.5, 0))
+	-- Çevrimiçi noktası yazının içinde: ayrı bir Frame ölçekte yazının üstüne biniyordu
+	server.RichText = true
 	local function refreshServer()
 		local count = #Players:GetPlayers()
-		server.Text = string.format("%d / %d crewmates on this ship", count, Players.MaxPlayers)
-		dot.Position = UDim2.fromOffset(REF.X - 32 - server.TextBounds.X - 10, REF.Y - 47)
+		server.Text = string.format('<font color="#50EF39">●</font>  %d / %d crewmates on this ship', count, Players.MaxPlayers)
 	end
 	table.insert(connections, Players.PlayerAdded:Connect(refreshServer))
 	table.insert(connections, Players.PlayerRemoving:Connect(function()
 		task.defer(refreshServer)
 	end))
-	table.insert(connections, server:GetPropertyChangedSignal("TextBounds"):Connect(refreshServer))
 	refreshServer()
 
 	-- ── Ayarlar ───────────────────────────────────────────────────────────
