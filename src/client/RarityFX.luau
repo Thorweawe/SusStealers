@@ -456,12 +456,24 @@ function RarityFX.Create(): FX
 		end
 	end
 
+	--[[
+		PERFORMANS: efektler kameraya yakınsa her karede, uzaktaysa 4 karede
+		bir güncelleniyor. Kaidelerdeki nadir karakterlerin tarama çizgisi
+		ve nabız halkası bütün üslerde aynı anda dönüyordu.
+	]]
+	local frameNo = 0
 	local connection = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
+		frameNo += 1
+		local cam = workspace.CurrentCamera.CFrame.Position
+		local farTurn = frameNo % 4 == 0
+		local function due(part: BasePart): boolean
+			return farTurn or (part.Position - cam).Magnitude <= 150
+		end
 
 		-- Tarama çizgisi: aşağıdan yukarı süzülüp başa dönüyor
 		for _, s in scanners do
-			if s.part.Parent then
+			if s.part.Parent and due(s.part) then
 				local h = (t * 1.6) % 5
 				s.part.CFrame = CFrame.new(s.part.Position.X, s.base + h, s.part.Position.Z)
 				-- Tepeye yaklaşırken sönüyor: sert kesilme olmasın
@@ -471,7 +483,7 @@ function RarityFX.Create(): FX
 
 		-- Nabız halkası: büyüyüp sönen dalga
 		for _, p in pulseRings do
-			if p.part.Parent then
+			if p.part.Parent and due(p.part) then
 				local phase = (t * 0.8 + p.seed) % 1
 				local scale = 1 + phase * 0.9
 				p.part.Size = Vector3.new(7.4 * scale, 0.1, 7.4 * scale)

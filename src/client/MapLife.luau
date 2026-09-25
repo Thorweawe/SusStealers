@@ -231,8 +231,18 @@ function MapLife.Start(): Handle
 
 	local clock = 0
 	local lampAccum = 0
+	local frameNo = 0
 	local connection = RunService.Heartbeat:Connect(function(dt)
 		clock += dt
+		frameNo += 1
+		--[[
+			PERFORMANS: gezen mürettebatın modeli yalnızca kameraya yakınsa
+			her karede taşınıyor; uzaktakinin konumu (w.pos) yine ilerliyor
+			ama modeli 6 karede bir yazılıyor. Model birkaç parça, PivotTo
+			hepsini taşıyor.
+		]]
+		local cam = workspace.CurrentCamera.CFrame.Position
+		local farTurn = frameNo % 6 == 0
 
 		-- Lambalar saniyede ~12 kez yeter
 		lampAccum += dt
@@ -289,7 +299,9 @@ function MapLife.Start(): Handle
 			w.facing = dir
 			-- Yürürken zıplar gibi hafif sekme: Among Us yürüyüşü
 			local bob = math.abs(math.sin((clock + w.phase) * 9)) * 0.35
-			w.model:PivotTo(CFrame.lookAt(w.pos, w.pos + dir) + Vector3.new(0, w.lift + bob, 0))
+			if farTurn or (w.pos - cam).Magnitude <= 160 then
+				w.model:PivotTo(CFrame.lookAt(w.pos, w.pos + dir) + Vector3.new(0, w.lift + bob, 0))
+			end
 		end
 	end)
 

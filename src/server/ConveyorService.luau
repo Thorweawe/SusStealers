@@ -326,8 +326,23 @@ end
 
 -- ─── Döngü ──────────────────────────────────────────────────────────────────
 
+--[[
+	PERFORMANS: bandın üstündeki modeller sunucuda saniyede PIVOT_RATE kez
+	taşınıyor, her karede değil. Ekrandaki akıcı hareket istemcinin işi
+	(ConveyorFX, aynı bant saatinden her karede); sunucudaki konum yalnızca
+	promptun mesafe doğrulaması için gerekiyor ve birkaç stud geride kalması
+	fark etmiyor. Eskiden sekiz üssün bütün modelleri her Heartbeat'te
+	taşınıyor, her parçanın konumu saniyede 60 kez ağdan gidiyordu.
+]]
+local PIVOT_INTERVAL = 0.2
+local lastPivotAt = 0
+
 local function stepItems()
 	local now = serverNow()
+	local pivotNow = now - lastPivotAt >= PIVOT_INTERVAL
+	if pivotNow then
+		lastPivotAt = now
+	end
 
 	-- Bantlar karakteri olmasa da güncel kalmalı: istemcideki çıtalar
 	-- yükseltme alınır alınmaz hızlansın
@@ -362,14 +377,17 @@ local function stepItems()
 
 		-- Ağızdan çıkana kadar alınamıyor ve etiketi kapalı
 		local visible = position >= 0
-		if visible ~= item.visible then
+		local changed = visible ~= item.visible
+		if changed then
 			item.visible = visible
 			item.prompt.Enabled = visible
 			item.prompt:SetAttribute("OnBelt", visible)
 			item.label.Enabled = visible
 		end
 
-		item.model:PivotTo(item.startCFrame * CFrame.new(position, 0, 0))
+		if pivotNow or changed then
+			item.model:PivotTo(item.startCFrame * CFrame.new(position, 0, 0))
+		end
 	end
 end
 

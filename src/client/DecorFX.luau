@@ -12,9 +12,30 @@ local RunService = game:GetService("RunService")
 
 local DecorFX = {}
 
+--[[
+	═══ PERFORMANS ═════════════════════════════════════════════════════════
+
+	Haritada yüzlerce hareketli parça var ve eskiden HEPSİ her karede
+	taşınıyordu — oyuncu istasyonun öbür ucundayken lobideki çarkın
+	dilimleri de. Anchored parçanın CFrame'ini yazmak motorun uzamsal
+	yapısını güncelletiyor; istemci ölçümünde karede 464 parça taşınıyordu.
+
+	  - Uzaklığa göre sıklık: kameraya NEAR_RADIUS içindeki parça her
+	    karede, MID_RADIUS içindeki 3 karede bir, daha uzağı 12 karede bir
+	    yazılıyor. Tamamen dondurmak olmazdı — salon açık, 250 stud ötedeki
+	    radar da görünüyor; uzakta 20 fps'lik dönüş fark edilmiyor. Konum
+	    saatten hesaplandığı için seyrek yazmak sıçrama yapmıyor.
+	  - Toplu yazma: kalanlar tek workspace:BulkMoveTo çağrısıyla; tek tek
+	    CFrame yazmaktan çok daha ucuz.
+	  - Lambanın ışığı kayıtta bir kez bulunuyor (eskiden her karede
+	    FindFirstChildOfClass).
+]]
+local NEAR_RADIUS = 150
+local MID_RADIUS = 400
+
 -- center/axisVec verilmişse ortak bir eksen etrafında döner (çarkın dilimleri)
 type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string, center: Vector3?, axisVec: Vector3?, angle: number? }
-type Pulser = { part: BasePart, period: number, phase: number }
+type Pulser = { part: BasePart, period: number, phase: number, light: PointLight? }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 -- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
 type Slider = { part: BasePart, speed: number, range: number, phase: number, base: CFrame }
@@ -68,7 +89,10 @@ function DecorFX.Start(): FX
 			local period = obj:GetAttribute("PulsePeriod")
 			if typeof(period) == "number" and period > 0 then
 				-- Faz kaydırması: hepsi aynı anda yanıp sönerse yapay duruyor
-				table.insert(pulsers, { part = obj, period = period, phase = #pulsers * 0.37 })
+				table.insert(pulsers, {
+					part = obj, period = period, phase = #pulsers * 0.37,
+					light = obj:FindFirstChildOfClass("PointLight"),
+				})
 			end
 
 			-- Bant çıtası: kendi ekseninde değil, bir hat boyunca kayıyor
@@ -140,39 +164,70 @@ function DecorFX.Start(): FX
 	end)
 
 	local elapsed = 0
+	-- Toplu yazma tamponları: her karede yeniden kullanılıyor (çöp üretmesin)
+	local moveParts: { BasePart } = {}
+	local moveCFrames: { CFrame } = {}
+	local function queue(part: BasePart, cf: CFrame)
+		local n = #moveParts + 1
+		moveParts[n] = part
+		moveCFrames[n] = cf
+	end
+
+	local frameNo = 0
 	local connection = RunService.RenderStepped:Connect(function(dt: number)
 		elapsed += dt
+		frameNo += 1
+		local cam = workspace.CurrentCamera.CFrame.Position
+		local midTurn = frameNo % 3 == 0
+		local farTurn = frameNo % 12 == 0
+		-- Bu karede bu konumdaki parça yazılmalı mı (uzaklığa göre sıklık)
+		local function near(pos: Vector3): boolean
+			local d = (pos - cam).Magnitude
+			if d <= NEAR_RADIUS then
+				return true
+			elseif d <= MID_RADIUS then
+				return midTurn
+			end
+			return farTurn
+		end
+		table.clear(moveParts)
+		table.clear(moveCFrames)
 
 		for _, s in spinners do
 			--[[
 				Hız her karede okunuyor: SpinService çevirme sırasında
 				niteliği 14 katına çıkarıyor. Açı birikimli tutuluyor ki hız
-				değişince parça sıçramasın.
+				değişince parça sıçramasın — uzaktayken de açı ilerliyor,
+				yalnızca yazılmıyor.
 			]]
 			local live = s.part:GetAttribute("SpinSpeed")
 			local speed = if typeof(live) == "number" then live else s.speed
 			s.angle = (s.angle or 0) + speed * dt
+			if not near(s.center or s.base.Position) then
+				continue
+			end
 			local a = math.rad(s.angle)
 			if s.center and s.axisVec then
 				local pivot = CFrame.new(s.center)
-				s.part.CFrame = pivot * CFrame.fromAxisAngle(s.axisVec, a) * pivot:Inverse() * s.base
+				queue(s.part, pivot * CFrame.fromAxisAngle(s.axisVec, a) * pivot:Inverse() * s.base)
 			else
 				local rot = if s.axis == "Z" then CFrame.Angles(0, 0, a)
 					elseif s.axis == "X" then CFrame.Angles(a, 0, 0)
 					else CFrame.Angles(0, a, 0)
-				s.part.CFrame = s.base * rot
+				queue(s.part, s.base * rot)
 			end
 		end
 
 		for _, p in pulsers do
+			if not near(p.part.Position) then
+				continue
+			end
 			local t = (elapsed / p.period + p.phase) % 1
 			-- Keskin parlama, yavaş sönme: gerçek uyarı lambası böyle davranır
 			local intensity = math.clamp(1 - t * 1.8, 0, 1)
 			p.part.Transparency = 0.15 + (1 - intensity) * 0.55
-
-			local light = p.part:FindFirstChildOfClass("PointLight")
-			if light then
-				light.Brightness = 0.35 + intensity * 2.2
+			if p.light then
+				p.light.Brightness = 0.35 + intensity * 2.2
 			end
 		end
 
@@ -183,7 +238,11 @@ function DecorFX.Start(): FX
 		]]
 		for _, d in drifters do
 			local travelled = (d.speed * elapsed) % d.range
-			d.model:PivotTo(d.base * CFrame.new(travelled, 0, 0))
+			local cf = d.base * CFrame.new(travelled, 0, 0)
+			-- Uzaydaki süzülenler geniş bir alanda; yolun ortası yakınsa çiz
+			if near(cf.Position) or near(d.base.Position) then
+				d.model:PivotTo(cf)
+			end
 		end
 
 		--[[
@@ -197,9 +256,12 @@ function DecorFX.Start(): FX
 			+x'e bir menzil boyu taşıyordu.
 		]]
 		for _, s in sliders do
+			if not near(s.base.Position) then
+				continue
+			end
 			local travelled = (s.phase + math.abs(s.speed) * elapsed) % s.range
 			local sign = if s.speed < 0 then -1 else 1
-			s.part.CFrame = s.base * CFrame.new(travelled * sign, 0, 0)
+			queue(s.part, s.base * CFrame.new(travelled * sign, 0, 0))
 		end
 
 		--[[
@@ -208,11 +270,18 @@ function DecorFX.Start(): FX
 			derecelik eğilme onu "canlı bir şey" yapıyor.
 		]]
 		for _, b in bobbers do
+			if not near(b.base.Position) then
+				continue
+			end
 			local t = elapsed * (2 * math.pi) / b.period + b.phase
 			-- Yükseklik DÜNYA yukarısında: dik duran (döndürülmüş) silindirde
 			-- yerel Y yatay kalıyordu ve halka yana kayıyordu
-			b.part.CFrame = (b.base + Vector3.new(0, math.sin(t) * b.height, 0))
-				* CFrame.Angles(0, 0, math.rad(math.sin(t * 0.5) * b.wobble))
+			queue(b.part, (b.base + Vector3.new(0, math.sin(t) * b.height, 0))
+				* CFrame.Angles(0, 0, math.rad(math.sin(t * 0.5) * b.wobble)))
+		end
+
+		if #moveParts > 0 then
+			workspace:BulkMoveTo(moveParts, moveCFrames, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 	end)
 

@@ -135,12 +135,17 @@ local function ownerInfo(userId: number): (CFrame?, number, number)
 	return root.CFrame, feetY, speed
 end
 
+local frameNo = 0
+
 local function step(dt: number)
 	if dt <= 0 then
 		return
 	end
 	local follow = 1 - math.exp(-FOLLOW_RATE * dt)
 	local turn = 1 - math.exp(-TURN_RATE * dt)
+	frameNo += 1
+	local farTurn = frameNo % 4 == 0
+	local cam = workspace.CurrentCamera.CFrame.Position
 
 	-- Sahibe göre grupla: aralık en geniş petin yarıçapına göre açılıyor
 	local widest: { [number]: number } = {}
@@ -230,7 +235,12 @@ local function step(dt: number)
 		local pivot = CFrame.new(s.pos + Vector3.new(0, lift + height, 0))
 			* CFrame.Angles(0, s.yaw, 0)
 			* CFrame.Angles(pitch, 0, roll)
-		model:PivotTo(pivot)
+		-- Uzaktaki (başka oyuncuların) petleri 4 karede bir çiziliyor; konum hesabı her karede
+		if farTurn or (s.pos - cam).Magnitude <= 160 then
+			model:PivotTo(pivot)
+		else
+			continue
+		end
 
 		local shadow = s.shadow
 		if shadow then

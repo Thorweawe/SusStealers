@@ -17,8 +17,8 @@
 	  - Karakter: D − SpawnDistance. Sunucu karakteri D'nin çıta aralığının
 	    tam katında ağza getiriyor, yani karakter hep bir çıtanın üstünde.
 
-	Karakterler sunucuda da taşınıyor (prompt mesafesi orada doğrulanıyor)
-	ama ekranda burada, her karede yeniden konumlanıyor. Sunucudan gelen
+	Karakterler sunucuda da taşınıyor (prompt mesafesi orada doğrulanıyor;
+	saniyede 5 kez) ama ekranda burada, her karede yeniden konumlanıyor. Sunucudan gelen
 	konum ağ gecikmesi kadar geride kalıyordu; çıtalar ise istemcinin
 	saatinde. Aynı formülden çizilince aradaki kayma sıfırlanıyor.
 ]]
@@ -117,11 +117,26 @@ function ConveyorFX.Start(): FX
 		end
 	end)
 
+	--[[
+		PERFORMANS: sekiz üssün bandı ve bantlardaki karakterler eskiden her
+		karede, oyuncu nerede olursa olsun taşınıyordu. Artık üssün bandı
+		kameraya yakınsa her karede, orta uzaklıkta 3 karede bir, uzaktaysa
+		12 karede bir çiziliyor (konum saatten hesaplanıyor, sıçrama yok).
+		Çıtalar tek BulkMoveTo çağrısıyla yazılıyor.
+	]]
+	local NEAR, MID = 140, 380
+	local frameNo = 0
+	local moveParts: { BasePart } = {}
+	local moveCFrames: { CFrame } = {}
+
 	local connection = RunService.RenderStepped:Connect(function()
 		local now = workspace:GetServerTimeNow()
+		frameNo += 1
+		local cam = workspace.CurrentCamera.CFrame.Position
 
-		-- Aynı karede her üssün saatini bir kez hesapla
+		-- Aynı karede her üssün saatini ve "bu kare çizilsin mi" kararını bir kez hesapla
 		local distances: { [string]: number } = {}
+		local due: { [string]: boolean } = {}
 		local function distanceFor(plotName: string): number
 			local d = distances[plotName]
 			if not d then
@@ -130,10 +145,30 @@ function ConveyorFX.Start(): FX
 			end
 			return d
 		end
+		local function dueFor(plotName: string): boolean
+			local v = due[plotName]
+			if v == nil then
+				local conveyor = conveyorOf(plotName)
+				local d = if conveyor then (conveyor.Position - cam).Magnitude else 0
+				v = d <= NEAR or (d <= MID and frameNo % 3 == 0) or frameNo % 12 == 0
+				due[plotName] = v
+			end
+			return v :: boolean
+		end
 
+		table.clear(moveParts)
+		table.clear(moveCFrames)
 		for _, s in slats do
+			if not dueFor(s.plotName) then
+				continue
+			end
 			local travelled = (s.phase + distanceFor(s.plotName)) % s.range
-			s.part.CFrame = s.base * CFrame.new(travelled * s.sign, 0, 0)
+			local n = #moveParts + 1
+			moveParts[n] = s.part
+			moveCFrames[n] = s.base * CFrame.new(travelled * s.sign, 0, 0)
+		end
+		if #moveParts > 0 then
+			workspace:BulkMoveTo(moveParts, moveCFrames, Enum.BulkMoveMode.FireCFrameChanged)
 		end
 
 		local plots = workspace:FindFirstChild("Plots")
@@ -142,7 +177,7 @@ function ConveyorFX.Start(): FX
 		end
 		for _, plot in plots:GetChildren() do
 			local items = plot:FindFirstChild("Items")
-			if not items then
+			if not items or not dueFor(plot.Name) then
 				continue
 			end
 			for _, model in items:GetChildren() do
