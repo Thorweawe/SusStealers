@@ -196,7 +196,7 @@ function EggPanel.Create(auto: AutoHandle?)
 		local pets = Config.GetEggPets(egg.id)
 		-- Kart yüksekliği sıra sayısına göre: tek sıralı yumurtada alt yarı boş kalmasın
 		local rowsNeeded = math.max(1, math.ceil(#pets / 4))
-		local cardH = 64 + rowsNeeded * 80
+		local cardH = 64 + rowsNeeded * 96
 
 		--[[
 			UIGradient kullanılmıyor: gradyan nesnenin UIStroke'unu da
@@ -236,12 +236,12 @@ function EggPanel.Create(auto: AutoHandle?)
 
 		local grid = Instance.new("Frame")
 		grid.Position = UDim2.fromOffset(12, 56)
-		grid.Size = UDim2.fromOffset(360, rowsNeeded * 80)
+		grid.Size = UDim2.fromOffset(360, rowsNeeded * 96)
 		grid.BackgroundTransparency = 1
 		grid.ZIndex = 3
 		grid.Parent = card
 		local layout = Instance.new("UIGridLayout")
-		layout.CellSize = UDim2.fromOffset(84, 72)
+		layout.CellSize = UDim2.fromOffset(84, 88)
 		layout.CellPadding = UDim2.fromOffset(8, 8)
 		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -262,14 +262,9 @@ function EggPanel.Create(auto: AutoHandle?)
 			corner(cell, 10)
 			stroke(cell, tone, 2)
 
-			local tier = text(cell, string.upper(def.rarity), 11, tone, 6)
-			tier.Font = Enum.Font.GothamBlack
-			tier.Position = UDim2.fromOffset(0, 3)
-			tier.Size = UDim2.new(1, 0, 0, 12)
-
 			local fig = Instance.new("Frame")
 			fig.AnchorPoint = Vector2.new(0.5, 0)
-			fig.Position = UDim2.new(0.5, 0, 0, 15)
+			fig.Position = UDim2.new(0.5, 0, 0, 4)
 			fig.Size = UDim2.fromOffset(38, 38)
 			fig.BackgroundTransparency = 1
 			fig.ZIndex = 6
@@ -292,28 +287,23 @@ function EggPanel.Create(auto: AutoHandle?)
 			cs.Thickness = 1.6
 			cs.Parent = chance
 
-			-- Ad ipucu: hücrenin üstüne gelince
-			local tip = text(cell, if hidden then "???" else def.name, 11, WHITE, 14)
-			tip.Font = Enum.Font.GothamBold
-			tip.AnchorPoint = Vector2.new(0.5, 1)
-			tip.Position = UDim2.new(0.5, 0, 0, -2)
-			tip.Size = UDim2.fromOffset(110, 16)
-			tip.BackgroundTransparency = 0.1
-			tip.BackgroundColor3 = INK
-			tip.Visible = false
-			corner(tip, 6)
-			local hover = Instance.new("TextButton")
-			hover.Size = UDim2.fromScale(1, 1)
-			hover.BackgroundTransparency = 1
-			hover.Text = ""
-			hover.ZIndex = 13
-			hover.Parent = cell
-			hover.MouseEnter:Connect(function()
-				tip.Visible = true
-			end)
-			hover.MouseLeave:Connect(function()
-				tip.Visible = false
-			end)
+			--[[
+				Petin ADI fotoğrafın altında (kademe yazısı değil: kademe zaten
+				hücrenin çerçeve rengi). Bulunmamış Secret "???" kalıyor.
+				İki satıra sığmayan uzun adlar küçülüyor.
+			]]
+			local name = text(cell, if hidden then "???" else def.name, 11, WHITE, 6)
+			name.AnchorPoint = Vector2.new(0.5, 0)
+			name.Position = UDim2.new(0.5, 0, 0, 42)
+			name.Size = UDim2.new(1, -6, 0, 24)
+			name.TextWrapped = true
+			name.TextScaled = true
+			name.TextStrokeColor3 = INK
+			name.TextStrokeTransparency = 0.2
+			local limit = Instance.new("UITextSizeConstraint")
+			limit.MaxTextSize = 11
+			limit.MinTextSize = 8
+			limit.Parent = name
 		end
 
 		-- ── Sağ sütun: AUTO-DELETE ───────────────────────────────────────
