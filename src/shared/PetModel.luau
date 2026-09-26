@@ -50,6 +50,18 @@ local FORMS: { [string]: string } = {
 	NebulaEye = "orb",
 	-- Tek nadirler: Supply'ın Legendary'si, Skeld'in Mythic'i
 	FuelCan = "bot",       PrimeShield = "orb",
+	-- Genişletme (2026-09-26): her kademede 2-3 pet
+	DuctTape = "orb",      CargoBox = "bot",     Keycard = "bot",
+	TrashBag = "blob",     O2Sprout = "blob",    WireKnot = "crab",
+	AsteroidPal = "shard", MiniBlue = "blob",    MiniLime = "blob",
+	SampleTube = "orb",    Plushie = "blob",     ReactorBot = "bot",
+	NavBeacon = "orb",     EngineSpark = "shard", VentKing = "crab",
+	IcePup = "blob",       Snowball = "orb",     LavaBug = "crab",
+	SeismicBot = "bot",    Specimen = "blob",    Dropship = "orb",
+	PolusYeti = "blob",    Specter = "blob",     SpaceDust = "orb",
+	MoonRock = "shard",    Satellite = "bot",    TinyUfo = "orb",
+	OrbitCat = "blob",     Pulsar = "orb",       BlackHole = "orb",
+	StarWhale = "blob",
 }
 
 --[[ Petin biçim adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
@@ -420,6 +432,183 @@ local DETAILS: { [string]: (b: Builder, top: number) -> () } = {
 			tail.Transparency = 0.15 + i * 0.18
 		end
 	end,
+	-- ── Genişletme (2026-09-26) ─────────────────────────────────────────────
+	DuctTape = function(b, top)
+		-- Bant rulosu: tepede koyu delik, halka bant rengi
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p.Color = Color3.fromRGB(120, 126, 134)
+				p.Material = Enum.Material.Fabric
+			end
+		end
+		b.cylinder("TapeHole", 0.08, 0.7, CFrame.new(0, top - 0.02, 0) * CFrame.Angles(0, 0, math.rad(90)), DARK)
+	end,
+	CargoBox = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Antenna" or p.Name == "AntennaTip") then
+				p:Destroy()
+			end
+		end
+		b.part("Strap", Vector3.new(1.62, 0.2, 1.32), CFrame.new(0, 1.45, 0), Color3.fromRGB(252, 204, 48))
+		b.part("StrapV", Vector3.new(0.2, 0.3, 1.32), CFrame.new(0, 1.6, 0), Color3.fromRGB(252, 204, 48))
+	end,
+	Keycard = function(b, top)
+		-- Tepesinden çıkan kart
+		b.part("Card", Vector3.new(0.9, 0.6, 0.06), CFrame.new(0, top - 0.25, 0.25), WHITE)
+		b.part("CardStripe", Vector3.new(0.9, 0.12, 0.07), CFrame.new(0, top - 0.15, 0.25), DARK)
+	end,
+	TrashBag = function(b, top)
+		b.ellipsoid("Knot", Vector3.new(0.4, 0.34, 0.4), CFrame.new(0, top + 0.02, 0.1), b.color:Lerp(Color3.new(0, 0, 0), 0.25))
+		for _, side in { -1, 1 } do
+			b.ellipsoid("Tie", Vector3.new(0.34, 0.12, 0.18), CFrame.new(side * 0.22, top + 0.16, 0.1) * CFrame.Angles(0, 0, math.rad(side * -30)), b.color)
+		end
+	end,
+	O2Sprout = function(b, top)
+		b.part("Stem", Vector3.new(0.08, 0.35, 0.08), CFrame.new(0, top + 0.1, 0), Color3.fromRGB(60, 140, 60))
+		for _, side in { -1, 1 } do
+			b.ellipsoid("Leaf", Vector3.new(0.55, 0.12, 0.3), CFrame.new(side * 0.26, top + 0.3, 0) * CFrame.Angles(0, 0, math.rad(side * 25)), Color3.fromRGB(110, 220, 90))
+		end
+	end,
+	WireKnot = function(b, _)
+		-- Sırtında renkli kablolar (Fix Wiring)
+		for i, tone in { Color3.fromRGB(230, 50, 50), Color3.fromRGB(252, 204, 48), Color3.fromRGB(70, 120, 230) } do
+			b.part("Wire", Vector3.new(1.4, 0.1, 0.1), CFrame.new(0, 1.12 + i * 0.05, 0.1 + (i - 2) * 0.28) * CFrame.Angles(0, math.rad((i - 2) * 18), 0), tone)
+		end
+	end,
+	SampleTube = function(b, top)
+		local tube = b.cylinder("Tube", 0.7, 0.42, CFrame.new(0, top + 0.2, 0.05) * CFrame.Angles(0, 0, math.rad(90)), VISOR, Enum.Material.Glass)
+		tube.Transparency = 0.4
+		b.cylinder("Liquid", 0.4, 0.34, CFrame.new(0, top + 0.05, 0.05) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(120, 255, 160), Enum.Material.Neon)
+	end,
+	Plushie = function(b, _)
+		-- Dikiş çizgisi ve göğsünde kalp
+		b.part("Stitch", Vector3.new(0.05, 0.9, 0.05), CFrame.new(0.45, 0.95, -0.62), DARK)
+		b.ellipsoid("Heart", Vector3.new(0.26, 0.24, 0.08), CFrame.new(-0.3, 0.72, -0.66), Color3.fromRGB(230, 60, 90))
+	end,
+	ReactorBot = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "AntennaTip" or p.Name == "ScreenEye") then
+				p.Color = Color3.fromRGB(255, 140, 30)
+			end
+		end
+		b.part("HazardBand", Vector3.new(1.58, 0.16, 1.28), CFrame.new(0, 0.55, 0), Color3.fromRGB(252, 204, 48))
+	end,
+	NavBeacon = function(b, top)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p.Color = Color3.fromRGB(90, 240, 255)
+				p.Material = Enum.Material.Neon
+			end
+		end
+		b.ellipsoid("Beacon", Vector3.new(0.3, 0.3, 0.3), CFrame.new(0, top + 0.12, 0), Color3.fromRGB(255, 80, 80), Enum.Material.Neon)
+	end,
+	VentKing = function(b, _)
+		-- Taç: bant ve üç diş
+		b.cylinder("CrownBand", 0.18, 0.9, CFrame.new(0, 1.3, 0.15) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(250, 200, 60), Enum.Material.Metal)
+		for i = -1, 1 do
+			b.part("CrownTooth", Vector3.new(0.16, 0.3, 0.16), CFrame.new(i * 0.3, 1.52, 0.15), Color3.fromRGB(250, 200, 60), Enum.Material.Metal)
+		end
+	end,
+	IcePup = function(b, top)
+		for _, side in { -0.45, 0.45 } do
+			b.ellipsoid("Ear", Vector3.new(0.3, 0.5, 0.18), CFrame.new(side, top - 0.05, 0.1) * CFrame.Angles(0, 0, math.rad(side * -30)), b.color:Lerp(Color3.new(1, 1, 1), 0.3))
+		end
+	end,
+	LavaBug = function(b, _)
+		for _, side in { -0.4, 0.05, 0.45 } do
+			b.ellipsoid("LavaSpot", Vector3.new(0.3, 0.12, 0.3), CFrame.new(side, 1.16, 0.12), Color3.fromRGB(255, 170, 40), Enum.Material.Neon)
+		end
+	end,
+	Specimen = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Body" or p.Name == "Backpack" or string.find(p.Name, "Leg")) then
+				p.Material = Enum.Material.Glass
+				p.Transparency = math.max(p.Transparency, 0.3)
+			end
+		end
+		b.ellipsoid("Nucleus", Vector3.new(0.5, 0.5, 0.5), CFrame.new(0, 1.0, 0.1), Color3.fromRGB(60, 200, 90), Enum.Material.Neon)
+	end,
+	Dropship = function(b, _)
+		for _, side in { -1, 1 } do
+			b.part("Fin", Vector3.new(0.1, 0.6, 0.5), CFrame.new(side * 0.85, 0.6, 0.3), Color3.fromRGB(240, 138, 40))
+		end
+	end,
+	PolusYeti = function(b, top)
+		for _, side in { -1, 1 } do
+			b.part("Horn", Vector3.new(0.16, 0.42, 0.16), CFrame.new(side * 0.38, top + 0.08, 0.05) * CFrame.Angles(0, 0, math.rad(side * -22)), Color3.fromRGB(150, 160, 175))
+			b.ellipsoid("Tuft", Vector3.new(0.5, 0.4, 0.4), CFrame.new(side * 0.72, 1.2, 0.1), WHITE)
+		end
+	end,
+	Specter = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") then
+				if p.Name == "Visor" then
+					p.Color = Color3.fromRGB(200, 150, 255)
+					p.Material = Enum.Material.Neon
+				elseif not string.find(p.Name, "Glint") then
+					p.Transparency = math.max(p.Transparency, 0.35)
+				end
+			end
+		end
+	end,
+	SpaceDust = function(b, _)
+		for i = 0, 4 do
+			local a = math.rad(i * 72)
+			b.ellipsoid("Dust", Vector3.new(0.16, 0.16, 0.16), CFrame.new(math.cos(a) * 1.05, 1.0 + (i % 2) * 0.35, math.sin(a) * 1.05), Color3.fromRGB(230, 220, 255), Enum.Material.Neon)
+		end
+	end,
+	Satellite = function(b, _)
+		for _, side in { -1, 1 } do
+			b.part("PanelArm", Vector3.new(0.4, 0.08, 0.08), CFrame.new(side * 0.95, 1.0, 0), METAL, Enum.Material.Metal)
+			b.part("SolarPanel", Vector3.new(0.7, 0.05, 0.6), CFrame.new(side * 1.45, 1.0, 0), Color3.fromRGB(40, 80, 180), Enum.Material.Glass)
+		end
+	end,
+	TinyUfo = function(b, top)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p:Destroy()
+			end
+		end
+		b.cylinder("Saucer", 0.22, 2.3, CFrame.new(0, 0.75, 0) * CFrame.Angles(0, 0, math.rad(90)), METAL, Enum.Material.Metal)
+		local dome = b.ellipsoid("Dome", Vector3.new(0.9, 0.6, 0.9), CFrame.new(0, top - 0.1, 0.05), VISOR, Enum.Material.Glass)
+		dome.Transparency = 0.4
+		for i = 0, 3 do
+			local a = math.rad(i * 90 + 45)
+			b.ellipsoid("UfoLight", Vector3.new(0.18, 0.18, 0.18), CFrame.new(math.cos(a) * 1.0, 0.72, math.sin(a) * 1.0), Color3.fromRGB(255, 240, 120), Enum.Material.Neon)
+		end
+	end,
+	OrbitCat = function(b, top)
+		for _, side in { -0.42, 0.42 } do
+			b.part("Ear", Vector3.new(0.3, 0.36, 0.14), CFrame.new(side, top - 0.02, 0.1) * CFrame.Angles(0, 0, math.rad(45)), b.color)
+		end
+		local ring = b.cylinder("Orbit", 0.08, 2.6, CFrame.new(0, 1.1, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(20), 0, 0), Color3.fromRGB(255, 220, 120), Enum.Material.Neon)
+		ring.Transparency = 0.2
+	end,
+	Pulsar = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Body" then
+				p.Material = Enum.Material.Neon
+			elseif p:IsA("BasePart") and p.Name == "Ring" then
+				p.Color = WHITE
+				p.Material = Enum.Material.Neon
+			end
+		end
+	end,
+	BlackHole = function(b, _)
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p.Color = Color3.fromRGB(255, 140, 40)
+				p.Material = Enum.Material.Neon
+			end
+		end
+	end,
+	StarWhale = function(b, _)
+		b.ellipsoid("Tail", Vector3.new(1.0, 0.18, 0.5), CFrame.new(0, 0.9, 1.05) * CFrame.Angles(math.rad(20), 0, 0), b.color:Lerp(Color3.new(0, 0, 0), 0.15))
+		for i, spec in { { -0.45, 1.5 }, { 0.35, 1.7 }, { 0.5, 1.25 } } do
+			b.ellipsoid("StarSpot" .. i, Vector3.new(0.14, 0.14, 0.08), CFrame.new(spec[1], spec[2], -0.5), Color3.fromRGB(255, 240, 150), Enum.Material.Neon)
+		end
+	end,
+
 	NebulaEye = function(b, top)
 		-- Vizör yerine tek iri göz: nebula gözü
 		for _, p in b.model:GetChildren() do

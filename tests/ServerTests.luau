@@ -2496,22 +2496,65 @@ case("Pet: birleştirme boyutu büyütüyor, türü ve mutasyonu koruyor", funct
 end)
 
 case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", function()
-	local byEgg: { [string]: { [string]: Config.PetDef } } = {}
+	-- yumurta -> kademe -> petler (her kademede 1-3 pet)
+	local byEgg: { [string]: { [string]: { Config.PetDef } } } = {}
+	local ids: { [string]: boolean } = {}
 	for _, def in Config.Pets do
 		ok(def.id .. " yumurtası var", Config.GetEgg(def.egg) ~= nil, def.egg)
+		ok(def.id .. " kimliği tek", ids[def.id] == nil)
+		ids[def.id] = true
 		byEgg[def.egg] = byEgg[def.egg] or {}
-		ok(def.id .. " kademesi yumurtada tek", byEgg[def.egg][def.rarity] == nil, def.rarity)
-		byEgg[def.egg][def.rarity] = def
+		byEgg[def.egg][def.rarity] = byEgg[def.egg][def.rarity] or {}
+		table.insert(byEgg[def.egg][def.rarity], def)
 	end
+	ok("pet sayısı arttı", #Config.Pets >= 50, tostring(#Config.Pets))
+
+	local function minIncome(list: { Config.PetDef }): number
+		local m = math.huge
+		for _, d in list do
+			m = math.min(m, d.incomeBonus)
+		end
+		return m
+	end
+	local function maxIncome(list: { Config.PetDef }): number
+		local m = -math.huge
+		for _, d in list do
+			m = math.max(m, d.incomeBonus)
+		end
+		return m
+	end
+
 	for _, egg in Config.Eggs do
+		local mine = byEgg[egg.id] or {}
 		for rarity in egg.weights do
-			ok(egg.id .. " " .. rarity .. " peti var", byEgg[egg.id] ~= nil and byEgg[egg.id][rarity] ~= nil)
+			ok(egg.id .. " " .. rarity .. " peti var", mine[rarity] ~= nil and #mine[rarity] > 0)
 		end
-		-- Yumurta içinde kademe arttıkça güç artıyor
-		local pets = Config.GetEggPets(egg.id)
-		for i = 2, #pets do
-			ok(egg.id .. " sıralı güç", pets[i].incomeBonus > pets[i - 1].incomeBonus, pets[i].id)
+		-- Kademe arttıkça güç artıyor: üst kademenin en zayıfı alt kademenin en güçlüsünden iyi
+		local order: { string } = {}
+		for rarity in mine do
+			table.insert(order, rarity)
 		end
+		table.sort(order, function(a, b)
+			return Config.Rarities[a].order < Config.Rarities[b].order
+		end)
+		for i = 2, #order do
+			ok(egg.id .. " sıralı güç " .. order[i], minIncome(mine[order[i]]) > maxIncome(mine[order[i - 1]]))
+		end
+		-- Aynı kademedeki petler farklı stat veriyor
+		for rarity, list in mine do
+			for a = 1, #list do
+				for b = a + 1, #list do
+					ok(egg.id .. " " .. rarity .. " farklı stat " .. list[a].id .. "/" .. list[b].id,
+						list[a].incomeBonus ~= list[b].incomeBonus or list[a].speedBonus ~= list[b].speedBonus)
+				end
+			end
+		end
+		-- Petlerin şansları toplamı %100 (kademe şansı kademedeki pet sayısına bölünüyor)
+		local sum = 0
+		for _, def in Config.GetEggPets(egg.id) do
+			sum += Config.GetPetChance(egg.id, def.id)
+		end
+		near(egg.id .. " şans toplamı", sum, 100, 0.01)
 		-- Çekiliş yalnızca o yumurtanın petlerini veriyor
 		local rng = Random.new(7)
 		local foreign = 0
@@ -2523,17 +2566,17 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 		end
 		eq(egg.id .. " başka yumurtanın peti çıkmıyor", foreign, 0)
 	end
-	-- Kademeler: ucuz yumurta Epic'e kadar, sonraki Legendary, son ikisi Secret
+	-- Kademeler: ucuz yumurta Legendary'e kadar, Skeld Mythic'e, son ikisi Secret
 	local supply, skeld, polus, void = byEgg.SupplyEgg, byEgg.SkeldEgg, byEgg.PolusEgg, byEgg.VoidEgg
-	ok("Supply'da Common..Epic + tek Legendary", supply.Common ~= nil and supply.Epic ~= nil and supply.Legendary ~= nil and supply.Mythic == nil)
-	ok("Skeld'de Legendary + tek Mythic", skeld.Legendary ~= nil and skeld.Mythic ~= nil and skeld.Secret == nil)
+	ok("Supply'da Common..Epic + Legendary", supply.Common ~= nil and supply.Epic ~= nil and supply.Legendary ~= nil and supply.Mythic == nil)
+	ok("Skeld'de Legendary + Mythic", skeld.Legendary ~= nil and skeld.Mythic ~= nil and skeld.Secret == nil)
 	ok("Supply Legendary nadir (<%1)", (Config.Eggs[1].weights.Legendary or 0) < 1)
 	ok("Skeld Mythic nadir (<%1)", (Config.Eggs[2].weights.Mythic or 0) < 1)
 	ok("Polus ve Void'de Secret", polus.Secret ~= nil and void.Secret ~= nil)
-	-- Pahalı yumurtanın Common'ı ucuzunkinden güçlü
-	ok("Void Common > Supply Common", void.Common.incomeBonus > supply.Common.incomeBonus)
-	ok("Polus Common > Skeld Common", polus.Common.incomeBonus > skeld.Common.incomeBonus)
-	ok("Supply Epic hâlâ Void Common'dan iyi", supply.Epic.incomeBonus > void.Common.incomeBonus)
+	-- Pahalı yumurtanın en zayıf Common'ı ucuzunkinin en güçlüsünden iyi
+	ok("Void Common > Supply Common", minIncome(void.Common) > maxIncome(supply.Common))
+	ok("Polus Common > Skeld Common", minIncome(polus.Common) > maxIncome(skeld.Common))
+	ok("Supply Epic hâlâ Void Common'dan iyi", minIncome(supply.Epic) > maxIncome(void.Common))
 end)
 
 case("Pet: otomatik silme envantere koymuyor ama indekse işliyor", function(ctx)

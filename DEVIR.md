@@ -13,6 +13,24 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (15) — Batur (Yusuf'un şeridine de yazıldı)
+
+**Petler 25 → 56, her pet farklı stat** (`Config.Pets`, `PetModel.luau`, `EggPanel.luau`, `Index.luau`):
+- Her yumurtada her kademede 1-3 pet (Supply 12, Skeld 14, Polus 15, Void 15). Eski
+  kimlikler aynı; 31 yeni pet (DuctTape, Keycard, O2Sprout, VentKing, PolusYeti, TinyUfo,
+  BlackHole, StarWhale...). Her birine `PetModel` FORMS + ayırt edici DETAILS eklendi.
+- **Pet tipi** (`PET_STYLE`): `balanced` 1/1, `earner` gelir ×1.15 hız ×0.8, `runner`
+  gelir ×0.85 hız ×1.25. Aynı yumurtanın aynı kademesindeki petler farklı tipte. Aralık
+  dar: üst kademenin en zayıfı alt kademenin en güçlüsünden hâlâ iyi (test ediyor).
+- Kademe şansları DEĞİŞMEDİ; kademe çekildikten sonra kademedeki pet eşit şansla.
+  **`Config.GetPetChance(eggId, petId)`** petin kendi şansı (kademe şansı / pet sayısı);
+  yumurta paneli ve indeks artık bunu gösteriyor (eskiden her pete kademenin tamamını
+  yazıyordu).
+- `EggPanel`: 8'den çok petli yumurtada ızgara 5 sütun + küçük hücre (panele sığsın);
+  AUTO-DELETE satırları kademe başına bir tane (eskiden pet başınaydı).
+- `GetEggPets` sırası: kademe, sonra gelir, sonra kimlik (sabit sıra).
+- Test "her yumurtanın kendi takımı" çoklu pete göre yeniden yazıldı.
+
 ## 2026-09-26 (14) — Batur (Yusuf'un şeridine de yazıldı)
 
 **1. Ekipman dengesi** (`Config.Gear`, `GearService.luau`) — Yusuf, senin aletlerin:

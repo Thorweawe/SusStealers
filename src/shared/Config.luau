@@ -1724,9 +1724,29 @@ local EGG_TIER = {
 	VoidEgg   = { income = 4.0, speed = 1.9 },
 }
 
-local function pet(id: string, name: string, rarity: Rarity, egg: string, color: Color3): PetDef
-	local tier = PET_TIER[rarity]
+--[[
+	═══ PET TİPİ: AYNI KADEMEDE FARKLI STAT ════════════════════════════════
+
+	Bir yumurtanın aynı kademesinde birden fazla pet var ve her biri farklı
+	bir şey veriyor: biri daha çok GELİR, biri daha çok HIZ, biri dengeli.
+	Böylece "hangi Rare?" sorusu anlamlı: çalmayı seven koşucuyu, kaide
+	dolduran kazandıranı takıyor.
+
+	Aralıklar dar tutuldu ki KADEME SIRASI bozulmasın: en kötü Rare bile
+	en iyi Uncommon'dan fazla gelir veriyor (gelir çarpanı 0.85-1.15,
+	kademe tabanları arası fark bundan büyük). Hızda aralık daha geniş.
+]]
+local PET_STYLE = {
+	balanced = { income = 1.0, speed = 1.0 },
+	earner   = { income = 1.15, speed = 0.8 },   -- kazandıran: gelir önde
+	runner   = { income = 0.85, speed = 1.25 },  -- koşucu: taşıma hızı önde
+}
+
+local function pet(id: string, name: string, rarity: Rarity, egg: string, color: Color3, style: string?): PetDef
+	local base = PET_TIER[rarity]
 	local eggTier = EGG_TIER[egg]
+	local st = PET_STYLE[style or "balanced"]
+	local tier = { income = base.income * st.income, speed = base.speed * st.speed }
 	-- Binde bire yuvarla: kayan nokta artığı arayüzde "+%3" yerine "+%2.99..." olmasın
 	local function round(x: number): number
 		return math.floor(x * 1000 + 0.5) / 1000
@@ -1753,37 +1773,68 @@ end
 ]]
 Config.Pets = {
 	-- Supply Egg: erzak dolabından çıkanlar
-	pet("Bolt",       "Loose Bolt",       "Common",    "SupplyEgg", Color3.fromRGB(176, 184, 196)),
-	pet("VentRat",    "Vent Rat",         "Uncommon",  "SupplyEgg", Color3.fromRGB(113,  73,  30)),
-	pet("Hamster",    "Cargo Hamster",    "Rare",      "SupplyEgg", Color3.fromRGB(226, 186, 120)),
-	pet("SparePod",   "Spare Helmet",     "Epic",      "SupplyEgg", Color3.fromRGB(150, 222, 236)),
-	pet("FuelCan",    "Fuel Canister",    "Legendary", "SupplyEgg", Color3.fromRGB(255, 196,  40)),
+	pet("Bolt",        "Loose Bolt",       "Common",    "SupplyEgg", Color3.fromRGB(176, 184, 196)),
+	pet("DuctTape",    "Duct Tape",        "Common",    "SupplyEgg", Color3.fromRGB(150, 156, 164), "earner"),
+	pet("CargoBox",    "Cargo Box",        "Common",    "SupplyEgg", Color3.fromRGB(196, 150, 96),  "runner"),
+	pet("VentRat",     "Vent Rat",         "Uncommon",  "SupplyEgg", Color3.fromRGB(113,  73,  30), "runner"),
+	pet("Keycard",     "Swipe Card",       "Uncommon",  "SupplyEgg", Color3.fromRGB(245, 205,  60), "earner"),
+	pet("TrashBag",    "Trash Bag",        "Uncommon",  "SupplyEgg", Color3.fromRGB( 52,  84,  58)),
+	pet("Hamster",     "Cargo Hamster",    "Rare",      "SupplyEgg", Color3.fromRGB(226, 186, 120), "runner"),
+	pet("O2Sprout",    "O2 Sprout",        "Rare",      "SupplyEgg", Color3.fromRGB( 90, 200,  90), "earner"),
+	pet("WireKnot",    "Wire Tangle",      "Rare",      "SupplyEgg", Color3.fromRGB( 70, 120, 230)),
+	pet("SparePod",    "Spare Helmet",     "Epic",      "SupplyEgg", Color3.fromRGB(150, 222, 236), "earner"),
+	pet("AsteroidPal", "Pet Asteroid",     "Epic",      "SupplyEgg", Color3.fromRGB(140, 126, 112), "runner"),
+	pet("FuelCan",     "Fuel Canister",    "Legendary", "SupplyEgg", Color3.fromRGB(255, 196,  40)),
 
 	-- Skeld Egg: geminin mürettebatı ve makineleri
-	pet("MiniCrew",   "Mini Crew",        "Common",    "SkeldEgg",  Color3.fromRGB(197,  17,  17)),
-	pet("BrainSlug",  "Brain Slug",       "Uncommon",  "SkeldEgg",  Color3.fromRGB(238, 132, 195)),
-	pet("TaskBot",    "Task Bot",         "Rare",      "SkeldEgg",  Color3.fromRGB( 56, 254, 220)),
-	pet("MedDrone",   "Medbay Drone",     "Epic",      "SkeldEgg",  Color3.fromRGB( 90, 200, 255)),
-	pet("SecurityCam","Security Cam",     "Legendary", "SkeldEgg",  Color3.fromRGB(120, 220, 255)),
-	pet("PrimeShield","Prime Shield",     "Mythic",    "SkeldEgg",  Color3.fromRGB( 70, 150, 255)),
+	pet("MiniCrew",    "Mini Crew",        "Common",    "SkeldEgg",  Color3.fromRGB(197,  17,  17)),
+	pet("MiniBlue",    "Mini Blue",        "Common",    "SkeldEgg",  Color3.fromRGB( 19,  46, 209), "earner"),
+	pet("MiniLime",    "Mini Lime",        "Common",    "SkeldEgg",  Color3.fromRGB( 80, 239,  57), "runner"),
+	pet("BrainSlug",   "Brain Slug",       "Uncommon",  "SkeldEgg",  Color3.fromRGB(238, 132, 195), "earner"),
+	pet("SampleTube",  "Sample Tube",      "Uncommon",  "SkeldEgg",  Color3.fromRGB(120, 230, 170)),
+	pet("Plushie",     "Crew Plushie",     "Uncommon",  "SkeldEgg",  Color3.fromRGB(255, 170, 200), "runner"),
+	pet("TaskBot",     "Task Bot",         "Rare",      "SkeldEgg",  Color3.fromRGB( 56, 254, 220)),
+	pet("ReactorBot",  "Reactor Bot",      "Rare",      "SkeldEgg",  Color3.fromRGB(240, 125,  13), "earner"),
+	pet("NavBeacon",   "Nav Beacon",       "Rare",      "SkeldEgg",  Color3.fromRGB( 60, 200, 210), "runner"),
+	pet("MedDrone",    "Medbay Drone",     "Epic",      "SkeldEgg",  Color3.fromRGB( 90, 200, 255), "earner"),
+	pet("EngineSpark", "Engine Spark",     "Epic",      "SkeldEgg",  Color3.fromRGB(255, 200,  70), "runner"),
+	pet("SecurityCam", "Security Cam",     "Legendary", "SkeldEgg",  Color3.fromRGB(120, 220, 255), "earner"),
+	pet("VentKing",    "Vent King",        "Legendary", "SkeldEgg",  Color3.fromRGB( 80,  90, 104), "runner"),
+	pet("PrimeShield", "Prime Shield",     "Mythic",    "SkeldEgg",  Color3.fromRGB( 70, 150, 255)),
 
 	-- Polus Egg: buzul üssü ve reaktör
-	pet("SnowPal",    "Polus Snow Pal",   "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
-	pet("VentCrab",   "Vent Crab",        "Uncommon",  "PolusEgg",  Color3.fromRGB( 62,  71,  78)),
-	pet("CoreShard",  "Reactor Shard",    "Rare",      "PolusEgg",  Color3.fromRGB(255, 120,  20)),
-	pet("EscapePod",  "Escape Pod",       "Epic",      "PolusEgg",  Color3.fromRGB(215, 224, 240)),
-	pet("SusShadow",  "Sus Shadow",       "Legendary", "PolusEgg",  Color3.fromRGB(107,  47, 187)),
-	pet("MeetingBell","Emergency Bell",   "Mythic",    "PolusEgg",  Color3.fromRGB(255,  70, 110)),
-	pet("TheEgg",     "The Egg",          "Secret",    "PolusEgg",  Color3.fromRGB(238, 230, 214)),
+	pet("SnowPal",     "Polus Snow Pal",   "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
+	pet("IcePup",      "Ice Pup",          "Common",    "PolusEgg",  Color3.fromRGB(150, 210, 245), "runner"),
+	pet("Snowball",    "Snowball",         "Common",    "PolusEgg",  Color3.fromRGB(236, 244, 250), "earner"),
+	pet("VentCrab",    "Vent Crab",        "Uncommon",  "PolusEgg",  Color3.fromRGB( 62,  71,  78), "runner"),
+	pet("LavaBug",     "Lava Bug",         "Uncommon",  "PolusEgg",  Color3.fromRGB(220,  70,  30), "earner"),
+	pet("SeismicBot",  "Seismic Bot",      "Uncommon",  "PolusEgg",  Color3.fromRGB(210, 180, 130)),
+	pet("CoreShard",   "Reactor Shard",    "Rare",      "PolusEgg",  Color3.fromRGB(255, 120,  20), "earner"),
+	pet("Specimen",    "Lab Specimen",     "Rare",      "PolusEgg",  Color3.fromRGB(120, 240, 140), "runner"),
+	pet("EscapePod",   "Escape Pod",       "Epic",      "PolusEgg",  Color3.fromRGB(215, 224, 240), "runner"),
+	pet("Dropship",    "Mini Dropship",    "Epic",      "PolusEgg",  Color3.fromRGB(170, 176, 186), "earner"),
+	pet("SusShadow",   "Sus Shadow",       "Legendary", "PolusEgg",  Color3.fromRGB(107,  47, 187), "runner"),
+	pet("PolusYeti",   "Polus Yeti",       "Legendary", "PolusEgg",  Color3.fromRGB(240, 244, 250), "earner"),
+	pet("MeetingBell", "Emergency Bell",   "Mythic",    "PolusEgg",  Color3.fromRGB(255,  70, 110), "earner"),
+	pet("Specter",     "Polus Specter",    "Mythic",    "PolusEgg",  Color3.fromRGB(160, 120, 255), "runner"),
+	pet("TheEgg",      "The Egg",          "Secret",    "PolusEgg",  Color3.fromRGB(238, 230, 214)),
 
 	-- Void Egg: geminin dışı, boşluk
-	pet("VoidMite",   "Void Mite",        "Common",    "VoidEgg",   Color3.fromRGB( 96,  64, 150)),
-	pet("StarJelly",  "Star Jelly",       "Uncommon",  "VoidEgg",   Color3.fromRGB(255, 140, 220)),
-	pet("CometPup",   "Comet Pup",        "Rare",      "VoidEgg",   Color3.fromRGB(110, 230, 255)),
-	pet("GhostCrew",  "Ejected Ghost",    "Epic",      "VoidEgg",   Color3.fromRGB(170, 190, 255)),
-	pet("MiniImp",    "Mini Impostor",    "Legendary", "VoidEgg",   Color3.fromRGB(190,   0,  55)),
-	pet("NebulaEye",  "Nebula Eye",       "Mythic",    "VoidEgg",   Color3.fromRGB(200,  90, 255)),
-	pet("VoidShard",  "Void Shard",       "Secret",    "VoidEgg",   Color3.fromRGB( 18,  18,  26)),
+	pet("VoidMite",    "Void Mite",        "Common",    "VoidEgg",   Color3.fromRGB( 96,  64, 150)),
+	pet("SpaceDust",   "Space Dust",       "Common",    "VoidEgg",   Color3.fromRGB(130, 120, 170), "earner"),
+	pet("MoonRock",    "Moon Rock",        "Common",    "VoidEgg",   Color3.fromRGB(150, 150, 160), "runner"),
+	pet("StarJelly",   "Star Jelly",       "Uncommon",  "VoidEgg",   Color3.fromRGB(255, 140, 220), "earner"),
+	pet("Satellite",   "Mini Satellite",   "Uncommon",  "VoidEgg",   Color3.fromRGB(200, 206, 214)),
+	pet("TinyUfo",     "Tiny UFO",         "Uncommon",  "VoidEgg",   Color3.fromRGB(110, 220, 120), "runner"),
+	pet("CometPup",    "Comet Pup",        "Rare",      "VoidEgg",   Color3.fromRGB(110, 230, 255), "runner"),
+	pet("OrbitCat",    "Orbit Cat",        "Rare",      "VoidEgg",   Color3.fromRGB( 40,  40,  56), "earner"),
+	pet("GhostCrew",   "Ejected Ghost",    "Epic",      "VoidEgg",   Color3.fromRGB(170, 190, 255), "runner"),
+	pet("Pulsar",      "Pulsar",           "Epic",      "VoidEgg",   Color3.fromRGB( 90, 240, 255), "earner"),
+	pet("MiniImp",     "Mini Impostor",    "Legendary", "VoidEgg",   Color3.fromRGB(190,   0,  55), "runner"),
+	pet("BlackHole",   "Black Hole",       "Legendary", "VoidEgg",   Color3.fromRGB( 14,  14,  20), "earner"),
+	pet("NebulaEye",   "Nebula Eye",       "Mythic",    "VoidEgg",   Color3.fromRGB(200,  90, 255), "earner"),
+	pet("StarWhale",   "Star Whale",       "Mythic",    "VoidEgg",   Color3.fromRGB( 40,  70, 170), "runner"),
+	pet("VoidShard",   "Void Shard",       "Secret",    "VoidEgg",   Color3.fromRGB( 18,  18,  26)),
 } :: { PetDef }
 
 -- Aynı anda takılabilecek pet sayısı. Üç: sıralı bir seçim yapacak kadar
@@ -2035,10 +2086,43 @@ function Config.GetEggPets(eggId: string): { PetDef }
 			table.insert(out, def)
 		end
 	end
+	-- Kademe, aynı kademede gelir, sonra kimlik: sıra her açılışta aynı kalsın
 	table.sort(out, function(a, b)
-		return Config.Rarities[a.rarity].order < Config.Rarities[b.rarity].order
+		local ra, rb = Config.Rarities[a.rarity].order, Config.Rarities[b.rarity].order
+		if ra ~= rb then
+			return ra < rb
+		end
+		if a.incomeBonus ~= b.incomeBonus then
+			return a.incomeBonus < b.incomeBonus
+		end
+		return a.id < b.id
 	end)
 	return out
+end
+
+--[[
+	Bir petin o yumurtadan çıkma şansı (yüzde). Önce kademe çekiliyor,
+	sonra kademedeki petlerden biri eşit şansla — yani kademe şansı o
+	kademedeki pet sayısına bölünüyor. Arayüz (yumurta paneli, indeks)
+	buradan okuyor.
+]]
+function Config.GetPetChance(eggId: string, petId: string): number
+	local egg = Config.GetEgg(eggId)
+	local def = Config.GetPet(petId)
+	if not (egg and def) or def.egg ~= eggId then
+		return 0
+	end
+	local total = 0
+	for _, w in egg.weights do
+		total += w
+	end
+	local same = 0
+	for _, other in Config.Pets do
+		if other.egg == eggId and other.rarity == def.rarity then
+			same += 1
+		end
+	end
+	return (egg.weights[def.rarity] or 0) / math.max(total, 1e-6) * 100 / math.max(same, 1)
 end
 
 local petsById: { [string]: PetDef } = {}

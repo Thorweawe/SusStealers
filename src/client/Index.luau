@@ -741,13 +741,6 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 	end
 
-	local function chanceOf(egg: Config.EggDef, rarity: string): number
-		local total = 0
-		for _, w in egg.weights do
-			total += w
-		end
-		return (egg.weights[rarity] or 0) / math.max(total, 1e-6) * 100
-	end
 
 	local function showPetDetail(card: PetCard)
 		selectedPet = card
@@ -761,7 +754,8 @@ function Index.Create(screen: ScreenGui): Catalog
 		drawPetFigure(figureSlot, def, isKnown, 80)
 		shownState = "" -- ekip ayrıntısına dönünce yeniden çizilsin
 
-		local pct = chanceOf(card.egg, def.rarity)
+		-- Petin KENDİ şansı: kademede birden fazla pet var, kademe şansı bölünüyor
+		local pct = Config.GetPetChance(card.egg.id, def.id)
 		local values = {
 			{ "Egg", string.upper(card.egg.name), eggTone(card.egg) },
 			{ "Rarity", string.upper(def.rarity), tone },

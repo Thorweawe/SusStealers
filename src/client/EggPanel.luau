@@ -194,9 +194,25 @@ function EggPanel.Create(auto: AutoHandle?)
 		content = c
 		local tint = eggTint(egg)
 		local pets = Config.GetEggPets(egg.id)
-		-- Kart yüksekliği sıra sayısına göre: tek sıralı yumurtada alt yarı boş kalmasın
-		local rowsNeeded = math.max(1, math.ceil(#pets / 4))
-		local cardH = 64 + rowsNeeded * 96
+		--[[
+			Kart yüksekliği sıra sayısına göre: tek sıralı yumurtada alt yarı
+			boş kalmasın. Çok petli yumurtada (her kademede 2-3 pet) hücreler
+			küçülüp beşli diziliyor ki kart panele sığsın.
+		]]
+		local compact = #pets > 8
+		local cols = if compact then 5 else 4
+		local cellW, cellH = if compact then 66 else 84, if compact then 76 else 88
+		local gap = if compact then 6 else 8
+		local rowH = cellH + gap
+		local rowsNeeded = math.max(1, math.ceil(#pets / cols))
+		local cardH = 64 + rowsNeeded * rowH
+		-- Otomatik silme satırları kademe başına bir tane (pet başına değil)
+		local rarities: { string } = {}
+		for _, def in pets do
+			if not table.find(rarities, def.rarity) then
+				table.insert(rarities, def.rarity)
+			end
+		end
 
 		--[[
 			UIGradient kullanılmıyor: gradyan nesnenin UIStroke'unu da
@@ -236,21 +252,17 @@ function EggPanel.Create(auto: AutoHandle?)
 
 		local grid = Instance.new("Frame")
 		grid.Position = UDim2.fromOffset(12, 56)
-		grid.Size = UDim2.fromOffset(360, rowsNeeded * 96)
+		grid.Size = UDim2.fromOffset(360, rowsNeeded * rowH)
 		grid.BackgroundTransparency = 1
 		grid.ZIndex = 3
 		grid.Parent = card
 		local layout = Instance.new("UIGridLayout")
-		layout.CellSize = UDim2.fromOffset(84, 88)
-		layout.CellPadding = UDim2.fromOffset(8, 8)
+		layout.CellSize = UDim2.fromOffset(cellW, cellH)
+		layout.CellPadding = UDim2.fromOffset(gap, gap)
 		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 		layout.Parent = grid
 
-		local total = 0
-		for _, w in egg.weights do
-			total += w
-		end
 		for i, def in pets do
 			local tone = tierColor(def.rarity)
 			local hidden = def.rarity == "Secret" and not found[def.id]
@@ -265,20 +277,22 @@ function EggPanel.Create(auto: AutoHandle?)
 			local fig = Instance.new("Frame")
 			fig.AnchorPoint = Vector2.new(0.5, 0)
 			fig.Position = UDim2.new(0.5, 0, 0, 4)
-			fig.Size = UDim2.fromOffset(38, 38)
+			local figSize = if compact then 32 else 38
+			fig.Size = UDim2.fromOffset(figSize, figSize)
 			fig.BackgroundTransparency = 1
 			fig.ZIndex = 6
 			fig.Parent = cell
 			if hidden then
-				UiKit.PetFigure(fig, 36, PetModel.FormOf(def.id), Color3.fromRGB(20, 20, 30))
+				UiKit.PetFigure(fig, figSize - 2, PetModel.FormOf(def.id), Color3.fromRGB(20, 20, 30))
 				local q = text(fig, "?", 28, WHITE, 12)
 				q.Size = UDim2.fromScale(1, 1)
 			else
-				UiKit.PetFigure(fig, 36, PetModel.FormOf(def.id), def.color)
+				UiKit.PetFigure(fig, figSize - 2, PetModel.FormOf(def.id), def.color)
 			end
 
-			local pct = (egg.weights[def.rarity] or 0) / math.max(total, 1e-6) * 100
-			local chance = text(cell, chanceText(pct), 16, WHITE, 6)
+			-- Petin KENDİ şansı (kademe şansı kademedeki pet sayısına bölünmüş)
+			local pct = Config.GetPetChance(egg.id, def.id)
+			local chance = text(cell, chanceText(pct), if compact then 13 else 16, WHITE, 6)
 			chance.AnchorPoint = Vector2.new(0.5, 1)
 			chance.Position = UDim2.new(0.5, 0, 1, -2)
 			chance.Size = UDim2.new(1, 0, 0, 18)
@@ -294,20 +308,21 @@ function EggPanel.Create(auto: AutoHandle?)
 			]]
 			local name = text(cell, if hidden then "???" else def.name, 11, WHITE, 6)
 			name.AnchorPoint = Vector2.new(0.5, 0)
-			name.Position = UDim2.new(0.5, 0, 0, 42)
-			name.Size = UDim2.new(1, -6, 0, 24)
+			name.Position = UDim2.new(0.5, 0, 0, figSize + 4)
+			name.Size = UDim2.new(1, -6, 0, if compact then 20 else 24)
 			name.TextWrapped = true
 			name.TextScaled = true
 			name.TextStrokeColor3 = INK
 			name.TextStrokeTransparency = 0.2
+			-- Küçük hücrede iki satır sığsın ("Moon Rock" yalnızca "Moon" kalıyordu)
 			local limit = Instance.new("UITextSizeConstraint")
-			limit.MaxTextSize = 11
-			limit.MinTextSize = 8
+			limit.MaxTextSize = if compact then 9 else 11
+			limit.MinTextSize = if compact then 6 else 8
 			limit.Parent = name
 		end
 
 		-- ── Sağ sütun: AUTO-DELETE ───────────────────────────────────────
-		local delH = math.max(cardH, 38 + #pets * 25)
+		local delH = math.max(cardH, 38 + #rarities * 25)
 		local del = Instance.new("Frame")
 		del.Position = UDim2.fromOffset(396, 26)
 		del.Size = UDim2.fromOffset(164, delH)
@@ -334,10 +349,9 @@ function EggPanel.Create(auto: AutoHandle?)
 		rl.SortOrder = Enum.SortOrder.LayoutOrder
 		rl.Parent = rows
 
-		local rowHeight = math.floor((delH - 38 - (#pets - 1) * 3) / math.max(#pets, 1))
+		local rowHeight = math.floor((delH - 38 - (#rarities - 1) * 3) / math.max(#rarities, 1))
 		rowHeight = math.clamp(rowHeight, 20, 30)
-		for i, def in pets do
-			local rarity = def.rarity
+		for i, rarity in rarities do
 			local tone = tierColor(rarity)
 			local row = Instance.new("TextButton")
 			row.LayoutOrder = i
