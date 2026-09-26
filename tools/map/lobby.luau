@@ -501,7 +501,8 @@ return {
 				K.boxAt(sf, "StepBand" .. k, base * CFrame.new(s[1], s[2] - 0.5, -4.55), Vector3.new(8.8, 1, 0.1), s[3], { emit = "Screen" })
 				local num = K.boxAt(sf, "StepNum" .. k, base * CFrame.new(s[1], (s[2] - 1) / 2, -4.56), Vector3.new(3.6, math.max(1.2, s[2] - 1.4), 0.05), C.frame, { transparency = 1 })
 				K.text(num, Enum.NormalId.Front, tostring(k), s[3], { h = 1, y = 0 })
-				K.crewmate(sf, base * CFrame.new(s[1], s[2], 0), K.crew(s[4]), 1.7)
+				-- Basamaklarda karakter YOK: GlobalBoardService TOP EARNERS'ın ilk
+				-- üçünün gerçek Roblox karakterlerini koyuyor
 			end
 			local look = base * CFrame.new(0, 17.5, 3.5)
 			K.sign(sf, "PodiumSign", look, 24, 4.4, "TOP CREW", rgb(255, 204, 60))

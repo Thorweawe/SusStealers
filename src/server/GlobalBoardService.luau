@@ -24,6 +24,14 @@
 
 	Studio'da API erişimi kapalıysa ya da istek başarısızsa pano o
 	sunucudaki oyunculara düşüyor — boş kalmıyor.
+
+	═══ TOP CREW KÜRSÜSÜ ═══════════════════════════════════════════════════
+
+	Lobinin güneydoğusundaki 1-2-3 kürsüsünde TOP EARNERS panosunun ilk
+	üçünün GERÇEK Roblox karakterleri duruyor (Players:
+	CreateHumanoidModelFromUserId — oyunda olmasalar da). Eskiden haritayla
+	konmuş sabit Among Us karakterleriydi, sıralamayla ilgisi yoktu. Kimse
+	değişmedikçe karakter yeniden kurulmuyor; yalnızca isim plakası.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -104,7 +112,7 @@ local function screenBody(index: number): (TextLabel?, TextLabel?)
 		(if header and header:IsA("TextLabel") then header else nil)
 end
 
-type Row = { name: string, value: number }
+type Row = { name: string, value: number, userId: number? }
 
 local function render(board: Board, rows: { Row }, global: boolean)
 	local body, header = screenBody(board.index)
@@ -131,7 +139,7 @@ local function localRows(board: Board): { Row }
 	for _, player in Players:GetPlayers() do
 		local profile = DataService.Get(player)
 		if profile then
-			table.insert(rows, { name = player.DisplayName, value = board.value(profile) })
+			table.insert(rows, { name = player.DisplayName, value = board.value(profile), userId = player.UserId })
 		end
 	end
 	table.sort(rows, function(a, b)
@@ -159,6 +167,186 @@ local function write(player: Player)
 	end
 end
 
+-- ─── TOP CREW kürsüsü ───────────────────────────────────────────────────────
+
+-- R15 varsayılan boşta durma (Roblox'un Animate betiğindeki "idle")
+local IDLE_ANIMATION = "rbxassetid://507766666"
+local AVATAR_SCALE = 1.3
+local RANK_COLORS = { Color3.fromRGB(255, 200, 60), Color3.fromRGB(200, 210, 222), Color3.fromRGB(214, 140, 80) }
+
+local podiumUsers: { [number]: number } = {}      -- sıra -> şu an duran UserId
+local podiumModels: { [number]: Model } = {}
+local podiumPlates: { [number]: { name: TextLabel, value: TextLabel } } = {}
+local cleared = false
+
+local function podiumFolder(): Instance?
+	local decor = workspace:FindFirstChild("Decor")
+	local folder = decor and decor:FindFirstChild("Podium", true)
+	return if folder and folder:FindFirstChild("Step1") then folder else nil
+end
+
+--[[ Basamağın üst yüzeyinin ortası, odaya bakan yönde. ]]
+local function stepTop(folder: Instance, rank: number): CFrame?
+	local step = folder:FindFirstChild("Step" .. rank)
+	if not (step and step:IsA("BasePart")) then
+		return nil
+	end
+	return step.CFrame * CFrame.new(0, step.Size.Y / 2, 0)
+end
+
+local function buildAvatar(userId: number): Model?
+	local ok, model = pcall(function()
+		return Players:CreateHumanoidModelFromUserId(userId)
+	end)
+	if not ok or not model then
+		return nil
+	end
+	model.Name = "TopCrewAvatar"
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		humanoid.BreakJointsOnDeath = false
+	end
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CanCollide = false
+			d.CanTouch = false
+			d.CanQuery = false
+		elseif d:IsA("Script") or d:IsA("LocalScript") then
+			d:Destroy()
+		end
+	end
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.Anchored = true
+	end
+	pcall(function()
+		model:ScaleTo(AVATAR_SCALE)
+	end)
+	return model
+end
+
+local function plateFor(folder: Instance, rank: number, top: CFrame): { name: TextLabel, value: TextLabel }
+	local existing = podiumPlates[rank]
+	if existing and existing.name.Parent then
+		return existing
+	end
+	local anchor = Instance.new("Part")
+	anchor.Name = "TopCrewPlate" .. rank
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(1, 1, 1)
+	anchor.CFrame = top * CFrame.new(0, 9.6, 0)
+	anchor.Parent = folder
+
+	-- Ölçekli boyut (stud): piksel boyutlu etiketler bu oyunda çizilmiyordu
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromScale(9, 2.6)
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 140
+	gui.LightInfluence = 0
+	gui.Parent = anchor
+	local name = Instance.new("TextLabel")
+	name.Size = UDim2.fromScale(1, 0.6)
+	name.BackgroundTransparency = 1
+	name.Font = Enum.Font.FredokaOne
+	name.TextScaled = true
+	name.TextColor3 = RANK_COLORS[rank] or Color3.new(1, 1, 1)
+	name.Text = ""
+	name.Parent = gui
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(22, 20, 34)
+	stroke.Thickness = 3
+	stroke.Parent = name
+	local value = Instance.new("TextLabel")
+	value.Position = UDim2.fromScale(0, 0.6)
+	value.Size = UDim2.fromScale(1, 0.4)
+	value.BackgroundTransparency = 1
+	value.Font = Enum.Font.GothamBold
+	value.TextScaled = true
+	value.TextColor3 = Color3.new(1, 1, 1)
+	value.Text = ""
+	value.Parent = gui
+	local vstroke = Instance.new("UIStroke")
+	vstroke.Color = Color3.fromRGB(22, 20, 34)
+	vstroke.Thickness = 2
+	vstroke.Parent = value
+	local plate = { name = name, value = value }
+	podiumPlates[rank] = plate
+	return plate
+end
+
+--[[ Kürsüye `rows`un ilk üçünü koyar (TOP EARNERS). ]]
+local function updatePodium(board: Board, rows: { Row })
+	local folder = podiumFolder()
+	if not folder then
+		return
+	end
+	-- Haritanın koyduğu sabit Among Us karakterleri bir kez kalkıyor
+	if not cleared then
+		cleared = true
+		for _, child in folder:GetChildren() do
+			if child:IsA("Model") and child.Name ~= "TopCrewAvatar" then
+				child:Destroy()
+			end
+		end
+	end
+
+	for rank = 1, 3 do
+		local top = stepTop(folder, rank)
+		if not top then
+			continue
+		end
+		local row = rows[rank]
+		local plate = plateFor(folder, rank, top)
+		plate.name.Text = if row then string.format("#%d %s", rank, string.sub(row.name, 1, 18)) else string.format("#%d", rank)
+		plate.value.Text = if row then board.format(row.value) else "empty"
+
+		local userId = row and row.userId
+		if userId == podiumUsers[rank] and (userId == nil or (podiumModels[rank] and podiumModels[rank].Parent)) then
+			continue
+		end
+		local old = podiumModels[rank]
+		if old then
+			old:Destroy()
+			podiumModels[rank] = nil
+		end
+		podiumUsers[rank] = userId
+		if not userId or userId <= 0 then
+			continue
+		end
+		local model = buildAvatar(userId)
+		if not model then
+			continue
+		end
+		-- Ayaklar basamağın üstünde. Basamağın bakışı (LookVector) odaya
+		-- dönük; karakterin yüzü de LookVector'ünde, yani döndürme yok.
+		local box, size = model:GetBoundingBox()
+		local pivot = model:GetPivot()
+		local lift = pivot.Position.Y - (box.Position.Y - size.Y / 2)
+		model:PivotTo(top * CFrame.new(0, lift, 0))
+		model.Parent = folder
+		podiumModels[rank] = model
+
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+			local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator")
+			animator.Parent = humanoid
+			pcall(function()
+				local animation = Instance.new("Animation")
+				animation.AnimationId = IDLE_ANIMATION
+				local track = animator:LoadAnimation(animation)
+				track.Looped = true
+				track:Play()
+			end)
+		end
+	end
+end
+
 local function refresh()
 	for _, board in BOARDS do
 		local store = if DataService.IsAvailable() then storeFor(board) else nil
@@ -172,16 +360,16 @@ local function refresh()
 				for _, entry in page do
 					local userId = tonumber(entry.key)
 					if userId then
-						table.insert(list, { name = nameOf(userId), value = entry.value })
+						table.insert(list, { name = nameOf(userId), value = entry.value, userId = userId })
 					end
 				end
 				rows = list
 			end
 		end
-		if rows and #rows > 0 then
-			render(board, rows, true)
-		else
-			render(board, localRows(board), false)
+		local shown = if rows and #rows > 0 then rows else localRows(board)
+		render(board, shown, rows ~= nil and #rows > 0)
+		if board.index == 1 then
+			task.spawn(updatePodium, board, shown)
 		end
 	end
 end
@@ -203,6 +391,11 @@ function GlobalBoardService.Start()
 			task.wait(INTERVAL)
 		end
 	end)
+end
+
+-- Testler için
+GlobalBoardService._UpdatePodium = function(rows: { Row })
+	updatePodium(BOARDS[1], rows)
 end
 
 return GlobalBoardService

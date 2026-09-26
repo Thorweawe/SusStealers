@@ -1062,6 +1062,43 @@ case("Çark: bedava çevirme hakkı harcıyor", function(ctx)
 	ctx.profile.lastSpinAt = 0
 end)
 
+case("Top Crew: kürsüde sıralamanın ilk üçü, sabit karakter yok", function(ctx)
+	local GlobalBoardService = require(Server.GlobalBoardService)
+	local folder = workspace.Decor:FindFirstChild("Podium", true)
+	ok("kürsü var", folder ~= nil and folder:FindFirstChild("Step1") ~= nil)
+	if not folder then
+		return
+	end
+	GlobalBoardService._UpdatePodium({
+		{ name = ctx.player.DisplayName, value = 100, userId = ctx.player.UserId },
+	})
+	local statics = 0
+	for _, child in folder:GetChildren() do
+		if child:IsA("Model") and child.Name ~= "TopCrewAvatar" then
+			statics += 1
+		end
+	end
+	eq("sabit Among Us karakterleri kalktı", statics, 0)
+	local plate = folder:FindFirstChild("TopCrewPlate1")
+	local label = plate and plate:FindFirstChildWhichIsA("TextLabel", true)
+	ok("1. isim plakası", label ~= nil and string.find(label.Text, ctx.player.DisplayName, 1, true) ~= nil,
+		if label then label.Text else "yok")
+	local plate2 = folder:FindFirstChild("TopCrewPlate2")
+	local label2 = plate2 and plate2:FindFirstChildWhichIsA("TextLabel", true)
+	eq("2. boş", label2 and label2.Text, "#2")
+	-- Studio'daki test oyuncusunun kimliği gerçekse karakter kuruluyor; değilse atlanıyor
+	if ctx.player.UserId > 0 then
+		local avatar = folder:FindFirstChild("TopCrewAvatar")
+		ok("1. basamakta karakter", avatar ~= nil)
+		if avatar and avatar:IsA("Model") then
+			local step = folder:FindFirstChild("Step1") :: BasePart
+			local box, size = avatar:GetBoundingBox()
+			near("ayaklar basamakta", box.Position.Y - size.Y / 2, step.Position.Y + step.Size.Y / 2, 0.3)
+			ok("odaya bakıyor", avatar:GetPivot().LookVector:Dot(step.CFrame.LookVector) > 0.99)
+		end
+	end
+end)
+
 case("Çark: her ödülün dilimi var, dilimlerde yazı", function()
 	eq("12 dilim", #Config.SpinWheelSlices, 12)
 	for _, reward in Config.SpinRewards do
