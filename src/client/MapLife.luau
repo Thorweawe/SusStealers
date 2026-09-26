@@ -229,11 +229,38 @@ function MapLife.Start(): Handle
 		end
 	end
 
+	--[[
+		Gezen impostor (sunucu, RogueService) fizikle yürüyor; görsel gövdesi
+		köke "RogueBob" kaynağıyla bağlı. Among Us yalpalamasını burada, o
+		kaynağın C0'ını yerelde oynatarak veriyoruz: hıza göre zıplama ve
+		iki yana sallanma, ayak hizası etrafında. Ağa hiçbir şey gitmiyor.
+	]]
+	local rogueBase: { [Weld]: CFrame } = setmetatable({} :: any, { __mode = "k" })
+	local function waddleRogue(clock: number)
+		local rogue = workspace:FindFirstChild("RogueImpostor")
+		local root = rogue and rogue:FindFirstChild("HumanoidRootPart")
+		local weld = root and root:FindFirstChild("RogueBob")
+		if not (root and root:IsA("BasePart") and weld and weld:IsA("Weld")) then
+			return
+		end
+		local base = rogueBase[weld]
+		if not base then
+			base = weld.C0
+			rogueBase[weld] = base
+		end
+		local v = root.AssemblyLinearVelocity
+		local k = math.clamp(Vector2.new(v.X, v.Z).Magnitude / 8, 0, 1)
+		local phase = clock * 11
+		weld.C0 = base * CFrame.new(0, math.abs(math.sin(phase)) * 0.35 * k, 0)
+			* CFrame.Angles(0, 0, math.sin(phase) * math.rad(7) * k)
+	end
+
 	local clock = 0
 	local lampAccum = 0
 	local frameNo = 0
 	local connection = RunService.Heartbeat:Connect(function(dt)
 		clock += dt
+		waddleRogue(clock)
 		frameNo += 1
 		--[[
 			PERFORMANS: gezen mürettebatın modeli yalnızca kameraya yakınsa

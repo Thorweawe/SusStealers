@@ -13,6 +13,27 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (14) — Batur (Yusuf'un şeridine de yazıldı)
+
+**1. Ekipman dengesi** (`Config.Gear`, `GearService.luau`) — Yusuf, senin aletlerin:
+- Stun Gun 45 menzil / 3 sn / 10 sn → **30 / 2.5 sn / 20 sn**; Emergency Button bekleme
+  30 → **45 sn**; Slap Glove 2.5 → **4 sn**. Fiyatlar aynı (bir kez alınıyor, fiyat gücü
+  değil zamanı belirliyor; denge bekleme süresiyle).
+- **Taşırken Stun Gun ve Emergency Button kullanılmıyor** (kaçan hırsız kovalayanı dondurmasın).
+- **Vurulan oyuncu `Config.GearHitImmunity` (3 sn) tekrar vurulmuyor** (`GearService.IsImmune`);
+  vuran "still dazed" uyarısı alıyor.
+
+**2. Gezen impostor artık titremiyor** (`RogueService.luau`, `MapLife.luau`):
+- Eskiden çapalı kök her karede ışınlanıyordu → istemcide titreme. Şimdi görünmez
+  `HumanoidRootPart` + `Humanoid:MoveTo` ile fizikle yürüyor (sunucu sahibi), Roblox
+  istemcide yumuşatıyor. Oturma/düşme/ölme durumları kapalı, parçalar CanTouch=false.
+- Görsel gövde köke `RogueBob` (Weld) ile bağlı; Among Us yalpalamasını istemci
+  (`MapLife.waddleRogue`) o kaynağın C0'ını YEREL oynatarak veriyor (hıza göre).
+- `Rogue` tipinde `root` artık HumanoidRootPart; `visual` (model kökü) ve `humanoid` eklendi.
+
+**3. Test düzeltmesi:** "Pet: otomatik silme" testi Supply Egg'e Legendary eklenince
+rastgele düşüyordu; beklenti artık petin kademesine göre. Testler 160/160.
+
 ## 2026-09-26 (13) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 - `GearPanel.luau`: Stun Gun kartında "cd 10s" → "cooldown 10s" (diğer kartlarla aynı).

@@ -72,6 +72,8 @@ end
 
 -- Son kullanım: oyuncu -> alet -> os.clock
 local lastUse: { [Player]: { [string]: number } } = {}
+-- Son vurulma (os.clock): Config.GearHitImmunity boyunca tekrar vurulmuyor
+local lastHit: { [Player]: number } = {}
 
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
@@ -108,11 +110,27 @@ local endCloak: (player: Player) -> ()
 	Vuruş: ganimet düşüyor (sunucu), savrulma/sersemleme vurulanın
 	istemcisinde. `from` savrulmanın merkezi.
 ]]
+--[[ Az önce vurulduysa (sersemleme kilidi olmasın diye) true. ]]
+function GearService.IsImmune(target: Player, now: number?): boolean
+	local last = lastHit[target]
+	return last ~= nil and (now or os.clock()) - last < Config.GearHitImmunity
+end
+
+--[[ Testler için: vurulmuş say. ]]
+function GearService._MarkHit(target: Player, at: number?)
+	lastHit[target] = at or os.clock()
+end
+
 local function hit(attacker: Player, target: Player, def: Config.GearDef, from: Vector3)
 	local character = target.Character
 	if not character then
 		return
 	end
+	if GearService.IsImmune(target) then
+		notify(attacker, string.format("%s is still dazed - try again in a moment", target.DisplayName), false)
+		return
+	end
+	lastHit[target] = os.clock()
 	-- Görünmezken vurulan görünür oluyor
 	endCloak(target)
 	fx("hit", character, def.id, from, def.knock or 0, def.stun or 1)
@@ -263,6 +281,11 @@ function GearService.Use(player: Player, id: string): boolean
 	end
 	if def.kind == "cloak" and StealService.IsCarrying(player) then
 		notify(player, "You can't turn invisible while carrying", true)
+		return false
+	end
+	-- Kaçan hırsız kovalayanı dondurup kaçamasın
+	if (def.kind == "stun" or def.kind == "blast") and StealService.IsCarrying(player) then
+		notify(player, string.format("You can't use the %s while carrying", def.name), true)
 		return false
 	end
 	if not ready(player, def) then
@@ -510,6 +533,7 @@ function GearService.Start()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(function(player)
 		lastUse[player] = nil
+		lastHit[player] = nil
 		lastBuy[player] = nil
 		cloaks[player] = nil
 	end)

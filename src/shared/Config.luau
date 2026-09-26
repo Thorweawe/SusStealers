@@ -2146,6 +2146,16 @@ end
 	    öldürmez. Taşınan ganimeti düşürtüyor (kurbanın üssüne dönüyor).
 	  - Ghost Serum görünmez yapıyor ama bir şey taşımaya başlayınca
 	    bozuluyor: görünmez hırsız olmuyor.
+	  - Stun Gun ve Emergency Button TAŞIRKEN kullanılmıyor: çalınan
+	    karakterle kaçan, kovalayan sahibi dondurup kaçamasın.
+	  - Vurulan oyuncu GearHitImmunity saniye tekrar vurulamıyor: birkaç
+	    kişi aynı oyuncuyu art arda dondurup kilitleyemesin.
+
+	DENGE (2026-09-26): aletler bir kez alınıp kalıcı olduğu için fiyat
+	gücü değil yalnızca "ne zaman" alındığını belirliyor; geç oyuncu hepsini
+	hemen alıyor. Güç bekleme süresi ve etkiyle ayarlanıyor. Stun Gun
+	45 menzil / 3 sn / 10 sn beklemeden 30 / 2.5 / 20'ye, Emergency Button
+	30'dan 45 sn beklemeye, tokat 2.5'ten 4 sn'ye çekildi.
 ]]
 export type GearDef = {
 	id: string,
@@ -2164,21 +2174,24 @@ export type GearDef = {
 
 Config.Gear = {
 	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
-		cooldown = 2.5, range = 10, stun = 1.4, knock = 60,
+		cooldown = 4, range = 10, stun = 1.4, knock = 60,
 		blurb = "Slap players flying. Thieves drop what they stole." },
 	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
 		walkSpeed = 32, sprintSpeed = 40,
 		blurb = "Run way faster than sprinting while holding it. Not while carrying." },
 	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
-		cooldown = 10, range = 45, stun = 3,
-		blurb = "Zap a player from afar: frozen for 3s, thieves drop their loot." },
+		cooldown = 20, range = 30, stun = 2.5,
+		blurb = "Zap a player from afar: frozen for 2.5s, thieves drop their loot." },
 	{ id = "GhostSerum",      name = "Ghost Serum",      price =    75000000, kind = "cloak",
 		cooldown = 40, duration = 8,
 		blurb = "Drink to turn invisible for 8s. Wears off if you grab something." },
 	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
-		cooldown = 30, range = 20, stun = 2, knock = 85,
+		cooldown = 45, range = 20, stun = 2, knock = 85,
 		blurb = "Slam it: everyone around you is blasted away and drops their loot." },
 } :: { GearDef }
+
+-- Vurulan oyuncu bu kadar saniye tekrar vurulamıyor (sersemleme kilidi olmasın)
+Config.GearHitImmunity = 3
 
 --[[
 	Kaldırılan aletler -> iade. Kayıtta bulunursa (DataService sanitize)

@@ -2550,11 +2550,17 @@ case("Pet: otomatik silme envantere koymuyor ama indekse işliyor", function(ctx
 	ok("açıldı", keys ~= nil and #keys == 1)
 	if keys then
 		local def, mutation = Config.ParsePetKey(keys[1])
-		if mutation then
-			-- Mutasyonlu pet asla silinmiyor
-			eq("mutasyonlu kaldı", ctx.profile.pets[keys[1]], 1)
-		else
+		--[[
+			Çekiliş rastgele: Supply Egg'e Legendary eklenince test ara sıra
+			düşüyordu (Legendary silme listesinde değil, envantere girmesi
+			DOĞRU). Beklenti petin kademesine göre.
+		]]
+		local deleted = def ~= nil and mutation == nil and ctx.profile.settings.autoDelete[def.rarity] == true
+		if deleted then
 			eq("silinen envantere girmedi", ctx.profile.pets[keys[1]], nil)
+		else
+			-- Mutasyonlu ya da silme listesinde olmayan kademe: envantere giriyor
+			eq("silinmeyen envanterde", ctx.profile.pets[keys[1]], 1)
 		end
 		ok("indekse işlendi", def ~= nil and ctx.profile.petsFound[def.id] == true)
 	end
@@ -2766,6 +2772,24 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	eq("iade edildi", profile.cash, 1000 + Config.RetiredGear.GravityCoil)
 	ok("kayıttan düştü", profile.gear.GravityCoil == nil)
 	ok("diğer alet kaldı", profile.gear.SlapGlove == true)
+end)
+
+case("Ekipman: denge - uzaktan ve alan aletleri sınırlı, sersemleme kilidi yok", function(ctx)
+	local stun = Config.GetGear("StunGun") :: Config.GearDef
+	local blast = Config.GetGear("EmergencyButton") :: Config.GearDef
+	local slap = Config.GetGear("SlapGlove") :: Config.GearDef
+	ok("stun menzili 30'u geçmiyor", (stun.range or 0) <= 30)
+	ok("stun beklemesi en az 20", (stun.cooldown or 0) >= 20)
+	ok("stun donması bekleme süresinden çok kısa", (stun.stun or 0) * 4 <= (stun.cooldown or 0))
+	ok("buton beklemesi en az 45", (blast.cooldown or 0) >= 45)
+	ok("tokat beklemesi en az 4", (slap.cooldown or 0) >= 4)
+	ok("koruma donmadan uzun", Config.GearHitImmunity > (stun.stun or 0))
+
+	-- Vurulan oyuncu kısa süre korunuyor
+	GearService._MarkHit(ctx.player, os.clock())
+	ok("vurulunca korunuyor", GearService.IsImmune(ctx.player))
+	ok("koruma bitiyor", not GearService.IsImmune(ctx.player, os.clock() + Config.GearHitImmunity + 0.1))
+	GearService._MarkHit(ctx.player, -math.huge)
 end)
 
 case("Ekipman: bekleme süresi sunucuda, görünmezlik açılıp kapanıyor", function(ctx)
