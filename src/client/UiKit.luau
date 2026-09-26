@@ -844,6 +844,58 @@ function UiKit.PetIcon(parent: Instance, size: number, key: string, silhouette: 
 	return vp
 end
 
+--[[
+	Karakterin (kaidedeki crewmate) GERÇEK 3B modeli bir ViewportFrame'de:
+	rengi, nadirlik şapkası ve kendine özel aksesuarıyla (UnitModel). İndeks
+	eskiden hepsini aynı 2B fasulye olarak çiziyordu. `silhouette` verilirse
+	(bilinmeyen karakter) model o renkte düz siluet. Model kurulamazsa 2B
+	çizime düşüyor.
+]]
+function UiKit.UnitIcon(parent: Instance, size: number, unitId: string, silhouette: Color3?): GuiObject
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local UnitModel = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("UnitModel")) :: any
+	local ok, model = pcall(UnitModel.Build, unitId)
+	if not (ok and model) then
+		return UiKit.Crewmate(parent, size, silhouette or UiKit.MUTED)
+	end
+
+	local vp = Instance.new("ViewportFrame")
+	vp.Name = "UnitIcon"
+	vp.AnchorPoint = Vector2.new(0.5, 0.5)
+	vp.Position = UDim2.fromScale(0.5, 0.5)
+	vp.Size = UDim2.fromOffset(size, size)
+	vp.BackgroundTransparency = 1
+	vp.Ambient = Color3.fromRGB(170, 172, 182)
+	vp.LightColor = Color3.fromRGB(255, 252, 245)
+	vp.LightDirection = Vector3.new(-0.6, -1, 0.5)
+	vp.ZIndex = baseZ(parent)
+	if silhouette then
+		vp.ImageColor3 = silhouette
+		vp.Ambient = Color3.new(1, 1, 1)
+	end
+	vp.Parent = parent
+
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") or d:IsA("Light") or d:IsA("BillboardGui") then
+			d:Destroy()
+		end
+	end
+	model:PivotTo(CFrame.new())
+	model.Parent = vp
+
+	-- Önden, hafif sağdan ve yukarıdan; uzaklık sınır kutusundan (şapkalı da sığsın)
+	local cf, extent = model:GetBoundingBox()
+	local reach = math.max(extent.X, extent.Y, extent.Z)
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	local dist = reach * 2.0
+	local target = cf.Position
+	camera.CFrame = CFrame.lookAt(target + Vector3.new(dist * 0.3, dist * 0.16, -dist), target)
+	camera.Parent = vp
+	vp.CurrentCamera = camera
+	return vp
+end
+
 function UiKit.PetFigure(parent: Instance, size: number, form: string, color: Color3): Frame
 	local z = baseZ(parent)
 

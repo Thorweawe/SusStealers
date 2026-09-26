@@ -111,6 +111,31 @@ end
 
 -- ─── A. Config bütünlüğü ────────────────────────────────────────────────────
 
+case("Karakter modeli: her karakter kendine özel, hepsi kuruluyor", function()
+	local UnitModel = require(ReplicatedStorage.Shared.UnitModel)
+	local signatures: { [string]: string } = {}
+	for _, def in Config.Units do
+		local okBuild, model = pcall(UnitModel.Build, def.id)
+		ok(def.id .. " kuruldu", okBuild and model ~= nil, if okBuild then nil else tostring(model))
+		if okBuild and model then
+			-- İmza: parça adları (renk hariç). Aynı imzalı iki karakter = aksesuarı yok
+			local names = {}
+			for _, d in model:GetDescendants() do
+				if d:IsA("BasePart") then
+					table.insert(names, d.Name)
+				end
+			end
+			table.sort(names)
+			local signature = table.concat(names, ",")
+			ok(def.id .. " başkasına benzemiyor", signatures[signature] == nil, signatures[signature])
+			signatures[signature] = def.id
+			local _, size = model:GetBoundingBox()
+			ok(def.id .. " makul boyda", size.Y > 3.5 and size.Y < 9 and size.X < 7, tostring(size))
+			model:Destroy()
+		end
+	end
+end)
+
 case("Config: karakter tanımları tutarlı", function()
 	local seen = {}
 	local allValid = true

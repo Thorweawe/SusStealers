@@ -301,11 +301,12 @@ function Index.Create(screen: ScreenGui): Catalog
 
 	local function drawFigure(slot: Frame, def: Config.UnitDef, isKnown: boolean, size: number)
 		UiKit.ClearSlot(slot)
+		-- Gerçek 3B model: rengi, şapkası ve kendine özel aksesuarı (UnitModel)
 		if isKnown then
-			UiKit.Crewmate(slot, size, def.color)
+			UiKit.UnitIcon(slot, math.floor(size * 1.25), def.id)
 		else
 			-- Siluet: kademe renginin koyusu, üstünde soru işareti
-			UiKit.Crewmate(slot, size, tierColor(def.rarity):Lerp(Color3.new(0, 0, 0), 0.72))
+			UiKit.UnitIcon(slot, math.floor(size * 1.25), def.id, tierColor(def.rarity):Lerp(Color3.new(0, 0, 0), 0.72))
 			local q = Instance.new("TextLabel")
 			q.Size = UDim2.fromScale(1, 1)
 			q.BackgroundTransparency = 1
