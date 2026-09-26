@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (18) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+- **`EggPanel`: CanvasGroup kaldırıldı** (düz Frame + açılışta UIScale büyümesi). CanvasGroup
+  içeriği düşük çözünürlüklü dokuya çiziyordu: 3B pet simgeleri ve yazılar bulanıktı; ayrıca
+  kendi boyutunu (340 px) kesiyordu — 15 petli yumurtada son satır ve **E/R/T düğmeleri
+  görünmüyordu**. Şimdi net ve tam. (Yeni UI'da ViewportFrame'i CanvasGroup içine koyma.)
+- **Üslerin 2./3. katı aşırı parlaktı:** tavan panelleri (y≈52, üslerin üstündekiler) menzil
+  58 / 1.6 ile zemin katı ucundan, üst katları tam güçle vuruyordu. `tools/map/station.luau`
+  oda panelleri → **40 / 1.2** (koridor panelleri aynı). `PlotService.buildUpperFloor` üst kat
+  yürüme yüzeylerini kata göre %10 koyulaştırıyor. Harita denetimi 0, testler 160/160.
+
 ## 2026-09-26 (17) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 - **Pet simgeleri büyüdü** (hâlâ bulanık görünüyordu: ViewportFrame çözünürlüğü ekrandaki

@@ -140,10 +140,19 @@ function EggPanel.Create(auto: AutoHandle?)
 	end
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale)
 	rescale()
-	local fade = Instance.new("CanvasGroup")
+	--[[
+		CanvasGroup DEĞİL, düz Frame. CanvasGroup içeriği düşük çözünürlüklü
+		bir dokuya çizip ekrana koyuyor: 3B pet simgeleri (ViewportFrame) ve
+		yazılar bulanıklaşıyordu. Ayrıca kendi boyutunun dışını kesiyordu —
+		15 petli yumurtada son satır ve E/R/T düğmeleri görünmüyordu.
+		Açılış solma yerine hafif büyüme (UIScale).
+	]]
+	local fade = Instance.new("Frame")
 	fade.Size = UDim2.fromScale(1, 1)
 	fade.BackgroundTransparency = 1
 	fade.Parent = root
+	local pop = Instance.new("UIScale")
+	pop.Parent = fade
 
 	local currentEgg: Config.EggDef? = nil
 	local content: Frame? = nil
@@ -518,16 +527,10 @@ function EggPanel.Create(auto: AutoHandle?)
 		visible = on
 		if on then
 			board.Enabled = true
-			fade.GroupTransparency = 1
-			TweenService:Create(fade, TweenInfo.new(0.18), { GroupTransparency = 0 }):Play()
+			pop.Scale = 0.94
+			TweenService:Create(pop, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		else
-			local t = TweenService:Create(fade, TweenInfo.new(0.15), { GroupTransparency = 1 })
-			t:Play()
-			t.Completed:Once(function()
-				if not visible then
-					board.Enabled = false
-				end
-			end)
+			board.Enabled = false
 		end
 	end
 

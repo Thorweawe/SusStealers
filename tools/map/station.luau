@@ -178,8 +178,14 @@ return {
 			local r = K.roomRect(i)
 			local cx = (r[1] + r[3]) / 2
 			local cz = (r[2] + r[4]) / 2
-			panel(cx - 20, cz, 14, 5, 58, 1.6)
-			panel(cx + 20, cz, 14, 5, 58, 1.6)
+			--[[
+				Menzil 40 (eskiden 58 / 1.6): panel y≈52'de. Zemin kat (~51 stud
+				aşağıda) zaten menzilin ucundaydı, pek bir şey almıyordu; ama
+				üssün 2. katı (~32) ve 3. katı (~14) tam güçle vuruluyor, zemin
+				ve karakter beyaza kaçıyordu. Şimdi üst katlar yaklaşık üçte bir.
+			]]
+			panel(cx - 20, cz, 14, 5, 40, 1.2)
+			panel(cx + 20, cz, 14, 5, 40, 1.2)
 		end
 		-- Omurga: cam şeridin iki yanında
 		for k = 0, 5 do

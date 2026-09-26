@@ -178,8 +178,23 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	local deckW = halfX - deckX0
 	local deckCX = deckX0 + deckW / 2
 
+	--[[
+		Üst katlar tavana YAKIN: istasyon tavanındaki ışık panelleri (y=51,
+		aşağı bakan, 50-58 stud menzil) zemin katı menzilin ucunda loş
+		aydınlatıyor ama 2. katı ~30 stud'dan, 3. katı ~15 stud'dan
+		vuruyor. Açık renkli plakalar beyaza kaçıyordu ("floor 2 niye bu
+		kadar parlak"). Asıl düzeltme panel menzilinde; üst katın yürünen
+		yüzeyleri de kata göre biraz koyulaşıyor.
+	]]
+	-- Tavan panellerinin menzili de kısaldı (tools/map/station.luau); burası ince ayar
+	local shade = math.clamp(0.1 * (floor - 1), 0, 0.25)
+	local function dim(c: Color3): Color3
+		return c:Lerp(Color3.new(0, 0, 0), shade)
+	end
+
 	-- Güverte odanın oluk renginde; üstündeki plakalar odanın karoları
-	local DECK_COLOR = room.grout
+	local DECK_COLOR = dim(room.grout)
+	local TILE_A, TILE_B = dim(room.tile), dim(room.tile2)
 	local TRIM_COLOR = LOOK.frame
 	local RAIL_COLOR = LOOK.metal
 
@@ -318,7 +333,7 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	slab("Landing", Vector3.new(stairW, 1, backLen),
 		Vector3.new(stairX, deckTop - 0.5, zEnd + backLen / 2), DECK_COLOR)
 	slab("LandingTile", Vector3.new(stairW - 1, 0.2, backLen - 1),
-		Vector3.new(stairX, deckTop + 0.1, zEnd + backLen / 2), room.tile)
+		Vector3.new(stairX, deckTop + 0.1, zEnd + backLen / 2), TILE_A)
 
 	-- Arka kenarda güverte duvarının devamı, dış kenarda korkuluk
 	slab("LandingWall", Vector3.new(stairW, 7, 1), Vector3.new(stairX, deckTop + 3.5, deckBack - 0.5), LOOK.shell)
@@ -455,13 +470,13 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 				deckX0 + (i + 0.5) * (deckW / cols),
 				deckTop + 0.16,
 				-deckZ / 2 + (j + 0.5) * (deckZ / rowsT)
-			), if (i + j) % 2 == 0 then room.tile else room.tile2)
+			), if (i + j) % 2 == 0 then TILE_A else TILE_B)
 		end
 	end
 
 	-- Kaide sıralarının arasındaki yürüme yolu, kenarında uyarı şeridi
 	slab("DeckLane", Vector3.new(deckW - 4, 0.12, 7), Vector3.new(deckCX, deckTop + 0.26, 0),
-		LOOK.lane)
+		dim(LOOK.lane))
 	for _, sz in { -1, 1 } do
 		local step = 5
 		local count = math.floor((deckW - 4) / step)
