@@ -1196,10 +1196,10 @@ Config.Products = {
 		açılınca yazılacak; 0 iken mağazada "SOON". Ürün ikonları:
 		store_icons/product_potion_*.png.
 	]]
-	PotionIncome2x   = { id = 0, name = "Double Income Potion",   kind = "potion", potion = "Income2x" },
-	PotionIncome3x   = { id = 0, name = "Triple Income Potion",   kind = "potion", potion = "Income3x" },
-	PotionFastSteal  = { id = 0, name = "Fast Hands Potion",      kind = "potion", potion = "FastSteal" },
-	PotionStrongLock = { id = 0, name = "Reinforced Lock Potion", kind = "potion", potion = "StrongLock" },
+	PotionIncome2x   = { id = 3714932156, name = "Double Income Potion",   kind = "potion", potion = "Income2x" },
+	PotionIncome3x   = { id = 3714932218, name = "Triple Income Potion",   kind = "potion", potion = "Income3x" },
+	PotionFastSteal  = { id = 3714932280, name = "Fast Hands Potion",      kind = "potion", potion = "FastSteal" },
+	PotionStrongLock = { id = 3714932378, name = "Reinforced Lock Potion", kind = "potion", potion = "StrongLock" },
 } :: { [string]: ProductDef }
 
 -- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez

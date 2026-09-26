@@ -713,10 +713,7 @@ case("Monetization: ürün ve pass kimlikleri girilmiş ve benzersiz", function(
 		seen[def.id] = key
 	end
 	for key, def in Config.Products do
-		-- İksir ürünleri henüz Creator Dashboard'da açılmadı (0 = mağazada SOON)
-		if def.kind ~= "potion" then
-			ok(key .. " kimliği var", def.id > 0)
-		end
+		ok(key .. " kimliği var", def.id > 0)
 		if def.id > 0 then
 			ok(key .. " kimliği tekrar etmiyor", seen[def.id] == nil, seen[def.id])
 			seen[def.id] = key
