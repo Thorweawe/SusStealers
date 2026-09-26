@@ -13,6 +13,37 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (23) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+- **Rogue impostor fiziksiz:** Humanoid yok. Sunucu zemine oturtulmuş rotayı modelin
+  `RogueTrack` niteliğine yazıyor (`shared/RogueTrack`), `MapLife` her karede o rotadan
+  yürütüyor; yalpalama yürünen yola bağlı, ayak hizası etrafında. Kök adı `RogueRoot`.
+- **Bant satın alma kartı sabit** (`PromptStyle`, `STICKY` = BuyPrompt): en yakın karakter
+  değişince kart yeniden çizilmiyor, yeni karaktere kayıyor.
+- **Üst kat:** güverte altı lambaları aşağı bakan spot (PointLight üst katın zeminine sızıp
+  parlama yapıyordu), duvar lambaları spot; kilitli kat ışıkları `Light` sınıfıyla kapanıyor.
+  **Kolonlar** alt kattaki eşyalara (konveyör girişi, kilit konsolu, kulübe) giriyordu:
+  `PlotService.clearColumns` kaydırıyor/kaldırıyor.
+- **Şans çarkı:** `Config.SpinWheelSlices` (12 dilim → ödül), `SpinService` dilimleri boyayıp
+  yazı ekliyor; açı sunucu saatinden (`shared/WheelSpin`, `DecorFX`), çark kazanılan dilimde
+  duruyor, ödül mesajı o anda. `Config.SpinDuration` 4 → 5.
+- **Top Crew kürsüsü:** TOP EARNERS'ın ilk üçünün gerçek Roblox karakterleri
+  (`GlobalBoardService`). Haritadaki sabit Among Us karakterleri kalktı (`lobby.luau`).
+- **`client/CardKit`:** mağaza görünüşünün ortak parçaları (skin, card, button, bar, badge).
+  **UpgradePanel, QuestPanel, Inventory kabuğu** bununla yeniden kuruldu (mantık aynı).
+  ShopPanel kendi kopyasını kullanıyor, dokunulmadı.
+- **Karakterlere özel aksesuar** (`UnitModel` EXTRAS; `noHat` olanlarda nadirlik şapkası yok),
+  **indeks gerçek 3B model** (`UiKit.UnitIcon`).
+- **TutorialUI baştan:** Kaptan rehber (daktilo), adım afişi, konfetili kutlama, final, hedefe
+  ışık hattı (Beam), CardKit kart. Sunucu ve remote aynı.
+- **Harita pencereleri lombozu** (`kit.luau` K.wall): station/lobby/wings/annex yeniden kuruldu.
+  Not: SurfaceGui **Glass malzemeli** parçada çizilmiyor, önünde Glass olan da siyah kalıyor.
+- **`UiKit.IconButton`** yazısı satır kırmıyor, en az 5 punto (küçük ekranda "INVENTO").
+- **Testler:** pass önbelleği test boyunca "yok" (`MonetizationService._SetPassCache`) — pass
+  kimlikleri girilince oyunun sahibi pass'lere sahip çıkıp gelir/çalma testleri bozuluyordu.
+- Studio'ya Claude oturumunun MCP araç listesi boş geldiği için doğrudan StudioMCP istemcisiyle
+  yüklendi (oturum açılırken Studio bağlı değilse liste boş kalıyor; önce Studio'yu aç).
+
 ## 2026-09-26 (22) — Yusuf (Batur'un şeridine de yazıldı)
 
 - **Oyunun adı "Steal a Crewmate"** (başlık ekranı). Marka riski yüzünden görünen adlarda
