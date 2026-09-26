@@ -36,10 +36,17 @@
 	takıyor, Topbar gizleme listesinde tutuyor). Ekranın sağ ortasında:
 	ENVANTER ortada, REBIRTH hemen altında. Sağ alt köşe olay çizelgesinin
 	(EventFX).
+
+	═══ GÖRÜNÜŞ ════════════════════════════════════════════════════════════
+
+	Mağazanın dili (CardKit): başlık şeridi SEÇİLİ SEKMENİN renginde,
+	sekmeler ışınlı renkli kartlar (seçili olan parlak ve tam boy, diğerleri
+	sönük ve biraz küçük), içerik alanı kalın koyu çerçeveli.
 ]]
 
 local UserInputService = game:GetService("UserInputService")
 
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local Inventory = {}
@@ -87,8 +94,8 @@ type Tab = {
 	page: GuiObject,
 	open: () -> (),
 	button: TextButton,
-	stroke: UIStroke,
-	iconBack: Frame,
+	card: Frame,
+	scale: UIScale,
 	count: TextLabel,
 	notch: Frame,
 	badge: TextLabel,
@@ -131,69 +138,32 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	window.Size = UDim2.fromOffset(W, H)
 	window.Visible = false
 	window.ZIndex = Z
-	local windowStroke = window:FindFirstChildOfClass("UIStroke")
 
-	local crest = Instance.new("Frame")
-	crest.Position = UDim2.fromOffset(16, 12)
-	crest.Size = UDim2.fromOffset(42, 42)
-	crest.BackgroundColor3 = bagTint:Lerp(Color3.new(0, 0, 0), 0.45)
-	crest.BorderSizePixel = 0
-	crest.ZIndex = Z + 1
-	crest.Parent = window
-	UiKit.Corner(crest, 12)
-	UiKit.Backpack(crest, 32, Color3.fromRGB(236, 206, 150))
+	local skin = CardKit.skin(window, ACCENT, "Inventory", HEADER, Z)
+	local headerGradient = skin.header:FindFirstChildOfClass("UIGradient")
+	skin.title.Position = UDim2.fromOffset(84, 4)
+	local sub = CardKit.bold(skin.header, "press B to open", 16, CardKit.WHITE, Z + 4, 2)
+	sub.AnchorPoint = Vector2.new(1, 0.5)
+	sub.Position = UDim2.new(1, -86, 0.5, 0)
+	sub.Size = UDim2.fromOffset(160, 22)
+	sub.TextXAlignment = Enum.TextXAlignment.Right
+	sub.TextTransparency = 0.15
 
-	local title = Instance.new("TextLabel")
-	title.Position = UDim2.fromOffset(68, 12)
-	title.Size = UDim2.new(1, -140, 0, 26)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBlack
-	title.TextSize = 22
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = UiKit.INK
-	title.Text = "INVENTORY"
-	title.ZIndex = Z + 1
-	title.Parent = window
+	local crest = CardKit.badge(skin.header, 50, bagTint, Z + 4)
+	crest.AnchorPoint = Vector2.new(0, 0.5)
+	crest.Position = UDim2.new(0, 20, 0.5, 0)
+	UiKit.Backpack(crest:FindFirstChild("Slot") :: Frame, 34, Color3.fromRGB(236, 206, 150))
 
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Position = UDim2.fromOffset(68, 38)
-	subtitle.Size = UDim2.new(1, -140, 0, 16)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.GothamMedium
-	subtitle.TextSize = 13
-	subtitle.TextXAlignment = Enum.TextXAlignment.Left
-	subtitle.TextColor3 = UiKit.INK:Lerp(UiKit.MUTED, 0.4)
-	subtitle.Text = "Your crew locker  ·  press B to open"
-	subtitle.ZIndex = Z + 1
-	subtitle.Parent = window
-
-	local close = UiKit.CloseButton(window)
-	close.MouseButton1Click:Connect(function()
+	skin.close.MouseButton1Click:Connect(function()
 		window.Visible = false
 	end)
-
-	-- Başlığın altında sekmenin renginde, uçlara doğru sönen çizgi
-	local rule = Instance.new("Frame")
-	rule.Position = UDim2.fromOffset(PAD, HEADER - 4)
-	rule.Size = UDim2.new(1, -PAD * 2, 0, 2)
-	rule.BackgroundColor3 = ACCENT
-	rule.BorderSizePixel = 0
-	rule.ZIndex = Z + 1
-	rule.Parent = window
-	local ruleFade = Instance.new("UIGradient")
-	ruleFade.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.1),
-		NumberSequenceKeypoint.new(0.6, 0.5),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	ruleFade.Parent = rule
 
 	-- ─── Sekme rayı ─────────────────────────────────────────────────────────
 
 	local rail = Instance.new("Frame")
 	rail.Name = "Tabs"
-	rail.Position = UDim2.fromOffset(PAD, HEADER + 8)
-	rail.Size = UDim2.new(0, RAIL_W, 1, -(HEADER + 8 + PAD))
+	rail.Position = UDim2.fromOffset(PAD, HEADER + 12)
+	rail.Size = UDim2.new(0, RAIL_W, 1, -(HEADER + 12 + PAD))
 	rail.BackgroundTransparency = 1
 	rail.ZIndex = Z + 1
 	rail.Parent = window
@@ -207,26 +177,39 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	local mascot = Instance.new("Frame")
 	mascot.AnchorPoint = Vector2.new(0.5, 1)
 	mascot.Position = UDim2.new(0, PAD + RAIL_W / 2, 1, -PAD - 4)
-	mascot.Size = UDim2.fromOffset(60, 60)
+	mascot.Size = UDim2.fromOffset(64, 64)
 	mascot.BackgroundTransparency = 1
 	mascot.ZIndex = Z + 1
 	mascot.Parent = window
-	local mascotBody = UiKit.Crewmate(mascot, 44, ACCENT)
+	local mascotBody = UiKit.Crewmate(mascot, 50, ACCENT)
 
 	-- ─── İçerik alanı ───────────────────────────────────────────────────────
 
 	local content = Instance.new("Frame")
 	content.Name = "Content"
-	content.Position = UDim2.fromOffset(PAD * 2 + RAIL_W, HEADER + 8)
-	content.Size = UDim2.new(1, -(PAD * 3 + RAIL_W), 1, -(HEADER + 8 + PAD))
-	content.BackgroundColor3 = UiKit.SHELL_DEEP
-	content.BackgroundTransparency = 0.25
+	content.Position = UDim2.fromOffset(PAD * 2 + RAIL_W, HEADER + 12)
+	content.Size = UDim2.new(1, -(PAD * 3 + RAIL_W), 1, -(HEADER + 12 + PAD))
+	content.BackgroundColor3 = CardKit.BODY_DEEP
+	content.BackgroundTransparency = 0.1
 	content.BorderSizePixel = 0
 	content.ClipsDescendants = true
 	content.ZIndex = Z + 1
 	content.Parent = window
-	UiKit.Corner(content, 12)
-	local contentStroke = UiKit.Stroke(content, ACCENT, 1.4, 0.6)
+	CardKit.corner(content, 14)
+	CardKit.border(content, CardKit.OUTLINE, 3)
+	-- İçte seçili sekmenin renginde ince çizgi
+	local contentInner = Instance.new("Frame")
+	contentInner.Position = UDim2.fromOffset(3, 3)
+	contentInner.Size = UDim2.new(1, -6, 1, -6)
+	contentInner.BackgroundTransparency = 1
+	contentInner.ZIndex = Z + 1
+	contentInner.Parent = content
+	CardKit.corner(contentInner, 11)
+	local contentStroke = Instance.new("UIStroke")
+	contentStroke.Color = ACCENT
+	contentStroke.Thickness = 2
+	contentStroke.Transparency = 0.35
+	contentStroke.Parent = contentInner
 
 	-- ─── Sekmeler ───────────────────────────────────────────────────────────
 
@@ -238,24 +221,28 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	-- Envanterin kendi yazdığı Visible değişikliklerini dinleyici görmesin
 	local syncing = false
 
+	local DIMMED = Color3.fromRGB(70, 78, 96)
+
 	local function paintTabs()
 		local tone = if active and tabs[active] then tabs[active].def.tint else ACCENT
-		title.TextColor3 = tone:Lerp(Color3.new(1, 1, 1), 0.35)
-		rule.BackgroundColor3 = tone
-		contentStroke.Color = tone
-		if windowStroke then
-			windowStroke.Color = tone:Lerp(Color3.new(1, 1, 1), 0.15)
+		-- Başlık şeridi seçili sekmenin renginde
+		skin.header.BackgroundColor3 = tone
+		if headerGradient then
+			headerGradient.Color = ColorSequence.new(tone:Lerp(CardKit.WHITE, 0.2), tone:Lerp(Color3.new(0, 0, 0), 0.12))
 		end
+		local foot = skin.header:FindFirstChildWhichIsA("Frame")
+		if foot then
+			foot.BackgroundColor3 = tone:Lerp(Color3.new(0, 0, 0), 0.1)
+		end
+		contentStroke.Color = tone:Lerp(CardKit.WHITE, 0.2)
 		mascotBody.BackgroundColor3 = tone
 
 		for id, tab in tabs do
 			local on = id == active
 			local tint = tab.def.tint
-			tab.button.BackgroundColor3 = if on then tint:Lerp(Color3.new(0, 0, 0), 0.15) else UiKit.ROW
-			tab.stroke.Color = if on then tint:Lerp(Color3.new(1, 1, 1), 0.45) else tint
-			tab.stroke.Transparency = if on then 0 else 0.55
-			tab.iconBack.BackgroundColor3 = if on then tint:Lerp(Color3.new(0, 0, 0), 0.45) else UiKit.SHELL_DEEP
-			tab.count.TextColor3 = if on then Color3.new(1, 1, 1) else UiKit.MUTED
+			CardKit.tintCard(tab.card, if on then tint else tint:Lerp(DIMMED, 0.6))
+			tab.scale.Scale = if on then 1 else 0.94
+			tab.count.TextColor3 = if on then CardKit.WHITE else Color3.fromRGB(200, 206, 220)
 			tab.notch.Visible = on
 		end
 	end
@@ -324,98 +311,67 @@ function Inventory.Create(screen: ScreenGui): Inventory
 		holder.ZIndex = Z + 2
 		holder.Parent = rail
 
+		local scale = Instance.new("UIScale")
+		scale.Parent = holder
+
+		local card = CardKit.card(holder, def.tint, UDim2.new(1, -10, 1, 0), Z + 2, UDim2.fromScale(0.2, 0.5), 240)
+
+		local iconBack = CardKit.badge(card, 56, def.tint, Z + 4)
+		iconBack.AnchorPoint = Vector2.new(0, 0.5)
+		iconBack.Position = UDim2.new(0, 8, 0.5, 0)
+		def.icon(iconBack:FindFirstChild("Slot") :: Frame, 38, def.tint:Lerp(Color3.new(1, 1, 1), 0.45))
+
+		local label = CardKit.bold(card, def.label, 24, CardKit.WHITE, Z + 5, 3)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Position = UDim2.fromOffset(72, 10)
+		label.Size = UDim2.new(1, -80, 0, 28)
+		CardKit.fit(label, 24, 12)
+
+		local count = CardKit.bold(card, "", 15, CardKit.WHITE, Z + 5, 2)
+		count.TextXAlignment = Enum.TextXAlignment.Left
+		count.Position = UDim2.fromOffset(72, 40)
+		count.Size = UDim2.new(1, -84, 0, 20)
+		-- Uzun satır ("17 pets · 3/3 equipped") sekmeye sığmıyor: sığmazsa küçülür
+		CardKit.fit(count, 15, 9)
+
+		-- Tıklama katmanı: kartın üstünde görünmez düğme
 		local button = Instance.new("TextButton")
 		button.Name = "Button"
 		button.Size = UDim2.new(1, -10, 1, 0)
-		button.BackgroundColor3 = UiKit.ROW
-		button.BorderSizePixel = 0
-		button.AutoButtonColor = false
+		button.BackgroundTransparency = 1
 		button.Text = ""
-		button.ZIndex = Z + 2
+		button.ZIndex = Z + 8
 		button.Parent = holder
-		UiKit.Corner(button, 14)
-		local stroke = UiKit.Stroke(button, def.tint, 2, 0.55)
-
-		local gloss = Instance.new("Frame")
-		gloss.Position = UDim2.fromOffset(6, 4)
-		gloss.Size = UDim2.new(1, -12, 0, 3)
-		gloss.BackgroundColor3 = Color3.new(1, 1, 1)
-		gloss.BackgroundTransparency = 0.8
-		gloss.BorderSizePixel = 0
-		gloss.ZIndex = Z + 3
-		gloss.Parent = button
-		UiKit.Corner(gloss, 2)
-
-		local iconBack = Instance.new("Frame")
-		iconBack.AnchorPoint = Vector2.new(0, 0.5)
-		iconBack.Position = UDim2.new(0, 10, 0.5, 0)
-		iconBack.Size = UDim2.fromOffset(50, 50)
-		iconBack.BackgroundColor3 = UiKit.SHELL_DEEP
-		iconBack.BorderSizePixel = 0
-		iconBack.ZIndex = Z + 3
-		iconBack.Parent = button
-		UiKit.Corner(iconBack, 12)
-		def.icon(iconBack, 36, def.tint:Lerp(Color3.new(1, 1, 1), 0.25))
-
-		local label = Instance.new("TextLabel")
-		label.Position = UDim2.fromOffset(70, 14)
-		label.Size = UDim2.new(1, -76, 0, 24)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBlack
-		label.TextSize = 19
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextColor3 = Color3.new(1, 1, 1)
-		label.TextStrokeTransparency = 0.6
-		label.Text = def.label
-		label.ZIndex = Z + 4
-		label.Parent = button
-
-		local count = Instance.new("TextLabel")
-		count.Position = UDim2.fromOffset(70, 40)
-		count.Size = UDim2.new(1, -84, 0, 16)
-		count.BackgroundTransparency = 1
-		count.Font = Enum.Font.GothamBold
-		count.TextSize = 13
-		-- Uzun satır ("17 pets · 3/3 equipped") sekmeye sığmıyor, çentiğin altına taşıyordu: sığmazsa küçülür
-		count.TextScaled = true
-		count.TextXAlignment = Enum.TextXAlignment.Left
-		count.TextColor3 = UiKit.INK:Lerp(UiKit.MUTED, 0.4)
-		count.Text = ""
-		count.ZIndex = Z + 4
-		count.Parent = button
-		local countLimit = Instance.new("UITextSizeConstraint")
-		countLimit.MaxTextSize = 13
-		countLimit.MinTextSize = 9
-		countLimit.Parent = count
 
 		-- Etkin sekmenin sağında içerik alanına bakan çentik
 		local notch = Instance.new("Frame")
 		notch.AnchorPoint = Vector2.new(0.5, 0.5)
-		notch.Position = UDim2.new(1, -4, 0.5, 0)
-		notch.Size = UDim2.fromOffset(14, 14)
+		notch.Position = UDim2.new(1, -6, 0.5, 0)
+		notch.Size = UDim2.fromOffset(16, 16)
 		notch.Rotation = 45
 		notch.BackgroundColor3 = def.tint
 		notch.BorderSizePixel = 0
 		notch.Visible = false
-		notch.ZIndex = Z + 2
+		notch.ZIndex = Z + 1
 		notch.Parent = holder
+		CardKit.border(notch, CardKit.OUTLINE, 2.5)
 
 		local badge = UiKit.Badge(button)
 		badge.Position = UDim2.new(1, -8, 0, 8)
 
 		button.MouseEnter:Connect(function()
 			if active ~= def.id then
-				button.BackgroundColor3 = UiKit.ROW:Lerp(def.tint, 0.18)
+				scale.Scale = 0.98
 			end
 		end)
 		button.MouseLeave:Connect(function()
 			paintTabs()
 		end)
 		button.MouseButton1Down:Connect(function()
-			button.Position = UDim2.fromOffset(0, 2)
+			card.Position = UDim2.fromOffset(0, 3)
 		end)
 		button.MouseButton1Up:Connect(function()
-			button.Position = UDim2.fromOffset(0, 0)
+			card.Position = UDim2.fromOffset(0, 0)
 		end)
 		button.Activated:Connect(function()
 			openTab(def.id)
@@ -426,8 +382,8 @@ function Inventory.Create(screen: ScreenGui): Inventory
 			page = page,
 			open = open,
 			button = button,
-			stroke = stroke,
-			iconBack = iconBack,
+			card = card,
+			scale = scale,
 			count = count,
 			notch = notch,
 			badge = badge,
