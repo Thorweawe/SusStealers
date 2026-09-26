@@ -54,8 +54,12 @@ export type Panel = {
 	Destroy: () -> (),
 }
 
-local COLS = 5
-local CARD_W, CARD_H = 96, 120
+--[[
+	Kartlar dört sütun ve büyük: beş sütunlu 96 piksellik kartta yazılar
+	10-11 punto kalıyor, istatistik satırı okunmuyordu.
+]]
+local COLS = 4
+local CARD_W, CARD_H = 126, 150
 
 --[[
 	host verilirse panel kendi penceresini açmıyor, o çerçevenin içine
@@ -101,7 +105,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 	hint.Size = UDim2.new(1, -100, 0, 16)
 	hint.BackgroundTransparency = 1
 	hint.Font = Enum.Font.GothamMedium
-	hint.TextSize = 12
+	hint.TextSize = 13
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 	hint.TextColor3 = MUTED
 	hint.Text = ""
@@ -142,7 +146,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		b.BackgroundColor3 = tint
 		b.AutoButtonColor = true
 		b.Font = Enum.Font.GothamBlack
-		b.TextSize = 11
+		b.TextSize = 12
 		b.TextColor3 = Color3.new(1, 1, 1)
 		b.TextStrokeTransparency = 0.5
 		b.Text = text
@@ -284,20 +288,20 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		]]
 		local figure = Instance.new("Frame")
 		figure.AnchorPoint = Vector2.new(0.5, 0)
-		figure.Position = UDim2.new(0.5, 0, 0, 5)
-		figure.Size = UDim2.fromOffset(50, 50)
+		figure.Position = UDim2.new(0.5, 0, 0, 6)
+		figure.Size = UDim2.fromOffset(62, 62)
 		figure.BackgroundTransparency = 1
 		figure.ZIndex = 44
 		figure.Parent = card
 		-- Gerçek model (mutasyon rengi ve boyut anahtarda); sahip olunmayan sönük siluet
-		UiKit.PetIcon(figure, 50, key or def.id, if not key then UiKit.DIM else nil)
+		UiKit.PetIcon(figure, 62, key or def.id, if not key then UiKit.DIM else nil)
 
 		local name = Instance.new("TextLabel")
-		name.Position = UDim2.new(0, 4, 0, 56)
-		name.Size = UDim2.new(1, -8, 0, 15)
+		name.Position = UDim2.new(0, 4, 0, 70)
+		name.Size = UDim2.new(1, -8, 0, 18)
 		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 11
+		name.Font = Enum.Font.GothamBlack
+		name.TextSize = 14
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		name.TextColor3 = if key then UiKit.INK else UiKit.DIM
 		name.Text = if key then def.name else "???"
@@ -306,11 +310,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 		-- Mutasyon adı ismin altında, kendi renginde
 		local tag = Instance.new("TextLabel")
-		tag.Position = UDim2.new(0, 4, 0, 70)
-		tag.Size = UDim2.new(1, -8, 0, 12)
+		tag.Position = UDim2.new(0, 4, 0, 89)
+		tag.Size = UDim2.new(1, -8, 0, 14)
 		tag.BackgroundTransparency = 1
 		tag.Font = Enum.Font.GothamBlack
-		tag.TextSize = 10
+		tag.TextSize = 12
 		--[[
 			Mutasyonsuz kartta KADEME yazıyor: koleksiyon artık yumurtaya
 			göre gruplu, kademe başlıktan okunmuyor. Secret'ın rengi siyah;
@@ -330,12 +334,12 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		if size then
 			local sizeChip = Instance.new("TextLabel")
 			sizeChip.Position = UDim2.fromOffset(5, 5)
-			sizeChip.Size = UDim2.fromOffset(0, 14)
+			sizeChip.Size = UDim2.fromOffset(0, 16)
 			sizeChip.AutomaticSize = Enum.AutomaticSize.X
 			sizeChip.BackgroundColor3 = Color3.fromRGB(255, 196, 60)
 			sizeChip.BorderSizePixel = 0
 			sizeChip.Font = Enum.Font.GothamBlack
-			sizeChip.TextSize = 10
+			sizeChip.TextSize = 11
 			sizeChip.TextColor3 = Color3.fromRGB(40, 30, 10)
 			sizeChip.Text = " " .. string.upper(size.name) .. " "
 			sizeChip.ZIndex = 46
@@ -348,12 +352,13 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			bilmeden hedef olmuyor.
 		]]
 		local stat = Instance.new("TextLabel")
-		stat.Position = UDim2.new(0, 4, 0, 82)
-		stat.Size = UDim2.new(1, -8, 0, 26)
+		stat.Position = UDim2.new(0, 4, 0, 105)
+		stat.Size = UDim2.new(1, -8, 0, 32)
 		stat.BackgroundTransparency = 1
-		stat.Font = Enum.Font.GothamMedium
-		stat.TextSize = 10
-		stat.TextColor3 = if key then UiKit.MUTED else UiKit.DIM
+		stat.Font = Enum.Font.GothamBold
+		stat.TextSize = 12
+		-- Soluk gri koyu kartta okunmuyordu: açık ton
+		stat.TextColor3 = if key then UiKit.INK:Lerp(UiKit.MUTED, 0.35) else UiKit.DIM
 		stat.Text = string.format("+%d%% cash\n+%.2f speed", math.floor(income * 100 + 0.5), speed)
 		stat.ZIndex = 44
 		stat.Parent = card
@@ -366,10 +371,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		local countLabel = Instance.new("TextLabel")
 		countLabel.AnchorPoint = Vector2.new(1, 0)
 		countLabel.Position = UDim2.new(1, -6, 0, 6)
-		countLabel.Size = UDim2.fromOffset(28, 14)
+		countLabel.Size = UDim2.fromOffset(36, 16)
 		countLabel.BackgroundTransparency = 1
 		countLabel.Font = Enum.Font.GothamBlack
-		countLabel.TextSize = 11
+		countLabel.TextSize = 13
 		countLabel.TextXAlignment = Enum.TextXAlignment.Right
 		countLabel.TextColor3 = if isOn then GOOD else MUTED
 		-- Takılıysa "takılı/adet" (2/3), değilse adet (x3)
@@ -402,7 +407,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		if mode == "fuse" then
 			local nextSize = Config.GetNextPetSize(size) :: Config.PetSizeDef
 			stat.Visible = false
-			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", Color3.fromRGB(236, 176, 50), UDim2.new(1, -10, 0, 30), 8)
+			local fuseHolder, fuse = UiKit.Raised(card, "Fuse", Color3.fromRGB(236, 176, 50), UDim2.new(1, -10, 0, 34), 8)
 			fuseHolder.AnchorPoint = Vector2.new(0.5, 1)
 			fuseHolder.Position = UDim2.new(0.5, 0, 1, -6)
 			fuseHolder.ZIndex = 46
@@ -411,7 +416,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			fuseText.Size = UDim2.fromScale(1, 1)
 			fuseText.BackgroundTransparency = 1
 			fuseText.Font = Enum.Font.GothamBlack
-			fuseText.TextSize = 11
+			fuseText.TextSize = 13
 			fuseText.TextColor3 = Color3.new(1, 1, 1)
 			fuseText.TextStrokeTransparency = 0.5
 			fuseText.Text = "FUSE → " .. string.upper(nextSize.name)
@@ -419,7 +424,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			fuseText.ZIndex = 48
 			fuseText.Parent = fuse
 			local limit = Instance.new("UITextSizeConstraint")
-			limit.MaxTextSize = 11
+			limit.MaxTextSize = 13
 			limit.Parent = fuseText
 			fuse.MouseButton1Click:Connect(function()
 				fuseRemote:FireServer(k)
@@ -439,13 +444,14 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		if canAdd then
 			local plus = Instance.new("TextButton")
 			plus.Name = "AddCopy"
-			plus.AnchorPoint = Vector2.new(1, 1)
-			plus.Position = UDim2.new(1, -5, 1, -9)
-			plus.Size = UDim2.fromOffset(22, 22)
+			-- Sağ üstte adedin altında: alttaki istatistik satırının üstüne binmesin
+			plus.AnchorPoint = Vector2.new(1, 0)
+			plus.Position = UDim2.new(1, -6, 0, 26)
+			plus.Size = UDim2.fromOffset(24, 24)
 			plus.BackgroundColor3 = GOOD
 			plus.AutoButtonColor = true
 			plus.Font = Enum.Font.GothamBlack
-			plus.TextSize = 16
+			plus.TextSize = 18
 			plus.TextColor3 = Color3.fromRGB(16, 40, 20)
 			plus.Text = "+"
 			plus.ZIndex = 47
@@ -547,9 +553,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			label.Size = UDim2.new(1, -6, 0, 24)
 			label.BackgroundTransparency = 1
 			label.Font = Enum.Font.GothamBlack
-			label.TextSize = 12
+			label.TextSize = 15
 			label.TextXAlignment = Enum.TextXAlignment.Left
 			label.TextColor3 = tint
+			label.TextStrokeTransparency = 0.6
 			local have = 0
 			for _, slot in slots do
 				have += slot.count

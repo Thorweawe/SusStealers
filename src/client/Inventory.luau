@@ -164,9 +164,9 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	subtitle.Size = UDim2.new(1, -140, 0, 16)
 	subtitle.BackgroundTransparency = 1
 	subtitle.Font = Enum.Font.GothamMedium
-	subtitle.TextSize = 12
+	subtitle.TextSize = 13
 	subtitle.TextXAlignment = Enum.TextXAlignment.Left
-	subtitle.TextColor3 = UiKit.MUTED
+	subtitle.TextColor3 = UiKit.INK:Lerp(UiKit.MUTED, 0.4)
 	subtitle.Text = "Your crew locker  ·  press B to open"
 	subtitle.ZIndex = Z + 1
 	subtitle.Parent = window
@@ -376,15 +376,21 @@ function Inventory.Create(screen: ScreenGui): Inventory
 
 		local count = Instance.new("TextLabel")
 		count.Position = UDim2.fromOffset(70, 40)
-		count.Size = UDim2.new(1, -76, 0, 16)
+		count.Size = UDim2.new(1, -84, 0, 16)
 		count.BackgroundTransparency = 1
 		count.Font = Enum.Font.GothamBold
-		count.TextSize = 12
+		count.TextSize = 13
+		-- Uzun satır ("17 pets · 3/3 equipped") sekmeye sığmıyor, çentiğin altına taşıyordu: sığmazsa küçülür
+		count.TextScaled = true
 		count.TextXAlignment = Enum.TextXAlignment.Left
-		count.TextColor3 = UiKit.MUTED
+		count.TextColor3 = UiKit.INK:Lerp(UiKit.MUTED, 0.4)
 		count.Text = ""
 		count.ZIndex = Z + 4
 		count.Parent = button
+		local countLimit = Instance.new("UITextSizeConstraint")
+		countLimit.MaxTextSize = 13
+		countLimit.MinTextSize = 9
+		countLimit.Parent = count
 
 		-- Etkin sekmenin sağında içerik alanına bakan çentik
 		local notch = Instance.new("Frame")

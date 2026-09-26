@@ -228,7 +228,7 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 			tag.Size = UDim2.new(1, -16, 0, 14)
 			tag.BackgroundTransparency = 1
 			tag.Font = Enum.Font.GothamBold
-			tag.TextSize = 11
+			tag.TextSize = 12
 			tag.TextColor3 = rarityColor
 			tag.Text = string.upper(def.rarity)
 			tag.ZIndex = Z + 3
