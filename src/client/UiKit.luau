@@ -824,7 +824,9 @@ function UiKit.PetIcon(parent: Instance, size: number, key: string, silhouette: 
 	local reach = math.max(extent.X, extent.Y, extent.Z)
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 30
-	local dist = reach * 2.35
+	-- Kareyi doldursun: ViewportFrame çözünürlüğü ekrandaki boyutu kadar,
+	-- model küçük kalınca bulanık görünüyordu
+	local dist = reach * 2.05
 	local target = cf.Position
 	camera.CFrame = CFrame.lookAt(target + Vector3.new(dist * 0.32, dist * 0.22, -dist), target)
 	camera.Parent = vp

@@ -201,7 +201,7 @@ function EggPanel.Create(auto: AutoHandle?)
 		]]
 		local compact = #pets > 8
 		local cols = if compact then 5 else 4
-		local cellW, cellH = if compact then 66 else 84, if compact then 76 else 88
+		local cellW, cellH = if compact then 66 else 84, if compact then 84 else 96
 		local gap = if compact then 6 else 8
 		local rowH = cellH + gap
 		local rowsNeeded = math.max(1, math.ceil(#pets / cols))
@@ -276,8 +276,9 @@ function EggPanel.Create(auto: AutoHandle?)
 
 			local fig = Instance.new("Frame")
 			fig.AnchorPoint = Vector2.new(0.5, 0)
-			fig.Position = UDim2.new(0.5, 0, 0, 4)
-			local figSize = if compact then 32 else 38
+			fig.Position = UDim2.new(0.5, 0, 0, 2)
+			-- Büyük: 3B simge küçükte bulanık duruyor
+			local figSize = if compact then 44 else 52
 			fig.Size = UDim2.fromOffset(figSize, figSize)
 			fig.BackgroundTransparency = 1
 			fig.ZIndex = 6
@@ -292,10 +293,10 @@ function EggPanel.Create(auto: AutoHandle?)
 
 			-- Petin KENDİ şansı (kademe şansı kademedeki pet sayısına bölünmüş)
 			local pct = Config.GetPetChance(egg.id, def.id)
-			local chance = text(cell, chanceText(pct), if compact then 13 else 16, WHITE, 6)
+			local chance = text(cell, chanceText(pct), if compact then 12 else 16, WHITE, 6)
 			chance.AnchorPoint = Vector2.new(0.5, 1)
-			chance.Position = UDim2.new(0.5, 0, 1, -2)
-			chance.Size = UDim2.new(1, 0, 0, 18)
+			chance.Position = UDim2.new(0.5, 0, 1, -1)
+			chance.Size = UDim2.new(1, 0, 0, if compact then 15 else 18)
 			local cs = Instance.new("UIStroke")
 			cs.Color = INK
 			cs.Thickness = 1.6
@@ -308,7 +309,7 @@ function EggPanel.Create(auto: AutoHandle?)
 			]]
 			local name = text(cell, if hidden then "???" else def.name, 11, WHITE, 6)
 			name.AnchorPoint = Vector2.new(0.5, 0)
-			name.Position = UDim2.new(0.5, 0, 0, figSize + 4)
+			name.Position = UDim2.new(0.5, 0, 0, figSize + 2)
 			name.Size = UDim2.new(1, -6, 0, if compact then 20 else 24)
 			name.TextWrapped = true
 			name.TextScaled = true

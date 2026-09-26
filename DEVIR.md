@@ -13,6 +13,14 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (17) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+- **Pet simgeleri büyüdü** (hâlâ bulanık görünüyordu: ViewportFrame çözünürlüğü ekrandaki
+  boyutu kadar). `PetPanel` kartı 96x108 → 96x120, simge 38 → 50 px; `EggPanel` küçük
+  hücre 66x76 → 66x84, simge 32 → 44 px; `UiKit.PetIcon` kamerası yaklaştı (2.35 → 2.05).
+- **Admin odası sandalyeleri masaya dönük** (`tools/map/rooms.luau`): `chair(x, d, color,
+  yaw?)` artık dönüş alıyor; Admin'dekiler 90 / -90. Security'deki monitöre bakan aynı kaldı.
+
 ## 2026-09-26 (16) — Batur (Yusuf'un şeridine yazıldı)
 
 **Pet simgeleri gerçek 3B model** (`UiKit.PetIcon` yeni; `PetPanel`, `EggPanel`, `Index`, `HatchFX`):

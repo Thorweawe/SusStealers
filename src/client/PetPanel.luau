@@ -55,7 +55,7 @@ export type Panel = {
 }
 
 local COLS = 5
-local CARD_W, CARD_H = 96, 108
+local CARD_W, CARD_H = 96, 120
 
 --[[
 	host verilirse panel kendi penceresini açmıyor, o çerçevenin içine
@@ -284,16 +284,16 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		]]
 		local figure = Instance.new("Frame")
 		figure.AnchorPoint = Vector2.new(0.5, 0)
-		figure.Position = UDim2.new(0.5, 0, 0, 8)
-		figure.Size = UDim2.fromOffset(38, 38)
+		figure.Position = UDim2.new(0.5, 0, 0, 5)
+		figure.Size = UDim2.fromOffset(50, 50)
 		figure.BackgroundTransparency = 1
 		figure.ZIndex = 44
 		figure.Parent = card
 		-- Gerçek model (mutasyon rengi ve boyut anahtarda); sahip olunmayan sönük siluet
-		UiKit.PetIcon(figure, 38, key or def.id, if not key then UiKit.DIM else nil)
+		UiKit.PetIcon(figure, 50, key or def.id, if not key then UiKit.DIM else nil)
 
 		local name = Instance.new("TextLabel")
-		name.Position = UDim2.new(0, 4, 0, 46)
+		name.Position = UDim2.new(0, 4, 0, 56)
 		name.Size = UDim2.new(1, -8, 0, 15)
 		name.BackgroundTransparency = 1
 		name.Font = Enum.Font.GothamBold
@@ -306,7 +306,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 		-- Mutasyon adı ismin altında, kendi renginde
 		local tag = Instance.new("TextLabel")
-		tag.Position = UDim2.new(0, 4, 0, 60)
+		tag.Position = UDim2.new(0, 4, 0, 70)
 		tag.Size = UDim2.new(1, -8, 0, 12)
 		tag.BackgroundTransparency = 1
 		tag.Font = Enum.Font.GothamBlack
@@ -348,7 +348,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			bilmeden hedef olmuyor.
 		]]
 		local stat = Instance.new("TextLabel")
-		stat.Position = UDim2.new(0, 4, 0, 72)
+		stat.Position = UDim2.new(0, 4, 0, 82)
 		stat.Size = UDim2.new(1, -8, 0, 26)
 		stat.BackgroundTransparency = 1
 		stat.Font = Enum.Font.GothamMedium

@@ -57,11 +57,21 @@ return {
 				bx(name .. "Bezel", x, y, d, w + 0.8, h + 0.8, 0.6, C.shadow)
 				bx(name, x, y, d + 0.35, w, h, 0.1, glow, { emit = "Screen" })
 			end
-			local function chair(x: number, d: number, color: Color3)
-				vc("ChairPost", x, 1.2, d, 2.4, 0.9, C.metalDark)
-				vc("ChairFoot", x, 0.2, d, 0.4, 3.2, C.metalDark)
-				bx("ChairSeat", x, 2.7, d, 3.6, 0.8, 3.6, color)
-				bx("ChairBack", x, 5, d + 1.6, 3.6, 4, 0.7, color)
+			--[[
+				Sandalye. Varsayılan (yaw 0) oturan duvara bakıyor: Security'deki
+				monitör masası gibi. yaw derece: 90 = oda içinde +x'e (sağa),
+				-90 = -x'e. Admin masasının iki yanındakiler masaya dönük; eskiden
+				ikisi de duvara bakıyordu.
+			]]
+			local function chair(x: number, d: number, color: Color3, yaw: number?)
+				local c = R(x, 0, d) * CFrame.Angles(0, math.rad(yaw or 0), 0)
+				local upright = CFrame.Angles(0, 0, math.rad(90))
+				K.boxAt(f, "ChairPost", c * CFrame.new(0, 1.2, 0) * upright, Vector3.new(2.4, 0.9, 0.9), C.metalDark,
+					{ shape = Enum.PartType.Cylinder })
+				K.boxAt(f, "ChairFoot", c * CFrame.new(0, 0.2, 0) * upright, Vector3.new(0.4, 3.2, 3.2), C.metalDark,
+					{ shape = Enum.PartType.Cylinder })
+				K.boxAt(f, "ChairSeat", c * CFrame.new(0, 2.7, 0), Vector3.new(3.6, 0.8, 3.6), color)
+				K.boxAt(f, "ChairBack", c * CFrame.new(0, 5, -1.6), Vector3.new(3.6, 4, 0.7), color)
 			end
 			local function label(part: Part, text: string, color: Color3)
 				K.text(part, Enum.NormalId.Front, text, color, { h = 0.7, y = 0.15 })
@@ -248,8 +258,9 @@ return {
 				end
 				local glow = vc("HoloGlow", 0, 6.2, 11, 3.6, 13, C.green, { emit = "Screen", transparency = 0.86 })
 				glow.CastShadow = false
-				chair(-12, 11, C.red)
-				chair(12, 11, C.red)
+				-- Masaya dönük
+				chair(-12, 11, C.red, 90)
+				chair(12, 11, C.red, -90)
 				-- Kart okuyucu
 				bx("Swipe", 26, 6, 0.8, 5, 3.4, 1.6, C.shadow)
 				bx("SwipeSlot", 26, 6.9, 1.65, 4, 0.3, 0.1, C.metal)
