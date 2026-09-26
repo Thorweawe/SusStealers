@@ -107,6 +107,10 @@ end
 
 -- ─── Takılı unvan ───────────────────────────────────────────────────────────
 
+-- Testler kapatıyor: testi çalıştıran hesap geliştirici, unvan testleri
+-- normal oyuncunun niteliğine bakıyor
+local developerTitle = true
+
 --[[
 	Takılı unvanı oyuncunun niteliğine ve istemciye yazar.
 
@@ -140,9 +144,21 @@ local function refreshEquipped(player: Player)
 	end
 
 	local def = Config.GetTitle(profile.activeTitle)
-	player:SetAttribute("Title", if def then def.name else "")
+	-- Geliştiriciler sohbette her zaman DEVELOPER (Config.Developers)
+	local shown = if developerTitle and Config.Developers[player.UserId] then Config.DeveloperTitle
+		elseif def then def.name
+		else ""
+	player:SetAttribute("Title", shown)
 
 	TitleService.Publish(player)
+end
+
+--[[ Testler için: geliştirici unvanını aç/kapa, verilen oyuncuda hemen yenile. ]]
+function TitleService._SetDeveloperTitle(on: boolean, player: Player?)
+	developerTitle = on
+	if player then
+		refreshEquipped(player)
+	end
 end
 
 --[[

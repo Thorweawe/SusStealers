@@ -112,6 +112,15 @@ function ChatTitles.Start()
 		local prefix = if properties.PrefixText ~= "" then properties.PrefixText else message.PrefixText
 		local color = colorById[title] or TIER_COLORS[1]
 
+		-- Geliştirici: kalın, kırmızı köşeli parantez, altın yazı
+		if title == Config.DeveloperTitle then
+			properties.PrefixText = string.format(
+				'<b><font color="#FF4655">[</font><font color="#FFD23C">%s</font><font color="#FF4655">]</font></b> %s',
+				title, prefix
+			)
+			return properties
+		end
+
 		properties.PrefixText = string.format(
 			'<font color="#%s">[%s]</font> %s',
 			toHex(color), title, prefix

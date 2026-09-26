@@ -17,6 +17,10 @@
 
 	Veriler workspace niteliklerinden (EventId, EventEndsAt, NextEvent...);
 	sunucuya hiçbir şey göndermiyor.
+
+	GÖRÜNÜŞ: öbür pencereler gibi mağaza dilinde (CardKit) — olayın
+	renginde ışınlı kartlar, kalın konturlu yazılar, ikon rozetleri,
+	renkli başlık şeridi. Eskiden koyu düz kutular ve ince yazılardı.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -25,6 +29,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local EventFX = {}
@@ -96,41 +101,41 @@ local function clock(seconds: number): string
 end
 
 function EventFX.Create(screen: ScreenGui): Handle
-	-- ─── Şerit ───────────────────────────────────────────────────────────
+	local WHITE = CardKit.WHITE
+	local NEUTRAL = Color3.fromRGB(60, 110, 220)
+
+	-- ─── Şerit (süren olay, üst orta) ────────────────────────────────────
 
 	local bar = Instance.new("Frame")
 	bar.Name = "EventBar"
 	bar.AnchorPoint = Vector2.new(0.5, 0)
 	bar.Position = UDim2.new(0.5, 0, 0, 10)
-	bar.Size = UDim2.fromOffset(340, 52)
-	bar.BackgroundColor3 = UiKit.SHELL_DEEP
-	bar.BackgroundTransparency = 0.1
-	bar.BorderSizePixel = 0
+	bar.Size = UDim2.fromOffset(400, 66)
+	bar.BackgroundTransparency = 1
 	bar.Visible = false
 	bar.Parent = screen
-	UiKit.Corner(bar, 14)
-	local stroke = UiKit.Stroke(bar, UiKit.CREW.RED, 2.4, 0.1)
+	local barCard = CardKit.card(bar, UiKit.CREW.RED, UDim2.fromScale(1, 1), 1, UDim2.fromScale(0.12, 0.5), 320)
 
-	local title = Instance.new("TextLabel")
+	local barBadge = CardKit.badge(bar, 58, UiKit.CREW.RED, 4)
+	barBadge.AnchorPoint = Vector2.new(0, 0.5)
+	barBadge.Position = UDim2.new(0, 6, 0.5, 0)
+	local barPulse = Instance.new("UIScale")
+	barPulse.Parent = barBadge
+	local barIconHost = barBadge:FindFirstChild("Slot") :: Frame
+
+	local title = CardKit.bold(barCard, "", 26, WHITE, 5, 3.5)
 	title.Name = "Title"
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.fromOffset(14, 5)
-	title.Size = UDim2.new(1, -28, 0, 26)
-	title.Font = Enum.Font.FredokaOne
-	title.TextSize = 22
-	title.TextColor3 = Color3.new(1, 1, 1)
-	title.TextStrokeTransparency = 0.4
-	title.Parent = bar
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Position = UDim2.fromOffset(74, 5)
+	title.Size = UDim2.new(1, -84, 0, 32)
+	CardKit.fit(title, 26, 12)
 
-	local sub = Instance.new("TextLabel")
+	local sub = CardKit.bold(barCard, "", 16, CardKit.YELLOW, 5, 2)
 	sub.Name = "Sub"
-	sub.BackgroundTransparency = 1
-	sub.Position = UDim2.fromOffset(14, 30)
-	sub.Size = UDim2.new(1, -28, 0, 16)
-	sub.Font = Enum.Font.GothamBold
-	sub.TextSize = 13
-	sub.TextColor3 = UiKit.MUTED
-	sub.Parent = bar
+	sub.TextXAlignment = Enum.TextXAlignment.Left
+	sub.Position = UDim2.fromOffset(74, 38)
+	sub.Size = UDim2.new(1, -84, 0, 20)
+	CardKit.fit(sub, 16, 10)
 
 	local SUBTEXT: { [string]: string } = {
 		Meeting = "2x income for everyone",
@@ -141,164 +146,143 @@ function EventFX.Create(screen: ScreenGui): Handle
 
 	-- ─── Çizelge (sağ alt) ───────────────────────────────────────────────
 
-	local ROW_H = 38
-	local CARD_H = 70
-	local HEAD_H = 28
-	local WIDTH = 252
+	local ROW_H = 54
+	local CARD_H = 82
+	local HEAD_H = 34
+	local WIDTH = 270
 
 	local panel = Instance.new("Frame")
 	panel.Name = "EventSchedule"
 	panel.AnchorPoint = Vector2.new(1, 1)
 	panel.Position = UDim2.new(1, -22, 1, -22)
-	panel.Size = UDim2.fromOffset(WIDTH, HEAD_H + #Config.Events * ROW_H + 12)
-	panel.BackgroundColor3 = UiKit.SHELL_DEEP
-	panel.BackgroundTransparency = 0.12
+	panel.Size = UDim2.fromOffset(WIDTH, HEAD_H + ROW_H + 12)
+	panel.BackgroundColor3 = CardKit.BODY
+	panel.BackgroundTransparency = 0.08
 	panel.BorderSizePixel = 0
+	panel.ClipsDescendants = true
 	panel.Parent = screen
-	UiKit.Corner(panel, 14)
-	local panelStroke = UiKit.Stroke(panel, UiKit.VISOR, 1.8, 0.45)
+	CardKit.corner(panel, 14)
+	CardKit.gradient(panel, CardKit.BODY, CardKit.BODY_DEEP)
+	CardKit.border(panel, CardKit.OUTLINE, 3)
 
-	-- Başlık: tıklayınca sıradaki olay satırı gizleniyor / geri geliyor
+	-- Başlık şeridi: tıklayınca sıradaki olay satırı gizleniyor / geri geliyor
 	local head = Instance.new("TextButton")
 	head.Name = "Head"
-	head.Position = UDim2.fromOffset(12, 4)
-	head.Size = UDim2.new(1, -24, 0, HEAD_H - 4)
-	head.BackgroundTransparency = 1
+	head.Size = UDim2.new(1, 0, 0, HEAD_H)
+	head.BackgroundColor3 = NEUTRAL
+	head.BorderSizePixel = 0
 	head.AutoButtonColor = false
-	head.Font = Enum.Font.GothamBlack
-	head.TextSize = 13
-	head.TextXAlignment = Enum.TextXAlignment.Left
-	head.TextColor3 = UiKit.MUTED
-	head.Text = "NEXT EVENT"
+	head.Text = ""
 	head.Parent = panel
-
-	local fold = Instance.new("TextLabel")
+	CardKit.corner(head, 14)
+	local headGrad = CardKit.gradient(head, NEUTRAL:Lerp(WHITE, 0.2), NEUTRAL:Lerp(Color3.new(0, 0, 0), 0.15))
+	local headFoot = Instance.new("Frame")
+	headFoot.Position = UDim2.new(0, 0, 1, -12)
+	headFoot.Size = UDim2.new(1, 0, 0, 12)
+	headFoot.BackgroundColor3 = NEUTRAL:Lerp(Color3.new(0, 0, 0), 0.12)
+	headFoot.BorderSizePixel = 0
+	headFoot.Parent = head
+	for i, x in { 0.6, 0.68 } do
+		local stripe = Instance.new("Frame")
+		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
+		stripe.Position = UDim2.fromScale(x, 0.5)
+		stripe.Size = UDim2.fromOffset(if i == 1 then 22 else 9, 90)
+		stripe.Rotation = 30
+		stripe.BackgroundColor3 = WHITE
+		stripe.BackgroundTransparency = 0.8
+		stripe.BorderSizePixel = 0
+		stripe.Parent = head
+	end
+	local headText = CardKit.bold(head, "EVENTS", 20, WHITE, 3, 2.5)
+	headText.TextXAlignment = Enum.TextXAlignment.Left
+	headText.Position = UDim2.fromOffset(12, 0)
+	headText.Size = UDim2.new(1, -90, 1, 0)
+	local fold = CardKit.bold(head, "HIDE ▾", 14, WHITE, 3, 2)
 	fold.AnchorPoint = Vector2.new(1, 0)
-	fold.Position = UDim2.new(1, -12, 0, 4)
-	fold.Size = UDim2.fromOffset(60, HEAD_H - 4)
-	fold.BackgroundTransparency = 1
-	fold.Font = Enum.Font.GothamBold
-	fold.TextSize = 11
+	fold.Position = UDim2.new(1, -10, 0, 0)
+	fold.Size = UDim2.fromOffset(70, HEAD_H)
 	fold.TextXAlignment = Enum.TextXAlignment.Right
-	fold.TextColor3 = UiKit.DIM
-	fold.Text = "HIDE ▾"
-	fold.Parent = panel
+	local rule = Instance.new("Frame")
+	rule.Position = UDim2.new(0, 0, 0, HEAD_H - 2)
+	rule.Size = UDim2.new(1, 0, 0, 3)
+	rule.BackgroundColor3 = CardKit.OUTLINE
+	rule.BorderSizePixel = 0
+	rule.Parent = panel
+
+	local function paintHead(color: Color3)
+		head.BackgroundColor3 = color
+		headGrad.Color = ColorSequence.new(color:Lerp(WHITE, 0.2), color:Lerp(Color3.new(0, 0, 0), 0.15))
+		headFoot.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.12)
+	end
 
 	-- Süren olayın kartı: büyük ikon, ad, açıklama, kalan süre
-	local card = Instance.new("Frame")
+	local card = CardKit.card(panel, UiKit.CREW.RED, UDim2.new(1, -16, 0, CARD_H - 8), 2, UDim2.fromScale(0.15, 0.5), 260)
 	card.Name = "Live"
-	card.Position = UDim2.fromOffset(8, HEAD_H)
-	card.Size = UDim2.new(1, -16, 0, CARD_H - 6)
-	card.BackgroundColor3 = UiKit.ROW
-	card.BorderSizePixel = 0
+	card.Position = UDim2.fromOffset(8, HEAD_H + 6)
 	card.Visible = false
-	card.Parent = panel
-	UiKit.Corner(card, 12)
-	local cardStroke = UiKit.Stroke(card, UiKit.CREW.RED, 2, 0.1)
 
-	local cardIcon = Instance.new("Frame")
+	local cardIcon = CardKit.badge(card, 60, UiKit.CREW.RED, 5)
 	cardIcon.AnchorPoint = Vector2.new(0, 0.5)
 	cardIcon.Position = UDim2.new(0, 8, 0.5, 0)
-	cardIcon.Size = UDim2.fromOffset(48, 48)
-	cardIcon.BackgroundColor3 = UiKit.SHELL_DEEP
-	cardIcon.BorderSizePixel = 0
-	cardIcon.Parent = card
-	UiKit.Corner(cardIcon, 12)
 	local cardPulse = Instance.new("UIScale")
 	cardPulse.Parent = cardIcon
 	-- İkon ayrı bir kapta: değişince yalnızca o temizleniyor (köşe ve ölçek kalıyor)
-	local cardIconHost = Instance.new("Frame")
-	cardIconHost.Size = UDim2.fromScale(1, 1)
-	cardIconHost.BackgroundTransparency = 1
-	cardIconHost.Parent = cardIcon
+	local cardIconHost = cardIcon:FindFirstChild("Slot") :: Frame
 
-	local cardLive = Instance.new("TextLabel")
-	cardLive.Position = UDim2.fromOffset(64, 6)
-	cardLive.Size = UDim2.new(1, -72, 0, 14)
-	cardLive.BackgroundTransparency = 1
-	cardLive.Font = Enum.Font.GothamBlack
-	cardLive.TextSize = 11
+	local cardLive = CardKit.bold(card, "● LIVE", 14, WHITE, 6, 2)
 	cardLive.TextXAlignment = Enum.TextXAlignment.Left
-	cardLive.TextColor3 = UiKit.CREW.RED
-	cardLive.Text = "● LIVE"
-	cardLive.Parent = card
+	cardLive.Position = UDim2.fromOffset(76, 6)
+	cardLive.Size = UDim2.fromOffset(70, 18)
+	cardLive.BackgroundTransparency = 0
+	cardLive.BackgroundColor3 = Color3.fromRGB(226, 30, 40)
+	CardKit.corner(cardLive, 6)
+	CardKit.border(cardLive, CardKit.OUTLINE, 2)
+	cardLive.TextXAlignment = Enum.TextXAlignment.Center
 
-	local cardTime = Instance.new("TextLabel")
+	local cardTime = CardKit.bold(card, "", 15, CardKit.YELLOW, 6, 2)
 	cardTime.AnchorPoint = Vector2.new(1, 0)
-	cardTime.Position = UDim2.new(1, -8, 0, 6)
-	cardTime.Size = UDim2.fromOffset(70, 14)
-	cardTime.BackgroundTransparency = 1
-	cardTime.Font = Enum.Font.GothamBlack
-	cardTime.TextSize = 12
+	cardTime.Position = UDim2.new(1, -8, 0, 5)
+	cardTime.Size = UDim2.fromOffset(96, 20)
 	cardTime.TextXAlignment = Enum.TextXAlignment.Right
-	cardTime.TextColor3 = Color3.new(1, 1, 1)
-	cardTime.Parent = card
 
-	local cardName = Instance.new("TextLabel")
-	cardName.Position = UDim2.fromOffset(64, 20)
-	cardName.Size = UDim2.new(1, -72, 0, 20)
-	cardName.BackgroundTransparency = 1
-	cardName.Font = Enum.Font.FredokaOne
-	cardName.TextSize = 17
+	local cardName = CardKit.bold(card, "", 22, WHITE, 6, 3)
 	cardName.TextXAlignment = Enum.TextXAlignment.Left
-	cardName.TextColor3 = Color3.new(1, 1, 1)
-	cardName.TextTruncate = Enum.TextTruncate.AtEnd
-	cardName.Parent = card
+	cardName.Position = UDim2.fromOffset(76, 26)
+	cardName.Size = UDim2.new(1, -90, 0, 26)
+	CardKit.fit(cardName, 22, 11)
 
-	local cardSub = Instance.new("TextLabel")
-	cardSub.Position = UDim2.fromOffset(64, 41)
-	cardSub.Size = UDim2.new(1, -72, 0, 14)
-	cardSub.BackgroundTransparency = 1
-	cardSub.Font = Enum.Font.GothamMedium
-	cardSub.TextSize = 11
+	local cardSub = CardKit.bold(card, "", 13, Color3.fromRGB(235, 240, 255), 6, 1.6)
 	cardSub.TextXAlignment = Enum.TextXAlignment.Left
-	cardSub.TextColor3 = UiKit.MUTED
-	cardSub.TextTruncate = Enum.TextTruncate.AtEnd
-	cardSub.Parent = card
+	cardSub.Position = UDim2.fromOffset(76, 52)
+	cardSub.Size = UDim2.new(1, -84, 0, 18)
+	CardKit.fit(cardSub, 13, 8)
 
 	-- Sıradaki olayların satırları (sabit sayıda; sırası her tikte güncelleniyor)
-	type Row = { frame: Frame, icon: Frame, name: TextLabel, time: TextLabel, id: string }
+	type Row = { frame: Frame, badge: Frame, icon: Frame, name: TextLabel, time: TextLabel, scale: UIScale, id: string }
 	local rows: { Row } = {}
 	for index = 1, #Config.Events do
-		local frame = Instance.new("Frame")
+		local frame = CardKit.card(panel, NEUTRAL, UDim2.new(1, -16, 0, ROW_H - 8), 2, UDim2.fromScale(0.12, 0.5), 220)
 		frame.Name = "Row" .. index
-		frame.Size = UDim2.new(1, -16, 0, ROW_H - 4)
-		frame.BackgroundColor3 = UiKit.ROW
-		frame.BackgroundTransparency = 0.4
-		frame.BorderSizePixel = 0
-		frame.Parent = panel
-		UiKit.Corner(frame, 10)
 
-		local icon = Instance.new("Frame")
-		icon.AnchorPoint = Vector2.new(0, 0.5)
-		icon.Position = UDim2.new(0, 6, 0.5, 0)
-		icon.Size = UDim2.fromOffset(28, 28)
-		icon.BackgroundTransparency = 1
-		icon.Parent = frame
+		local badge = CardKit.badge(frame, 42, NEUTRAL, 5)
+		badge.AnchorPoint = Vector2.new(0, 0.5)
+		badge.Position = UDim2.new(0, 6, 0.5, 0)
+		local icon = badge:FindFirstChild("Slot") :: Frame
 
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.fromOffset(42, 0)
-		name.Size = UDim2.new(1, -120, 1, 0)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 13
+		local name = CardKit.bold(frame, "", 18, WHITE, 6, 2.5)
 		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextColor3 = UiKit.INK
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.Parent = frame
+		name.Position = UDim2.fromOffset(56, 4)
+		name.Size = UDim2.new(1, -64, 0, 22)
+		CardKit.fit(name, 18, 10)
 
-		local time = Instance.new("TextLabel")
-		time.AnchorPoint = Vector2.new(1, 0)
-		time.Position = UDim2.new(1, -8, 0, 0)
-		time.Size = UDim2.new(0, 74, 1, 0)
-		time.BackgroundTransparency = 1
-		time.Font = Enum.Font.GothamBlack
-		time.TextSize = 13
-		time.TextXAlignment = Enum.TextXAlignment.Right
-		time.TextColor3 = UiKit.MUTED
-		time.Parent = frame
+		local time = CardKit.bold(frame, "", 16, CardKit.YELLOW, 6, 2)
+		time.TextXAlignment = Enum.TextXAlignment.Left
+		time.Position = UDim2.fromOffset(56, 26)
+		time.Size = UDim2.new(1, -64, 0, 20)
+		local scale = Instance.new("UIScale")
+		scale.Parent = time
 
-		table.insert(rows, { frame = frame, icon = icon, name = name, time = time, id = "" })
+		table.insert(rows, { frame = frame, badge = badge, icon = icon, name = name, time = time, scale = scale, id = "" })
 	end
 
 	local collapsed = false
@@ -313,23 +297,21 @@ function EventFX.Create(screen: ScreenGui): Handle
 		local live = activeId ~= ""
 		card.Visible = live
 		if live then
+			local color = ACCENT[activeId] or UiKit.CREW.RED
 			if cardId ~= activeId then
 				cardId = activeId
 				UiKit.ClearSlot(cardIconHost)
-				drawEventIcon(cardIconHost, 40, activeId)
+				drawEventIcon(cardIconHost, 44, activeId)
+				CardKit.tintCard(card, color:Lerp(Color3.new(0, 0, 0), 0.25))
+				paintHead(color:Lerp(Color3.new(0, 0, 0), 0.1))
 			end
-			local color = ACCENT[activeId] or UiKit.CREW.RED
-			cardStroke.Color = color
-			cardLive.TextColor3 = color
-			card.BackgroundColor3 = UiKit.ROW:Lerp(color, 0.14)
-			panelStroke.Color = color
 			local endsAt = workspace:GetAttribute("EventEndsAt") :: number?
 			cardName.Text = tostring(workspace:GetAttribute("EventName") or activeId)
 			cardSub.Text = SUBTEXT[activeId] or ""
 			cardTime.Text = "ENDS " .. clock((endsAt or now) - now)
-		else
+		elseif cardId ~= "" then
 			cardId = ""
-			panelStroke.Color = UiKit.VISOR
+			paintHead(NEUTRAL)
 		end
 
 		--[[
@@ -347,7 +329,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 			return a.at < b.at
 		end)
 
-		local y = HEAD_H + (if live then CARD_H else 0)
+		local y = HEAD_H + 6 + (if live then CARD_H else 0)
 		for index, row in rows do
 			local entry = upcoming[index]
 			local visible = entry ~= nil and index == 1 and not collapsed
@@ -360,15 +342,19 @@ function EventFX.Create(screen: ScreenGui): Handle
 			if row.id ~= entry.def.id then
 				row.id = entry.def.id
 				UiKit.ClearSlot(row.icon)
-				drawEventIcon(row.icon, 26, entry.def.id)
+				drawEventIcon(row.icon, 30, entry.def.id)
 				row.name.Text = entry.def.name
+				local tone = (ACCENT[entry.def.id] or NEUTRAL):Lerp(Color3.new(0, 0, 0), 0.35)
+				CardKit.tintCard(row.frame, tone)
 			end
 			local left = entry.at - now
-			row.time.Text = "in " .. clock(left)
-			-- Uyarı süresine (Config.EventWarning) girince sarı: "şimdi başlıyor"
-			row.time.TextColor3 = if left <= Config.EventWarning then UiKit.WARN else UiKit.MUTED
+			row.time.Text = "starts in " .. clock(left)
+			-- Uyarı süresine (Config.EventWarning) girince: "şimdi başlıyor", nabız
+			local soon = left <= Config.EventWarning
+			row.time.TextColor3 = if soon then Color3.fromRGB(255, 120, 90) else CardKit.YELLOW
+			row.scale.Scale = if soon then 1 + 0.06 * math.abs(math.sin(now * 5)) else 1
 		end
-		panel.Size = UDim2.fromOffset(WIDTH, y + 8)
+		panel.Size = UDim2.fromOffset(WIDTH, y + 4)
 	end
 
 	-- ─── Karanlık ────────────────────────────────────────────────────────
@@ -419,8 +405,12 @@ function EventFX.Create(screen: ScreenGui): Handle
 			local endsAt = workspace:GetAttribute("EventEndsAt") :: number?
 			local name = workspace:GetAttribute("EventName")
 			local color = ACCENT[id] or UiKit.CREW.RED
-			stroke.Color = color
-			title.TextColor3 = color
+			if bar:GetAttribute("For") ~= id then
+				bar:SetAttribute("For", id)
+				CardKit.tintCard(barCard, color:Lerp(Color3.new(0, 0, 0), 0.25))
+				UiKit.ClearSlot(barIconHost)
+				drawEventIcon(barIconHost, 42, id)
+			end
 			title.Text = string.upper(tostring(name)) .. "  " .. clock((endsAt or now) - now)
 			sub.Text = SUBTEXT[id] or ""
 			bar.Visible = not hidden
@@ -439,6 +429,9 @@ function EventFX.Create(screen: ScreenGui): Handle
 		end
 		pulseTime += dt
 		cardPulse.Scale = 1 + 0.08 * math.sin(pulseTime * 6)
+		barPulse.Scale = 1 + 0.08 * math.sin(pulseTime * 6)
+		-- LIVE rozeti yanıp sönüyor
+		cardLive.BackgroundTransparency = if math.sin(pulseTime * 5) > 0 then 0 else 0.45
 	end)
 
 	return {

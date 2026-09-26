@@ -138,7 +138,8 @@ local function localRows(board: Board): { Row }
 	local rows: { Row } = {}
 	for _, player in Players:GetPlayers() do
 		local profile = DataService.Get(player)
-		if profile then
+		-- Geliştiriciler sıralamada görünmüyor (Config.LeaderboardHidden)
+		if profile and not Config.LeaderboardHidden[player.UserId] then
 			table.insert(rows, { name = player.DisplayName, value = board.value(profile), userId = player.UserId })
 		end
 	end
@@ -366,13 +367,18 @@ local function refresh()
 		local rows: { Row }? = nil
 		if store then
 			local ok, page = pcall(function()
-				return (store :: OrderedDataStore):GetSortedAsync(false, ROWS):GetCurrentPage()
+				-- Gizlenen hesaplar kadar fazla iste: süzülünce liste kısalmasın
+				local hidden = 0
+				for _ in Config.LeaderboardHidden do
+					hidden += 1
+				end
+				return (store :: OrderedDataStore):GetSortedAsync(false, ROWS + hidden):GetCurrentPage()
 			end)
 			if ok and typeof(page) == "table" then
 				local list: { Row } = {}
 				for _, entry in page do
 					local userId = tonumber(entry.key)
-					if userId then
+					if userId and not Config.LeaderboardHidden[userId] and #list < ROWS then
 						table.insert(list, { name = nameOf(userId), value = entry.value, userId = userId })
 					end
 				end

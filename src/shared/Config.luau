@@ -1100,6 +1100,33 @@ Config.GamePasses = {
 Config.GroupId = 814468451
 
 --[[
+	Sunucu kapasitesi (Creator Dashboard > Places > Server Size ile AYNI
+	olmalı). Başlık ekranı "x / 8" yazarken bunu kullanıyor: Studio testinde
+	Players.MaxPlayers Studio'nun varsayılanını (60) veriyordu.
+]]
+Config.ServerSize = 8
+
+-- Oyunun geliştiricileri (Roblox UserId)
+Config.Developers = {
+	[10382876527] = true, -- ATCIKM (Batur)
+	[235261243] = true,   -- 48yusuf (Yusuf)
+} :: { [number]: boolean }
+
+--[[
+	Sıralamalarda (lobi panoları, TOP CREW kürsüsü) GÖRÜNMEYEN hesaplar:
+	geliştiriciler. Test ederken biriken parayla listenin başına
+	oturuyorlardı. Kayıtları yazılmaya devam ediyor, yalnızca gösterilmiyor.
+]]
+Config.LeaderboardHidden = Config.Developers
+
+--[[
+	Geliştiricilerin sohbetteki unvanı. Config.Titles'ta DEĞİL: orada olsa
+	herkesin unvan menüsünde kilitli bir "DEVELOPER" görünürdü. TitleService
+	geliştiricinin "Title" niteliğine bunu yazıyor (seçtiği unvanın yerine).
+]]
+Config.DeveloperTitle = "DEVELOPER"
+
+--[[
 	Yumurta açılışının süresi (saniye). Bir yumurta açılırken ikincisi
 	açılamıyor — sunucu bu süreyi bekletiyor, istemcideki animasyon da bu
 	süreye göre ayarlı (HatchFX). Eskiden art arda basınca animasyonlar

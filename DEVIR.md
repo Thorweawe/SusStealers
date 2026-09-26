@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (24) — Batur (Yusuf'un şeridine de yazıldı)
+
+- **`Config.Developers`** (ATCIKM, 48yusuf): sıralamalarda görünmüyorlar
+  (`Config.LeaderboardHidden`, `GlobalBoardService` süzüyor; TOP CREW kürsüsü de),
+  sohbette **[DEVELOPER]** unvanı (`Config.DeveloperTitle`; `TitleService` "Title" niteliğine
+  yazıyor, `ChatTitles` kırmızı-altın çiziyor). Unvan menüsünde yok.
+- **`Config.ServerSize = 8`:** başlık ekranı Studio'da bunu yazıyor (MaxPlayers 60 veriyordu).
+- **EventFX mağaza dilinde:** olay şeridi ve sağ alt çizelge CardKit kartları.
+
 ## 2026-09-26 (23) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 - **Rogue impostor fiziksiz:** Humanoid yok. Sunucu zemine oturtulmuş rotayı modelin

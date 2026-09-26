@@ -3892,6 +3892,8 @@ function ServerTests.Run(player: Player?): number
 	for key in Config.GamePasses do
 		MonetizationService._SetPassCache(player, key, false)
 	end
+	-- Testi çalıştıran hesap geliştirici: unvan testleri normal oyuncuya göre
+	TitleService._SetDeveloperTitle(false, player)
 
 	-- Testler profili değiştiriyor; sonunda geri yüklenecek
 	local backup = {
@@ -4060,6 +4062,7 @@ function ServerTests.Run(player: Player?): number
 	for key in Config.GamePasses do
 		MonetizationService._SetPassCache(player, key, nil)
 	end
+	TitleService._SetDeveloperTitle(true, player)
 
 	-- Kayıt yeniden açık; diskteki kopya geri yüklenen profille aynı olsun
 	DataService._SetSavingPaused(false)

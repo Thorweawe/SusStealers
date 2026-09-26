@@ -665,7 +665,9 @@ function TitleScreen.Show(options: Options?): Handle
 	server.RichText = true
 	local function refreshServer()
 		local count = #Players:GetPlayers()
-		server.Text = string.format('<font color="#50EF39">●</font>  %d / %d crewmates on this ship', count, Players.MaxPlayers)
+		-- Canlıda gerçek kapasite; Studio'da (MaxPlayers varsayılanı 60) Config'teki
+		local max = if game:GetService("RunService"):IsStudio() then Config.ServerSize else Players.MaxPlayers
+		server.Text = string.format('<font color="#50EF39">●</font>  %d / %d crewmates on this ship', count, max)
 	end
 	table.insert(connections, Players.PlayerAdded:Connect(refreshServer))
 	table.insert(connections, Players.PlayerRemoving:Connect(function()
