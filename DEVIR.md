@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (25) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+- **Çarkın bedava çevirmesi çalışmıyordu:** `PromptGuard.Validate` yalnızca parçadaki promptu
+  kabul ediyordu; çark promptu Attachment'ta (SpinPromptPoint). Artık Attachment da geçerli
+  (WorldPosition). Test eklendi. **Promptu Attachment'a koyarsan bu yüzden çalışıyor.**
+- **Tutorial:** hedef nesne istemciye yüklenmeden gelirse (ilk adım, StreamingEnabled) istemci
+  ipucundan kendisi buluyor; "studs" yazısı kalktı. Çalma adımında çalınacak rakip yoksa
+  `Config.TutorialAloneSkipSeconds` (15) sonra adım kendiliğinden geçiyor.
+- **Crew listesi** (`Leaderboard`): avatar yüzleri (headshot), üs rengi halka ve kart, CardKit.
+- **Menus (Potions/Titles), RewardsPanel** CardKit ile yeniden (mantık aynı).
+- **İksir ürün kimlikleri** girildi (mağazada SOON kalktı). Kapak görselleri `thumbnails/`.
+- **Laboratuvar panosu** korkuluğun önüne alındı (`annex.luau`), yazı duvarda kalıyordu.
+
 ## 2026-09-26 (24) — Batur (Yusuf'un şeridine de yazıldı)
 
 - **`Config.Developers`** (ATCIKM, 48yusuf): sıralamalarda görünmüyorlar

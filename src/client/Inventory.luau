@@ -325,14 +325,14 @@ function Inventory.Create(screen: ScreenGui): Inventory
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.Position = UDim2.fromOffset(72, 10)
 		label.Size = UDim2.new(1, -80, 0, 28)
-		CardKit.fit(label, 24, 12)
+		CardKit.fit(label, 24, 8)
 
 		local count = CardKit.bold(card, "", 15, CardKit.WHITE, Z + 5, 2)
 		count.TextXAlignment = Enum.TextXAlignment.Left
 		count.Position = UDim2.fromOffset(72, 40)
 		count.Size = UDim2.new(1, -84, 0, 20)
 		-- Uzun satır ("17 pets · 3/3 equipped") sekmeye sığmıyor: sığmazsa küçülür
-		CardKit.fit(count, 15, 9)
+		CardKit.fit(count, 15, 6)
 
 		-- Tıklama katmanı: kartın üstünde görünmez düğme
 		local button = Instance.new("TextButton")
