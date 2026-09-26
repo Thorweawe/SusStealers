@@ -1081,10 +1081,12 @@ Config.GamePasses = {
 	oyuncu grubu büyütüyor, grup da güncelleme bildirimleriyle oyuncuyu
 	geri getiriyor.
 
-	0 = grup henüz kurulmadı: otomatik açma kapalı. Studio'da test için
-	grup şartı aranmıyor (PetService). Grup kurulunca ID buraya yazılacak.
+	0 = grup yok: otomatik açma kapalı. Studio'da test için grup şartı
+	aranmıyor (PetService).
+
+	"Steal a Crewmate Official": roblox.com/communities/814468451
 ]]
-Config.GroupId = 0
+Config.GroupId = 814468451
 
 --[[
 	Yumurta açılışının süresi (saniye). Bir yumurta açılırken ikincisi
