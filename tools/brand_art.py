@@ -24,11 +24,12 @@ p = si.p
 DEST = os.path.join(si.ROOT, "branding")
 FONT = si.FONT
 
-RED = (255, 58, 72)       # neon halka
-RING = (70, 225, 255)     # camgöbeği neon: kırmızı hırsızla ve yeşil ganimetle uyumlu
-THIEF = (214, 36, 52)     # hırsızın gövdesi: klasik impostor kırmızısı
-MASK = (34, 30, 46)       # hırsız beresi
-MASK_RIM = (54, 50, 70)   # berenin kıvrık kenarı
+RED = (255, 58, 72)       # neon halka ve vizör
+RING = RED
+HOOD = (70, 60, 112)      # kapüşonlu gövde: kafa ve gövde AYNI renk, tek siluet
+HOOD_RIM = (132, 116, 196) # yüz açıklığının kapüşon kenarı
+RIM = (190, 150, 255)     # arka kenar ışığı
+FACE = (14, 12, 22)       # kapüşonun içi (karanlık)
 LOOT = (80, 239, 57)      # çalınan mürettebat: yeşil
 
 
@@ -62,7 +63,7 @@ def glow_ring(size, cx, cy, r, width, color):
     return Image.alpha_composite(out, ring)
 
 
-def crewmate(d, cx, by, h, col, face=1, pack=0.16):
+def crewmate(d, cx, by, h, col, face=1, pack=0.16, visor=True):
     """store_icons.crewmate'in aynısı; tek fark sırt çantası daha ince (`pack`, boya oranı)."""
     w = h * 0.72
     top = by - h
@@ -75,48 +76,55 @@ def crewmate(d, cx, by, h, col, face=1, pack=0.16):
     d.rounded_rectangle(p(cx - w / 2, by - h * 0.32, cx - w * 0.07, by), radius=h * 0.08 * S, fill=dark, outline=OUT, width=lw)
     d.rounded_rectangle(p(cx + w * 0.07, by - h * 0.32, cx + w / 2, by), radius=h * 0.08 * S, fill=dark, outline=OUT, width=lw)
     d.rounded_rectangle(p(cx - w / 2, top, cx + w / 2, by - h * 0.16), radius=w * 0.47 * S, fill=col, outline=OUT, width=lw)
-    vx0 = cx - w * 0.08 if face > 0 else cx - w / 2 - h * 0.1
-    vx1 = cx + w / 2 + h * 0.1 if face > 0 else cx + w * 0.08
-    d.rounded_rectangle(p(vx0, top + h * 0.17, vx1, top + h * 0.45), radius=h * 0.13 * S, fill=(150, 220, 242), outline=OUT, width=lw)
-    hx = vx0 + (vx1 - vx0) * (0.52 if face > 0 else 0.18)
-    d.rounded_rectangle(p(hx, top + h * 0.22, hx + (vx1 - vx0) * 0.3, top + h * 0.3), radius=h * 0.035 * S, fill=(235, 250, 255))
+    if visor:
+        vx0 = cx - w * 0.08 if face > 0 else cx - w / 2 - h * 0.1
+        vx1 = cx + w / 2 + h * 0.1 if face > 0 else cx + w * 0.08
+        d.rounded_rectangle(p(vx0, top + h * 0.17, vx1, top + h * 0.45), radius=h * 0.13 * S, fill=(150, 220, 242), outline=OUT, width=lw)
+        hx = vx0 + (vx1 - vx0) * (0.52 if face > 0 else 0.18)
+        d.rounded_rectangle(p(hx, top + h * 0.22, hx + (vx1 - vx0) * 0.3, top + h * 0.3), radius=h * 0.035 * S, fill=(235, 250, 255))
     si.gloss(d, (cx - w * 0.36, top + h * 0.06, cx - w * 0.12, top + h * 0.14), 90)
 
 
 def thief_art():
     """
-    Hırsız: tek parça klasik mürettebat silueti (kırmızı), başında siyah haydut
-    maskesi (arkadan uçuşan uçlarıyla), önde küçük bir el ve elinde çaldığı
-    yeşil mürettebat. 512'lik koordinatlarda, saydam, dış konturlu.
+    Kapüşonlu hırsız, elinde çaldığı yeşil mürettebat.
 
-    Önceki çizimde kapüşon, pelerin ve gövde ayrı ayrı konturlanıyordu;
-    parçalar birbirinden kopuk duruyordu. Burada gövde store_icons'un
-    mürettebatı (tek siluet), ekler az ve gövdenin rengiyle.
+    Kafa (kapüşon) ve gövde TEK siluet ve TEK renk: mürettebatın fasulye
+    gövdesi, üst yarısı kapüşon. Eskiden kapüşon gövdeden geniş ve ayrı
+    renkteydi, pelerin ayrı konturluydu — parçalar birbirine uymuyordu.
+    Kapüşon hissini yüz açıklığının çevresindeki kalın açık renkli kenar ve
+    karanlık iç veriyor; kırmızı vizör karanlıkta parlıyor.
     """
     art, d = si.new_art()
-    cx, by, h = 292, 424, 300
+    cx, by, h = 290, 424, 300
     w = h * 0.72
     top = by - h
     lw = max(int(LW * h / 200), 3 * S)
 
-    # Gövde: sola bakan klasik mürettebat (vizör solda, sırt çantası sağda)
-    crewmate(d, cx, by, h, THIEF, -1)
+    # Gövde + kafa: tek fasulye, vizörsüz
+    crewmate(d, cx, by, h, HOOD, -1, visor=False)
+    # Yüz açıklığı: kapüşon kenarı (açık halka) + karanlık iç
+    ox0, ox1 = cx - w * 0.47, cx + w * 0.16
+    oy0, oy1 = top + h * 0.1, top + h * 0.5
+    d.ellipse(p(ox0, oy0, ox1, oy1), fill=HOOD_RIM, outline=OUT, width=lw)
+    inset = h * 0.055
+    d.ellipse(p(ox0 + inset, oy0 + inset, ox1 - inset, oy1 - inset), fill=FACE)
+    # Kırmızı vizör, karanlığın içinde
+    vx0, vx1 = ox0 + w * 0.08, ox1 - w * 0.1
+    vy0, vy1 = top + h * 0.22, top + h * 0.35
+    d.rounded_rectangle(p(vx0, vy0, vx1, vy1), radius=h * 0.065 * S, fill=RED, outline=OUT, width=int(lw * 0.8))
+    d.rounded_rectangle(p(vx0 + w * 0.06, vy0 + h * 0.025, vx0 + w * 0.26, vy0 + h * 0.055),
+                        radius=h * 0.015 * S, fill=(255, 196, 200))
+    # Arka kenar ışığı: mor ince yay, karanlıkta siluet belli olsun
+    d.arc(p(cx - w / 2 + 6, top + 6, cx + w / 2 - 6, top + h * 0.7), 270, 350, fill=RIM, width=5 * S)
 
-    # Hırsız beresi: başın üstünü saran siyah örgü bere, kıvrık kenarı vizöre iniyor
-    d.chord(p(cx - w * 0.5, top - h * 0.07, cx + w * 0.5, top + h * 0.36), 180, 360, fill=MASK, outline=OUT, width=lw)
-    d.rounded_rectangle(p(cx - w * 0.53, top + h * 0.1, cx + w * 0.53, top + h * 0.2),
-                        radius=h * 0.045 * S, fill=MASK_RIM, outline=OUT, width=lw)
-    for i in range(1, 7):
-        x = cx - w * 0.53 + i * (w * 1.06 / 7)
-        d.line(p(x, top + h * 0.115, x, top + h * 0.185), fill=MASK, width=3 * S)
-
-    # Çalınan küçük mürettebat (yeşil), hırsızın önünde, iki eldivenle tutuluyor
+    # Çalınan küçük mürettebat (yeşil), iki eldivenle (gövde renginde) tutuluyor
     small_h = 124
     small_w = small_h * 0.72
     scx, sby = cx - w * 0.5, by - h * 0.14
     crewmate(d, scx, sby, small_h, LOOT, -1)
     for mx, my in ((scx - small_w * 0.62, sby - small_h * 0.42), (scx + small_w * 0.6, sby - small_h * 0.36)):
-        d.ellipse(p(mx - 20, my - 17, mx + 20, my + 17), fill=THIEF, outline=OUT, width=lw)
+        d.ellipse(p(mx - 20, my - 17, mx + 20, my + 17), fill=HOOD, outline=OUT, width=lw)
         si.gloss(d, (mx - 12, my - 11, mx - 2, my - 5), 110)
 
     # Işıltılar: parlak ganimet
@@ -125,7 +133,11 @@ def thief_art():
     si.sparkle(d, cx + w * 0.72, top + h * 0.02, 18, (255, 244, 150))
 
     art = si.stamp(Image.new("RGBA", (W, W), (0, 0, 0, 0)), art, outline=6)
-    return art
+    # Vizör parlaması: karanlıkta yanan kırmızı
+    glow = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).rounded_rectangle(p(vx0 - 10, vy0 - 10, vx1 + 10, vy1 + 10), radius=30 * S, fill=RED + (160,))
+    glow = glow.filter(ImageFilter.GaussianBlur(12 * S))
+    return Image.alpha_composite(glow, art)
 
 
 def fit_into(canvas, art, cx, cy, diameter):
@@ -142,7 +154,7 @@ def emblem():
     img = space(size, 7)
     # Halkanın içi hafif kırmızı-mor: logo zeminden ayrılsın, halkayla bütünleşsin
     halo = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(halo).ellipse(p(66, 66, 446, 446), fill=(40, 60, 130, 150))
+    ImageDraw.Draw(halo).ellipse(p(66, 66, 446, 446), fill=(110, 30, 70, 140))
     img = Image.alpha_composite(img, halo.filter(ImageFilter.GaussianBlur(40 * S)))
     img = Image.alpha_composite(img, glow_ring(size, W / 2, W / 2, 196 * S, 14 * S, RING))
     fit_into(img, thief_art(), W / 2, W / 2 + 6 * S, 318 * S)
