@@ -13,6 +13,13 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (20) — Batur (Yusuf'un şeridine yazıldı)
+
+- **`UiKit.IconButton` yazısı büyüdü ve sığdırılıyor:** TextSize 13 + TextScaled +
+  UITextSizeConstraint (9-13). HUD küçük ekranda `DeviceScale` ~0.78 ile küçülüyor;
+  `Inventory.luau` "INVENTORY"yi 10 puntoya indiriyordu, ekranda ~6 piksel kalıp bulanık
+  görünüyordu. O override kaldırıldı. REBIRTH / TITLES / POTIONS da aynı düğmeyi kullanıyor.
+
 ## 2026-09-26 (19) — Batur
 
 - **Petler 56'dan tekrar 25'e döndü** (Batur istedi): `Config.Pets` 0cb45d5 öncesi liste

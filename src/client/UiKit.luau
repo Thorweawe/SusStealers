@@ -505,12 +505,22 @@ function UiKit.IconButton(parent: Instance, name: string, tint: Color3, label: s
 	text.Size = UDim2.new(1, -4, 0, 14)
 	text.BackgroundTransparency = 1
 	text.Font = Enum.Font.GothamBlack
-	text.TextSize = 11
+	--[[
+		13'e kadar büyük, sığmazsa küçülüyor. HUD küçük ekranda ölçekleniyor
+		(DeviceScale ~0.78); 10-11 punto orada ~7 piksele iniyordu ve
+		"INVENTORY" bulanık, okunmaz duruyordu.
+	]]
+	text.TextSize = 13
+	text.TextScaled = true
 	text.TextColor3 = Color3.new(1, 1, 1)
 	text.TextStrokeTransparency = 0.5
 	text.Text = label
 	text.ZIndex = 5
 	text.Parent = button
+	local fit = Instance.new("UITextSizeConstraint")
+	fit.MaxTextSize = 13
+	fit.MinTextSize = 9
+	fit.Parent = text
 
 	return holder, button, slot
 end

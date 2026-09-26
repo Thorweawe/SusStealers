@@ -121,10 +121,6 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	local bagHolder, bagButton, bagSlot = UiKit.IconButton(dock, "Inventory", bagTint, "INVENTORY", DOCK_BUTTON)
 	bagHolder.LayoutOrder = 1
 	UiKit.Backpack(bagSlot, 36, Color3.fromRGB(236, 206, 150))
-	local bagLabel = bagButton:FindFirstChild("Label") :: TextLabel?
-	if bagLabel then
-		bagLabel.TextSize = 10
-	end
 	local bagBadge = UiKit.Badge(bagButton)
 
 	-- ─── Pencere ───────────────────────────────────────────────────────────
