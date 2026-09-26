@@ -13,6 +13,23 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (22) — Yusuf (Batur'un şeridine de yazıldı)
+
+- **Oyunun adı "Steal a Crewmate"** (başlık ekranı). Marka riski yüzünden görünen adlarda
+  Among Us izi kalmadı: "Impostor Among Us" olayı → "Impostor Hunt", Skeld Egg → Station Egg,
+  Polus Egg → Frost Egg, The Skeld → The Starship, Polus Outpost → Frost Outpost. **Kimlikler
+  aynı** (SkeldEgg, PolusEgg, TheSkeld...) — kayıtlar bozulmuyor.
+- **Kodlar:** `Config.Codes` (RELEASE, CREWMATE, SUS), `RewardService.RedeemCode`; istemci
+  `RewardClaim` remote'unun "code" türüyle istiyor (yeni istemci→sunucu remote YOK), sonuç
+  `CodeResult` (sunucu→istemci). Kayıtta `profile.codes`. Mağazada CODES bölümü.
+- **Impostor NPC uçmuyor:** bantların ve kaidelerin üstüne basamak gibi çıkıyordu. `RogueService`
+  kaide/bantlara PathfindingModifier ("RogueAvoid", yol maliyeti sonsuz) ve çarpışma grubu
+  ("RogueObstacle" ↔ "RogueNPC" çarpışmıyor) koyuyor. Oyuncular etkilenmiyor.
+- **`Config.HatchDuration` 3.5 → 4.5** (açılış gerilimi + sesler); sunucu da bu kadar bekliyor.
+- İstemci: `PromptStyle` (bütün ProximityPrompt'lar oyunun kart tasarımıyla; yumurtalar hariç),
+  mobilde olay çizelgesi üst ortada, telefon/tablet yalnızca yatay (`StarterGui.ScreenOrientation`
+  = LandscapeSensor, place ayarı da).
+
 ## 2026-09-26 (21) — Yusuf (Batur'un şeridine de yazıldı)
 
 - **Mağaza baştan (`ShopPanel`):** yeşil başlık, FEATURED / PASSES / MONEY / POTIONS / BOOSTS

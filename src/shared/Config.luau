@@ -910,7 +910,7 @@ Config.Events = {
 	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 15 * 60, duration = 120 },
 	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
 	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
-	{ id = "Impostor",  name = "Impostor Among Us", every = 3600, offset = 0, duration = 60, random = true, perHour = 2 },
+	{ id = "Impostor",  name = "Impostor Hunt", every = 3600, offset = 0, duration = 60, random = true, perHour = 2 },
 } :: { EventDef }
 
 -- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
@@ -1092,7 +1092,8 @@ Config.GroupId = 0
 	süreye göre ayarlı (HatchFX). Eskiden art arda basınca animasyonlar
 	kuyruğa giriyor ve sonuçlar kaçıyordu.
 ]]
-Config.HatchDuration = 3.5
+-- 3.5'ten 4.5'e: sallanma gerilimi ve açılış sesi sığsın (oyuncu isteği)
+Config.HatchDuration = 4.5
 Config.TripleHatchCount = 3
 
 -- Gamepass etkileri. Tek yerde dursun ki denge değiştirmek kolay olsun.
@@ -1367,8 +1368,8 @@ Config.Units = {
 
 	-- Legendary — amorti ~175s
 	{ id = "Ejected",     name = "Ejected Into Space", rarity = "Legendary", price =   25000000, income =      143000, weight =   20, color = Color3.fromRGB( 25,  25,  60) },
-	{ id = "Polus",       name = "Polus Outpost",      rarity = "Legendary", price =   54000000, income =      309000, weight =   16, color = Color3.fromRGB(190, 210, 225) },
-	{ id = "TheSkeld",    name = "The Skeld",          rarity = "Legendary", price =  115000000, income =      657000, weight =   12, color = Color3.fromRGB(120, 130, 145) },
+	{ id = "Polus",       name = "Frost Outpost",      rarity = "Legendary", price =   54000000, income =      309000, weight =   16, color = Color3.fromRGB(190, 210, 225) },
+	{ id = "TheSkeld",    name = "The Starship",       rarity = "Legendary", price =  115000000, income =      657000, weight =   12, color = Color3.fromRGB(120, 130, 145) },
 	{ id = "Airship",     name = "The Airship",        rarity = "Legendary", price =  250000000, income =     1430000, weight =    9, color = Color3.fromRGB(150, 118,  70) },
 
 	-- Mythic — amorti ~230s
@@ -1798,7 +1799,7 @@ Config.Pets = {
 	pet("PrimeShield","Prime Shield",     "Mythic",    "SkeldEgg",  Color3.fromRGB( 70, 150, 255)),
 
 	-- Polus Egg: buzul üssü ve reaktör
-	pet("SnowPal",    "Polus Snow Pal",   "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
+	pet("SnowPal",    "Snow Pal",         "Common",    "PolusEgg",  Color3.fromRGB(190, 210, 225)),
 	pet("VentCrab",   "Vent Crab",        "Uncommon",  "PolusEgg",  Color3.fromRGB( 62,  71,  78)),
 	pet("CoreShard",  "Reactor Shard",    "Rare",      "PolusEgg",  Color3.fromRGB(255, 120,  20)),
 	pet("EscapePod",  "Escape Pod",       "Epic",      "PolusEgg",  Color3.fromRGB(215, 224, 240)),
@@ -2046,10 +2047,10 @@ Config.Eggs = {
 	{ id = "SupplyEgg", name = "Supply Egg", price =         50000,
 		weights = { Common = 59.4, Uncommon = 28, Rare = 10, Epic = 2, Legendary = 0.6 },
 		tint = Color3.fromRGB(170, 95, 255) },
-	{ id = "SkeldEgg",  name = "Skeld Egg",  price =       2500000,
+	{ id = "SkeldEgg",  name = "Station Egg", price =       2500000,
 		weights = { Common = 45.6, Uncommon = 30, Rare = 15, Epic = 7, Legendary = 2, Mythic = 0.4 },
 		tint = Color3.fromRGB(255, 175, 45) },
-	{ id = "PolusEgg",  name = "Polus Egg",  price =     150000000,
+	{ id = "PolusEgg",  name = "Frost Egg",  price =     150000000,
 		weights = { Common = 42, Uncommon = 28, Rare = 16, Epic = 8.5, Legendary = 4, Mythic = 1.2, Secret = 0.3 },
 		tint = Color3.fromRGB(255, 70, 110) },
 	{ id = "VoidEgg",   name = "Void Egg",   price =    9000000000,
@@ -2457,6 +2458,38 @@ Config.DailyRewards = {
 	-- Yedinci gün büyük: seriyi tamamlamanın hedefi bu
 	{ kind = "egg",    egg = "SkeldEgg" },
 } :: { RewardDef }
+
+--[[
+	Kodlar (mağazanın CODES bölümü). Oyuncu kodu yazıyor, sunucu burada
+	arıyor; büyük/küçük harf ve baştaki/sondaki boşluk önemsiz. Her kod
+	oyuncu başına BİR kez (profile.codes). Ödüller günlük ödüllerle aynı
+	türde (RewardDef): nakit gelire göre ölçekli, iksir, bedava yumurta.
+
+	Yeni kod: listeye ekle (büyük harf). Kaldırmak için satırı sil ya da
+	`expires` (os.time) ver; süresi geçen kod "expired" diyor.
+]]
+export type CodeDef = {
+	code: string,
+	rewards: { RewardDef },
+	expires: number?,
+}
+
+Config.Codes = {
+	{ code = "RELEASE",  rewards = { { kind = "cash", seconds = 300, minimum = 25000 }, { kind = "potion", count = 1 } } },
+	{ code = "CREWMATE", rewards = { { kind = "cash", seconds = 600, minimum = 50000 } } },
+	{ code = "SUS",      rewards = { { kind = "egg", egg = "SupplyEgg" } } },
+} :: { CodeDef }
+
+--[[ Kodu normalleştirip tanımını verir (yoksa nil). ]]
+function Config.GetCode(text: string): CodeDef?
+	local key = string.upper((string.gsub(text, "^%s*(.-)%s*$", "%1")))
+	for _, def in Config.Codes do
+		if def.code == key then
+			return def
+		end
+	end
+	return nil
+end
 
 Config.PlaytimeRewards = {
 	{ minutes = 5,  kind = "cash",   seconds = 60,  minimum = 2000 },

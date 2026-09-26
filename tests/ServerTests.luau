@@ -2820,6 +2820,31 @@ case("Ekipman: parası yetmeden alınmıyor, alınca kalıcı ve çantaya geliyo
 	end
 end)
 
+case("Kod: bir kez kullanılıyor, büyük/küçük harf önemsiz, uydurma reddediliyor", function(ctx)
+	local savedCodes = ctx.profile.codes
+	ctx.profile.codes = {}
+	RewardService._ResetCodeCooldown(ctx.player)
+	local okBad = RewardService.RedeemCode(ctx.player, "NOT-A-REAL-CODE", 1000)
+	ok("uydurma kod reddedildi", not okBad)
+	local cash0 = ctx.profile.cash
+	local ok1 = RewardService.RedeemCode(ctx.player, "  crewmate ", 1010)
+	ok("küçük harf + boşlukla kabul", ok1)
+	ok("para verildi", ctx.profile.cash > cash0)
+	ok("profile işlendi", ctx.profile.codes.CREWMATE == true)
+	local ok2 = RewardService.RedeemCode(ctx.player, "CREWMATE", 1020)
+	ok("ikinci kez yok", not ok2)
+	RewardService._ResetCodeCooldown(ctx.player)
+	RewardService.RedeemCode(ctx.player, "SUS", 1030)
+	local okFast = RewardService.RedeemCode(ctx.player, "RELEASE", 1030.5)
+	ok("art arda deneme bekletiliyor", not okFast)
+	for _, def in Config.Codes do
+		ok(def.code .. " büyük harf", def.code == string.upper(def.code))
+		ok(def.code .. " ödülü var", #def.rewards > 0)
+	end
+	ctx.profile.codes = savedCodes
+	RewardService._ResetCodeCooldown(ctx.player)
+end)
+
 case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	local kinds = { slap = true, speed = true, stun = true, cloak = true, blast = true }
 	for _, def in Config.Gear do

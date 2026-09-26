@@ -32,6 +32,7 @@
 
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
+local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -151,6 +152,75 @@ local function setOffline(podium: Part)
 	offline[podium] = gui
 end
 
+-- ─── Engeller ───────────────────────────────────────────────────────────────
+
+--[[
+	ESKİ HATA ("impostor uçuyor"): Humanoid bantların (Conveyor) ve
+	kaidelerin üstüne basamak gibi çıkıp ÜSTLERİNDE yürüyordu — kaide
+	yalnızca 1 stud yüksek, Humanoid onu basamak sayıyor. Ölçüldü: gövde
+	zeminden hep 2 stud yukarıda ama altındaki "zemin" Conveyor/Podium.
+	Uzaktan havada süzülüyor gibi görünüyordu.
+
+	İki katman:
+	  - Yol bulucu bunlardan geçmesin: PathfindingModifier etiketi
+	    "RogueAvoid", yolun maliyeti sonsuz.
+	  - Yine de üstüne basmasın: kök "RogueNPC" çarpışma grubunda, bantlar
+	    ve kaideler "RogueObstacle" grubunda; ikisi çarpışmıyor. Humanoid'in
+	    zemin algısı grubu gözetiyor, o parçaları zemin saymıyor.
+	Oyuncular Default grupta; kaidelerle ve bantlarla çarpışmaları değişmiyor.
+]]
+local NPC_GROUP = "RogueNPC"
+local OBSTACLE_GROUP = "RogueObstacle"
+local AVOID_LABEL = "RogueAvoid"
+
+local groupsReady = false
+local function ensureGroups()
+	if groupsReady then
+		return
+	end
+	pcall(function()
+		PhysicsService:RegisterCollisionGroup(NPC_GROUP)
+	end)
+	pcall(function()
+		PhysicsService:RegisterCollisionGroup(OBSTACLE_GROUP)
+	end)
+	PhysicsService:CollisionGroupSetCollidable(NPC_GROUP, OBSTACLE_GROUP, false)
+	groupsReady = true
+end
+
+local function markObstacle(root: Instance)
+	local parts: { Instance } = if root:IsA("BasePart") then { root } else {}
+	for _, d in root:GetDescendants() do
+		table.insert(parts, d)
+	end
+	for _, d in parts do
+		if d:IsA("BasePart") then
+			d.CollisionGroup = OBSTACLE_GROUP
+			if not d:FindFirstChild(AVOID_LABEL) then
+				local modifier = Instance.new("PathfindingModifier")
+				modifier.Name = AVOID_LABEL
+				modifier.Label = AVOID_LABEL
+				modifier.Parent = d
+			end
+		end
+	end
+end
+
+--[[ Bütün üslerin kaide ve bantlarını engel olarak işaretler (her çıkışta; ucuz). ]]
+local function markObstacles()
+	ensureGroups()
+	for _, plot in PlotService.GetAllPlots() do
+		local podiums = plot:FindFirstChild("Podiums")
+		if podiums then
+			markObstacle(podiums)
+		end
+		local conveyor = plot:FindFirstChild("Conveyor")
+		if conveyor then
+			markObstacle(conveyor)
+		end
+	end
+end
+
 -- ─── Model ──────────────────────────────────────────────────────────────────
 
 local HIP_HEIGHT = 1
@@ -184,6 +254,7 @@ local function buildModel(): (Model, BasePart, BasePart, Humanoid, number, TextL
 	root.CanTouch = false
 	root.CanQuery = true
 	root.Anchored = true
+	root.CollisionGroup = NPC_GROUP
 	root.CFrame = CFrame.new(box.Position.X, feetY + HIP_HEIGHT + root.Size.Y / 2, box.Position.Z)
 	root.Parent = model
 	model.PrimaryPart = root
@@ -257,6 +328,8 @@ local function groundY(r: Rogue, pos: Vector3): number
 	end
 	params.FilterDescendantsInstances = ignore
 	params.RespectCanCollide = true
+	-- Humanoid'le aynı: bant ve kaideler zemin sayılmıyor
+	params.CollisionGroup = NPC_GROUP
 	local hit = workspace:Raycast(pos + Vector3.new(0, 3, 0), Vector3.new(0, -8, 0), params)
 	return if hit then hit.Position.Y else pos.Y
 end
@@ -312,6 +385,8 @@ local function computePath(from: Vector3, to: Vector3): { Vector3 }?
 		AgentHeight = 5,
 		AgentCanJump = false,
 		WaypointSpacing = 4,
+		-- Bant ve kaidelerin üstünden geçen yol yok (markObstacles)
+		Costs = { [AVOID_LABEL] = math.huge },
 	})
 	local ok = pcall(function()
 		path:ComputeAsync(from + Vector3.new(0, 2, 0), to)
@@ -513,6 +588,7 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 	if current then
 		return false
 	end
+	markObstacles()
 	local pads = VentService.GetPads()
 	if #pads == 0 then
 		return false

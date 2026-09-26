@@ -44,6 +44,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Net = require(Shared.Net)
 
 local UiKit = require(script.Parent.UiKit)
 
@@ -758,6 +759,95 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		end
 	end
 
+	-- ── CODES: kod kutusu ──────────────────────────────────────────────────
+	--[[
+		Kod sunucuda doğrulanıyor (RewardService.RedeemCode, RewardClaim
+		remote'unun "code" türü); sonuç CodeResult ile geri geliyor ve kutunun
+		altında yazıyor. Yeni remote açılmadı.
+	]]
+	sectionTitle("codes", "CODES", Color3.fromRGB(255, 150, 220))
+	local codeConn: RBXScriptConnection? = nil
+	do
+		order += 1
+		local codeEntry: Entry = { key = "", kind = "product", title = "", blurb = "", art = "",
+			tint = Color3.fromRGB(200, 70, 170), icon = "gift" }
+		local card = cardBase(list, codeEntry.tint, UDim2.fromOffset(CONTENT_W, 170), Z + 2, UDim2.fromScale(0.12, 0.5))
+		card.LayoutOrder = order
+
+		local giftArt = art(card, codeEntry, 130, Z + 4)
+		giftArt.AnchorPoint = Vector2.new(0, 0.5)
+		giftArt.Position = UDim2.new(0, 16, 0.5, 0)
+
+		local head = bold(card, "Enter a code for FREE rewards!", 30, WHITE, Z + 5, 3.5)
+		head.TextXAlignment = Enum.TextXAlignment.Left
+		head.Position = UDim2.fromOffset(160, 14)
+		head.Size = UDim2.new(1, -176, 0, 36)
+
+		-- Yazı kutusu: koyu, kalın çerçeveli
+		local boxHolder = Instance.new("Frame")
+		boxHolder.Position = UDim2.fromOffset(160, 60)
+		boxHolder.Size = UDim2.new(1, -420, 0, 56)
+		boxHolder.BackgroundColor3 = Color3.fromRGB(28, 22, 44)
+		boxHolder.ZIndex = Z + 4
+		boxHolder.Parent = card
+		corner(boxHolder, 10)
+		border(boxHolder, OUTLINE, 3)
+		local box = Instance.new("TextBox")
+		box.Position = UDim2.fromOffset(14, 0)
+		box.Size = UDim2.new(1, -28, 1, 0)
+		box.BackgroundTransparency = 1
+		box.Font = FONT
+		box.TextSize = 28
+		box.TextColor3 = WHITE
+		box.PlaceholderText = "Enter code..."
+		box.PlaceholderColor3 = Color3.fromRGB(150, 140, 175)
+		box.Text = ""
+		box.ClearTextOnFocus = false
+		box.TextXAlignment = Enum.TextXAlignment.Left
+		box.ZIndex = Z + 5
+		box.Parent = boxHolder
+
+		local redeem = buyButton(card, UDim2.fromOffset(230, 62), Z + 5, 30)
+		redeem.holder.AnchorPoint = Vector2.new(1, 0)
+		redeem.holder.Position = UDim2.new(1, -16, 0, 57)
+		redeem.icon.Visible = false
+		redeem.label.Text = "REDEEM"
+
+		local result = bold(card, "New codes at every update - follow the game!", 20, Color3.fromRGB(255, 225, 245), Z + 5, 2.5)
+		result.TextXAlignment = Enum.TextXAlignment.Left
+		result.Position = UDim2.fromOffset(160, 126)
+		result.Size = UDim2.new(1, -176, 0, 28)
+
+		local claim = Net.Get("RewardClaim")
+		local function submit()
+			local text = box.Text
+			if text == "" or string.find(text, "^%s*$") then
+				result.TextColor3 = Color3.fromRGB(255, 200, 90)
+				result.Text = "Type a code first"
+				return
+			end
+			result.TextColor3 = Color3.fromRGB(255, 225, 245)
+			result.Text = "Checking..."
+			claim:FireServer("code", string.sub(text, 1, 32))
+		end
+		redeem.button.MouseButton1Click:Connect(submit)
+		box.FocusLost:Connect(function(enter)
+			if enter then
+				submit()
+			end
+		end)
+		codeConn = Net.Get("CodeResult").OnClientEvent:Connect(function(ok, message)
+			if typeof(message) ~= "string" then
+				return
+			end
+			result.TextColor3 = if ok then Color3.fromRGB(140, 255, 120) else Color3.fromRGB(255, 120, 120)
+			result.Text = message
+			if ok then
+				box.Text = ""
+			end
+		end)
+	end
+
 	-- ── Sağdaki bölüm düğmeleri (pencerenin dışında) ───────────────────────
 	local rail = Instance.new("Frame")
 	rail.Name = "Sections"
@@ -778,14 +868,17 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			return
 		end
 		--[[
-			AbsolutePosition ekran pikselinde (DeviceScale ve açılış ölçeği
-			dahil), CanvasPosition ise listenin kendi biriminde: fark ölçeğe
-			bölünüyor, yoksa küçük ekranda bölümün altına kayıyordu.
+			CanvasPosition da AbsolutePosition gibi EKRAN pikselinde (ölçüldü:
+			DeviceScale 0.8 iken 100 birim kaydırma içeriği 100 piksel
+			kaydırıyor). Eskiden fark ölçeğe bölünüyordu; küçük ekranda
+			hedefin ~%25 ötesine, MONEY'ye basınca POTIONS'a kayıyordu.
+			Sonuç listenin sonunu aşmasın diye kırpılıyor.
 		]]
-		local scale = math.max(0.1, root.AbsoluteSize.X / W)
-		local y = (target.AbsolutePosition.Y - list.AbsolutePosition.Y) / scale + list.CanvasPosition.Y
+		local y = target.AbsolutePosition.Y - list.AbsolutePosition.Y + list.CanvasPosition.Y
+		local maxY = math.max(0, list.AbsoluteCanvasSize.Y - list.AbsoluteWindowSize.Y)
+		y = math.clamp(y - 4, 0, maxY)
 		TweenService:Create(list, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ CanvasPosition = Vector2.new(0, math.max(0, y - 4)) }):Play()
+			{ CanvasPosition = Vector2.new(0, y) }):Play()
 	end
 
 	local RAIL: { { id: string, text: string, entry: Entry, color: Color3 } } = {
@@ -794,16 +887,18 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		{ id = "money", text = "Money", entry = MONEY[2], color = Color3.fromRGB(120, 240, 100) },
 		{ id = "potions", text = "Potions", entry = POTIONS[1], color = Color3.fromRGB(120, 255, 200) },
 		{ id = "boosts", text = "Boosts", entry = BOOSTS[2], color = Color3.fromRGB(120, 200, 255) },
+		{ id = "codes", text = "Codes", color = Color3.fromRGB(255, 150, 220),
+			entry = { key = "", kind = "product", title = "", blurb = "", art = "", tint = Color3.fromRGB(200, 70, 170), icon = "gift" } },
 	}
 	for i, spec in RAIL do
 		local b = Instance.new("TextButton")
 		b.LayoutOrder = i
-		b.Size = UDim2.fromOffset(130, 104)
+		b.Size = UDim2.fromOffset(130, 92)
 		b.BackgroundTransparency = 1
 		b.Text = ""
 		b.ZIndex = Z + 1
 		b.Parent = rail
-		local a = art(b, spec.entry, 84, Z + 2)
+		local a = art(b, spec.entry, 70, Z + 2)
 		a.AnchorPoint = Vector2.new(0.5, 0)
 		a.Position = UDim2.new(0.5, 0, 0, 0)
 		local l = bold(b, spec.text, 26, spec.color, Z + 4, 3.5)
@@ -933,6 +1028,9 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		end,
 		Destroy = function()
 			finished:Disconnect()
+			if codeConn then
+				codeConn:Disconnect()
+			end
 			root:Destroy()
 		end,
 	}

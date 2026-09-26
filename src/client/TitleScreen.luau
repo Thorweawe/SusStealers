@@ -44,8 +44,13 @@ export type Options = {
 	onPlay: (() -> ())?,
 }
 
-local TITLE_TOP = "STEAL AN"
-local TITLE_MAIN = "AMONG US"
+--[[
+	Oyunun adı "Steal a Crewmate". "Among Us" Innersloth'un markası; adda ve
+	logoda kullanmak oyunu resmi bir Among Us oyunu gibi gösteriyordu (marka
+	riski, DMCA ile kaldırılma). "Crewmate" sıradan bir İngilizce kelime.
+]]
+local TITLE_TOP = "STEAL A"
+local TITLE_MAIN = "CREWMATE"
 local TAGLINE = "Steal crewmates. Build your crew. Trust no one."
 
 local SPACE = Color3.fromRGB(6, 8, 16)

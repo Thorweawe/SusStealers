@@ -36,6 +36,7 @@ local PromptFilter = require(script.PromptFilter)
 local RarityFX = require(script.RarityFX)
 local ScreenFX = require(script.ScreenFX)
 local GearFX = require(script.GearFX)
+local PromptStyle = require(script.PromptStyle)
 local SoundFX = require(script.SoundFX)
 local TaskGames = require(script.TaskGames)
 local ThiefTrail = require(script.ThiefTrail)
@@ -69,6 +70,14 @@ local TitleScreen = require(script.TitleScreen)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+--[[
+	Telefon ve tablet yalnızca YATAY: arayüz (sol sütun, sağ dok, olay
+	paneli, mağaza) yatay ekrana göre dizildi; dikeyde üst üste biniyordu.
+	LandscapeSensor = iki yatay yöne de döner, dikeye dönmez. Masaüstünde
+	etkisi yok. (StarterGui.ScreenOrientation da aynı değerde, ilk kare için.)
+]]
+playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
 
 --[[
 	Başlangıç ekranı: her girişte, HUD kurulmadan ÖNCE açılıyor ki oyuncu
@@ -584,6 +593,11 @@ mountPanel("Sprint", function()
 	Sprint.Create(screen)
 end)
 
+-- Etkileşim pencereleri (E / dokun): oyunun kendi kart tasarımı (PromptStyle)
+mountPanel("PromptStyle", function()
+	PromptStyle.Start()
+end)
+
 -- Ekipman: kol animasyonları, vuruş efektleri, savrulma (GearFX)
 mountPanel("GearFX", function()
 	GearFX.Start(effects)
@@ -643,7 +657,7 @@ mountPanel("Inventory", function()
 		local hatchFX = HatchFX.Create(screen)
 		local auto = AutoHatch.Create(screen, hatchFX.IsPlaying)
 		-- Kuluçkadaki yumurtanın üstünde: petler, şanslar, AUTO-DELETE, E/R/T
-		EggPanel.Create(auto)
+		EggPanel.Create(auto, hatchFX.IsPlaying)
 		local panel = PetPanel.Create(screen, auto, content, function(text)
 			inventory.SetCount("pets", text)
 		end)

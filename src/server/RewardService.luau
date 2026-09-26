@@ -178,6 +178,74 @@ local function give(player: Player, reward: Config.RewardDef): string?
 	return nil
 end
 
+-- ─── Kodlar ─────────────────────────────────────────────────────────────────
+
+-- Kod denemeleri arası bekleme: kaba kuvvetle kod aramasın
+local CODE_COOLDOWN = 1.5
+local lastCode: { [Player]: number } = {}
+local codeRemote: RemoteEvent? = nil
+
+local function codeReply(player: Player, ok: boolean, message: string)
+	if codeRemote then
+		codeRemote:FireClient(player, ok, message)
+	end
+end
+
+--[[
+	Kod kullanır. Sonucu (başarı, mesaj) döndürür ve istemcideki kutuya da
+	yollar. Ödüllerden en az biri verilirse kod kullanılmış sayılıyor;
+	hiçbiri verilemezse (ör. iksir envanteri dolu) kod harcanmıyor.
+]]
+function RewardService.RedeemCode(player: Player, text: string, now: number?): (boolean, string)
+	local t = now or os.clock()
+	if t - (lastCode[player] or -math.huge) < CODE_COOLDOWN then
+		codeReply(player, false, "Slow down - try again in a second")
+		return false, "Slow down - try again in a second"
+	end
+	lastCode[player] = t
+
+	local profile = DataService.Get(player)
+	if not profile then
+		return false, "Still loading, try again"
+	end
+	local def = Config.GetCode(text)
+	if not def then
+		codeReply(player, false, "Invalid code")
+		return false, "Invalid code"
+	end
+	if def.expires and os.time() > def.expires then
+		codeReply(player, false, "This code has expired")
+		return false, "This code has expired"
+	end
+	if profile.codes[def.code] then
+		codeReply(player, false, "You already used this code")
+		return false, "You already used this code"
+	end
+
+	local got: { string } = {}
+	for _, reward in def.rewards do
+		local what = give(player, reward)
+		if what then
+			table.insert(got, what)
+		end
+	end
+	if #got == 0 then
+		codeReply(player, false, "Could not give the reward - make some room and try again")
+		return false, "Could not give the reward"
+	end
+	profile.codes[def.code] = true
+	DataService.RequestSave(player)
+	local message = "Code redeemed: " .. table.concat(got, " + ") .. "!"
+	notify(player, message, false)
+	codeReply(player, true, message)
+	return true, message
+end
+
+--[[ Testler için: kod bekleme süresini sıfırlar. ]]
+function RewardService._ResetCodeCooldown(player: Player)
+	lastCode[player] = nil
+end
+
 -- ─── Toplama ────────────────────────────────────────────────────────────────
 
 function RewardService.ClaimDaily(player: Player): boolean
@@ -252,6 +320,7 @@ end
 function RewardService.Start()
 	notifyRemote = Net.Get("Notify")
 	stateRemote = Net.Get("Rewards")
+	codeRemote = Net.Get("CodeResult")
 
 	-- Kısa bir hız sınırı: düğmeye art arda basmak aynı kontrolleri
 	-- saniyede onlarca kez çalıştırmasın
@@ -270,6 +339,8 @@ function RewardService.Start()
 			RewardService.ClaimPlaytime(player, math.floor(arg))
 		elseif kind == "index" and typeof(arg) == "string" then
 			RewardService.ClaimIndex(player, arg)
+		elseif kind == "code" and typeof(arg) == "string" and #arg <= 32 then
+			RewardService.RedeemCode(player, arg)
 		end
 	end)
 
@@ -289,6 +360,7 @@ function RewardService.Start()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(function(player)
 		last[player] = nil
+		lastCode[player] = nil
 	end)
 
 	--[[

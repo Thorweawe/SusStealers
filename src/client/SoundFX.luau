@@ -64,6 +64,12 @@ local ID = {
 	GearBlast = "rbxassetid://9114362774",   -- Explosions 5
 	GearPoof  = "rbxassetid://9116406375",   -- Magic Poofs Thumpy Wheezy Exhale 1
 
+	-- Yumurta açılışı (HatchFX): gerilim tıkırtısı, çatlama, ışıltı, büyük çıkışta zafer müziği
+	HatchShake  = "rbxassetid://9116418533",  -- Magic Tone Hissy Shaking Tone Rattle 3
+	HatchCrack  = "rbxassetid://9113959071",  -- Crack Egg Crunchy 6
+	HatchReveal = "rbxassetid://9119447936",  -- Sparkle Bell Tree Wind Chimes 1
+	HatchJackpot = "rbxassetid://1836860398", -- Winning Spirit (Roblox müzik kütüphanesi, kısa kesit)
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -466,6 +472,31 @@ function SoundFX.StopAlarm()
 end
 
 --[[
+	Yumurta açılışı. Sıra: tıkırtı (sallanma boyunca) -> çatlama -> ışıltı;
+	Legendary ve üstünde ışıltının üstüne kısa zafer müziği. Nadir çıkışın
+	SESİ de nadir olsun: oyuncu bir sonrakini açmak istesin.
+]]
+function SoundFX.HatchShake(seconds: number)
+	fire("HatchShake", 0, seconds)
+end
+
+function SoundFX.HatchCrack()
+	fire("HatchCrack", 0, 0.9)
+end
+
+--[[ `order`: kademe sırası (Config.Rarities[..].order); 5 = Legendary. ]]
+function SoundFX.HatchReveal(order: number)
+	local s = effects["HatchReveal"]
+	if s then
+		s.PlaybackSpeed = 1 + math.min(order, 7) * 0.04
+	end
+	fire("HatchReveal", 0, 1.8)
+	if order >= 5 then
+		fire("HatchJackpot", 0, 3.2)
+	end
+end
+
+--[[
 	Ekipman sesleri DÜNYADA çalıyor: başka oyuncunun tokadı uzaktan kısık
 	duyuluyor. Şablonlar Preload'da bir kez yükleniyor, her çalışta
 	kopyası o noktaya konup bitince siliniyor (yüklü kopya anında çalıyor).
@@ -516,6 +547,10 @@ function SoundFX.Preload()
 	for key, spec in GEAR_SOUNDS do
 		effect(key, ID[key], spec.volume)
 	end
+	effect("HatchShake", ID.HatchShake, 0.55)
+	effect("HatchCrack", ID.HatchCrack, 0.9)
+	effect("HatchReveal", ID.HatchReveal, 0.7)
+	effect("HatchJackpot", ID.HatchJackpot, 0.55)
 
 	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
 	-- sessizlik olmasın

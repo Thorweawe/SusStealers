@@ -59,8 +59,17 @@ local TOUCH_LIFT = {
 	SideRail = "left",
 	Tutorial = "left",
 	-- MenuDock artık sağ ortada (Envanter + Rebirth): zıplama düğmesine denk gelmiyor.
-	-- Sağ alttaki olay çizelgesi geldi.
-	EventSchedule = "right",
+}
+
+--[[
+	Dokunmatikte BAŞKA yere taşınan öğeler: adı -> (çapa, konum).
+	Olay çizelgesi sağ altta zıplama bandının üstüne itiliyordu ve
+	Envanter / Rebirth düğmeleriyle RUN'ın üstüne biniyordu (telefonda
+	"sabotaj rebirth'ü ve envanteri örtüyor"). Ekranın üst ortası, üst
+	çubuğun hemen altı boş: orada hiçbir şeyi örtmüyor.
+]]
+local TOUCH_PLACE: { [string]: { anchor: Vector2, position: UDim2 } } = {
+	EventSchedule = { anchor = Vector2.new(0.5, 0), position = UDim2.new(0.5, 0, 0, 84) },
 }
 
 --[[
@@ -201,9 +210,25 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 
 	-- Öğelerin kendi (masaüstü) konumu; dokunmatikten dönünce geri konuyor
 	local original: { [GuiObject]: UDim2 } = {}
+	local originalAnchor: { [GuiObject]: Vector2 } = {}
 
 	local function place(element: Instance)
 		if not element:IsA("GuiObject") then
+			return
+		end
+		local moved = TOUCH_PLACE[element.Name]
+		if moved then
+			if not original[element] then
+				original[element] = element.Position
+				originalAnchor[element] = element.AnchorPoint
+			end
+			if device == "Touch" then
+				element.AnchorPoint = moved.anchor
+				element.Position = moved.position
+			else
+				element.AnchorPoint = originalAnchor[element]
+				element.Position = original[element]
+			end
 			return
 		end
 		local side = TOUCH_LIFT[element.Name]
@@ -248,6 +273,7 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 	root.ChildRemoved:Connect(function(child)
 		if child:IsA("GuiObject") then
 			original[child] = nil
+			originalAnchor[child] = nil
 		end
 	end)
 

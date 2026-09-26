@@ -33,6 +33,7 @@ local PetModel = require(Shared.PetModel)
 local UiKit = require(script.Parent.UiKit)
 local FuseFX = require(script.Parent.FuseFX)
 local EggStyle = require(script.Parent.EggStyle)
+local SoundFX = require(script.Parent.SoundFX)
 
 local HatchFX = {}
 
@@ -44,8 +45,10 @@ export type Handle = {
 local Z = 80
 
 -- Süre dağılımı (toplam ≈ Config.HatchDuration)
-local WOBBLE = { 0.16, 0.12, 0.08 }   -- her sallanma iki yön
-local REVEAL = Config.HatchDuration - 0.8 - 0.25
+-- Sallanma giderek hızlanıyor: gerilim tırmansın
+local WOBBLE = { 0.22, 0.17, 0.13, 0.1, 0.075, 0.06 }   -- her sallanma iki yön
+local BUILDUP = 1.55                                     -- çatlamaya kadar (≈ sallanma toplamı)
+local REVEAL = Config.HatchDuration - BUILDUP - 0.25
 
 local function tween(object: Instance, seconds: number, goal: { [string]: any }, style: Enum.EasingStyle?)
 	local info = TweenInfo.new(seconds, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -73,6 +76,29 @@ function HatchFX.Create(screen: ScreenGui): Handle
 	layer.ZIndex = Z
 	layer.Parent = screen
 
+	--[[
+		Üst şerit (Roblox'un üst çubuğunun hizası) karartmanın dışında
+		kalıyordu: arayüz o bandın ALTINDAN başlıyor, katman oraya
+		uzanmıyordu. Katmanın üstüne yukarı taşan bir örtü; rengi ve
+		saydamlığı katmanla birlikte değişiyor (bütün tween'ler katmana).
+	]]
+	local topVeil = Instance.new("Frame")
+	topVeil.Name = "TopVeil"
+	topVeil.AnchorPoint = Vector2.new(0, 1)
+	topVeil.Position = UDim2.fromScale(0, 0)
+	topVeil.Size = UDim2.new(1, 0, 0, 400)
+	topVeil.BackgroundColor3 = layer.BackgroundColor3
+	topVeil.BackgroundTransparency = 1
+	topVeil.BorderSizePixel = 0
+	topVeil.ZIndex = Z
+	topVeil.Parent = layer
+	layer:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function()
+		topVeil.BackgroundTransparency = layer.BackgroundTransparency
+	end)
+	layer:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
+		topVeil.BackgroundColor3 = layer.BackgroundColor3
+	end)
+
 	-- Tıklanınca erken kapanıyor; animasyonun ilk yarısında kapalı
 	local dismiss = Instance.new("TextButton")
 	dismiss.Size = UDim2.fromScale(1, 1)
@@ -85,15 +111,20 @@ function HatchFX.Create(screen: ScreenGui): Handle
 
 	local headline = Instance.new("TextLabel")
 	headline.AnchorPoint = Vector2.new(0.5, 0)
-	headline.Position = UDim2.new(0.5, 0, 0.18, 0)
-	headline.Size = UDim2.fromOffset(600, 30)
+	headline.Position = UDim2.new(0.5, 0, 0.14, 0)
+	headline.Size = UDim2.fromOffset(700, 54)
 	headline.BackgroundTransparency = 1
-	headline.Font = Enum.Font.GothamBlack
-	headline.TextSize = 24
+	headline.Font = Enum.Font.FredokaOne
+	headline.TextSize = 46
 	headline.TextColor3 = UiKit.INK
-	headline.TextStrokeTransparency = 0.4
 	headline.ZIndex = Z + 4
 	headline.Parent = layer
+	-- Kalın kontur (TextStroke 1 piksel kalıyordu)
+	local headStroke = Instance.new("UIStroke")
+	headStroke.Color = Color3.fromRGB(16, 18, 28)
+	headStroke.Thickness = 4
+	headStroke.LineJoinMode = Enum.LineJoinMode.Round
+	headStroke.Parent = headline
 
 	local flash = Instance.new("Frame")
 	flash.Size = UDim2.fromScale(1, 1)
@@ -169,11 +200,11 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		figure.ZIndex = Z + 3
 		figure.Parent = root
 
-		local function text(y: number, size: number, font: Enum.Font): TextLabel
+		local function text(y: number, size: number, font: Enum.Font, outline: number): TextLabel
 			local t = Instance.new("TextLabel")
 			t.AnchorPoint = Vector2.new(0.5, 0)
 			t.Position = UDim2.new(0.5, 0, 0, y)
-			t.Size = UDim2.new(1, 0, 0, size + 6)
+			t.Size = UDim2.new(1, 0, 0, size + 8)
 			t.BackgroundTransparency = 1
 			t.Font = font
 			t.TextSize = size
@@ -183,14 +214,33 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			t.TextStrokeTransparency = 1
 			t.ZIndex = Z + 4
 			t.Parent = root
+			-- Kalın kontur: ışınların ve karanlığın üstünde okunsun
+			local s = Instance.new("UIStroke")
+			s.Color = Color3.fromRGB(16, 18, 28)
+			s.Thickness = outline
+			s.LineJoinMode = Enum.LineJoinMode.Round
+			s.Transparency = 1
+			s.Parent = t
 			return t
 		end
 
+		local tier = text(248, 18, Enum.Font.FredokaOne, 3)
+		tier.Name = "Tier"
+		-- Kademe etiketi hap şeklinde: rengi kademenin rengi
+		tier.AutomaticSize = Enum.AutomaticSize.X
+		tier.Size = UDim2.fromOffset(0, 28)
+		tier.BackgroundTransparency = 1
+		UiKit.Corner(tier, 14)
+		local tierPad = Instance.new("UIPadding")
+		tierPad.PaddingLeft = UDim.new(0, 14)
+		tierPad.PaddingRight = UDim.new(0, 14)
+		tierPad.Parent = tier
+
 		return {
 			root = root, rays = rays, bars = bars, figure = figure,
-			name = text(205, 22, Enum.Font.GothamBlack),
-			tier = text(238, 14, Enum.Font.GothamBold),
-			stat = text(260, 12, Enum.Font.GothamMedium),
+			name = text(206, 34, Enum.Font.FredokaOne, 4),
+			tier = tier,
+			stat = text(284, 17, Enum.Font.GothamBold, 2.5),
 		}
 	end
 
@@ -199,10 +249,15 @@ function HatchFX.Create(screen: ScreenGui): Handle
 	end
 
 	local function fadeText(t: TextLabel, visible: boolean, seconds: number)
-		tween(t, seconds, {
-			TextTransparency = if visible then 0 else 1,
-			TextStrokeTransparency = if visible then 0.4 else 1,
-		})
+		tween(t, seconds, { TextTransparency = if visible then 0 else 1 })
+		local s = t:FindFirstChildOfClass("UIStroke")
+		if s then
+			tween(s, seconds, { Transparency = if visible then 0 else 1 })
+		end
+		-- Kademe hapının zemini de yazıyla birlikte
+		if t.Name == "Tier" then
+			tween(t, seconds, { BackgroundTransparency = if visible then 0.1 else 1 })
+		end
 	end
 
 	-- ─── Tek bir gösterim ───────────────────────────────────────────────────
@@ -301,14 +356,22 @@ function HatchFX.Create(screen: ScreenGui): Handle
 				task.wait(step[1])
 			end
 		else
-			-- Sarsıntı: iki yana sallanıp zıplıyor (koli)
-			for _, seconds in WOBBLE do
+			-- Sarsıntı: iki yana sallanıp zıplıyor (koli); giderek hızlanıp büyüyor
+			local scales: { UIScale } = {}
+			for _, egg in eggs do
+				local sc = Instance.new("UIScale")
+				sc.Parent = egg
+				table.insert(scales, sc)
+				tween(sc, BUILDUP, { Scale = 1.18 }, Enum.EasingStyle.Quad)
+			end
+			for k, seconds in WOBBLE do
+				local swing = 10 + k * 2.5
 				for _, egg in eggs do
-					tween(egg, seconds, { Rotation = -16, Position = UDim2.new(0.5, 0, 0.5, -8) }, Enum.EasingStyle.Sine)
+					tween(egg, seconds, { Rotation = -swing, Position = UDim2.new(0.5, 0, 0.5, -6 - k) }, Enum.EasingStyle.Sine)
 				end
 				task.wait(seconds)
 				for _, egg in eggs do
-					tween(egg, seconds, { Rotation = 16, Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Sine)
+					tween(egg, seconds, { Rotation = swing, Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Sine)
 				end
 				task.wait(seconds)
 			end
@@ -346,7 +409,12 @@ function HatchFX.Create(screen: ScreenGui): Handle
 				for _, t in { slot.name, slot.tier, slot.stat } do
 					t.TextTransparency = 1
 					t.TextStrokeTransparency = 1
+					local s = t:FindFirstChildOfClass("UIStroke")
+					if s then
+						s.Transparency = 1
+					end
 				end
+				slot.tier.BackgroundTransparency = 1
 			end
 		end
 
@@ -364,11 +432,35 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		]]
 		local eggs: { Frame } = {}
 		for i = 1, count do
-			local egg = EggStyle.Draw(slots[i].figure, if count == 1 then 150 else 120,
+			local egg = EggStyle.Draw(slots[i].figure, if count == 1 then 170 else 130,
 				if source == "fuse" then nil else eggId)
 			table.insert(eggs, egg)
 		end
+		SoundFX.HatchShake(BUILDUP)
+		local crackStarted = os.clock()
+		--[[
+			Dönen / donan / çöken stillerin kendi hareketi ~0.72 sn; açılış
+			uzayınca önce hafif bir titreme, sonra stilin hareketi — yumurta
+			boşta beklemesin.
+		]]
+		if style.crack == "spin" or style.crack == "freeze" or style.crack == "implode" then
+			local pre = os.clock()
+			local k = 0
+			while os.clock() - pre < BUILDUP - 0.78 do
+				k += 1
+				for _, egg in eggs do
+					tween(egg, 0.07, { Rotation = if k % 2 == 0 then 6 + k * 0.3 else -6 - k * 0.3 }, Enum.EasingStyle.Sine)
+				end
+				task.wait(0.07)
+			end
+		end
 		crack(eggs, style)
+		-- Stil animasyonları farklı sürüyor; çatlama hep aynı anda gelsin
+		local left = BUILDUP - (os.clock() - crackStarted)
+		if left > 0 then
+			task.wait(left)
+		end
+		SoundFX.HatchCrack()
 
 		-- Çatlama: yumurtanın renginde parlama, parçalar saçılıyor, petler geliyor
 		flash.BackgroundColor3 = style.glow:Lerp(Color3.new(1, 1, 1), 0.55)
@@ -378,7 +470,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		for i = 1, count do
 			burst(slots[i], style)
 		end
-		headline.Text = if source == "fuse" then "FUSED!" else "HATCHED!"
+		headline.Text = if source == "fuse" then "FUSED!" else "YOU HATCHED..."
 
 		local best = 0
 		for i = 1, count do
@@ -412,10 +504,11 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			slot.name.Text = Config.PetDisplayName(keys[i])
 			slot.name.TextColor3 = bodyColor:Lerp(Color3.new(1, 1, 1), 0.2)
 			slot.tier.Text = string.upper(def.rarity) .. (if size then "  ·  " .. string.upper(size.name) else "")
-			slot.tier.TextColor3 = tone
+			slot.tier.TextColor3 = Color3.new(1, 1, 1)
+			slot.tier.BackgroundColor3 = tone:Lerp(Color3.new(0, 0, 0), 0.15)
 			local income, speed = Config.GetPetKeyBonus(keys[i])
 			slot.stat.Text = string.format("+%d%% cash  ·  +%.2f speed", math.floor(income * 100 + 0.5), speed)
-			slot.stat.TextColor3 = UiKit.MUTED
+			slot.stat.TextColor3 = Color3.fromRGB(200, 255, 190)
 			for _, t in { slot.name, slot.tier, slot.stat } do
 				fadeText(t, true, 0.25)
 			end
@@ -447,6 +540,20 @@ function HatchFX.Create(screen: ScreenGui): Handle
 					bar.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
 				end
 			end
+		end
+
+		if source ~= "fuse" then
+			SoundFX.HatchReveal(best)
+			-- En iyi çıkışa göre başlık: nadir çıkış kendini belli etsin
+			local bestName = ""
+			for name, info in Config.Rarities do
+				if info.order == best then
+					bestName = name
+				end
+			end
+			headline.Text = if best >= 5 then "WOW! " .. string.upper(bestName) .. "!"
+				elseif count > 1 then "YOU HATCHED " .. count .. " PETS!"
+				else "YOU HATCHED A PET!"
 		end
 
 		-- Işınlar dönüyor; tıklanana kadar ya da süre dolana kadar

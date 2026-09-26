@@ -105,6 +105,8 @@ export type Profile = {
 	playtimeClaimed: { [string]: boolean },
 	-- İndeks ödülleri: toplanan nadirlik satırları
 	indexClaimed: { [string]: boolean },
+	-- Kullanılmış kodlar (Config.Codes, büyük harf) -> true
+	codes: { [string]: boolean },
 	-- Satın alınmış ekipman (Gear Shop): kimlik -> true. Kalıcı; rebirth'te
 	-- sıfırlanmıyor, bir kez alınan alet hep geliyor.
 	gear: { [string]: boolean },
@@ -196,6 +198,7 @@ local function newProfile(): Profile
 		playtimeSeconds = 0,
 		playtimeClaimed = {},
 		indexClaimed = {},
+		codes = {},
 		gear = {},
 		cosmetics = {},
 		hat = "",
@@ -461,6 +464,17 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
+	--[[
+		Kodlar: kaldırılmış bir kod da kayıtta kalıyor (Config'te olmasa
+		bile) — kod geri eklenirse ikinci kez kullanılamasın.
+	]]
+	if typeof(raw.codes) == "table" then
+		for code, flag in raw.codes do
+			if typeof(code) == "string" and #code <= 32 and flag == true then
+				profile.codes[code] = true
+			end
+		end
+	end
 	if typeof(raw.indexClaimed) == "table" then
 		for rarity, flag in raw.indexClaimed do
 			if typeof(rarity) == "string" and Config.IndexRewards[rarity] and flag == true then
@@ -660,6 +674,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.discovered = table.clone(profile.discovered)
 	snapshot.playtimeClaimed = table.clone(profile.playtimeClaimed)
 	snapshot.indexClaimed = table.clone(profile.indexClaimed)
+	snapshot.codes = table.clone(profile.codes)
 	snapshot.gear = table.clone(profile.gear)
 	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.sabotages = table.clone(profile.sabotages)

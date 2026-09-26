@@ -43,6 +43,7 @@ local EVENTS = {
 	"SabotageAction", -- client -> server (action: "buy"|"use", id: string, targetUserId: number?)
 	"SettingsSave", -- client -> server (settings: { music: number, sfx: number, shake: boolean })
 	"GearFX",       -- server -> client (kind: "use"|"hit"|"cloak", ...) — ekipman animasyon/etkileri
+	"CodeResult",   -- server -> client (ok: boolean, message: string) — mağazadaki kod kutusu
 }
 
 --[[

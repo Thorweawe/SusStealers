@@ -92,7 +92,11 @@ local function text(parent: Instance, value: string, size: number, color: Color3
 	return t
 end
 
-function EggPanel.Create(auto: AutoHandle?)
+--[[
+	`isHatching`: açılış animasyonu oynarken panel gizleniyor — ekranın
+	üstünde durup açılan yumurtayı örtüyordu.
+]]
+function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	local player = Players.LocalPlayer
 	local playerGui = player:WaitForChild("PlayerGui")
 	local hatchRemote = Net.Get("PetHatch")
@@ -554,7 +558,9 @@ function EggPanel.Create(auto: AutoHandle?)
 					end
 				end
 			end
-			if best then
+			if best and isHatching and isHatching() then
+				setVisible(false)
+			elseif best then
 				if currentEgg ~= best.egg then
 					currentEgg = best.egg
 					build(best.egg)

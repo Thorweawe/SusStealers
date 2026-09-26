@@ -59,12 +59,12 @@ local STYLES: { [string]: Style } = {
 		idle = "hop", crack = "shake", bits = "cardboard", reflect = 0,
 	},
 	SkeldEgg = {
-		title = "SKELD POD", shell = rgb(218, 228, 238), accent = rgb(90, 226, 246),
+		title = "STATION POD", shell = rgb(218, 228, 238), accent = rgb(90, 226, 246),
 		glow = rgb(140, 236, 255), backdrop = rgb(8, 22, 40),
 		idle = "spin", crack = "spin", bits = "bolts", reflect = 0.12,
 	},
 	PolusEgg = {
-		title = "POLUS FROST", shell = rgb(190, 228, 248), accent = rgb(250, 252, 255),
+		title = "FROST POD", shell = rgb(190, 228, 248), accent = rgb(250, 252, 255),
 		glow = rgb(160, 224, 255), backdrop = rgb(10, 34, 52),
 		idle = "drift", crack = "freeze", bits = "snow", reflect = 0.18,
 	},
