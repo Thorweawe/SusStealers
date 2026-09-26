@@ -289,7 +289,13 @@ def icon_strong_lock():
 def icon_extra_spin():
     c = background((255, 160, 210), (130, 20, 80), 6)
     art, d = new_art()
-    cx, cy, r = 256, 215, 128
+    wheel(d, 256, 215, 128)
+    big_text(d, (378, 318), "+1", 84, (255, 240, 120))
+    c = stamp(c, art)
+    return label(c, "EXTRA SPIN")
+
+
+def wheel(d, cx, cy, r):
     cols = [(230, 50, 60), (255, 200, 40), (80, 220, 80), (60, 130, 240), (160, 80, 230), (255, 140, 30), (60, 220, 220), (255, 110, 190)]
     d.ellipse(p(cx - r - 14, cy - r - 14, cx + r + 14, cy + r + 14), fill=(240, 240, 250), outline=OUT, width=LW)
     for i, col in enumerate(cols):
@@ -301,9 +307,6 @@ def icon_extra_spin():
     d.ellipse(p(cx - 30, cy - 30, cx + 30, cy + 30), fill=(245, 245, 255), outline=OUT, width=LW)
     d.ellipse(p(cx - 12, cy - 12, cx + 12, cy + 12), fill=(230, 50, 60))
     d.polygon(p(cx - 26, cy - r - 44, cx + 26, cy - r - 44, cx, cy - r + 8), fill=(230, 50, 60), outline=OUT, width=LW)
-    big_text(d, (378, 318), "+1", 84, (255, 240, 120))
-    c = stamp(c, art)
-    return label(c, "EXTRA SPIN")
 
 
 def icon_instant_spawn():
@@ -370,7 +373,13 @@ def icon_cash(size):
 def icon_rebirth():
     c = background((255, 180, 90), (140, 40, 10), 13)
     art, d = new_art()
-    cx, cy, r = 256, 215, 112
+    rebirth_arrows(d, 256, 215, 112)
+    crewmate(d, 256, 275, 120, (255, 255, 255), 1)
+    c = stamp(c, art)
+    return label(c, "REBIRTH")
+
+
+def rebirth_arrows(d, cx, cy, r):
     for a0, a1 in [(-35, 95), (145, 275)]:
         d.arc(p(cx - r, cy - r, cx + r, cy + r), a0, a1, fill=OUT, width=52 * S)
         d.arc(p(cx - r + 6, cy - r + 6, cx + r - 6, cy + r - 6), a0 + 1, a1 - 1, fill=(255, 220, 70), width=40 * S)
@@ -382,9 +391,139 @@ def icon_rebirth():
         pts = [(tx + n[0] * 42 - t[0] * 4, ty + n[1] * 42 - t[1] * 4), (tx - n[0] * 42 - t[0] * 4, ty - n[1] * 42 - t[1] * 4),
                (tx + t[0] * 46, ty + t[1] * 46)]
         d.polygon([(x * S, y * S) for x, y in pts], fill=(255, 220, 70), outline=OUT, width=LW)
-    crewmate(d, 256, 275, 120, (255, 255, 255), 1)
+
+
+# ─── Rozetler ─────────────────────────────────────────────────────────────
+# Rozetler de daire kırpılıyor; kenardaki altın halka onları pass'lerden ayırıyor.
+
+
+def badge_ring(c):
+    layer = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    d.ellipse(p(10, 10, 502, 502), outline=OUT, width=26 * S)
+    d.ellipse(p(14, 14, 498, 498), outline=(255, 205, 60), width=16 * S)
+    d.ellipse(p(20, 20, 492, 492), outline=(255, 240, 160), width=3 * S)
+    return Image.alpha_composite(c, layer)
+
+
+def flame(d, cx, by, h, col):
+    pts = []
+    for i in range(120):
+        t = i / 120 * math.tau
+        x = math.sin(t) * abs(math.sin(t / 2)) ** 1.4
+        y = -math.cos(t)
+        pts.append(((cx + x * h * 0.42) * S, (by - h / 2 + y * h / 2) * S))
+    d.polygon(pts, fill=col, outline=OUT, width=LW)
+
+
+def finish_badge(c, art, text):
     c = stamp(c, art)
-    return label(c, "REBIRTH")
+    c = label(c, text, y=392, maxw=330, size=58)
+    return badge_ring(c)
+
+
+def badge_first_heist():
+    c = background((255, 130, 120), (120, 20, 30), 21)
+    art, d = new_art()
+    crewmate(d, 236, 330, 220, (197, 17, 17), 1)
+    coin(d, 350, 250, 58)
+    sparkle(d, 120, 130, 28, (255, 245, 150))
+    sparkle(d, 392, 120, 22)
+    return finish_badge(c, art, "FIRST HEIST")
+
+
+def badge_reborn():
+    c = background((255, 180, 90), (140, 40, 10), 22)
+    art, d = new_art()
+    rebirth_arrows(d, 256, 205, 112)
+    crewmate(d, 256, 265, 120, (255, 255, 255), 1)
+    return finish_badge(c, art, "REBORN")
+
+
+def badge_millionaire():
+    c = background((140, 240, 120), (15, 90, 40), 23)
+    art, d = new_art()
+    paste(art, bill(d, 170, 230, 170, 92, 16))
+    paste(art, bill(d, 345, 230, 170, 92, -16))
+    coin(d, 256, 200, 105)
+    big_text(d, (256, 318), "$1M", 76, (255, 230, 90))
+    return finish_badge(c, art, "MILLIONAIRE")
+
+
+def badge_billionaire():
+    c = background((255, 225, 120), (150, 90, 10), 24)
+    art, d = new_art()
+    for x, y, a in [(160, 190, 20), (350, 190, -18), (256, 170, 4)]:
+        paste(art, bill(d, x, y, 170, 92, a))
+    coin_stack(d, 130, 330, 96, 5)
+    coin_stack(d, 382, 330, 96, 5)
+    coin(d, 256, 230, 82)
+    d.polygon(p(196, 132, 196, 78, 226, 106, 256, 66, 286, 106, 316, 78, 316, 132), fill=(255, 205, 40), outline=OUT, width=LW)
+    big_text(d, (256, 318), "$1B", 76, (255, 245, 170))
+    return finish_badge(c, art, "BILLIONAIRE")
+
+
+def badge_red_handed():
+    c = background((120, 170, 255), (20, 30, 110), 25)
+    art, d = new_art()
+    crewmate(d, 250, 335, 205, (107, 47, 187), 1)
+    d.rounded_rectangle(p(335, 60, 385, 190), radius=18 * S, fill=(240, 50, 60), outline=OUT, width=LW)
+    d.ellipse(p(335, 204, 385, 254), fill=(240, 50, 60), outline=OUT, width=LW)
+    return finish_badge(c, art, "RED-HANDED")
+
+
+def badge_robbed():
+    c = background((170, 180, 200), (40, 44, 60), 26)
+    art, d = new_art()
+    podium(d, 256, 330, 190, 90, (70, 120, 210))
+    big_text(d, (256, 150), "?", 170, (255, 205, 60))
+    for x, y in [(150, 120), (362, 130)]:
+        d.line(p(x - 16, y - 16, x + 16, y + 16), fill=OUT, width=10 * S)
+        d.line(p(x - 16, y + 16, x + 16, y - 16), fill=OUT, width=10 * S)
+    return finish_badge(c, art, "ROBBED")
+
+
+def badge_full_house():
+    c = background((120, 190, 255), (20, 50, 130), 27)
+    art, d = new_art()
+    for x, col, face in [(130, (80, 239, 57), 1), (382, (240, 125, 13), -1)]:
+        podium(d, x, 330, 110, 66, (70, 120, 210))
+        crewmate(d, x, 262, 98, col, face)
+    podium(d, 256, 316, 120, 80, (70, 120, 210))
+    crewmate(d, 256, 234, 118, (19, 46, 209), 1)
+    sparkle(d, 256, 70, 26, (255, 245, 150))
+    return finish_badge(c, art, "FULL HOUSE")
+
+
+def badge_secret():
+    c = background((120, 70, 180), (10, 5, 25), 28)
+    glow = Image.new("RGBA", (W, W), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse(p(110, 80, 402, 372), fill=(200, 120, 255, 170))
+    c = Image.alpha_composite(c, glow.filter(ImageFilter.GaussianBlur(34 * S)))
+    art, d = new_art()
+    crewmate(d, 256, 335, 225, (26, 24, 38), 1)
+    big_text(d, (372, 122), "?", 120, (220, 160, 255))
+    sparkle(d, 118, 120, 26, (230, 190, 255))
+    sparkle(d, 398, 110, 22)
+    return finish_badge(c, art, "SECRET")
+
+
+def badge_streak():
+    c = background((255, 160, 90), (130, 20, 10), 29)
+    art, d = new_art()
+    flame(d, 256, 330, 280, (255, 110, 30))
+    flame(d, 256, 326, 190, (255, 215, 60))
+    big_text(d, (256, 262), "x5", 96, (255, 255, 255))
+    return finish_badge(c, art, "STREAK")
+
+
+def badge_lucky_spinner():
+    c = background((255, 160, 210), (130, 20, 80), 30)
+    art, d = new_art()
+    wheel(d, 256, 215, 118)
+    sparkle(d, 96, 110, 26, (255, 245, 150))
+    sparkle(d, 420, 250, 22)
+    return finish_badge(c, art, "LUCKY SPIN")
 
 
 ICONS = {
@@ -402,11 +541,29 @@ ICONS = {
     "product_instant_rebirth": icon_rebirth,
 }
 
+BADGES = {
+    "badge_first_heist": badge_first_heist,
+    "badge_reborn": badge_reborn,
+    "badge_millionaire": badge_millionaire,
+    "badge_billionaire": badge_billionaire,
+    "badge_caught_red_handed": badge_red_handed,
+    "badge_robbed": badge_robbed,
+    "badge_full_house": badge_full_house,
+    "badge_secret_collector": badge_secret,
+    "badge_streak_master": badge_streak,
+    "badge_lucky_spinner": badge_lucky_spinner,
+}
+
 
 def main():
     os.makedirs(DEST, exist_ok=True)
+    build(ICONS, "_preview.png")
+    build(BADGES, "_preview_badges.png")
+
+
+def build(group, preview):
     thumbs = []
-    for name, make in ICONS.items():
+    for name, make in group.items():
         img = make().convert("RGB").resize((512, 512), Image.LANCZOS)
         img.save(os.path.join(DEST, name + ".png"), optimize=True)
         thumbs.append(img)
@@ -419,7 +576,7 @@ def main():
     ImageDraw.Draw(mask).ellipse([0, 0, 255, 255], fill=255)
     for i, img in enumerate(thumbs):
         sheet.paste(img.resize((256, 256), Image.LANCZOS), ((i % cols) * 260 + 2, (i // cols) * 260 + 2), mask)
-    sheet.save(os.path.join(DEST, "_preview.png"))
+    sheet.save(os.path.join(DEST, preview))
 
 
 if __name__ == "__main__":
