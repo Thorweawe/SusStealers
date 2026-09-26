@@ -784,11 +784,11 @@ export type BadgeDef = {
 }
 
 Config.Badges = {
-	FirstSteal   = { id = 0, name = "First Heist" },
-	FirstRebirth = { id = 0, name = "Reborn" },
-	Millionaire  = { id = 0, name = "Millionaire" },
-	Billionaire  = { id = 0, name = "Billionaire" },
-	ThiefCatcher = { id = 0, name = "Caught Red-Handed" },
+	FirstSteal   = { id = 1465909777545910, name = "First Heist" },
+	FirstRebirth = { id = 179427778492757, name = "Reborn" },
+	Millionaire  = { id = 417888352205442, name = "Millionaire" },
+	Billionaire  = { id = 3789475162138106, name = "Billionaire" },
+	ThiefCatcher = { id = 1045910647960350, name = "Caught Red-Handed" },
 	Victim       = { id = 0, name = "Robbed" },
 	FullHouse    = { id = 0, name = "Full House" },
 	SecretFind   = { id = 0, name = "Secret Collector" },
