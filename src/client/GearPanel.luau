@@ -41,7 +41,7 @@ local function statLine(def: Config.GearDef): string
 	elseif def.kind == "slap" then
 		return string.format("Range %d · cooldown %ss", def.range or 0, fmt(def.cooldown or 0))
 	elseif def.kind == "stun" then
-		return string.format("Range %d · freeze %ss · cd %ss", def.range or 0, fmt(def.stun or 0), fmt(def.cooldown or 0))
+		return string.format("Range %d · freeze %ss · cooldown %ss", def.range or 0, fmt(def.stun or 0), fmt(def.cooldown or 0))
 	elseif def.kind == "cloak" then
 		return string.format("Invisible %ss · cooldown %ss", fmt(def.duration or 0), fmt(def.cooldown or 0))
 	elseif def.kind == "blast" then

@@ -13,6 +13,14 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (13) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+- `GearPanel.luau`: Stun Gun kartında "cd 10s" → "cooldown 10s" (diğer kartlarla aynı).
+- `tools/map/lobby.luau`: çarkın başındaki sarı mürettebat odaya (oyunculara) bakıyor
+  (-150° → 20°). Studio'daki model de çevrildi.
+- Yusuf: 624c5b0 (ekipman yenileme) için DEVIR kaydı yoktu; ekipman dengesi konuşuluyor
+  (cooldown/menzil değişebilir), GearService'e dokunmadan önce pull'la.
+
 ## 2026-09-25 (12) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 **1. Görsel netlik** (`src/client/RarityFX.luau`, `tools/map/finish.luau`): nadir

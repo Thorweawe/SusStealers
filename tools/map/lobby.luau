@@ -480,8 +480,9 @@ return {
 			for _, s in { -1, 1 } do
 				K.boxAt(wheel, "SignPost", W(s * 11, hubY + R + 5.4, -0.9), Vector3.new(1, 2.8, 1), C.frame)
 			end
-			-- Çarkı çeviren mürettebat
-			K.crewmate(wheel, W(10, 0.7, 5) * CFrame.Angles(0, math.rad(-150), 0), K.crew(6), 1.4)
+			-- Çarkın başındaki mürettebat: odaya (oyunculara) bakıyor, hafif ortaya dönük.
+			-- Eskiden -150° ile çarka dönüktü; oyuncu yalnızca sırtını görüyordu.
+			K.crewmate(wheel, W(10, 0.7, 5) * CFrame.Angles(0, math.rad(20), 0), K.crew(6), 1.4)
 		end
 
 		-- ─── Güneydoğu: en iyi mürettebat kürsüsü ───────────────────────────
