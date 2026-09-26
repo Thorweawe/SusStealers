@@ -13,6 +13,14 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (26) — Batur (Yusuf'un şeridine yazıldı)
+
+- **Mobil olay çizelgesi** üst çubukta, UI gizleme (göz) düğmesinin sağında (`DeviceLayout`
+  TOUCH_PLACE `beside = "topbar"`); süren olay şeridi onun altına iniyor (`EventFX`).
+  Not: `AbsolutePosition` bütün ScreenGui'lerde aynı eksende (IgnoreGuiInset fark etmiyor).
+- **Mobil RUN düğmesi** Roblox'un zıplama düğmesinin sol altında (`Sprint`, JumpButton'ın
+  gerçek yerinden; ekran boyu değişince yeniden).
+
 ## 2026-09-27 (25) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 - **Çarkın bedava çevirmesi çalışmıyordu:** `PromptGuard.Validate` yalnızca parçadaki promptu

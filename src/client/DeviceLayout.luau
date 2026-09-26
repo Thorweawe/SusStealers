@@ -32,6 +32,7 @@
 ]]
 
 local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local UiKit = require(script.Parent.UiKit)
@@ -64,13 +65,23 @@ local TOUCH_LIFT = {
 --[[
 	Dokunmatikte BAŞKA yere taşınan öğeler: adı -> (çapa, konum).
 	Olay çizelgesi sağ altta zıplama bandının üstüne itiliyordu ve
-	Envanter / Rebirth düğmeleriyle RUN'ın üstüne biniyordu (telefonda
-	"sabotaj rebirth'ü ve envanteri örtüyor"). Ekranın üst ortası, üst
-	çubuğun hemen altı boş: orada hiçbir şeyi örtmüyor.
+	Envanter / Rebirth düğmeleriyle RUN'ın üstüne biniyordu. Sonra üst
+	ortaya alındı ama orada da "kötü duruyordu": artık ÜST ÇUBUKTA, UI
+	gizleme (göz) düğmesinin hemen sağında, düğmelerle aynı hizada
+	(beside = "topbar"; konum her yerleşimde üst çubuğun gerçek yerinden).
 ]]
-local TOUCH_PLACE: { [string]: { anchor: Vector2, position: UDim2 } } = {
-	EventSchedule = { anchor = Vector2.new(0.5, 0), position = UDim2.new(0.5, 0, 0, 84) },
+local TOUCH_PLACE: { [string]: { anchor: Vector2, position: UDim2?, beside: string? } } = {
+	EventSchedule = { anchor = Vector2.new(0, 0), beside = "topbar" },
 }
+
+--[[
+	AbsolutePosition bütün ScreenGui'lerde AYNI eksende (üst çubuk boşluğunun
+	altından başlıyor; IgnoreGuiInset açık katmandaki üst çubuk düğmeleri
+	negatif Y'de). Ölçüldü: boşluk eklemek kartı 58 piksel yukarı itiyordu.
+]]
+local function screenPosition(obj: GuiObject): Vector2
+	return obj.AbsolutePosition
+end
 
 --[[
 	Roblox'un dokunmatik kontrollerinin kapladığı alt bant (gerçek piksel).
@@ -212,6 +223,21 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 	local original: { [GuiObject]: UDim2 } = {}
 	local originalAnchor: { [GuiObject]: Vector2 } = {}
 
+	--[[ Üst çubuktaki düğme dizisinin sağı, root biriminde (bulunamazsa nil). ]]
+	local function besideTopbar(): UDim2?
+		local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
+		local bar = pg and pg:FindFirstChild("SusStealersTopbar")
+		local row = bar and bar:FindFirstChild("Buttons")
+		if not (row and row:IsA("GuiObject")) or row.AbsoluteSize.X <= 0 then
+			return nil
+		end
+		local rowAt = screenPosition(row)
+		local rootAt = screenPosition(root)
+		local x = rowAt.X + row.AbsoluteSize.X + 12 - rootAt.X
+		local y = rowAt.Y - rootAt.Y
+		return UDim2.fromOffset(x / scale, y / scale)
+	end
+
 	local function place(element: Instance)
 		if not element:IsA("GuiObject") then
 			return
@@ -222,9 +248,10 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 				original[element] = element.Position
 				originalAnchor[element] = element.AnchorPoint
 			end
-			if device == "Touch" then
+			local target = if moved.beside == "topbar" then besideTopbar() else moved.position
+			if device == "Touch" and target then
 				element.AnchorPoint = moved.anchor
-				element.Position = moved.position
+				element.Position = target
 			else
 				element.AnchorPoint = originalAnchor[element]
 				element.Position = original[element]
@@ -278,6 +305,18 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 	end)
 
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
+	-- Üst çubuk bizden sonra kuruluyor ve Roblox şeridi yerleşince kayıyor
+	task.spawn(function()
+		for _ = 1, 10 do
+			task.wait(1)
+			refresh()
+		end
+	end)
+	pcall(function()
+		GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(function()
+			task.defer(refresh)
+		end)
+	end)
 	UserInputService.LastInputTypeChanged:Connect(function()
 		if DeviceLayout.GetDevice() ~= device then
 			refresh()

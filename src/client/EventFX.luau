@@ -397,6 +397,10 @@ function EventFX.Create(screen: ScreenGui): Handle
 		-- Otomatik yumurta şeridi de üst ortada; açıksa onun altına in
 		local auto = screen:FindFirstChild("AutoHatchBar")
 		local top = if auto and auto:IsA("GuiObject") and auto.Visible then 62 else 10
+		-- Dokunmatikte çizelge üst çubukta (DeviceLayout); şerit onun altına
+		if screen:GetAttribute("Device") == "Touch" and panel.AnchorPoint.Y == 0 then
+			top = math.max(top, panel.Position.Y.Offset + panel.Size.Y.Offset + 8)
+		end
 		bar.Position = UDim2.new(0.5, 0, 0, top)
 
 		layoutSchedule(if typeof(id) == "string" then id else "", now)
