@@ -963,8 +963,8 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		Silindirin ekseni duvar normali boyunca: Right yüzü içeri, Left yüzü
 		dışarı bakıyor (frame * Angles(0, 90°, 0): yerel X = içe).
 	]]
-	local SPACE_TOP = Color3.fromRGB(8, 10, 28)
-	local SPACE_BOTTOM = Color3.fromRGB(26, 20, 60)
+	local SPACE_TOP = Color3.fromRGB(12, 16, 46)
+	local SPACE_BOTTOM = Color3.fromRGB(52, 30, 96)
 	local PLANETS = { Color3.fromRGB(220, 120, 70), Color3.fromRGB(90, 160, 230), Color3.fromRGB(170, 110, 220), Color3.fromRGB(120, 200, 140) }
 
 	local function spaceView(part: BasePart, face: Enum.NormalId, seed: number)
@@ -978,7 +978,8 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		gui.Parent = part
 		local disc = Instance.new("Frame")
 		disc.Size = UDim2.fromScale(1, 1)
-		disc.BackgroundColor3 = SPACE_TOP
+		-- Beyaz zemin: UIGradient rengi zeminle ÇARPIYOR, koyu zeminde geçiş siyaha gömülüyordu
+		disc.BackgroundColor3 = Color3.new(1, 1, 1)
 		disc.BorderSizePixel = 0
 		disc.ClipsDescendants = true
 		disc.Parent = gui
@@ -1011,7 +1012,7 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		end
 		for _ = 1, 16 do
 			local star = Instance.new("Frame")
-			local sz = if rng:NextNumber() < 0.2 then 4 else 2
+			local sz = if rng:NextNumber() < 0.2 then 6 else 3
 			star.AnchorPoint = Vector2.new(0.5, 0.5)
 			star.Position = UDim2.fromScale(rng:NextNumber(0.12, 0.88), rng:NextNumber(0.12, 0.88))
 			star.Size = UDim2.fromOffset(sz, sz)
@@ -1039,9 +1040,16 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 			{ shape = Enum.PartType.Cylinder, collide = true })
 		K.boxAt(parent, tag .. "PortRing", axis, Vector3.new(T + 1.5, D + 0.8, D + 0.8), C.frameDark,
 			{ shape = Enum.PartType.Cylinder, collide = true })
+		-- Görüntü parçası DÜZ malzeme ve önünde Glass YOK: Roblox Glass
+		-- malzemesi SurfaceGui'yi çizmiyor, arkasındakini de göstermiyor
+		-- (lomboz simsiyah kalıyordu). Cam parıltısı önündeki saydam, hafif
+		-- yansıtan düz katmandan.
 		local view = K.boxAt(parent, tag .. "PortGlass", axis, Vector3.new(T + 1.7, D, D), SPACE_TOP,
-			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.Glass, reflect = 0.12 })
+			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.SmoothPlastic })
 		view.CastShadow = false
+		local pane = K.boxAt(parent, tag .. "PortPane", axis, Vector3.new(T + 1.9, D, D), C.glass,
+			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.SmoothPlastic, transparency = 0.9, reflect = 0.25 })
+		pane.CastShadow = false
 		local worldPos = (frame * CFrame.new(wc, yc, 0)).Position
 		local seed = math.floor(worldPos.X * 7.3 + worldPos.Z * 3.1 + worldPos.Y * 11)
 		spaceView(view, Enum.NormalId.Right, seed)
