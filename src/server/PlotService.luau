@@ -427,7 +427,15 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		end
 	end
 
-	-- Güvertenin altına gömme aydınlatma: alt kat karanlıkta kalmasın
+	--[[
+		Güvertenin altına gömme aydınlatma: alt kat karanlıkta kalmasın.
+
+		SPOT, AŞAĞI BAKIYOR. Eskiden PointLight'tı: Roblox'ta ışık (gölge
+		kapalıyken) parçaların İÇİNDEN geçiyor. Lamba güverte yüzeyinin
+		yalnızca 1.2 stud altında olduğu için ışığı levhadan yukarı sızıp
+		ÜST KATIN zemininde bembeyaz lekeler yapıyordu ("2. katta hâlâ bir
+		parlama var"). Spot yalnızca alt yarıküreyi aydınlatıyor.
+	]]
 	for _, t in { 0.3, 0.7 } do
 		local lamp = newAnchoredPart(
 			"DeckLamp",
@@ -439,10 +447,13 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		lamp.Material = Enum.Material.Neon
 		lamp.CanCollide = false
 
-		local light = Instance.new("PointLight")
+		local light = Instance.new("SpotLight")
+		light.Face = Enum.NormalId.Bottom
+		light.Angle = 150
 		light.Color = Color3.fromRGB(255, 244, 222)
 		light.Range = 26
-		light.Brightness = 0.7
+		light.Brightness = 0.9
+		light.Shadows = true
 		light.Parent = lamp
 	end
 
@@ -498,7 +509,11 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 	slab("DeckWallTrim", Vector3.new(deckW, 0.6, 1.6), Vector3.new(deckCX, deckTop + 7.2, deckZ / 2 - 0.5), TRIM_COLOR)
 	slab("DeckWallBand", Vector3.new(deckW - 6, 0.5, 1.4), Vector3.new(deckCX, deckTop + 5.4, deckZ / 2 - 0.9), tint)
 
-	-- Duvara gömme aydınlatma: kat kendi ışığını taşısın
+	--[[
+		Duvara gömme aydınlatma: kat kendi ışığını taşısın. Odaya (-Z) bakan
+		spot, gölgeli: PointLight bir üst katın zeminine de sızıyordu (bkz.
+		DeckLamp).
+	]]
 	for _, t in { 0.22, 0.48, 0.74 } do
 		local wall = newAnchoredPart(
 			"DeckWallLamp",
@@ -510,10 +525,13 @@ local function buildUpperFloor(parent: Instance, origin: Vector3, deckTop: numbe
 		wall.Material = Enum.Material.Neon
 		wall.CanCollide = false
 
-		local wl = Instance.new("PointLight")
+		local wl = Instance.new("SpotLight")
+		wl.Face = Enum.NormalId.Front
+		wl.Angle = 120
 		wl.Color = Color3.fromRGB(255, 244, 222)
 		wl.Range = 20
-		wl.Brightness = 0.6
+		wl.Brightness = 0.7
+		wl.Shadows = true
 		wl.Parent = wall
 	end
 
@@ -1091,9 +1109,11 @@ function PlotService.SetUnlockedFloors(plot: Model, count: number)
 			part.Transparency = if open then 0 else 1
 			part.CastShadow = open
 
-			local light = part:FindFirstChildOfClass("PointLight")
-			if light then
-				light.Enabled = open
+			-- Her ışık türü (Point / Spot): kilitli katın ışığı açık kalmasın
+			for _, light in part:GetChildren() do
+				if light:IsA("Light") then
+					light.Enabled = open
+				end
 			end
 		end
 	end

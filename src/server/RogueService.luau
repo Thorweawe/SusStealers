@@ -18,13 +18,17 @@
 	başkası basınca reddediliyor (StealService'teki hırsız yakalama ile
 	aynı kural).
 
-	HAREKET: gerçek bir Humanoid (görünmez HumanoidRootPart + MoveTo),
-	sunucuya ait fizik. Eskiden çapalı kök her karede ışınlanıyordu;
-	istemciler bu sıçramaları yumuşatmadan gösterdiği için impostor
-	titreyerek, kayar gibi geliyordu. Fizikle yürüyen montajı Roblox
-	istemcide ara değerlerle yumuşatıyor. Görsel gövde köke "RogueBob"
-	kaynağıyla bağlı; Among Us yalpalamasını istemci (MapLife) o
-	kaynağın C0'ını yerelde oynatarak veriyor — ağa bir şey gitmiyor.
+	HAREKET: FİZİK YOK, ROTA VAR (shared/RogueTrack). Sunucu yol bulucunun
+	noktalarını zemine oturtup bir rota yapıyor ve başlangıç anıyla
+	modelin "RogueTrack" niteliğine yazıyor. Her istemci (MapLife)
+	impostoru bu rotadan her karede kendisi yürütüyor, yalpalamayı da
+	yürünen yola bağlı veriyor. Sunucu kökü aynı rotadan saniyede 10 kez
+	güncelliyor (yakalama mesafesi, admin haritası, sırtlanan karakter).
+
+	Geçmiş: 1) çapalı kök her karede ışınlanıyordu → titreme. 2) Humanoid
+	ile fizik → engel sayılmayan her çıkıntıya basamak gibi tırmanıyor
+	("hâlâ uçuyor"), hızı her karede oynadığı için yalpalama düzensiz
+	("sakat gibi yürüyor"). Rota ikisini de kökten çözüyor.
 
 	Olay sırasında (EventService) çıkmıyor; olaylar zaten yeterince
 	kalabalık.
@@ -38,6 +42,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local RogueTrack = require(Shared.RogueTrack)
 local UnitModel = require(Shared.UnitModel)
 
 local EconomyService = require(script.Parent.EconomyService)
@@ -54,10 +59,9 @@ RogueService.NotifyKind = NOTIFY_KIND
 
 type Rogue = {
 	model: Model,
-	root: BasePart,     -- HumanoidRootPart (görünmez, hareket eden)
+	root: BasePart,     -- RogueRoot (görünmez, çapalı; rotada taşınan)
 	visual: BasePart,   -- karakter modelinin kökü (ayak hizası)
-	humanoid: Humanoid,
-	lift: number,
+	lift: number,       -- kök merkezinden ayak tabanına
 	pos: Vector3,
 	status: TextLabel,
 	plot: Model,
@@ -161,12 +165,12 @@ end
 	zeminden hep 2 stud yukarıda ama altındaki "zemin" Conveyor/Podium.
 	Uzaktan havada süzülüyor gibi görünüyordu.
 
-	İki katman:
+	Artık fizik yok (RogueTrack) ama bu iki katman hâlâ gerekli:
 	  - Yol bulucu bunlardan geçmesin: PathfindingModifier etiketi
 	    "RogueAvoid", yolun maliyeti sonsuz.
-	  - Yine de üstüne basmasın: kök "RogueNPC" çarpışma grubunda, bantlar
-	    ve kaideler "RogueObstacle" grubunda; ikisi çarpışmıyor. Humanoid'in
-	    zemin algısı grubu gözetiyor, o parçaları zemin saymıyor.
+	  - Rota noktaları aşağı ışınla zemine oturtuluyor (groundY); ışın
+	    "RogueNPC" grubuyla atılıyor, bantlar ve kaideler "RogueObstacle"
+	    grubunda — ikisi çarpışmıyor, ışın onları zemin saymıyor.
 	Oyuncular Default grupta; kaidelerle ve bantlarla çarpışmaları değişmiyor.
 ]]
 local NPC_GROUP = "RogueNPC"
@@ -223,9 +227,9 @@ end
 
 -- ─── Model ──────────────────────────────────────────────────────────────────
 
-local HIP_HEIGHT = 1
+local ROOT_HEIGHT = 2
 
-local function buildModel(): (Model, BasePart, BasePart, Humanoid, number, TextLabel)
+local function buildModel(): (Model, BasePart, BasePart, number, TextLabel)
 	local model = UnitModel.Build("RedCrew")
 	model.Name = "RogueImpostor"
 	local visual = model.PrimaryPart :: BasePart
@@ -242,12 +246,12 @@ local function buildModel(): (Model, BasePart, BasePart, Humanoid, number, TextL
 	end
 
 	--[[
-		Humanoid kökü: görünmez, gövdenin ortasında. HipHeight ile tabanı
-		zeminden yüksekte duruyor, görsel ayaklar zemine değiyor. Yüzü -Z:
-		karakterin vizörü de -Z'de, yürüdüğü yöne bakıyor.
+		Kök: görünmez, çapalı, ayakların ROOT_HEIGHT üstünde. Rotada o
+		taşınıyor; gövde ona kaynaklı. Yüzü -Z: karakterin vizörü de -Z'de,
+		yürüdüğü yöne bakıyor.
 	]]
 	local root = Instance.new("Part")
-	root.Name = "HumanoidRootPart"
+	root.Name = "RogueRoot"
 	root.Size = Vector3.new(2, 2, 1)
 	root.Transparency = 1
 	root.CanCollide = false
@@ -255,23 +259,13 @@ local function buildModel(): (Model, BasePart, BasePart, Humanoid, number, TextL
 	root.CanQuery = true
 	root.Anchored = true
 	root.CollisionGroup = NPC_GROUP
-	root.CFrame = CFrame.new(box.Position.X, feetY + HIP_HEIGHT + root.Size.Y / 2, box.Position.Z)
+	root.CFrame = CFrame.new(box.Position.X, feetY + ROOT_HEIGHT, box.Position.Z)
 	root.Parent = model
 	model.PrimaryPart = root
 	local lift = root.Position.Y - feetY
-
-	local humanoid = Instance.new("Humanoid")
-	humanoid.HipHeight = HIP_HEIGHT
-	humanoid.AutoRotate = true
-	humanoid.RequiresNeck = false
-	humanoid.BreakJointsOnDeath = false
-	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-	for _, state in { Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.Seated, Enum.HumanoidStateType.Climbing,
-		Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.Swimming } do
-		humanoid:SetStateEnabled(state, false)
-	end
-	humanoid.Parent = model
+	-- İstemci yalpalamayı ayak hizası etrafında döndürüyor (MapLife)
+	model:SetAttribute("Lift", lift)
+	model:SetAttribute("RogueTrack", "")
 	-- Kaidedeki karakterlerle karışmasın: kırmızı dış hat, duvarın arkasından da
 	local highlight = Instance.new("Highlight")
 	highlight.FillTransparency = 0.75
@@ -309,7 +303,7 @@ local function buildModel(): (Model, BasePart, BasePart, Humanoid, number, TextL
 	status.Text = ""
 	status.Parent = gui
 
-	return model, root, visual, humanoid, lift, status
+	return model, root, visual, lift, status
 end
 
 --[[
@@ -354,18 +348,23 @@ local function weldTo(root: BasePart, container: Instance, skip: BasePart?)
 end
 
 local function place(r: Rogue, pos: Vector3, facing: Vector3)
-	pos = Vector3.new(pos.X, groundY(r, pos), pos.Z)
-	r.pos = pos
-	local flat = Vector3.new(facing.X, 0, facing.Z)
-	local look = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
-	r.root.CFrame = CFrame.lookAt(pos, pos + look) + Vector3.new(0, r.lift, 0)
-	r.root.AssemblyLinearVelocity = Vector3.zero
+	setRoot(r, Vector3.new(pos.X, groundY(r, pos), pos.Z), facing)
 end
 
---[[ Ayakların şu anki yeri (Humanoid yürürken r.pos'u günceller). ]]
+--[[ Ayakların şu anki yeri. ]]
 local function feet(r: Rogue): Vector3
-	r.pos = r.root.Position - Vector3.new(0, r.lift, 0)
 	return r.pos
+end
+
+--[[ Kökü ayakları `pos`ta, `facing` yönüne bakar şekilde koyar (ışın yok). ]]
+local function setRoot(r: Rogue, pos: Vector3, facing: Vector3)
+	r.pos = pos
+	local flat = Vector3.new(facing.X, 0, facing.Z)
+	if flat.Magnitude < 0.01 then
+		flat = r.root.CFrame.LookVector * Vector3.new(1, 0, 1)
+	end
+	local look = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
+	r.root.CFrame = CFrame.lookAt(pos, pos + look) + Vector3.new(0, r.lift, 0)
 end
 
 -- ─── Hedef seçimi ───────────────────────────────────────────────────────────
@@ -445,38 +444,38 @@ local function despawn(r: Rogue)
 end
 
 --[[
-	Yolu Humanoid:MoveTo ile izler. Durdurulursa (yakalandı, vazgeçti) ya
-	da süre dolarsa false. Bir yol noktasında 4 sn takılırsa sonrakine
-	geçiyor (MoveTo kendi zaman aşımını 8 sn'de veriyor, çok uzun).
+	Yolu rota olarak yürür (RogueTrack): noktalar zemine oturtuluyor,
+	rota niteliğe yazılıyor, istemciler onu her karede kendileri
+	oynatıyor. Sunucu kökü 0.1 sn'de bir aynı rotadan güncelliyor.
+	Durdurulursa (yakalandı, vazgeçti) ya da süre dolarsa false.
 ]]
 local function walk(r: Rogue, points: { Vector3 }, speed: number, timeout: number, phase: string): boolean
-	local started = os.clock()
-	r.humanoid.WalkSpeed = speed
-	for _, target in points do
-		local reached = false
-		local conn = r.humanoid.MoveToFinished:Connect(function()
-			reached = true
-		end)
-		r.humanoid:MoveTo(target)
-		local t0 = os.clock()
-		while not reached do
-			if not r.alive or r.phase ~= phase or os.clock() - started > timeout then
-				conn:Disconnect()
-				if r.root.Parent then
-					r.humanoid:Move(Vector3.zero)
-				end
-				return false
-			end
-			if os.clock() - t0 > 4 then
-				break
-			end
-			task.wait(0.1)
-		end
-		conn:Disconnect()
+	local grounded = { r.pos }
+	for _, p in points do
+		table.insert(grounded, Vector3.new(p.X, groundY(r, p), p.Z))
 	end
-	r.humanoid:Move(Vector3.zero)
-	feet(r)
-	return true
+	local track = RogueTrack.New(grounded, workspace:GetServerTimeNow(), speed)
+	r.model:SetAttribute("RogueTrack", RogueTrack.Encode(track))
+	local started = os.clock()
+	local finished = false
+	while true do
+		if not r.alive or r.phase ~= phase or os.clock() - started > timeout then
+			break
+		end
+		local now = workspace:GetServerTimeNow()
+		local pos, dir = RogueTrack.At(track, RogueTrack.Distance(track, now))
+		setRoot(r, pos, dir)
+		if RogueTrack.Done(track, now) then
+			finished = true
+			break
+		end
+		task.wait(0.1)
+	end
+	-- Rota kalkınca istemciler sunucunun kökünü gösteriyor (durduğu yer)
+	if r.model.Parent then
+		r.model:SetAttribute("RogueTrack", "")
+	end
+	return finished
 end
 
 --[[
@@ -621,12 +620,11 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 		return false
 	end
 
-	local model, root, visual, humanoid, lift, status = buildModel()
+	local model, root, visual, lift, status = buildModel()
 	local r: Rogue = {
 		model = model,
 		root = root,
 		visual = visual,
-		humanoid = humanoid,
 		lift = lift,
 		pos = spawnPad.Position,
 		status = status,
@@ -657,7 +655,8 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 	-- Sıra önemli: önce kaynak (parçalar hâlâ kurulduğu yerde), sonra konum.
 	-- Tersi, kökü taşıyıp gövdeyi geride bırakan bir kaynak kaydediyordu.
 	model.Parent = workspace
-	-- Görsel parçalar görsel köke, görsel kök "RogueBob" ile Humanoid köküne
+	-- Görsel parçalar görsel köke, görsel kök "RogueBob" ile çapalı köke.
+	-- İstemci yalpalamayı bu kaynağın C0'ında oynatıyor (MapLife).
 	weldTo(visual, model, root)
 	local bob = Instance.new("Weld")
 	bob.Name = "RogueBob"
@@ -666,8 +665,6 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 	bob.C0 = root.CFrame:ToObjectSpace(visual.CFrame)
 	bob.Parent = root
 	visual.Anchored = false
-	root.Anchored = false
-	root:SetNetworkOwner(nil) -- sunucu yürütüyor; yakındaki oyuncuya geçmesin
 	place(r, spawnPad.Position + Vector3.new(0, spawnPad.Size.Y / 2, 0), Vector3.zAxis)
 	current = r
 

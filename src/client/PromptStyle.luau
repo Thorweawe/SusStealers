@@ -24,6 +24,14 @@
 	Yumurta promptları HARİÇ: onları EggPanel kendi panelinde gösteriyor
 	(yumurtanın ekranı, E/R/T). Enabled süzmesi PromptFilter'da; burası
 	yalnızca çizim.
+
+	YAPIŞKAN KART (bant, "BuyPrompt"): bantta birkaç karakter kayarken en
+	yakın olan sürekli değişiyor; Roblox her değişimde eskisini gizleyip
+	yenisini gösteriyor. Her seferinde kart küçülüp yok oluyor, yenisi
+	"pop" ile çıkıyordu — saniyede birkaç kez, satın alma tuşu titreyip
+	takılıyor gibi görünüyordu. Artık aynı kart yeni karaktere kayıyor,
+	yalnızca yazısı (fiyat) değişiyor; son karakter de uzaklaşınca kısa
+	bir gecikmeyle kapanıyor.
 ]]
 
 local Players = game:GetService("Players")
@@ -60,6 +68,12 @@ local TONES: { [string]: Color3 } = {
 	GearPrompt = Color3.fromRGB(255, 150, 50),
 }
 local DEFAULT_TONE = Color3.fromRGB(80, 210, 230)
+
+-- Aynı kartı paylaşan (yeniden çizilmeyen) prompt adları
+local STICKY: { [string]: boolean } = {
+	BuyPrompt = true,
+}
+local STICKY_LINGER = 0.2
 
 local function corner(parent: Instance, r: number)
 	local c = Instance.new("UICorner")
@@ -103,6 +117,10 @@ type Shown = {
 	fill: Frame,
 	bar: Frame,
 	card: Frame,
+	action: TextLabel,
+	object: TextLabel?,
+	key: TextLabel,
+	target: { prompt: ProximityPrompt },  -- tıklama düğmesinin hedefi (kart başka prompta kayabilir)
 	holdTween: Tween?,
 	watch: { RBXScriptConnection },
 }
@@ -129,15 +147,12 @@ function PromptStyle.Start(): Handle
 		return math.clamp(short / 800, 0.72, 1)
 	end
 
-	local function hide(prompt: ProximityPrompt)
-		local s = shown[prompt]
-		if not s then
-			return
-		end
-		shown[prompt] = nil
-		for _, c in s.watch do
-			c:Disconnect()
-		end
+	-- Yapışkan kart: gizlendikten sonra kısa süre bekliyor, başka bir
+	-- bant promptu gösterilirse ona kayıyor
+	local lingering: { s: Shown, name: string, token: number }? = nil
+	local lingerToken = 0
+
+	local function destroyCard(s: Shown)
 		local gui = s.gui
 		local scale = gui:FindFirstChildWhichIsA("UIScale", true)
 		if scale then
@@ -151,9 +166,102 @@ function PromptStyle.Start(): Handle
 		end
 	end
 
+	local function hide(prompt: ProximityPrompt)
+		local s = shown[prompt]
+		if not s then
+			return
+		end
+		shown[prompt] = nil
+		for _, c in s.watch do
+			c:Disconnect()
+		end
+		if s.holdTween then
+			s.holdTween:Cancel()
+			s.holdTween = nil
+		end
+		if STICKY[prompt.Name] then
+			if lingering then
+				destroyCard(lingering.s)
+			end
+			lingerToken += 1
+			local token = lingerToken
+			lingering = { s = s, name = prompt.Name, token = token }
+			task.delay(STICKY_LINGER, function()
+				local l = lingering
+				if l and l.token == token then
+					lingering = nil
+					destroyCard(l.s)
+				end
+			end)
+			return
+		end
+		destroyCard(s)
+	end
+
+	-- Yazı değişirse (ör. çalma süresi ObjectText'te) kart da güncellensin
+	local function watchPrompt(prompt: ProximityPrompt, s: Shown): { RBXScriptConnection }
+		local watch = {
+			prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
+				s.action.Text = prompt.ActionText
+			end),
+		}
+		local objectLabel = s.object
+		if objectLabel then
+			table.insert(watch, prompt:GetPropertyChangedSignal("ObjectText"):Connect(function()
+				objectLabel.Text = prompt.ObjectText
+			end))
+		end
+		return watch
+	end
+
+	--[[
+		Yapışkan kartı yeni prompta kaydırır: yeniden çizim yok, yalnızca
+		hedef ve yazılar. Yeni karakter olduğunu hafif bir tık belli ediyor.
+	]]
+	local function retarget(s: Shown, prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType)
+		local adornee = prompt.Parent
+		if adornee and (adornee:IsA("BasePart") or adornee:IsA("Attachment") or adornee:IsA("Model")) then
+			s.gui.Adornee = adornee :: any
+		end
+		s.target.prompt = prompt
+		s.action.Text = prompt.ActionText
+		if s.object then
+			s.object.Text = prompt.ObjectText
+		end
+		s.key.Text = keyLabel(prompt, inputType)
+		s.fill.Size = UDim2.fromScale(0, 1)
+		s.watch = watchPrompt(prompt, s)
+		shown[prompt] = s
+		local scale = s.gui:FindFirstChildWhichIsA("UIScale", true)
+		if scale then
+			local full = cardScale()
+			scale.Scale = full * 1.06
+			TweenService:Create(scale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = full }):Play()
+		end
+	end
+
 	local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInputType)
 		if isEggPrompt(prompt) then
 			return
+		end
+		if STICKY[prompt.Name] and not shown[prompt] then
+			-- Aynı türden ekranda duran ya da yeni gizlenen kart varsa ona kay
+			for other, s in shown do
+				if other ~= prompt and other.Name == prompt.Name then
+					shown[other] = nil
+					for _, c in s.watch do
+						c:Disconnect()
+					end
+					retarget(s, prompt, inputType)
+					return
+				end
+			end
+			local l = lingering
+			if l and l.name == prompt.Name then
+				lingering = nil
+				retarget(l.s, prompt, inputType)
+				return
+			end
 		end
 		hide(prompt)
 		local tone = TONES[prompt.Name] or DEFAULT_TONE
@@ -297,7 +405,9 @@ function PromptStyle.Start(): Handle
 		fill.BorderSizePixel = 0
 		fill.Parent = bar
 
-		-- Dokunma / tıklama: basılı tutma varsayılan kutudaki gibi
+		-- Dokunma / tıklama: basılı tutma varsayılan kutudaki gibi. Hedef
+		-- tablodan okunuyor: yapışkan kart başka prompta kayabiliyor.
+		local target = { prompt = prompt }
 		if prompt.ClickablePrompt then
 			local hit = Instance.new("TextButton")
 			hit.Size = UDim2.fromScale(1, 1)
@@ -308,29 +418,30 @@ function PromptStyle.Start(): Handle
 			hit.InputBegan:Connect(function(input)
 				if (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1)
 					and input.UserInputState ~= Enum.UserInputState.Change then
-					prompt:InputHoldBegin()
+					target.prompt:InputHoldBegin()
 				end
 			end)
 			hit.InputEnded:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-					prompt:InputHoldEnd()
+					target.prompt:InputHoldEnd()
 				end
 			end)
 		end
 
-		-- Yazı değişirse (ör. çalma süresi ObjectText'te) kart da güncellensin
-		local watch = {
-			prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
-				action.Text = prompt.ActionText
-			end),
+		local record: Shown = {
+			gui = gui,
+			fill = fill,
+			bar = bar,
+			card = card,
+			action = action,
+			object = card:FindFirstChild("Object") :: TextLabel?,
+			key = key,
+			target = target,
+			holdTween = nil,
+			watch = {},
 		}
-		local objectLabel = card:FindFirstChild("Object") :: TextLabel?
-		if objectLabel then
-			table.insert(watch, prompt:GetPropertyChangedSignal("ObjectText"):Connect(function()
-				objectLabel.Text = prompt.ObjectText
-			end))
-		end
-		shown[prompt] = { gui = gui, fill = fill, bar = bar, card = card, holdTween = nil, watch = watch }
+		record.watch = watchPrompt(prompt, record)
+		shown[prompt] = record
 		TweenService:Create(scale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
 			{ Scale = cardScale() }):Play()
 	end
@@ -389,6 +500,10 @@ function PromptStyle.Start(): Handle
 			end
 			for prompt in shown do
 				hide(prompt)
+			end
+			if lingering then
+				destroyCard(lingering.s)
+				lingering = nil
 			end
 		end,
 	}

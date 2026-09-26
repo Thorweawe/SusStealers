@@ -3602,6 +3602,52 @@ case("Impostor NPC: kaçarsa karakter 5 dk para üretmiyor", function(ctx)
 	clearPlot(ctx.plot)
 end)
 
+case("Impostor NPC: fiziksiz rota, zemine oturuyor, herkese aynı", function(ctx)
+	local RogueTrack = require(ReplicatedStorage.Shared.RogueTrack)
+	-- Rota örnekleme: iki parça, 10 + 5 stud
+	local track = RogueTrack.New({ Vector3.new(0, 0, 0), Vector3.new(10, 0, 0), Vector3.new(10, 0, 0), Vector3.new(10, 0, 5) }, 100, 5)
+	eq("çift nokta atıldı", #track.points, 3)
+	near("toplam yol", track.total, 15, 1e-6)
+	local p, dir = RogueTrack.At(track, 12)
+	near("ikinci parçada", (p - Vector3.new(10, 0, 2)).Magnitude, 0, 1e-6)
+	ok("yön ikinci parçanın", dir.Unit:Dot(Vector3.zAxis) > 0.99)
+	near("zamandan yol", RogueTrack.Distance(track, 102), 10, 1e-6)
+	ok("bitmedi", not RogueTrack.Done(track, 102))
+	ok("bitti", RogueTrack.Done(track, 103.1))
+	-- Kodlama gidiş-dönüş (istemci aynı rotayı okuyor)
+	local back = RogueTrack.Decode(RogueTrack.Encode(track))
+	ok("çözüldü", back ~= nil)
+	if back then
+		near("aynı uzunluk", back.total, track.total, 0.05)
+		eq("aynı başlangıç", back.start, track.start)
+	end
+	eq("boş rota yok", RogueTrack.Decode(""), nil)
+	eq("bozuk rota yok", RogueTrack.Decode("{bozuk"), nil)
+
+	-- Model: Humanoid yok (fizikle tırmanmasın), kök çapalı, istemci için Lift
+	clearPlot(ctx.plot)
+	local podium = PlotService.GetPodiums(ctx.plot)[1]
+	PlotService.PlaceUnit(podium, Config.Units[10].id)
+	RogueService._Reset(podium)
+	ok("çıktı", RogueService.Spawn(ctx.plot, podium, true))
+	local r = RogueService.GetCurrent()
+	if r then
+		eq("Humanoid yok", r.model:FindFirstChildWhichIsA("Humanoid", true), nil)
+		ok("kök çapalı", r.root.Anchored)
+		ok("Lift niteliği", typeof(r.model:GetAttribute("Lift")) == "number")
+		eq("dururken rota boş", r.model:GetAttribute("RogueTrack"), "")
+		-- Doğduğu yerde ayaklar zeminde (havada değil): altında 0.5 stud içinde zemin
+		local params = RaycastParams.new()
+		params.FilterDescendantsInstances = { r.model }
+		params.CollisionGroup = "RogueNPC"
+		local hit = workspace:Raycast(r.pos + Vector3.new(0, 1, 0), Vector3.new(0, -3, 0), params)
+		ok("ayak altında zemin", hit ~= nil and math.abs(hit.Position.Y - r.pos.Y) < 0.5,
+			if hit then tostring(hit.Position.Y - r.pos.Y) else "yok")
+	end
+	RogueService._Reset(podium)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Harita: tüneller ve admin masası ──────────────────────────────────────
 
 case("Tünel: iki rampa ve tünel kurulu, yol bulucu içinden geçiyor", function()

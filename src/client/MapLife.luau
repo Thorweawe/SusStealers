@@ -25,6 +25,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local RogueTrack = require(Shared.RogueTrack)
 local UnitModel = require(Shared.UnitModel)
 
 local MapLife = {}
@@ -230,37 +231,110 @@ function MapLife.Start(): Handle
 	end
 
 	--[[
-		Gezen impostor (sunucu, RogueService) fizikle yürüyor; görsel gövdesi
-		köke "RogueBob" kaynağıyla bağlı. Among Us yalpalamasını burada, o
-		kaynağın C0'ını yerelde oynatarak veriyoruz: hıza göre zıplama ve
-		iki yana sallanma, ayak hizası etrafında. Ağa hiçbir şey gitmiyor.
+		Gezen impostor (sunucu, RogueService). Sunucu yürüyeceği rotayı
+		modelin "RogueTrack" niteliğine yazıyor (shared/RogueTrack); biz onu
+		HER KAREDE burada yürütüyoruz: çapalı kökü rotadaki yere koyuyoruz
+		(yalnızca bizim ekranımızda), dönüşü yumuşatıyoruz. Sunucunun kökü
+		seyrek güncellemesi bizim her kare yazdığımızın altında kalıyor.
+		Rota yokken (hackliyor, duruyor) sunucunun koyduğu yer görünüyor.
+
+		Yalpalama gövdeyi köke bağlayan "RogueBob" kaynağının C0'ında:
+		zıplama + iki yana sallanma, AYAK HİZASI etrafında (gövde ortası
+		etrafında dönünce ayaklar yana kayıp topallıyor gibi duruyordu) ve
+		YÜRÜNEN YOLA bağlı (hıza bağlıyken hız her karede oynuyor, adımlar
+		düzensizdi).
 	]]
-	local rogueBase: { [Weld]: CFrame } = setmetatable({} :: any, { __mode = "k" })
-	local function waddleRogue(clock: number)
-		local rogue = workspace:FindFirstChild("RogueImpostor")
-		local root = rogue and rogue:FindFirstChild("HumanoidRootPart")
-		local weld = root and root:FindFirstChild("RogueBob")
-		if not (root and root:IsA("BasePart") and weld and weld:IsA("Weld")) then
+	type RogueView = {
+		model: Model,
+		root: BasePart,
+		weld: Weld,
+		base: CFrame,
+		lift: number,
+		text: string?,
+		track: RogueTrack.Track?,
+		yaw: number?,
+		sway: number,     -- 0 duruyor .. 1 yürüyor (yumuşak)
+	}
+	-- Stud başına faz (radyan). |sin| her π'de bir adım: 11 stud/sn'de saniyede ~3.3 adım
+	local STEP_PHASE = 0.95
+	local rogueView: RogueView? = nil
+
+	local function yawOf(v: Vector3): number
+		return math.atan2(-v.X, -v.Z)
+	end
+
+	local function stepRogue(dt: number)
+		local model = workspace:FindFirstChild("RogueImpostor")
+		if not (model and model:IsA("Model")) then
+			rogueView = nil
 			return
 		end
-		local base = rogueBase[weld]
-		if not base then
-			base = weld.C0
-			rogueBase[weld] = base
+		local view = rogueView
+		if not view or view.model ~= model then
+			local root = model:FindFirstChild("RogueRoot")
+			local weld = root and root:FindFirstChild("RogueBob")
+			if not (root and root:IsA("BasePart") and weld and weld:IsA("Weld")) then
+				return
+			end
+			local lift = model:GetAttribute("Lift")
+			view = {
+				model = model,
+				root = root,
+				weld = weld,
+				base = weld.C0,
+				lift = if typeof(lift) == "number" then lift else 2,
+				text = nil,
+				track = nil,
+				yaw = nil,
+				sway = 0,
+			}
+			rogueView = view
 		end
-		local v = root.AssemblyLinearVelocity
-		local k = math.clamp(Vector2.new(v.X, v.Z).Magnitude / 8, 0, 1)
-		local phase = clock * 11
-		weld.C0 = base * CFrame.new(0, math.abs(math.sin(phase)) * 0.35 * k, 0)
-			* CFrame.Angles(0, 0, math.sin(phase) * math.rad(7) * k)
+		assert(view)
+
+		local text = model:GetAttribute("RogueTrack")
+		if text ~= view.text then
+			view.text = if typeof(text) == "string" then text else nil
+			view.track = RogueTrack.Decode(view.text)
+		end
+
+		local moving = false
+		local walked = 0
+		local track = view.track
+		if track then
+			local now = workspace:GetServerTimeNow()
+			walked = RogueTrack.Distance(track, now)
+			moving = not RogueTrack.Done(track, now)
+			local pos, dir = RogueTrack.At(track, walked)
+			local yaw = view.yaw or yawOf(view.root.CFrame.LookVector)
+			if dir.Magnitude > 0.01 then
+				-- En kısa yoldan dön, yumuşak
+				local target = yawOf(dir)
+				local delta = (target - yaw + math.pi) % (2 * math.pi) - math.pi
+				yaw += delta * (1 - math.exp(-12 * dt))
+			end
+			view.yaw = yaw
+			view.root.CFrame = CFrame.new(pos + Vector3.new(0, view.lift, 0)) * CFrame.Angles(0, yaw, 0)
+		else
+			view.yaw = nil
+		end
+
+		view.sway += ((if moving then 1 else 0) - view.sway) * (1 - math.exp(-8 * dt))
+		local phase = walked * STEP_PHASE
+		local k = view.sway
+		local bob = math.abs(math.sin(phase)) * 0.3 * k
+		local roll = math.sin(phase) * math.rad(6) * k
+		view.weld.C0 = CFrame.new(0, bob - view.lift, 0) * CFrame.Angles(0, 0, roll)
+			* CFrame.new(0, view.lift, 0) * view.base
 	end
+	-- Render'dan hemen önce: sunucudan gelen seyrek kök güncellemesinin üstüne yazılsın
+	local rogueConnection = RunService.RenderStepped:Connect(stepRogue)
 
 	local clock = 0
 	local lampAccum = 0
 	local frameNo = 0
 	local connection = RunService.Heartbeat:Connect(function(dt)
 		clock += dt
-		waddleRogue(clock)
 		frameNo += 1
 		--[[
 			PERFORMANS: gezen mürettebatın modeli yalnızca kameraya yakınsa
@@ -352,6 +426,7 @@ function MapLife.Start(): Handle
 	return {
 		Destroy = function()
 			connection:Disconnect()
+			rogueConnection:Disconnect()
 			for _, c in seatWatch do
 				c:Disconnect()
 			end
