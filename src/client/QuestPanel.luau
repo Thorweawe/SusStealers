@@ -28,6 +28,13 @@
 
 	"Hazır" ile "toplandı" ayrı olmasaydı oyuncu ödülünü alıp almadığını
 	bilemezdi.
+
+	═══ GÖRÜNÜŞ ════════════════════════════════════════════════════════════
+
+	Mağazanın dili (CardKit): mavi başlık şeridi, her vadenin kendi rengi
+	(30 dk camgöbeği, 3 saat mor, günlük altın), ışınlı kartlar, kalın
+	ilerleme çubuğu, tıknaz CLAIM düğmesi. Eski düz gri satırlar oyuncuya
+	"burada ödül var" demiyordu.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -38,16 +45,27 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local QuestPanel = {}
 
-local INK = UiKit.INK
-local MUTED = UiKit.MUTED
-local ACCENT = UiKit.VISOR
-local GOOD = UiKit.GOOD
-local WARN = UiKit.WARN
-local DIM = UiKit.DIM
+local WHITE = CardKit.WHITE
+local HEADER_COLOR = Color3.fromRGB(50, 140, 240)
+local DONE_TINT = Color3.fromRGB(70, 78, 96)
+local READY_TINT = Color3.fromRGB(60, 180, 70)
+
+-- Vade -> kart ve sekme rengi (bilinmeyen vade camgöbeği)
+local TIER_TINT: { [string]: Color3 } = {
+	short = Color3.fromRGB(30, 160, 200),
+	medium = Color3.fromRGB(140, 80, 220),
+	daily = Color3.fromRGB(230, 160, 20),
+}
+local DEFAULT_TINT = Color3.fromRGB(30, 160, 200)
+
+local function tintOf(id: string, order: number): Color3
+	return TIER_TINT[id] or ({ DEFAULT_TINT, Color3.fromRGB(140, 80, 220), Color3.fromRGB(230, 160, 20) })[order] or DEFAULT_TINT
+end
 
 export type Panel = {
 	Toggle: () -> (),
@@ -73,112 +91,72 @@ type Tier = {
 }
 
 local Z = 40
+local W, H = 660, 560
+local HEADER = 64
 
 --[[
 	`onReady` hazır (toplanmamış) ödül sayısı değişince çağrılıyor; sol
 	raydaki QUESTS düğmesinin rozeti buna bağlı.
 ]]
 function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
-	local root = UiKit.Window(screen, "QuestPanel", ACCENT)
+	local root = UiKit.Window(screen, "QuestPanel", HEADER_COLOR)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(520, 470)
+	root.Size = UDim2.fromOffset(W, H)
 	root.Visible = false
 	root.ZIndex = Z
 
-	--[[
-		Üst şerit: vizör renginde bant, ortasında "• QUESTS •". Referanstaki
-		kurdele başlığın karşılığı; panelin ne olduğunu uzaktan söylüyor.
-	]]
-	local band = Instance.new("Frame")
-	band.Size = UDim2.new(1, 0, 0, 52)
-	band.BackgroundColor3 = ACCENT:Lerp(Color3.new(0, 0, 0), 0.55)
-	band.BorderSizePixel = 0
-	band.ZIndex = Z + 1
-	band.Parent = root
-	UiKit.Corner(band, 14)
-
-	-- Bandın alt köşeleri düz: altına yapışık ikinci bir şerit
-	local bandFoot = Instance.new("Frame")
-	bandFoot.Position = UDim2.new(0, 0, 1, -14)
-	bandFoot.Size = UDim2.new(1, 0, 0, 14)
-	bandFoot.BackgroundColor3 = band.BackgroundColor3
-	bandFoot.BorderSizePixel = 0
-	bandFoot.ZIndex = Z + 1
-	bandFoot.Parent = band
-
-	local badge = Instance.new("Frame")
-	badge.AnchorPoint = Vector2.new(0.5, 0.5)
-	badge.Position = UDim2.new(0.5, -78, 0.5, 0)
-	badge.Size = UDim2.fromOffset(26, 26)
-	badge.BackgroundTransparency = 1
-	badge.ZIndex = Z + 2
-	badge.Parent = band
-	UiKit.Clipboard(badge, 26, ACCENT)
-
-	local heading = Instance.new("TextLabel")
-	heading.AnchorPoint = Vector2.new(0.5, 0.5)
-	heading.Position = UDim2.fromScale(0.5, 0.5)
-	heading.Size = UDim2.fromOffset(200, 30)
-	heading.BackgroundTransparency = 1
-	heading.Font = Enum.Font.GothamBlack
-	heading.TextSize = 24
-	heading.TextColor3 = Color3.new(1, 1, 1)
-	heading.TextStrokeTransparency = 0.5
-	heading.Text = "• QUESTS •"
-	heading.ZIndex = Z + 2
-	heading.Parent = band
-
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 3
+	local skin = CardKit.skin(root, HEADER_COLOR, "Quests", HEADER, Z)
+	local close = skin.close
 
 	-- ─── Vade sekmeleri ─────────────────────────────────────────────────────
 
 	local tabs = Instance.new("Frame")
-	tabs.Position = UDim2.fromOffset(14, 62)
-	tabs.Size = UDim2.new(1, -28, 0, 46)
+	tabs.Position = UDim2.fromOffset(16, 12)
+	tabs.Size = UDim2.new(1, -32, 0, 70)
 	tabs.BackgroundTransparency = 1
 	tabs.ZIndex = Z + 1
-	tabs.Parent = root
+	tabs.Parent = skin.body
 
 	local tabLayout = Instance.new("UIListLayout")
 	tabLayout.FillDirection = Enum.FillDirection.Horizontal
 	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	tabLayout.Padding = UDim.new(0, 8)
+	tabLayout.Padding = UDim.new(0, 10)
 	tabLayout.Parent = tabs
 
-	type Tab = { button: TextButton, name: TextLabel, timer: TextLabel, dot: TextLabel, stroke: UIStroke }
+	type Tab = { holder: Frame, card: Frame, name: TextLabel, timer: TextLabel, dot: TextLabel, tint: Color3, scale: UIScale }
 	local tabButtons: { [string]: Tab } = {}
 
 	local list = Instance.new("ScrollingFrame")
-	list.Position = UDim2.fromOffset(14, 118)
-	list.Size = UDim2.new(1, -28, 1, -160)
+	list.Position = UDim2.fromOffset(16, 94)
+	list.Size = UDim2.new(1, -24, 1, -134)
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.ScrollBarThickness = 4
-	list.ScrollBarImageColor3 = MUTED
+	list.ScrollBarThickness = 8
+	list.ScrollBarImageColor3 = Color3.fromRGB(200, 210, 230)
+	list.ScrollBarImageTransparency = 0.3
 	list.CanvasSize = UDim2.new()
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
 	list.ZIndex = Z + 1
-	list.Parent = root
+	list.Parent = skin.body
 
 	local listLayout = Instance.new("UIListLayout")
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Padding = UDim.new(0, 8)
+	listLayout.Padding = UDim.new(0, 10)
 	listLayout.Parent = list
+	local listPad = Instance.new("UIPadding")
+	listPad.PaddingTop = UDim.new(0, 2)
+	listPad.PaddingBottom = UDim.new(0, 8)
+	listPad.PaddingRight = UDim.new(0, 10)
+	listPad.Parent = list
 
-	local footer = Instance.new("TextLabel")
-	footer.AnchorPoint = Vector2.new(0, 1)
-	footer.Position = UDim2.new(0, 18, 1, -12)
-	footer.Size = UDim2.new(1, -36, 0, 18)
-	footer.BackgroundTransparency = 1
-	footer.Font = Enum.Font.GothamBold
-	footer.TextSize = 12
-	footer.TextXAlignment = Enum.TextXAlignment.Left
-	footer.TextColor3 = MUTED
-	footer.Text = ""
-	footer.ZIndex = Z + 1
-	footer.Parent = root
+	local CARD_W = W - 24 - 16 - 10 - 8
+
+	local footer = CardKit.bold(skin.body, "", 18, Color3.fromRGB(200, 210, 230), Z + 2, 2)
+	footer.AnchorPoint = Vector2.new(0.5, 1)
+	footer.Position = UDim2.new(0.5, 0, 1, -8)
+	footer.Size = UDim2.new(1, -32, 0, 24)
 
 	-- ─── Veri ───────────────────────────────────────────────────────────────
 
@@ -202,210 +180,125 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 	end
 
 	local function makeTab(tier: Tier, order: number): Tab
-		local button = Instance.new("TextButton")
-		button.Name = tier.id
-		button.LayoutOrder = order
-		button.Size = UDim2.new(1 / 3, -6, 1, 0)
-		button.BackgroundColor3 = UiKit.ROW
-		button.BorderSizePixel = 0
-		button.AutoButtonColor = false
-		button.Text = ""
-		button.ZIndex = Z + 2
-		button.Parent = tabs
-		UiKit.Corner(button, 10)
-		local stroke = UiKit.Stroke(button, ACCENT, 1.6, 1)
+		local tint = tintOf(tier.id, order)
+		local holder = Instance.new("Frame")
+		holder.LayoutOrder = order
+		holder.Size = UDim2.new(1 / 3, -7, 1, 0)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = Z + 2
+		holder.Parent = tabs
+		local scale = Instance.new("UIScale")
+		scale.Parent = holder
 
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.fromOffset(12, 5)
-		name.Size = UDim2.new(1, -40, 0, 18)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBlack
-		name.TextSize = 13
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextColor3 = INK
-		name.Text = string.upper(tier.name)
-		name.ZIndex = Z + 3
-		name.Parent = button
-
-		local timer = Instance.new("TextLabel")
-		timer.Position = UDim2.fromOffset(12, 23)
-		timer.Size = UDim2.new(1, -24, 0, 16)
-		timer.BackgroundTransparency = 1
-		timer.Font = Enum.Font.GothamMedium
-		timer.TextSize = 11
-		timer.TextXAlignment = Enum.TextXAlignment.Left
-		timer.TextColor3 = MUTED
-		timer.ZIndex = Z + 3
-		timer.Parent = button
+		local card = CardKit.card(holder, tint, UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.5, 0.5), 260)
+		local name = CardKit.bold(card, string.upper(tier.name), 24, WHITE, Z + 4, 3)
+		name.Position = UDim2.fromOffset(10, 6)
+		name.Size = UDim2.new(1, -20, 0, 30)
+		CardKit.fit(name, 24, 12)
+		local timer = CardKit.bold(card, "", 15, CardKit.YELLOW, Z + 4, 2)
+		timer.Position = UDim2.fromOffset(10, 38)
+		timer.Size = UDim2.new(1, -20, 0, 20)
 
 		-- Hazır ödül sayısı: kırmızı daire, sekmenin sağ üstünde
-		local dot = Instance.new("TextLabel")
-		dot.AnchorPoint = Vector2.new(1, 0)
-		dot.Position = UDim2.new(1, -8, 0, 8)
-		dot.Size = UDim2.fromOffset(20, 20)
-		dot.BackgroundColor3 = UiKit.CREW.RED
-		dot.BorderSizePixel = 0
-		dot.Font = Enum.Font.GothamBlack
-		dot.TextSize = 11
-		dot.TextColor3 = Color3.new(1, 1, 1)
+		local dot = CardKit.bold(holder, "", 16, WHITE, Z + 6, 2)
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.new(1, -4, 0, 4)
+		dot.Size = UDim2.fromOffset(28, 28)
+		dot.BackgroundTransparency = 0
+		dot.BackgroundColor3 = Color3.fromRGB(226, 30, 40)
 		dot.Visible = false
-		dot.ZIndex = Z + 4
-		dot.Parent = button
-		UiKit.Corner(dot, 10)
+		CardKit.corner(dot, 14)
+		CardKit.border(dot, CardKit.OUTLINE, 2.5)
 
+		local hit = Instance.new("TextButton")
+		hit.Size = UDim2.fromScale(1, 1)
+		hit.BackgroundTransparency = 1
+		hit.Text = ""
+		hit.ZIndex = Z + 7
+		hit.Parent = holder
 		local id = tier.id
-		button.MouseButton1Click:Connect(function()
+		hit.MouseButton1Click:Connect(function()
 			selected = id
 			redraw()
 		end)
 
-		return { button = button, name = name, timer = timer, dot = dot, stroke = stroke }
+		return { holder = holder, card = card, name = name, timer = timer, dot = dot, tint = tint, scale = scale }
 	end
 
 	local cards: { Instance } = {}
 
-	local function makeCard(tier: Tier, entry: Entry, order: number)
+	local function makeCard(tier: Tier, tierTint: Color3, entry: Entry, order: number)
 		local ready = entry.done and not entry.claimed
+		local tint = if entry.claimed then DONE_TINT elseif ready then READY_TINT else tierTint
 
-		local card = Instance.new("Frame")
+		local card = CardKit.card(list, tint, UDim2.fromOffset(CARD_W, 104), Z + 2, UDim2.fromScale(0.08, 0.5), 280)
 		card.LayoutOrder = order
-		card.Size = UDim2.new(1, -8, 0, 66)
-		card.BackgroundColor3 = UiKit.ROW
-		card.BackgroundTransparency = if entry.claimed then 0.45 else 0
-		card.BorderSizePixel = 0
-		card.ZIndex = Z + 2
-		card.Parent = list
-		UiKit.Corner(card, 12)
-		UiKit.Stroke(card,
-			if ready then GOOD elseif entry.claimed then DIM else ACCENT,
-			if ready then 2 else 1.2,
-			if ready then 0.1 else 0.7)
 		table.insert(cards, card)
 
 		--[[
-			Sol kutu: durumu tek bakışta söyleyen ikon. Toplanan görevde
-			yeşil tik, hazırda parlayan yıldız, devam edende vade rengindeki
-			mürettebat.
+			Sol rozet: durumu tek bakışta söylüyor. Toplanan görevde tik,
+			hazırda parlayan yıldız, devam edende vade rengindeki mürettebat.
 		]]
-		local icon = Instance.new("Frame")
-		icon.Position = UDim2.fromOffset(10, 11)
-		icon.Size = UDim2.fromOffset(44, 44)
-		icon.BackgroundColor3 = if entry.claimed then GOOD:Lerp(Color3.new(0, 0, 0), 0.55)
-			elseif ready then WARN:Lerp(Color3.new(0, 0, 0), 0.5)
-			else UiKit.SHELL_DEEP
-		icon.BorderSizePixel = 0
-		icon.ZIndex = Z + 3
-		icon.Parent = card
-		UiKit.Corner(icon, 10)
-
+		local badge = CardKit.badge(card, 76, tint, Z + 4)
+		badge.AnchorPoint = Vector2.new(0, 0.5)
+		badge.Position = UDim2.new(0, 12, 0.5, 0)
+		local slot = badge:FindFirstChild("Slot") :: Frame
 		if entry.claimed or ready then
-			local mark = Instance.new("TextLabel")
+			local mark = CardKit.bold(slot, if entry.claimed then "✓" else "★", 44,
+				if entry.claimed then Color3.fromRGB(140, 230, 140) else CardKit.YELLOW, Z + 6, 3)
 			mark.Size = UDim2.fromScale(1, 1)
-			mark.BackgroundTransparency = 1
-			mark.Font = Enum.Font.GothamBlack
-			mark.TextSize = 24
-			mark.TextColor3 = if entry.claimed then GOOD else WARN
-			mark.Text = if entry.claimed then "✓" else "★"
-			mark.ZIndex = Z + 4
-			mark.Parent = icon
 		else
-			UiKit.Crewmate(icon, 28, ACCENT)
+			UiKit.Crewmate(slot, 46, tint:Lerp(WHITE, 0.5))
 		end
 
-		local text = Instance.new("TextLabel")
-		text.Position = UDim2.fromOffset(66, 10)
-		text.Size = UDim2.new(1, -206, 0, 20)
-		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBold
-		text.TextSize = 14
+		local text = CardKit.bold(card, entry.text, 24, if entry.claimed then Color3.fromRGB(190, 196, 210) else WHITE, Z + 5, 3)
 		text.TextXAlignment = Enum.TextXAlignment.Left
-		text.TextTruncate = Enum.TextTruncate.AtEnd
-		text.TextColor3 = if entry.claimed then MUTED else INK
-		text.Text = entry.text
-		text.ZIndex = Z + 3
-		text.Parent = card
+		text.Position = UDim2.fromOffset(100, 10)
+		text.Size = UDim2.new(1, -278, 0, 30)
+		CardKit.fit(text, 24, 12)
 
 		local shown = if entry.cash then "$" .. Config.FormatCash(entry.value) else tostring(entry.value)
 		local goal = if entry.cash then "$" .. Config.FormatCash(entry.goal) else tostring(entry.goal)
-
-		local progress = Instance.new("TextLabel")
-		progress.AnchorPoint = Vector2.new(1, 0)
-		progress.Position = UDim2.new(1, -140, 0, 32)
-		progress.Size = UDim2.fromOffset(90, 14)
-		progress.BackgroundTransparency = 1
-		progress.Font = Enum.Font.GothamBold
-		progress.TextSize = 11
-		progress.TextXAlignment = Enum.TextXAlignment.Right
-		progress.TextColor3 = MUTED
-		progress.Text = if entry.done then goal .. " / " .. goal else shown .. " / " .. goal
-		progress.ZIndex = Z + 3
-		progress.Parent = card
-
-		local barHolder = Instance.new("Frame")
-		barHolder.Position = UDim2.fromOffset(66, 48)
-		barHolder.Size = UDim2.new(1, -206, 0, 8)
-		barHolder.BackgroundTransparency = 1
-		barHolder.ZIndex = Z + 3
-		barHolder.Parent = card
-		local track, fill = UiKit.Bar(barHolder, 8, if entry.done then GOOD else ACCENT)
-		track.ZIndex = Z + 3
-		fill.ZIndex = Z + 4
+		local bar = CardKit.bar(card, UDim2.new(1, -278, 0, 26), if entry.done then Color3.fromRGB(110, 230, 80) else CardKit.YELLOW, Z + 5, 16)
+		bar.frame.Position = UDim2.fromOffset(100, 52)
 		local ratio = if entry.done then 1 else math.clamp(entry.value / math.max(1, entry.goal), 0, 1)
-		TweenService:Create(fill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Size = UDim2.new(ratio, 0, 1, 0) }):Play()
+		bar.set(0, if entry.done then goal .. " / " .. goal else shown .. " / " .. goal)
+		TweenService:Create(bar.fill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.fromScale(ratio, 1) }):Play()
+		bar.fill.Visible = ratio > 0.001
 
 		-- ─── Sağ taraf: ödül / CLAIM / DONE ──────────────────────────────
 		local reward = "+$" .. Config.FormatCash(tier.reward)
-
 		if ready then
-			local holder, claim = UiKit.Raised(card, "Claim", UiKit.CREW.GREEN:Lerp(GOOD, 0.35), UDim2.fromOffset(118, 46), 10)
-			holder.AnchorPoint = Vector2.new(1, 0.5)
-			holder.Position = UDim2.new(1, -10, 0.5, 0)
-			holder.ZIndex = Z + 3
-
-			local claimText = Instance.new("TextLabel")
-			claimText.Position = UDim2.fromOffset(0, 4)
-			claimText.Size = UDim2.new(1, 0, 0, 18)
-			claimText.BackgroundTransparency = 1
-			claimText.Font = Enum.Font.GothamBlack
-			claimText.TextSize = 14
-			claimText.TextColor3 = Color3.new(1, 1, 1)
-			claimText.TextStrokeTransparency = 0.5
-			claimText.Text = "CLAIM"
-			claimText.ZIndex = Z + 6
-			claimText.Parent = claim
-
-			local claimReward = Instance.new("TextLabel")
-			claimReward.Position = UDim2.fromOffset(0, 21)
-			claimReward.Size = UDim2.new(1, 0, 0, 16)
-			claimReward.BackgroundTransparency = 1
-			claimReward.Font = Enum.Font.GothamBold
-			claimReward.TextSize = 12
-			claimReward.TextColor3 = Color3.fromRGB(230, 255, 200)
-			claimReward.TextStrokeTransparency = 0.6
-			claimReward.Text = reward
-			claimReward.ZIndex = Z + 6
-			claimReward.Parent = claim
+			local claim = CardKit.button(card, UDim2.fromOffset(160, 70), Z + 5, 30)
+			claim.holder.AnchorPoint = Vector2.new(1, 0.5)
+			claim.holder.Position = UDim2.new(1, -12, 0.5, 2)
+			claim.set("CLAIM", CardKit.GREEN)
+			claim.label.Size = UDim2.new(1, -10, 0.62, 0)
+			local sub = CardKit.bold(claim.button, reward, 16, Color3.fromRGB(240, 255, 210), Z + 8, 2)
+			sub.Position = UDim2.new(0, 5, 0.55, 0)
+			sub.Size = UDim2.new(1, -10, 0.4, 0)
+			CardKit.fit(sub, 16, 10)
+			-- Hazır kart hafifçe nabız atıyor: "buraya bas"
+			local pulse = Instance.new("UIScale")
+			pulse.Parent = claim.holder
+			TweenService:Create(pulse, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+				{ Scale = 1.06 }):Play()
 
 			local tierId, questId = tier.id, entry.id
-			claim.MouseButton1Click:Connect(function()
+			claim.button.MouseButton1Click:Connect(function()
 				-- Basılır basılmaz kapanıyor: yanıt gelene kadar ikinci istek gitmesin
-				holder.Visible = false
+				claim.holder.Visible = false
 				claimRemote:FireServer(tierId, questId)
 			end)
 		else
-			local tag = Instance.new("TextLabel")
+			local tag = CardKit.bold(card, if entry.claimed then "DONE" else reward, 28,
+				if entry.claimed then Color3.fromRGB(170, 176, 190) else Color3.fromRGB(124, 255, 91), Z + 5, 3.5)
 			tag.AnchorPoint = Vector2.new(1, 0.5)
 			tag.Position = UDim2.new(1, -16, 0.5, 0)
-			tag.Size = UDim2.fromOffset(110, 30)
-			tag.BackgroundTransparency = 1
-			tag.Font = Enum.Font.GothamBlack
-			tag.TextSize = 14
+			tag.Size = UDim2.fromOffset(150, 40)
 			tag.TextXAlignment = Enum.TextXAlignment.Right
-			tag.TextColor3 = if entry.claimed then DIM else UiKit.CREW.LIME
-			tag.Text = if entry.claimed then "DONE" else reward
-			tag.ZIndex = Z + 3
-			tag.Parent = card
+			CardKit.fit(tag, 28, 12)
 		end
 	end
 
@@ -450,20 +343,21 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 			selected = if current then current.id else nil
 		end
 
+		-- Seçili sekme parlak ve büyük, diğerleri sönük
 		for id, tab in tabButtons do
 			local on = id == selected
-			tab.button.BackgroundColor3 = if on then ACCENT:Lerp(UiKit.ROW, 0.72) else UiKit.ROW
-			tab.stroke.Transparency = if on then 0.1 else 1
-			tab.name.TextColor3 = if on then ACCENT else INK
+			CardKit.tintCard(tab.card, if on then tab.tint else tab.tint:Lerp(DONE_TINT, 0.6))
+			tab.scale.Scale = if on then 1 else 0.94
 		end
 
 		if not current then
-			footer.Text = "Quests are loading…"
+			footer.Text = "Quests are loading..."
 			return
 		end
 
+		local tint = tabButtons[current.id] and tabButtons[current.id].tint or DEFAULT_TINT
 		for order, entry in current.entries do
-			makeCard(current, entry, order)
+			makeCard(current, tint, entry, order)
 		end
 
 		local claimed = 0
@@ -478,7 +372,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 			(QuestService: hepsi bitince iksir), onu burada hatırlatıyoruz —
 			yoksa oyuncu üçüncü görevi neden bitirmesi gerektiğini bilmiyor.
 		]]
-		local bonus = if current.id == "daily" then "  ·  finish all for a free potion" else ""
+		local bonus = if current.id == "daily" then '  ·  <font color="#7CFF5B">finish all for a free potion!</font>' else ""
 		footer.Text = string.format("%d / %d claimed%s", claimed, #current.entries, bonus)
 	end
 
@@ -514,12 +408,12 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 			if ends then
 				local left = math.max(0, ends - now)
 				tab.timer.Text = "resets in " .. Config.FormatDuration(left)
-				tab.timer.TextColor3 = if left < 300 then WARN else MUTED
+				tab.timer.TextColor3 = if left < 300 then Color3.fromRGB(255, 120, 100) else CardKit.YELLOW
 			end
 		end
 	end)
 
-	close.Activated:Connect(function()
+	close.MouseButton1Click:Connect(function()
 		root.Visible = false
 	end)
 
