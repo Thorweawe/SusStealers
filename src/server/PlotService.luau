@@ -827,6 +827,69 @@ local function buildLockConsole(parent: Instance, origin: Vector3)
 	light.Parent = dome
 end
 
+--[[
+	Kat kolonlarını alt kattaki eşyalardan kaçırır.
+
+	ESKİ HATA ("ikinci katta duvar iç içe girmiş"): kolonlar güvertenin
+	köşelerine sabit konuyordu; biri konveyörün giriş makinesinin (Decor
+	IntakeHood/IntakeBody) tam ortasından, diğerleri kilit konsolunun ve
+	yükseltme kulübesinin halkalarından geçiyordu. Üs tamamen kurulup
+	dünyaya konduktan sonra her kolonun gövdesi (zeminden ve güverteden
+	biraz payla) yoklanıyor; bir şeye giriyorsa üssün ortasına doğru
+	kaydırılıyor, boş yer yoksa kaldırılıyor (kolonlar yalnızca görsel).
+]]
+local function clearColumns(plot: Model)
+	local floors = plot:FindFirstChild("Floors")
+	if not floors then
+		return
+	end
+	local base = plot:FindFirstChild("Base")
+	local center = if base and base:IsA("BasePart") then base.Position else plot:GetPivot().Position
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { floors }
+
+	local function blocked(cf: CFrame, size: Vector3): boolean
+		-- Alttan 1.3 (zemin kaplamaları), üstten 0.3 (güverte) pay
+		local probe = Vector3.new(size.X - 0.2, size.Y - 1.6, size.Z - 0.2)
+		for _, hit in workspace:GetPartBoundsInBox(cf * CFrame.new(0, 0.5, 0), probe, params) do
+			if hit ~= base and hit.Transparency < 0.95 then
+				return true
+			end
+		end
+		return false
+	end
+
+	for _, column in floors:GetDescendants() do
+		if not (column:IsA("BasePart") and column.Name == "Column") then
+			continue
+		end
+		local start = column.CFrame
+		if not blocked(start, column.Size) then
+			continue
+		end
+		local sx = if start.Position.X > center.X then -1 else 1
+		local sz = if start.Position.Z > center.Z then -1 else 1
+		local moved = false
+		for step = 1, 8 do
+			for _, offset in { Vector3.new(sx * step * 2, 0, 0), Vector3.new(0, 0, sz * step * 2), Vector3.new(sx * step * 2, 0, sz * step * 2) } do
+				local cf = start + offset
+				if not blocked(cf, column.Size) then
+					column.CFrame = cf
+					moved = true
+					break
+				end
+			end
+			if moved then
+				break
+			end
+		end
+		if not moved then
+			column:Destroy()
+		end
+	end
+end
+
 local function buildPlot(index: number): Model
 	local plot = Instance.new("Model")
 	plot.Name = string.format("Plot%d", index)
@@ -1507,6 +1570,10 @@ function PlotService.Start()
 
 	for index = 1, Config.PlotCount do
 		table.insert(plots, buildPlot(index))
+	end
+	-- Hepsi dünyadayken: kolonlar alt kattaki eşyaların içinden geçmesin
+	for _, plot in plots do
+		clearColumns(plot)
 	end
 
 	-- Üs ver + her doğuşta o üsse taşı

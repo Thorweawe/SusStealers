@@ -113,7 +113,7 @@ type Row = {
 }
 
 local HEADER = 64
-local ROW_H = 100
+local ROW_H = 88
 local WIDTH = 600
 
 function UpgradePanel.Create(screen: ScreenGui): Panel
@@ -122,7 +122,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	local root = UiKit.Window(screen, "UpgradePanel", HEADER_COLOR)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
-	root.Position = UDim2.new(0.5, 0, 0.55, 0)
+	root.Position = UDim2.new(0.5, 0, 0.5, 0)
 	root.Size = UDim2.fromOffset(WIDTH, height)
 	root.Visible = false
 	root.ZIndex = Z
@@ -154,7 +154,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local function makeCard(order: number, tint: Color3, icon: (slot: Frame) -> ()): Frame
 		local card = CardKit.card(list, tint, UDim2.fromOffset(CARD_W, ROW_H), Z + 2, UDim2.fromScale(0.09, 0.5), 300)
 		card.LayoutOrder = order
-		local badge = CardKit.badge(card, 76, tint, Z + 4)
+		local badge = CardKit.badge(card, 68, tint, Z + 4)
 		badge.AnchorPoint = Vector2.new(0, 0.5)
 		badge.Position = UDim2.new(0, 12, 0.5, 0)
 		icon(badge:FindFirstChild("Slot") :: Frame)
@@ -162,25 +162,25 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	end
 
 	local function title(card: Frame, text: string): TextLabel
-		local name = CardKit.bold(card, text, 28, CardKit.WHITE, Z + 5, 3.5)
+		local name = CardKit.bold(card, text, 26, CardKit.WHITE, Z + 5, 3.5)
 		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.Position = UDim2.fromOffset(100, 8)
-		name.Size = UDim2.new(1, -278, 0, 32)
-		CardKit.fit(name, 28, 16)
+		name.Position = UDim2.fromOffset(92, 6)
+		name.Size = UDim2.new(1, -270, 0, 28)
+		CardKit.fit(name, 26, 16)
 		return name
 	end
 
 	local function line(card: Frame, y: number, size: number): TextLabel
 		local l = CardKit.bold(card, "", size, CardKit.WHITE, Z + 5, 2.2)
 		l.TextXAlignment = Enum.TextXAlignment.Left
-		l.Position = UDim2.fromOffset(100, y)
-		l.Size = UDim2.new(1, -278, 0, size + 4)
+		l.Position = UDim2.fromOffset(92, y)
+		l.Size = UDim2.new(1, -270, 0, size + 4)
 		CardKit.fit(l, size, 10)
 		return l
 	end
 
 	local function makeBuy(card: Frame): CardKit.Button
-		local buy = CardKit.button(card, UDim2.fromOffset(160, 62), Z + 5, 28)
+		local buy = CardKit.button(card, UDim2.fromOffset(156, 58), Z + 5, 28)
 		buy.holder.AnchorPoint = Vector2.new(1, 0.5)
 		buy.holder.Position = UDim2.new(1, -12, 0.5, 2)
 		return buy
@@ -192,11 +192,11 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 			UiKit.Icon(slot, ICON[def.id] or "bolt", 50, tint:Lerp(CardKit.WHITE, 0.55))
 		end)
 		title(card, def.name)
-		local effect = line(card, 42, 18)
+		local effect = line(card, 36, 17)
 
 		-- Seviye çubuğu: "12 seviyeden 4'ü" saymadan okunuyor
-		local bar = CardKit.bar(card, UDim2.new(1, -278, 0, 22), CardKit.YELLOW, Z + 5, 15)
-		bar.frame.Position = UDim2.fromOffset(100, 68)
+		local bar = CardKit.bar(card, UDim2.new(1, -270, 0, 20), CardKit.YELLOW, Z + 5, 14)
+		bar.frame.Position = UDim2.fromOffset(92, 60)
 
 		local buy = makeBuy(card)
 		--[[
@@ -225,7 +225,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	end)
 	local floorName = title(floorCard, "")
 	floorName.TextColor3 = CardKit.YELLOW
-	local floorNote = line(floorCard, 44, 18)
+	local floorNote = line(floorCard, 40, 17)
 	local floorBuy = makeBuy(floorCard)
 	local floorRemote = Net.Get("FloorBuy")
 	floorBuy.button.MouseButton1Click:Connect(function()

@@ -111,6 +111,33 @@ end
 
 -- ─── A. Config bütünlüğü ────────────────────────────────────────────────────
 
+case("Üs: kat kolonları alt kattaki eşyaların içinden geçmiyor", function()
+	local bad = {}
+	for _, plot in PlotService.GetAllPlots() do
+		local floors = plot:FindFirstChild("Floors")
+		local base = plot:FindFirstChild("Base")
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { floors }
+		for _, column in floors:GetDescendants() do
+			if column:IsA("BasePart") and column.Name == "Column" then
+				local probe = Vector3.new(column.Size.X - 0.2, column.Size.Y - 1.6, column.Size.Z - 0.2)
+				for _, hit in workspace:GetPartBoundsInBox(column.CFrame * CFrame.new(0, 0.5, 0), probe, params) do
+					if hit ~= base and hit.Transparency < 0.95 and not hit:IsDescendantOf(workspace:FindFirstChild("Characters") or plot) then
+						table.insert(bad, plot.Name .. ":" .. hit.Name)
+					elseif hit ~= base and hit.Transparency < 0.95 and hit:IsDescendantOf(plot) then
+						table.insert(bad, plot.Name .. ":" .. hit.Name)
+					end
+				end
+			end
+		end
+	end
+	eq("kesişen kolon", #bad, 0)
+	if #bad > 0 then
+		print("   " .. table.concat(bad, ", ", 1, math.min(#bad, 8)))
+	end
+end)
+
 case("Karakter modeli: her karakter kendine özel, hepsi kuruluyor", function()
 	local UnitModel = require(ReplicatedStorage.Shared.UnitModel)
 	local signatures: { [string]: string } = {}
@@ -3859,6 +3886,13 @@ function ServerTests.Run(player: Player?): number
 	]]
 	DataService._SetSavingPaused(true)
 
+	-- Pass'ler yokmuş gibi: testi çalıştıran hesap (oyunun sahibi) pass'lere
+	-- sahip olabiliyor; beklenen değerler pass'siz oyuncuya göre. Sonda
+	-- önbellek siliniyor, gerçek sahiplik yeniden soruluyor.
+	for key in Config.GamePasses do
+		MonetizationService._SetPassCache(player, key, false)
+	end
+
 	-- Testler profili değiştiriyor; sonunda geri yüklenecek
 	local backup = {
 		cash = profile.cash,
@@ -4022,6 +4056,10 @@ function ServerTests.Run(player: Player?): number
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	FloorService.Publish(player)
 	clearPlot(plot)
+
+	for key in Config.GamePasses do
+		MonetizationService._SetPassCache(player, key, nil)
+	end
 
 	-- Kayıt yeniden açık; diskteki kopya geri yüklenen profille aynı olsun
 	DataService._SetSavingPaused(false)

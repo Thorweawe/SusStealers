@@ -77,6 +77,9 @@ end
 --[[ Sığmazsa küçülen kalın yazı (en fazla `size`). ]]
 function CardKit.fit(label: TextLabel, maxSize: number, minSize: number?)
 	label.TextScaled = true
+	-- Satır kırma yok: TextScaled kırmaya izin verince "SABOTAGE" iki satıra
+	-- bölünüyordu; tek satırda küçülsün
+	label.TextWrapped = false
 	local c = Instance.new("UITextSizeConstraint")
 	c.MaxTextSize = maxSize
 	c.MinTextSize = minSize or 10

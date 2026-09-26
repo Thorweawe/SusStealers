@@ -93,6 +93,21 @@ function MonetizationService.HasPass(player: Player, key: string): boolean
 	return owns
 end
 
+--[[
+	Testler için: oyuncunun pass sahipliğini geçici olarak sabitler
+	(`owned` nil = önbelleği sil, gerçek sahiplik yeniden sorulsun). Pass
+	kimlikleri girildikten sonra testi çalıştıran hesap (oyunun sahibi)
+	pass'lere sahip çıkıyordu ve gelir/çalma testleri yanlış sonuç veriyordu.
+]]
+function MonetizationService._SetPassCache(player: Player, key: string, owned: boolean?)
+	local cache = passCache[player]
+	if not cache then
+		cache = {}
+		passCache[player] = cache
+	end
+	cache[key] = owned
+end
+
 -- ─── Etki noktaları ─────────────────────────────────────────────────────────
 
 --[[

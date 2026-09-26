@@ -240,7 +240,7 @@ local function plateFor(folder: Instance, rank: number, top: CFrame): { name: Te
 	anchor.CanTouch = false
 	anchor.Transparency = 1
 	anchor.Size = Vector3.new(1, 1, 1)
-	anchor.CFrame = top * CFrame.new(0, 9.6, 0)
+	anchor.CFrame = top * CFrame.new(0, 3.5, 0) -- boşken basamağın hemen üstü; karakter gelince kafasının üstüne
 	anchor.Parent = folder
 
 	-- Ölçekli boyut (stud): piksel boyutlu etiketler bu oyunda çizilmiyordu
@@ -325,12 +325,25 @@ local function updatePodium(board: Board, rows: { Row })
 		end
 		-- Ayaklar basamağın üstünde. Basamağın bakışı (LookVector) odaya
 		-- dönük; karakterin yüzü de LookVector'ünde, yani döndürme yok.
-		local box, size = model:GetBoundingBox()
-		local pivot = model:GetPivot()
-		local lift = pivot.Position.Y - (box.Position.Y - size.Y / 2)
-		model:PivotTo(top * CFrame.new(0, lift, 0))
+		-- Eklemler ancak dünyadayken yerine oturuyor: önce koy, bir kare bekle,
+		-- sonra ayakların gerçek yerine göre yükselt (dışarıda ölçülen sınır
+		-- kutusu yanlıştı, karakter basamağa 1.8 stud gömülüyordu)
+		model:PivotTo(top)
 		model.Parent = folder
 		podiumModels[rank] = model
+		task.wait()
+		if not model.Parent then
+			continue
+		end
+		local box, size = model:GetBoundingBox()
+		local bottom = box.Position.Y - size.Y / 2
+		model:PivotTo(model:GetPivot() + Vector3.new(0, top.Position.Y - bottom, 0))
+		-- Plaka kafanın hemen üstünde (sabit yükseklikte 1. basamağın plakası
+		-- TOP CREW tabelasına biniyordu)
+		local anchor = folder:FindFirstChild("TopCrewPlate" .. rank)
+		if anchor and anchor:IsA("BasePart") then
+			anchor.CFrame = top * CFrame.new(0, size.Y + 1.6, 0)
+		end
 
 		local humanoid = model:FindFirstChildOfClass("Humanoid")
 		if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then

@@ -391,8 +391,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	local beam = Instance.new("Beam")
 	beam.Attachment0 = fromAttachment
 	beam.Attachment1 = toAttachment
-	beam.Width0 = 1.2
-	beam.Width1 = 1.2
+	beam.Width0 = 1.6
+	beam.Width1 = 1.6
 	beam.FaceCamera = true
 	beam.LightEmission = 1
 	beam.LightInfluence = 0
@@ -470,7 +470,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		local studs = Vector3.new(delta.X, 0, delta.Z).Magnitude
 
 		-- Işık hattı: ayaktan hedefin dibine; hedefe varınca kayboluyor
-		local feet = root.Position - Vector3.new(0, 2.6, 0)
+		-- Zeminin biraz üstünde: tam ayak hizasında zemin plakalarının içinde kalıp görünmüyordu
+		local feet = root.Position - Vector3.new(0, 2.2, 0)
 		anchorPart.CFrame = CFrame.new(feet)
 		toPart.CFrame = CFrame.new(Vector3.new(targetPosition.X, math.min(targetPosition.Y, feet.Y + 2), targetPosition.Z))
 		beam.Enabled = studs > 8

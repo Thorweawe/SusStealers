@@ -347,10 +347,6 @@ local function weldTo(root: BasePart, container: Instance, skip: BasePart?)
 	end
 end
 
-local function place(r: Rogue, pos: Vector3, facing: Vector3)
-	setRoot(r, Vector3.new(pos.X, groundY(r, pos), pos.Z), facing)
-end
-
 --[[ Ayakların şu anki yeri. ]]
 local function feet(r: Rogue): Vector3
 	return r.pos
@@ -365,6 +361,10 @@ local function setRoot(r: Rogue, pos: Vector3, facing: Vector3)
 	end
 	local look = if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
 	r.root.CFrame = CFrame.lookAt(pos, pos + look) + Vector3.new(0, r.lift, 0)
+end
+
+local function place(r: Rogue, pos: Vector3, facing: Vector3)
+	setRoot(r, Vector3.new(pos.X, groundY(r, pos), pos.Z), facing)
 end
 
 -- ─── Hedef seçimi ───────────────────────────────────────────────────────────

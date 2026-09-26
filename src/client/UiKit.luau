@@ -517,9 +517,12 @@ function UiKit.IconButton(parent: Instance, name: string, tint: Color3, label: s
 	text.Text = label
 	text.ZIndex = 5
 	text.Parent = button
+	-- Alt sınır düşük ve satır kırma yok: küçük ekranda (düğme ~45 px)
+	-- 9 puntoya sığmayan "INVENTORY" alt satıra kayıp "INVENTO" kalıyordu
+	text.TextWrapped = false
 	local fit = Instance.new("UITextSizeConstraint")
 	fit.MaxTextSize = 13
-	fit.MinTextSize = 9
+	fit.MinTextSize = 5
 	fit.Parent = text
 
 	return holder, button, slot
