@@ -22,7 +22,22 @@ OUT = (22, 20, 34)
 LW = 6 * S
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "store_icons")
-FONT = "C:/Windows/Fonts/ariblk.ttf"
+
+
+def _resolve_font():
+    """Arial Black on Windows (asıl hedef), yoksa Linux'ta en yakın kalın font.
+    Böylece görseller hem Windows'ta hem CI/Linux'ta üretilebiliyor."""
+    for path in (
+        "C:/Windows/Fonts/ariblk.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ):
+        if os.path.exists(path):
+            return path
+    return "C:/Windows/Fonts/ariblk.ttf"
+
+
+FONT = _resolve_font()
 
 
 def p(*v):
