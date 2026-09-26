@@ -640,9 +640,31 @@ case("Monetization: id=0 olan ürünler devre dışı", function(ctx)
 		end
 	end
 
-	eq("gelir çarpanı 1", MonetizationService.GetIncomeMultiplier(ctx.player), 1)
-	eq("ekstra kaide 0", MonetizationService.GetExtraPodiumsPerFloor(ctx.player), 0)
-	eq("çalma süresi çarpanı 1", MonetizationService.GetStealHoldMultiplier(ctx.player), 1)
+	--[[
+		Pass'ler artık gerçek kimlikli: test eden hesap (ör. oyunun sahibi)
+		pass'e sahipse etkisi de olmalı. Beklenen değer sahipliğe göre.
+	]]
+	local has = MonetizationService.HasPass
+	eq("gelir çarpanı", MonetizationService.GetIncomeMultiplier(ctx.player),
+		if has(ctx.player, "DoubleIncome") then Config.PassDoubleIncomeMultiplier else 1)
+	eq("ekstra kaide", MonetizationService.GetExtraPodiumsPerFloor(ctx.player),
+		if has(ctx.player, "ExtraPodiums") then Config.PassExtraPodiumsPerFloor else 0)
+	eq("çalma süresi çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player),
+		if has(ctx.player, "FastSteal") then Config.PassFastStealMultiplier else 1)
+end)
+
+case("Monetization: ürün ve pass kimlikleri girilmiş ve benzersiz", function()
+	local seen: { [number]: string } = {}
+	for key, def in Config.GamePasses do
+		ok(key .. " kimliği var", def.id > 0)
+		ok(key .. " kimliği tekrar etmiyor", seen[def.id] == nil, seen[def.id])
+		seen[def.id] = key
+	end
+	for key, def in Config.Products do
+		ok(key .. " kimliği var", def.id > 0)
+		ok(key .. " kimliği tekrar etmiyor", seen[def.id] == nil, seen[def.id])
+		seen[def.id] = key
+	end
 end)
 
 case("Monetization: ürün tanımları tutarlı", function()

@@ -1068,12 +1068,12 @@ export type GamePassDef = {
 }
 
 Config.GamePasses = {
-	DoubleIncome = { id = 0, name = "2x Income" },
-	ExtraPodiums = { id = 0, name = "+2 Podiums Per Floor" },
-	FastSteal    = { id = 0, name = "Fast Steal" },
-	StrongLock   = { id = 0, name = "Strong Lock" },
+	DoubleIncome = { id = 1997912710, name = "2x Income" },
+	ExtraPodiums = { id = 1999070658, name = "+2 Podiums Per Floor" },
+	FastSteal    = { id = 1998410695, name = "Fast Steal" },
+	StrongLock   = { id = 1998878635, name = "Strong Lock" },
 	-- Yumurtayı tek seferde üç kez açar (üç kat fiyat, tek bekleme)
-	TripleHatch  = { id = 0, name = "Triple Hatch" },
+	TripleHatch  = { id = 1999526736, name = "Triple Hatch" },
 } :: { [string]: GamePassDef }
 
 --[[
@@ -1139,13 +1139,14 @@ export type ProductDef = {
 }
 
 Config.Products = {
-	Cash100K       = { id = 0, name = "$100K",           kind = "cash", amount =   100000 },
-	Cash1M         = { id = 0, name = "$1M",             kind = "cash", amount =  1000000 },
-	Cash10M        = { id = 0, name = "$10M",            kind = "cash", amount = 10000000 },
-	SkipConveyor   = { id = 0, name = "Instant Spawn",   kind = "conveyor" },
-	LuckyRoll      = { id = 0, name = "Guaranteed Mutation", kind = "lucky" },
-	InstantRebirth = { id = 0, name = "Instant Rebirth", kind = "rebirth" },
-	ExtraSpin      = { id = 0, name = "Extra Spin",      kind = "spin" },
+	-- Roblox'taki adları: Small / Medium / Huge Cash Pack
+	Cash100K       = { id = 3714873855, name = "$100K",           kind = "cash", amount =   100000 },
+	Cash1M         = { id = 3714873899, name = "$1M",             kind = "cash", amount =  1000000 },
+	Cash10M        = { id = 3714873959, name = "$10M",            kind = "cash", amount = 10000000 },
+	SkipConveyor   = { id = 3714873580, name = "Instant Spawn",   kind = "conveyor" },
+	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },
+	InstantRebirth = { id = 3714874005, name = "Instant Rebirth", kind = "rebirth" },
+	ExtraSpin      = { id = 3714873337, name = "Extra Spin",      kind = "spin" },
 } :: { [string]: ProductDef }
 
 -- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez
