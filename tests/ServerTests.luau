@@ -983,10 +983,21 @@ case("Çark: dünyada kurulu ve promptu var", function()
 	ok("workspace.Decor.Wheel var", wheel ~= nil)
 
 	if wheel then
-		local anchor = wheel:FindFirstChild("WheelHub") or wheel:FindFirstChild("WheelPlinth")
-		ok("çark gövdesi bulundu", anchor ~= nil)
-		if anchor then
+		local plinth = wheel:FindFirstChild("WheelPlinth")
+		local anchor = plinth and plinth:FindFirstChild("SpinPromptPoint")
+		ok("prompt noktası kaidede", anchor ~= nil and anchor:IsA("Attachment"))
+		if anchor and plinth then
 			ok("SpinPrompt kurulu", anchor:FindFirstChild("SpinPrompt") ~= nil)
+			-- Göz hizasında olmalı (yaklaşınca ekranda kalsın), çark göbeğinde değil
+			local y = (anchor :: Attachment).WorldPosition.Y - (plinth.Position.Y - plinth.Size.Y / 2)
+			ok("prompt alçakta", y > 1 and y < 7, tostring(y))
+			-- Çarkın önünde, arkasında değil
+			local hub = wheel:FindFirstChild("WheelHub") :: BasePart?
+			if hub then
+				local pz = plinth.CFrame:PointToObjectSpace((anchor :: Attachment).WorldPosition).Z
+				local hz = plinth.CFrame:PointToObjectSpace(hub.Position).Z
+				ok("prompt çarkın önünde", pz * hz > 0, tostring(pz) .. " / " .. tostring(hz))
+			end
 		end
 	end
 end)
@@ -2507,7 +2518,7 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 		byEgg[def.egg][def.rarity] = byEgg[def.egg][def.rarity] or {}
 		table.insert(byEgg[def.egg][def.rarity], def)
 	end
-	ok("pet sayısı arttı", #Config.Pets >= 50, tostring(#Config.Pets))
+	eq("pet sayısı (yumurta başına kademe başına bir)", #Config.Pets, 25)
 
 	local function minIncome(list: { Config.PetDef }): number
 		local m = math.huge

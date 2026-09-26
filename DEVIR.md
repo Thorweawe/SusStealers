@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (19) — Batur
+
+- **Petler 56'dan tekrar 25'e döndü** (Batur istedi): `Config.Pets` 0cb45d5 öncesi liste
+  (her yumurtada kademe başına tek pet, hepsi dengeli), `PetModel` de eski hali. `PET_STYLE`,
+  `GetPetChance`, çok petli ızgara duruyor — ileride pet eklenirse hazır. Kayıtta silinen
+  petlerin anahtarları yüklemede zaten atılıyor (`ParsePetKey`/`GetPet`).
+- **Lucky Spin promptu** artık çark göbeğinde değil, kaidenin ön yüzünde göz hizasında
+  (`SpinPromptPoint` Attachment). Göbek yüksekte olduğu için yaklaşınca ekran dışına çıkıyor,
+  Roblox da promptu gizliyordu — yazı ancak yukarı bakınca çıkıyordu.
+
 ## 2026-09-26 (18) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 - **`EggPanel`: CanvasGroup kaldırıldı** (düz Frame + açılışta UIScale büyümesi). CanvasGroup

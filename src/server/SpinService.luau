@@ -210,12 +210,24 @@ local function setupPrompt()
 		return
 	end
 
-	-- Göbek çarkın ortasında ve dönmüyor; prompt için en uygun yer
-	local anchor = wheel:FindFirstChild("WheelHub") or wheel:FindFirstChild("WheelPlinth")
-	if not (anchor and anchor:IsA("BasePart")) then
-		warn("[Spin] Cark govdesi bulunamadi")
+	--[[
+		Prompt kaidenin ön yüzünde, göz hizasında. Eskiden yüksekteki
+		göbekteydi: yaklaşınca göbek ekranın üstünde kalıyor, Roblox da
+		ekran dışındaki promptu göstermiyor — yazı ancak yukarı bakınca
+		çıkıyordu.
+	]]
+	local plinth = wheel:FindFirstChild("WheelPlinth")
+	if not (plinth and plinth:IsA("BasePart")) then
+		warn("[Spin] Cark kaidesi bulunamadi")
 		return
 	end
+	-- Ön yüz, çarkın (göbeğin) olduğu taraf; kaidenin yönüne güvenmiyoruz
+	local hub = wheel:FindFirstChild("WheelHub")
+	local side = if hub and hub:IsA("BasePart") and plinth.CFrame:PointToObjectSpace(hub.Position).Z < 0 then -1 else 1
+	local anchor = Instance.new("Attachment")
+	anchor.Name = "SpinPromptPoint"
+	anchor.Position = Vector3.new(0, plinth.Size.Y / 2 - 1, side * (plinth.Size.Z / 2 + 0.5))
+	anchor.Parent = plinth
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "SpinPrompt"
