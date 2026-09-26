@@ -283,11 +283,11 @@ function EggPanel.Create(auto: AutoHandle?)
 			fig.ZIndex = 6
 			fig.Parent = cell
 			if hidden then
-				UiKit.PetFigure(fig, figSize - 2, PetModel.FormOf(def.id), Color3.fromRGB(20, 20, 30))
+				UiKit.PetIcon(fig, figSize, def.id, Color3.fromRGB(20, 20, 30))
 				local q = text(fig, "?", 28, WHITE, 12)
 				q.Size = UDim2.fromScale(1, 1)
 			else
-				UiKit.PetFigure(fig, figSize - 2, PetModel.FormOf(def.id), def.color)
+				UiKit.PetIcon(fig, figSize, def.id)
 			end
 
 			-- Petin KENDİ şansı (kademe şansı kademedeki pet sayısına bölünmüş)

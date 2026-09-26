@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (16) — Batur (Yusuf'un şeridine yazıldı)
+
+**Pet simgeleri gerçek 3B model** (`UiKit.PetIcon` yeni; `PetPanel`, `EggPanel`, `Index`, `HatchFX`):
+- Eski `UiKit.PetFigure` biçimi 30 px yuvarlak kutulardan çiziyordu: bulanık duruyordu
+  ve aynı biçimli petler (Tiny UFO / Pulsar) birbirinin aynısıydı. `PetIcon(parent, size,
+  key, silhouette?)` petin `PetModel`'ini ViewportFrame'de gösteriyor (mutasyon rengi ve
+  boyut anahtardan), `silhouette` verilince düz siluet (bulunmamış pet). Model kurulamazsa
+  `PetFigure`'e düşüyor; `PetFigure` duruyor.
+- Not: Studio MCP `screen_capture` ViewportFrame çizmiyor (şapka önizlemeleri de boş
+  çıkıyor) — oyunda gözle kontrol et.
+- Birleştirme (Fuse) sistemi DEĞİŞMEDİ: 3 aynı pet → aynı petin Big'i (×2.5) → Huge (×5)
+  → Titan (×10); nadirlik yükselmiyor.
+
 ## 2026-09-26 (15) — Batur (Yusuf'un şeridine de yazıldı)
 
 **Petler 25 → 56, her pet farklı stat** (`Config.Pets`, `PetModel.luau`, `EggPanel.luau`, `Index.luau`):

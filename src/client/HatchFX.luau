@@ -398,7 +398,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			--[[ Pet küçükten büyüyor; ölçekle, çünkü vizör piksel ölçüyle
 			     kurulu ve gövde tek başına büyüseydi vizör taşardı. ]]
 			local bodyColor = if mutation then mutation.tint else def.color
-			UiKit.PetFigure(slot.figure, if count == 1 then 140 else 110, PetModel.FormOf(def.id), bodyColor)
+			UiKit.PetIcon(slot.figure, if count == 1 then 140 else 110, keys[i])
 			local grow = Instance.new("UIScale")
 			grow.Scale = 0.15
 			grow.Parent = slot.figure

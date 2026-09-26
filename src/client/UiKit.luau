@@ -767,6 +767,71 @@ end
 	  crab  — basık gövde + altı bacak + vizör
 	  shard — elmas + içinde parlak çekirdek
 ]]
+--[[
+	Pet simgesi: petin GERÇEK 3B modeli (PetModel, sahadakiyle aynı) bir
+	ViewportFrame'de. PetFigure'ün (aşağıda) yerine geçiyor: o, biçimi
+	(küre, robot...) 30 piksellik yuvarlak kutulardan çiziyordu — küçükte
+	bulanık duruyordu ve aynı biçimli petler (Tiny UFO / Pulsar) birbirinin
+	aynısıydı. ViewportFrame ekran çözünürlüğünde çiziliyor; taç, yaprak,
+	halka gibi süsler de görünüyor.
+
+	`key` envanter anahtarı ya da pet kimliği (mutasyon rengi, boyut
+	modelde). `silhouette` verilirse model o renkte düz siluet (bulunmamış
+	pet, "?" kartları). Model kurulamazsa PetFigure'e düşüyor.
+]]
+function UiKit.PetIcon(parent: Instance, size: number, key: string, silhouette: Color3?): GuiObject
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local PetModel = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("PetModel")) :: any
+	local ok, model = pcall(PetModel.Build, key)
+	if not (ok and model) then
+		local Config = require(ReplicatedStorage.Shared.Config) :: any
+		local def = Config.ParsePetKey(key)
+		return UiKit.PetFigure(parent, size, PetModel.FormOf(if def then def.id else key),
+			silhouette or (if def then def.color else UiKit.MUTED))
+	end
+
+	local vp = Instance.new("ViewportFrame")
+	vp.Name = "PetIcon"
+	vp.AnchorPoint = Vector2.new(0.5, 0.5)
+	vp.Position = UDim2.fromScale(0.5, 0.5)
+	vp.Size = UDim2.fromOffset(size, size)
+	vp.BackgroundTransparency = 1
+	vp.Ambient = Color3.fromRGB(170, 172, 182)
+	vp.LightColor = Color3.fromRGB(255, 252, 245)
+	vp.LightDirection = Vector3.new(-0.6, -1, 0.5)
+	vp.ZIndex = baseZ(parent)
+	if silhouette then
+		vp.ImageColor3 = silhouette
+		vp.Ambient = Color3.new(1, 1, 1)
+	end
+	vp.Parent = parent
+
+	-- Parçacıklar ViewportFrame'de çizilmiyor; gereksiz nesne kalmasın
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") or d:IsA("Light") then
+			d:Destroy()
+		end
+	end
+	model:PivotTo(CFrame.new())
+	model.Parent = vp
+
+	--[[
+		Kamera: petin yüzü -Z'de (vizör). Önden, hafif yukarıdan ve sağdan
+		bakıyor; dar görüş açısı (perspektif bozulmasın). Uzaklık sınır
+		kutusunun en büyük kenarından: her boyutta (Big/Titan) aynı dolulukta.
+	]]
+	local cf, extent = model:GetBoundingBox()
+	local reach = math.max(extent.X, extent.Y, extent.Z)
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	local dist = reach * 2.35
+	local target = cf.Position
+	camera.CFrame = CFrame.lookAt(target + Vector3.new(dist * 0.32, dist * 0.22, -dist), target)
+	camera.Parent = vp
+	vp.CurrentCamera = camera
+	return vp
+end
+
 function UiKit.PetFigure(parent: Instance, size: number, form: string, color: Color3): Frame
 	local z = baseZ(parent)
 

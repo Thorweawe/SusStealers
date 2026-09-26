@@ -726,9 +726,9 @@ function Index.Create(screen: ScreenGui): Catalog
 	local function drawPetFigure(slot: Frame, def: Config.PetDef, isKnown: boolean, size: number)
 		UiKit.ClearSlot(slot)
 		if isKnown then
-			UiKit.PetFigure(slot, size, PetModel.FormOf(def.id), def.color)
+			UiKit.PetIcon(slot, size, def.id)
 		else
-			UiKit.PetFigure(slot, size, PetModel.FormOf(def.id), tierColor(def.rarity):Lerp(Color3.new(0, 0, 0), 0.72))
+			UiKit.PetIcon(slot, size, def.id, tierColor(def.rarity):Lerp(Color3.new(0, 0, 0), 0.72))
 			local q = Instance.new("TextLabel")
 			q.Size = UDim2.fromScale(1, 1)
 			q.BackgroundTransparency = 1

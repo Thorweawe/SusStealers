@@ -289,8 +289,8 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		figure.BackgroundTransparency = 1
 		figure.ZIndex = 44
 		figure.Parent = card
-		UiKit.PetFigure(figure, 34, PetModel.FormOf(def.id),
-			if not key then UiKit.DIM elseif mutation then mutation.tint else def.color)
+		-- Gerçek model (mutasyon rengi ve boyut anahtarda); sahip olunmayan sönük siluet
+		UiKit.PetIcon(figure, 38, key or def.id, if not key then UiKit.DIM else nil)
 
 		local name = Instance.new("TextLabel")
 		name.Position = UDim2.new(0, 4, 0, 46)
