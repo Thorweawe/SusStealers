@@ -1042,9 +1042,48 @@ case("Çark: bedava çevirme hakkı harcıyor", function(ctx)
 	if spun then
 		ok("hak harcandı", SpinService.GetCooldown(ctx.player) > 0)
 		eq("ikinci çevirme reddedildi", SpinService.Spin(ctx.player, true), false)
+
+		-- Çark kazanılan ödülün diliminde duruyor (açı sunucu saatinden)
+		local WheelSpin = require(ReplicatedStorage.Shared.WheelSpin)
+		local wheel = workspace.Decor:FindFirstChild("Wheel")
+		local slice = wheel and wheel:GetAttribute("SpinSlice")
+		local finish = wheel and wheel:GetAttribute("SpinEnd")
+		ok("çevirme nitelikleri yazıldı", typeof(slice) == "number" and typeof(finish) == "number")
+		if wheel and typeof(slice) == "number" and typeof(finish) == "number" then
+			local count = #Config.SpinWheelSlices
+			local stop = WheelSpin.Angle(wheel, finish, 26)
+			-- Duruş açısında dilimin merkezi tepeden (90°) en fazla yarım dilim sapıyor
+			local sliceAt = ((slice - 1) * 360 / count - stop - 90 + 180) % 360 - 180
+			ok("dilimde durdu", math.abs(sliceAt) < 180 / count, tostring(sliceAt))
+			near("bekleme boyunca yerinde", WheelSpin.Angle(wheel, finish + WheelSpin.HOLD * 0.9, 26), stop, 1e-6)
+		end
 	end
 
 	ctx.profile.lastSpinAt = 0
+end)
+
+case("Çark: her ödülün dilimi var, dilimlerde yazı", function()
+	eq("12 dilim", #Config.SpinWheelSlices, 12)
+	for _, reward in Config.SpinRewards do
+		ok(reward.id .. " çarkta", table.find(Config.SpinWheelSlices, reward.id) ~= nil)
+	end
+	for _, id in Config.SpinWheelSlices do
+		local known = false
+		for _, reward in Config.SpinRewards do
+			if reward.id == id then
+				known = true
+			end
+		end
+		ok(id .. " geçerli ödül", known)
+	end
+	local wheel = workspace.Decor:FindFirstChild("Wheel")
+	local labels = wheel and wheel:FindFirstChild("SliceLabels")
+	eq("dilim yazıları", labels and #labels:GetChildren() or 0, 12)
+	if labels then
+		for _, label in labels:GetChildren() do
+			ok("yazı çarkla dönüyor", label:GetAttribute("SpinCenter") ~= nil and label:GetAttribute("SpinAxisVec") ~= nil)
+		end
+	end
 end)
 
 -- ─── M. Hırsızı yakalama ────────────────────────────────────────────────────

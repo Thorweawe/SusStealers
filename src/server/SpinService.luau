@@ -1,10 +1,13 @@
 --!strict
 -- Şans çarkı: günde bir bedava çevirme, fazlası Robux ile.
 --
--- Çarkın geometrisi ve dönüşü dekorda hazır (workspace.Decor.Wheel).
--- Parçalar SpinSpeed niteliğiyle istemci tarafında dönüyor; burada o
--- niteliği geçici yükseltip bırakıyoruz. Böylece animasyon için ağ
--- trafiği yok, sunucu sadece bir sayı yazıyor.
+-- Çarkın geometrisi dekorda hazır (workspace.Decor.Wheel). Dilimlerin
+-- ödül renkleri ve yazıları burada, açılışta ekleniyor (decorateWheel).
+--
+-- Dönüş istemcide (DecorFX) ama açı SUNUCU SAATİNDEN (shared/WheelSpin):
+-- herkes çarkı aynı yerde görüyor. Çevirmede sunucu Wheel modeline
+-- SpinFrom/SpinTo/SpinStart/SpinEnd yazıyor; çark kazanılan ödülün
+-- diliminde yavaşlayarak duruyor, ödül mesajı da o anda geliyor.
 --
 -- Ödüller oyuncunun kendi gelirinin katı. Sabit tutar olsaydı geç oyunda
 -- anlamsızlaşır, erken oyunda dengeyi bozardı.
@@ -15,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local WheelSpin = require(Shared.WheelSpin)
 
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
@@ -119,33 +123,170 @@ end
 
 -- ─── Çevirme ────────────────────────────────────────────────────────────────
 
-local function animate()
+local function getWheel(): Model?
 	local decor = workspace:FindFirstChild("Decor")
 	local wheel = decor and decor:FindFirstChild("Wheel")
+	return if wheel and wheel:IsA("Model") then wheel else nil
+end
+
+-- Boşta dönüş hızı (derece/sn): dilimlerin SpinSpeed niteliği
+local function idleSpeed(wheel: Model): number
+	local disc = wheel:FindFirstChild("WheelDisc")
+	local speed = disc and disc:GetAttribute("SpinSpeed")
+	return if typeof(speed) == "number" then speed else 26
+end
+
+--[[
+	Çarkı `rewardId`nin dilimlerinden birinde durdurur. Kaç saniye sonra
+	durduğunu döner (ödül mesajı o zaman).
+]]
+local function animate(rewardId: string): number
+	local wheel = getWheel()
 	if not wheel then
-		return
+		spinning = false
+		return 0
 	end
-
-	-- Parçaların kendi hızları farklı olabilir; oranı koruyarak hızlandır
-	local originals: { [BasePart]: number } = {}
-	for _, part in wheel:GetDescendants() do
-		if part:IsA("BasePart") then
-			local speed = part:GetAttribute("SpinSpeed")
-			if typeof(speed) == "number" then
-				originals[part] = speed
-				part:SetAttribute("SpinSpeed", speed * 14)
-			end
+	local slots = {}
+	for i, id in Config.SpinWheelSlices do
+		if id == rewardId then
+			table.insert(slots, i)
 		end
 	end
+	local index = if #slots > 0 then slots[rng:NextInteger(1, #slots)] else 1
+	local jitter = rng:NextNumber(-WheelSpin.SLICE_JITTER, WheelSpin.SLICE_JITTER)
 
-	task.delay(Config.SpinDuration, function()
-		for part, speed in originals do
-			if part.Parent then
-				part:SetAttribute("SpinSpeed", speed)
-			end
-		end
+	local now = workspace:GetServerTimeNow()
+	local start = now + 0.25 -- istemcilere niteliklerin ulaşması için pay
+	local from = WheelSpin.Angle(wheel, start, idleSpeed(wheel))
+	local to = WheelSpin.SpinTo(from, WheelSpin.TargetFor(index, #Config.SpinWheelSlices, jitter))
+	wheel:SetAttribute("SpinFrom", from)
+	wheel:SetAttribute("SpinTo", to)
+	wheel:SetAttribute("SpinStart", start)
+	wheel:SetAttribute("SpinEnd", start + Config.SpinDuration)
+	wheel:SetAttribute("SpinSlice", index)
+
+	local stopsIn = (start - now) + Config.SpinDuration
+	task.delay(stopsIn + WheelSpin.HOLD, function()
 		spinning = false
 	end)
+	return stopsIn
+end
+
+-- ─── Dilimler ───────────────────────────────────────────────────────────────
+
+-- Ödül -> dilim rengi ve yazısı
+local SLICE_LOOK: { [string]: { color: Color3, text: string } } = {
+	SmallCash = { color = Color3.fromRGB(88, 200, 74), text = "CASH" },
+	MedCash = { color = Color3.fromRGB(40, 150, 230), text = "BIG CASH" },
+	HugeCash = { color = Color3.fromRGB(255, 190, 30), text = "HUGE CASH" },
+	Spawn = { color = Color3.fromRGB(245, 120, 30), text = "SPAWN" },
+	Mutation = { color = Color3.fromRGB(160, 80, 235), text = "MUTATION" },
+	FreeUnit = { color = Color3.fromRGB(230, 45, 70), text = "FREE UNIT" },
+}
+
+--[[
+	Harita çarkı düz renkli, boş dilimlerle kuruyor (lobby.luau). Burada
+	her dilim ödülünün rengine boyanıyor ve üstüne ödülün yazısı geliyor.
+	Yazı parçaları dilimlerle aynı dönüş niteliklerini taşıyor; DecorFX
+	onları da çarkla birlikte döndürüyor.
+
+	Dilimin sırası parçanın göbeğe göre açısından bulunuyor: sunucuda
+	parçalar hiç dönmüyor (dönüş istemcide), yani kuruldukları yerdeler.
+]]
+local function decorateWheel(wheel: Model)
+	local disc = wheel:FindFirstChild("WheelDisc")
+	if not (disc and disc:IsA("BasePart")) then
+		return
+	end
+	local center = disc:GetAttribute("SpinCenter")
+	if typeof(center) ~= "Vector3" then
+		return
+	end
+	local count = #Config.SpinWheelSlices
+	local width = 2 * math.pi / count
+	local frame = disc.CFrame.Rotation
+	local radius = (disc.Size.X + 1) / 2
+
+	local function sliceOf(pos: Vector3): (number, number)
+		local l = frame:PointToObjectSpace(pos - center)
+		local ang = math.atan2(l.Y, l.X)
+		local index = math.floor(ang / width + 0.5) % count + 1
+		return index, Vector2.new(l.X, l.Y).Magnitude
+	end
+
+	for _, part in wheel:GetChildren() do
+		if part:IsA("BasePart") and part.Name == "WheelSlice" then
+			local index, r = sliceOf(part.Position)
+			local look = SLICE_LOOK[Config.SpinWheelSlices[index]]
+			if look then
+				-- Göbekten dışa doğru hafif açılan ton (haritadaki gibi)
+				part.Color = look.color:Lerp(Color3.new(1, 1, 1), math.clamp(r / radius, 0, 1) * 0.2)
+			end
+		end
+	end
+
+	local old = wheel:FindFirstChild("SliceLabels")
+	if old then
+		old:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "SliceLabels"
+
+	-- Dilimlerin ön yüzü diskin önünde; yazı onun hemen önünde
+	local slice = wheel:FindFirstChild("WheelSlice") :: BasePart?
+	local front = if slice then frame:PointToObjectSpace(slice.Position - center).Z - slice.Size.Z / 2 - 0.06 else -1
+	for index, id in Config.SpinWheelSlices do
+		local look = SLICE_LOOK[id]
+		if not look then
+			continue
+		end
+		local ang = (index - 1) * width
+		local part = Instance.new("Part")
+		part.Name = "WheelLabel"
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.CastShadow = false
+		part.Transparency = 1
+		part.Size = Vector3.new(radius * 0.62, radius * 0.24, 0.05)
+		-- Yazı göbekten dışa okunsun: parçanın -X'i dışa bakıyor (ön yüzün sağı -X)
+		part.CFrame = CFrame.new(center) * frame * CFrame.Angles(0, 0, ang)
+			* CFrame.new(radius * 0.56, 0, front) * CFrame.Angles(0, 0, math.pi)
+		for _, key in { "SpinSpeed", "SpinAxis", "SpinCenter", "SpinAxisVec" } do
+			part:SetAttribute(key, disc:GetAttribute(key))
+		end
+		part:SetAttribute("Slice", index)
+
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 0
+		gui.Parent = part
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.FredokaOne
+		text.TextScaled = true
+		text.TextColor3 = Color3.new(1, 1, 1)
+		text.Text = look.text
+		text.Parent = gui
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(22, 20, 34)
+		stroke.Thickness = 5
+		stroke.LineJoinMode = Enum.LineJoinMode.Round
+		stroke.Parent = text
+		local pad = Instance.new("UIPadding")
+		pad.PaddingTop = UDim.new(0.14, 0)
+		pad.PaddingBottom = UDim.new(0.14, 0)
+		pad.PaddingLeft = UDim.new(0.04, 0)
+		pad.PaddingRight = UDim.new(0.04, 0)
+		pad.Parent = text
+
+		part.Parent = folder
+	end
+	folder.Parent = wheel
 end
 
 --[[
@@ -193,9 +334,14 @@ function SpinService.Spin(player: Player, free: boolean): boolean
 	end
 
 	spinning = true
-	animate()
+	local stopsIn = animate(reward.id)
 
-	notify(player, string.format("%s! You won %s", reward.name, description), false)
+	-- Ödül verildi; mesaj çark ödülün diliminde durunca
+	task.delay(stopsIn, function()
+		if player.Parent then
+			notify(player, string.format("%s! You won %s", reward.name, description), false)
+		end
+	end)
 	BadgeService.Award(player, "FirstSpin")
 	return true
 end
@@ -272,6 +418,10 @@ function SpinService.Start()
 	end)
 
 	setupPrompt()
+	local wheel = getWheel()
+	if wheel then
+		decorateWheel(wheel)
+	end
 end
 
 return SpinService

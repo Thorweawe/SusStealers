@@ -268,7 +268,7 @@ Config.CatchBlockDuration = 180    -- yakalanan hırsız kurbandan kaç sn çala
 	Her dilimde bir şey çıkıyor, boş dilim yok.
 ]]
 Config.SpinCooldownHours = 24
-Config.SpinDuration = 4            -- çark kaç saniye hızlı döner
+Config.SpinDuration = 5            -- çark kaç saniyede yavaşlayıp ödülde duruyor
 
 export type SpinReward = {
 	id: string,
@@ -287,6 +287,17 @@ Config.SpinRewards = {
 	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 900, minimum = 100000 },
 	{ id = "FreeUnit",   name = "Free Unit",         weight =  2, kind = "unit" },
 } :: { SpinReward }
+
+--[[
+	Çarkın 12 dilimi, saat yönünün tersine (tools/map/lobby.luau SLICES ile
+	aynı sayı). Yalnızca görünüş: ödülü yukarıdaki ağırlıklar seçiyor, çark
+	o ödülün dilimlerinden birinde duruyor (shared/WheelSpin). Her ödül en
+	az bir dilimde olmalı — yoksa çark onu gösteremez (test var).
+]]
+Config.SpinWheelSlices = {
+	"SmallCash", "Spawn", "MedCash", "Mutation", "SmallCash", "HugeCash",
+	"MedCash", "Spawn", "SmallCash", "Mutation", "MedCash", "FreeUnit",
+}
 
 --[[ Çarkta ağırlıklı ödül seçer. ]]
 function Config.RollSpinReward(rng: Random): SpinReward

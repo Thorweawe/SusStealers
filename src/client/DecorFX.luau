@@ -8,7 +8,10 @@
 -- (SpinSpeed, PulsePeriod). Böylece dekora yeni bir hareketli parça eklemek
 -- için burayı değiştirmek gerekmiyor — build_decor'da niteliği koymak yeterli.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local WheelSpin = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("WheelSpin"))
 
 local DecorFX = {}
 
@@ -33,8 +36,9 @@ local DecorFX = {}
 local NEAR_RADIUS = 150
 local MID_RADIUS = 400
 
--- center/axisVec verilmişse ortak bir eksen etrafında döner (çarkın dilimleri)
-type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string, center: Vector3?, axisVec: Vector3?, angle: number? }
+-- center/axisVec verilmişse ortak bir eksen etrafında döner (çarkın dilimleri).
+-- wheel: şans çarkının modeli — açısı sunucu saatinden (shared/WheelSpin)
+type Spinner = { part: BasePart, speed: number, base: CFrame, axis: string, center: Vector3?, axisVec: Vector3?, angle: number?, wheel: Instance? }
 type Pulser = { part: BasePart, period: number, phase: number, light: PointLight? }
 type Drifter = { model: Model, speed: number, range: number, base: CFrame }
 -- Bant çıtaları gibi tek parça kaydırmalar için: Model yaratmaya değmiyor
@@ -83,6 +87,7 @@ function DecorFX.Start(): FX
 					-- Ortak eksen (çark): parçalar kendi merkezinde değil göbekte dönüyor
 					center = if typeof(obj:GetAttribute("SpinCenter")) == "Vector3" then obj:GetAttribute("SpinCenter") else nil,
 					axisVec = if typeof(obj:GetAttribute("SpinAxisVec")) == "Vector3" then (obj:GetAttribute("SpinAxisVec") :: Vector3).Unit else nil,
+					wheel = if obj:GetAttribute("SpinCenter") ~= nil then obj:FindFirstAncestor("Wheel") else nil,
 				})
 			end
 
@@ -195,14 +200,17 @@ function DecorFX.Start(): FX
 
 		for _, s in spinners do
 			--[[
-				Hız her karede okunuyor: SpinService çevirme sırasında
-				niteliği 14 katına çıkarıyor. Açı birikimli tutuluyor ki hız
-				değişince parça sıçramasın — uzaktayken de açı ilerliyor,
-				yalnızca yazılmıyor.
+				Şans çarkı: açı sunucu saatinden, herkeste aynı; çevirmede
+				kazanılan dilimde duruyor (WheelSpin). Diğerleri birikimli
+				açıyla — uzaktayken de ilerliyor, yalnızca yazılmıyor.
 			]]
-			local live = s.part:GetAttribute("SpinSpeed")
-			local speed = if typeof(live) == "number" then live else s.speed
-			s.angle = (s.angle or 0) + speed * dt
+			if s.wheel then
+				s.angle = WheelSpin.Angle(s.wheel, workspace:GetServerTimeNow(), s.speed)
+			else
+				local live = s.part:GetAttribute("SpinSpeed")
+				local speed = if typeof(live) == "number" then live else s.speed
+				s.angle = (s.angle or 0) + speed * dt
+			end
 			if not near(s.center or s.base.Position) then
 				continue
 			end
