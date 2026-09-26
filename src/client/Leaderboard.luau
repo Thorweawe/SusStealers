@@ -4,12 +4,18 @@
 
 	Roblox'un kendi oyuncu listesi kapalı (init.client, SetCoreGuiEnabled)
 	ve yerini bu alıyor. Aynı yerde duruyor — sağ üst, oyuncunun listeyi
-	aradığı köşe — ama oyunun dilinde: her satırda o oyuncunun ÜS RENGİNDE
-	bir mürettebat. Sahada gördüğün renk ile tabloda gördüğün renk aynı,
-	yani "şu mor üs kimin" sorusu tabloya bakınca cevaplanıyor.
+	aradığı köşe — ama oyunun dilinde.
+
+	Her satırda oyuncunun KENDİ Roblox karakterinin yüzü (headshot), çevresinde
+	ÜS RENGİNDE halka; satırın kartı da o renkte. Sahada gördüğün renk ile
+	tabloda gördüğün renk aynı, yüz de kim olduğunu söylüyor. (Eskiden yüz
+	yerine üs rengi bir Among Us karakteri vardı.) Görünüş mağaza dilinde
+	(CardKit): renkli başlık şeridi, ışınlı kartlar, kalın yazılar, ilk üçe
+	altın/gümüş/bronz rozet.
 
 	Sunucuya dokunmuyor: Cash/Income nitelik, Stolen leaderstats olarak
-	zaten istemciye replike oluyor.
+	zaten istemciye replike oluyor. Yüz görselleri Roblox'un küçük resim
+	servisinden bir kez isteniyor ve önbellekte tutuluyor.
 ]]
 
 local Players = game:GetService("Players")
@@ -17,22 +23,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local Leaderboard = {}
 
 local player = Players.LocalPlayer
 
-local WIDTH = 260
-local HEADER = 38
-local ROW_H = 40
+local WIDTH = 270
+local HEADER = 36
+local ROW_H = 46
 --[[
-	En fazla altı satır. Sekiz oyuncunun hepsi gösterilince tablo 364
-	piksele uzuyor ve küçük ekranda sağ alttaki düğme rayına iniyordu.
-	Oyuncu ilk altıda değilse son satır ONUN satırı oluyor (gerçek
-	sırasıyla): kendini her zaman görüyor.
+	En fazla altı satır. Sekiz oyuncunun hepsi gösterilince tablo uzuyor ve
+	küçük ekranda sağdaki düğme rayına iniyordu. Oyuncu ilk altıda değilse
+	son satır ONUN satırı oluyor (gerçek sırasıyla): kendini her zaman görüyor.
 ]]
 local MAX_ROWS = 6
+local HEADER_COLOR = Color3.fromRGB(30, 160, 200)
 
 -- İlk üçün sıra rozeti: altın, gümüş, bronz
 local PODIUM = {
@@ -46,14 +53,17 @@ export type Board = {
 }
 
 type Row = {
-	frame: Frame,
+	card: Frame,
 	rank: TextLabel,
-	figure: Frame,
+	rankBadge: Frame,
+	ring: Frame,
+	face: ImageLabel,
 	name: TextLabel,
 	detail: TextLabel,
 	cash: TextLabel,
-	stroke: UIStroke,
+	mine: UIStroke,
 	shownColor: Color3?,
+	shownUser: number?,
 }
 
 local function number(p: Player, attribute: string): number
@@ -71,51 +81,96 @@ local function stolenOf(p: Player): number
 	return 0
 end
 
+-- Yüz görselleri: UserId -> içerik kimliği (istek bir kez)
+local faces: { [number]: string } = {}
+local pending: { [number]: boolean } = {}
+local function faceOf(userId: number, onReady: (string) -> ())
+	local cached = faces[userId]
+	if cached then
+		onReady(cached)
+		return
+	end
+	if pending[userId] then
+		return
+	end
+	pending[userId] = true
+	task.spawn(function()
+		local ok, content = pcall(function()
+			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		pending[userId] = nil
+		if ok and typeof(content) == "string" then
+			faces[userId] = content
+			onReady(content)
+		end
+	end)
+end
+
 function Leaderboard.Create(screen: ScreenGui): Board
-	local holder = UiKit.Shell(screen, "Leaderboard", UiKit.VISOR)
+	local holder = Instance.new("Frame")
+	holder.Name = "Leaderboard"
 	holder.AnchorPoint = Vector2.new(1, 0)
 	holder.Position = UDim2.new(1, -22, 0, 20)
 	holder.Size = UDim2.fromOffset(WIDTH, HEADER + ROW_H + 8)
+	holder.BackgroundColor3 = CardKit.BODY
 	holder.BackgroundTransparency = 0.08
+	holder.BorderSizePixel = 0
 	holder.ClipsDescendants = true
+	holder.Parent = screen
+	CardKit.corner(holder, 14)
+	CardKit.gradient(holder, CardKit.BODY, CardKit.BODY_DEEP)
+	CardKit.border(holder, CardKit.OUTLINE, 3)
 
-	-- ─── Başlık ─────────────────────────────────────────────────────────────
+	-- ─── Başlık şeridi ──────────────────────────────────────────────────────
 
-	local badge = Instance.new("Frame")
-	badge.Position = UDim2.fromOffset(12, 8)
-	badge.Size = UDim2.fromOffset(22, 22)
-	badge.BackgroundTransparency = 1
-	badge.Parent = holder
-	UiKit.Crewmate(badge, 20, UiKit.VISOR)
+	local head = Instance.new("Frame")
+	head.Size = UDim2.new(1, 0, 0, HEADER)
+	head.BackgroundColor3 = HEADER_COLOR
+	head.BorderSizePixel = 0
+	head.ClipsDescendants = true
+	head.Parent = holder
+	CardKit.corner(head, 14)
+	CardKit.gradient(head, HEADER_COLOR:Lerp(CardKit.WHITE, 0.2), HEADER_COLOR:Lerp(Color3.new(0, 0, 0), 0.15))
+	local foot = Instance.new("Frame")
+	foot.Position = UDim2.new(0, 0, 1, -12)
+	foot.Size = UDim2.new(1, 0, 0, 12)
+	foot.BackgroundColor3 = HEADER_COLOR:Lerp(Color3.new(0, 0, 0), 0.12)
+	foot.BorderSizePixel = 0
+	foot.Parent = head
+	for i, x in { 0.62, 0.7 } do
+		local stripe = Instance.new("Frame")
+		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
+		stripe.Position = UDim2.fromScale(x, 0.5)
+		stripe.Size = UDim2.fromOffset(if i == 1 then 22 else 9, 90)
+		stripe.Rotation = 30
+		stripe.BackgroundColor3 = CardKit.WHITE
+		stripe.BackgroundTransparency = 0.8
+		stripe.BorderSizePixel = 0
+		stripe.Parent = head
+	end
+	local icon = Instance.new("Frame")
+	icon.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Position = UDim2.new(0, 10, 0.5, 0)
+	icon.Size = UDim2.fromOffset(24, 24)
+	icon.BackgroundTransparency = 1
+	icon.Parent = head
+	UiKit.Crewmate(icon, 22, Color3.fromRGB(230, 250, 255))
 
-	local title = Instance.new("TextLabel")
-	title.Position = UDim2.fromOffset(40, 0)
-	title.Size = UDim2.new(1, -110, 0, HEADER)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBlack
-	title.TextSize = 15
+	local title = CardKit.bold(head, "CREW", 22, CardKit.WHITE, 3, 2.5)
 	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = UiKit.VISOR
-	title.Text = "CREW"
-	title.Parent = holder
+	title.Position = UDim2.fromOffset(40, 0)
+	title.Size = UDim2.new(1, -120, 1, 0)
 
-	local count = Instance.new("TextLabel")
+	local count = CardKit.bold(head, "", 16, CardKit.WHITE, 3, 2)
 	count.AnchorPoint = Vector2.new(1, 0)
-	count.Position = UDim2.new(1, -14, 0, 0)
+	count.Position = UDim2.new(1, -12, 0, 0)
 	count.Size = UDim2.fromOffset(70, HEADER)
-	count.BackgroundTransparency = 1
-	count.Font = Enum.Font.GothamBold
-	count.TextSize = 12
 	count.TextXAlignment = Enum.TextXAlignment.Right
-	count.TextColor3 = UiKit.MUTED
-	count.Parent = holder
 
-	-- Başlığın altında ince ayraç
 	local rule = Instance.new("Frame")
-	rule.Position = UDim2.fromOffset(12, HEADER - 2)
-	rule.Size = UDim2.new(1, -24, 0, 1)
-	rule.BackgroundColor3 = UiKit.DIM
-	rule.BackgroundTransparency = 0.5
+	rule.Position = UDim2.fromOffset(0, HEADER - 2)
+	rule.Size = UDim2.new(1, 0, 0, 3)
+	rule.BackgroundColor3 = CardKit.OUTLINE
 	rule.BorderSizePixel = 0
 	rule.Parent = holder
 
@@ -123,73 +178,73 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 	local rows: { Row } = {}
 	for index = 1, MAX_ROWS do
-		local frame = Instance.new("Frame")
-		frame.Name = "Row" .. index
-		frame.Position = UDim2.fromOffset(6, HEADER + 4 + (index - 1) * ROW_H)
-		frame.Size = UDim2.new(1, -12, 0, ROW_H - 4)
-		frame.BackgroundColor3 = UiKit.ROW
-		frame.BackgroundTransparency = 1
-		frame.BorderSizePixel = 0
-		frame.Visible = false
-		frame.Parent = holder
-		UiKit.Corner(frame, 8)
-		local stroke = UiKit.Stroke(frame, UiKit.VISOR, 1.2, 1)
+		local card = CardKit.card(holder, UiKit.VISOR, UDim2.new(1, -12, 0, ROW_H - 5), 2, UDim2.fromScale(0.2, 0.5), 200)
+		card.Name = "Row" .. index
+		card.Position = UDim2.fromOffset(6, HEADER + 5 + (index - 1) * ROW_H)
+		card.Visible = false
+		-- Kendi satırın: sarı kalın çerçeve (göz seni arıyor)
+		local mine = Instance.new("UIStroke")
+		mine.Color = CardKit.YELLOW
+		mine.Thickness = 2.5
+		mine.Enabled = false
+		mine.Parent = card:FindFirstChild("Frame") :: Frame
 
-		local rank = Instance.new("TextLabel")
-		rank.Position = UDim2.fromOffset(4, 0)
-		rank.Size = UDim2.new(0, 16, 1, 0)
-		rank.BackgroundTransparency = 1
-		rank.Font = Enum.Font.GothamBlack
-		rank.TextSize = 12
-		rank.TextColor3 = UiKit.MUTED
-		rank.Parent = frame
+		-- Yüz: üs rengi halkanın içinde avatarın başı
+		local ring = Instance.new("Frame")
+		ring.AnchorPoint = Vector2.new(0, 0.5)
+		ring.Position = UDim2.new(0, 6, 0.5, 0)
+		ring.Size = UDim2.fromOffset(34, 34)
+		ring.BackgroundColor3 = UiKit.VISOR
+		ring.BorderSizePixel = 0
+		ring.ZIndex = 4
+		ring.Parent = card
+		CardKit.corner(ring, 17)
+		CardKit.border(ring, CardKit.OUTLINE, 2)
+		local face = Instance.new("ImageLabel")
+		face.AnchorPoint = Vector2.new(0.5, 0.5)
+		face.Position = UDim2.fromScale(0.5, 0.5)
+		face.Size = UDim2.new(1, -6, 1, -6)
+		face.BackgroundColor3 = Color3.fromRGB(40, 46, 66)
+		face.BorderSizePixel = 0
+		face.ZIndex = 5
+		face.Parent = ring
+		CardKit.corner(face, 14)
 
-		--[[ Oyuncunun üs rengindeki mürettebat. Renk OwnerColors'tan;
-		     değişmedikçe yeniden çizilmiyor. ]]
-		local figure = Instance.new("Frame")
-		figure.Position = UDim2.fromOffset(22, 4)
-		figure.Size = UDim2.fromOffset(28, 28)
-		figure.BackgroundColor3 = UiKit.SHELL_DEEP
-		figure.BorderSizePixel = 0
-		figure.Parent = frame
-		UiKit.Corner(figure, 14)
+		-- Sıra rozeti yüzün sol üstünde
+		local rankBadge = Instance.new("Frame")
+		rankBadge.AnchorPoint = Vector2.new(0.5, 0.5)
+		rankBadge.Position = UDim2.fromOffset(8, 8)
+		rankBadge.Size = UDim2.fromOffset(18, 18)
+		rankBadge.BorderSizePixel = 0
+		rankBadge.ZIndex = 7
+		rankBadge.Parent = card
+		CardKit.corner(rankBadge, 9)
+		CardKit.border(rankBadge, CardKit.OUTLINE, 2)
+		local rank = CardKit.bold(rankBadge, "", 12, CardKit.WHITE, 8, 1.5)
+		rank.Size = UDim2.fromScale(1, 1)
 
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.fromOffset(56, 3)
-		name.Size = UDim2.new(1, -140, 0, 16)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 13
+		local name = CardKit.bold(card, "", 16, CardKit.WHITE, 5, 2)
 		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.TextColor3 = UiKit.INK
-		name.Parent = frame
+		name.Position = UDim2.fromOffset(46, 3)
+		name.Size = UDim2.new(1, -130, 0, 20)
+		CardKit.fit(name, 16, 9)
 
-		local detail = Instance.new("TextLabel")
-		detail.Position = UDim2.fromOffset(56, 19)
-		detail.Size = UDim2.new(1, -140, 0, 13)
-		detail.BackgroundTransparency = 1
-		detail.Font = Enum.Font.GothamMedium
-		detail.TextSize = 10
+		local detail = CardKit.bold(card, "", 11, Color3.fromRGB(220, 230, 250), 5, 1.4)
 		detail.TextXAlignment = Enum.TextXAlignment.Left
-		detail.TextTruncate = Enum.TextTruncate.AtEnd
-		detail.TextColor3 = UiKit.MUTED
-		detail.Parent = frame
+		detail.Position = UDim2.fromOffset(46, 22)
+		detail.Size = UDim2.new(1, -130, 0, 15)
+		CardKit.fit(detail, 11, 7)
 
-		local cash = Instance.new("TextLabel")
+		local cash = CardKit.bold(card, "", 17, Color3.fromRGB(124, 255, 91), 5, 2)
 		cash.AnchorPoint = Vector2.new(1, 0.5)
 		cash.Position = UDim2.new(1, -8, 0.5, 0)
-		cash.Size = UDim2.fromOffset(78, 20)
-		cash.BackgroundTransparency = 1
-		cash.Font = Enum.Font.GothamBlack
-		cash.TextSize = 13
+		cash.Size = UDim2.fromOffset(84, 22)
 		cash.TextXAlignment = Enum.TextXAlignment.Right
-		cash.TextColor3 = UiKit.CREW.LIME
-		cash.Parent = frame
+		CardKit.fit(cash, 17, 9)
 
 		table.insert(rows, {
-			frame = frame, rank = rank, figure = figure, name = name,
-			detail = detail, cash = cash, stroke = stroke, shownColor = nil,
+			card = card, rank = rank, rankBadge = rankBadge, ring = ring, face = face,
+			name = name, detail = detail, cash = cash, mine = mine, shownColor = nil, shownUser = nil,
 		})
 	end
 
@@ -199,7 +254,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 			return number(a, "Cash") > number(b, "Cash")
 		end)
 
-		count.Text = string.format("%d / %d", #list, Config.PlotCount)
+		count.Text = string.format("%d / %d", #list, Config.ServerSize)
 
 		-- Gösterilecekler: ilk altı; oyuncu dışarıda kaldıysa son satır onun
 		local shownRanks: { number } = {}
@@ -215,37 +270,46 @@ function Leaderboard.Create(screen: ScreenGui): Board
 			local rank = shownRanks[index]
 			local entry = if rank then list[rank] else nil
 			if not entry or not rank then
-				row.frame.Visible = false
+				row.card.Visible = false
 				continue
 			end
 
 			local isMine = entry == player
-			row.frame.Visible = true
-
-			-- Kendi satırın: hafif dolgu + vizör çerçeve; göz seni arıyor
-			row.frame.BackgroundTransparency = if isMine then 0.2 else 1
-			row.stroke.Transparency = if isMine then 0.35 else 1
+			row.card.Visible = true
+			row.mine.Enabled = isMine
 
 			row.rank.Text = tostring(rank)
-			row.rank.TextColor3 = PODIUM[rank] or UiKit.DIM
+			row.rankBadge.BackgroundColor3 = PODIUM[rank] or Color3.fromRGB(70, 78, 96)
 
-			local tone = if colorOf then colorOf(entry) else UiKit.MUTED
+			-- Üs rengi: halka ve kart
+			local tone = if colorOf then colorOf(entry) else UiKit.VISOR
 			if row.shownColor ~= tone then
 				row.shownColor = tone
-				UiKit.ClearSlot(row.figure)
-				UiKit.Corner(row.figure, 14)
-				UiKit.Crewmate(row.figure, 20, tone)
+				row.ring.BackgroundColor3 = tone
+				CardKit.tintCard(row.card, tone:Lerp(Color3.new(0, 0, 0), 0.45))
+			end
+
+			-- Yüz: kullanıcı değişince yeniden
+			if row.shownUser ~= entry.UserId then
+				row.shownUser = entry.UserId
+				row.face.Image = ""
+				local userId = entry.UserId
+				faceOf(userId, function(content)
+					if row.shownUser == userId then
+						row.face.Image = content
+					end
+				end)
 			end
 
 			row.name.Text = entry.DisplayName
-			row.name.TextColor3 = if isMine then UiKit.VISOR else UiKit.INK
+			row.name.TextColor3 = if isMine then CardKit.YELLOW else CardKit.WHITE
 			row.detail.Text = string.format("+$%s/s  ·  %d stolen",
 				Config.FormatCash(number(entry, "Income")), stolenOf(entry))
 			row.cash.Text = "$" .. Config.FormatCash(number(entry, "Cash"))
 		end
 
 		local shown = math.clamp(#list, 1, MAX_ROWS)
-		holder.Size = UDim2.fromOffset(WIDTH, HEADER + 6 + shown * ROW_H)
+		holder.Size = UDim2.fromOffset(WIDTH, HEADER + 8 + shown * ROW_H)
 	end
 
 	return { Update = update }

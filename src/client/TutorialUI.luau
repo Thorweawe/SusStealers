@@ -420,12 +420,35 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	compassArrow.AnchorPoint = Vector2.new(0.5, 0)
 	compassArrow.Position = UDim2.new(0.5, 0, 0, 0)
 	compassArrow.Size = UDim2.fromOffset(76, 76)
-	local compassText = CardKit.bold(compass, "", 22, ACCENT, Z + 2, 3)
-	compassText.AnchorPoint = Vector2.new(0.5, 0)
-	compassText.Position = UDim2.new(0.5, 0, 0, 74)
-	compassText.Size = UDim2.new(1, 0, 0, 26)
 
 	local currentTarget: Instance? = nil
+	local currentHint: string? = nil
+
+	--[[
+		Hedefi ipucundan istemcide bulur. Sunucunun gönderdiği nesne
+		oyuncuya henüz yüklenmemişse (oyuna girer girmez, StreamingEnabled)
+		nil geliyordu: İLK adımda ok ve vurgu hiç çıkmıyordu. Rakip üs
+		yalnızca sunucudan (kimin üssü dolu, istemci bilmiyor).
+	]]
+	local function resolveHint(hint: string?): Instance?
+		if not hint then
+			return nil
+		end
+		local plots = workspace:FindFirstChild("Plots")
+		local mine = player:GetAttribute("Plot")
+		local plot = plots and typeof(mine) == "string" and plots:FindFirstChild(mine)
+		if hint == "Conveyor" then
+			return plot and plot:FindFirstChild("Conveyor")
+		elseif hint == "Sign" then
+			return plot and plot:FindFirstChild("Sign")
+		elseif hint == "Upgrades" then
+			return plot and plot:FindFirstChild("UpgradeBooth")
+		elseif hint == "Wheel" then
+			local decor = workspace:FindFirstChild("Decor")
+			return decor and decor:FindFirstChild("Wheel")
+		end
+		return nil
+	end
 
 	local function setTarget(target: Instance?)
 		currentTarget = target
@@ -446,12 +469,21 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 
 	local NEAR_STUDS = 24
 	local clock = 0
+	local retryAt = 0
 	local renderConnection = RunService.RenderStepped:Connect(function(dt)
 		clock += dt
 		-- Ok zıplıyor, Kaptan nefes alıyor
 		marker.StudsOffsetWorldSpace = Vector3.new(0, 6 + math.abs(math.sin(clock * 3)) * 1.4, 0)
 		guideBob.Scale = 1 + math.sin(clock * 2.2) * 0.03
 
+		-- Hedef henüz yoksa (yüklenmedi) yarım saniyede bir yeniden ara
+		if frame.Visible and not (currentTarget and currentTarget.Parent) and currentHint and clock >= retryAt then
+			retryAt = clock + 0.5
+			local found = resolveHint(currentHint)
+			if found then
+				setTarget(found)
+			end
+		end
 		if not (currentTarget and currentTarget.Parent and frame.Visible) then
 			compass.Visible = false
 			beam.Enabled = false
@@ -489,7 +521,6 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		end
 		compass.Visible = true
 		compassArrow.Rotation = bearingTo(targetPosition, root.Position)
-		compassText.Text = string.format("%d studs", math.floor(studs + 0.5))
 	end)
 
 	task.spawn(function()
@@ -577,7 +608,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		rewardChip.Text = if amount > 0 then "+$" .. Config.FormatCash(amount) else ""
 		rewardChip.Visible = amount > 0
 
-		setTarget(target)
+		currentHint = payload.hint
+		setTarget(target or resolveHint(payload.hint))
 		if not frame.Visible then
 			frame.Visible = true
 			frameScale.Scale = 0
@@ -609,6 +641,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 				end)
 			end
 			lastIndex = nil
+			currentHint = nil
 			hide()
 			return
 		end

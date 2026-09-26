@@ -171,8 +171,11 @@ return {
 				K.vcyl(f, "TubeGlass", tx, FLOOR + 4.6, tz, 7.2, 4, C.glass, { material = Enum.Material.Glass, transparency = 0.82 })
 				K.vcyl(f, "TubeCap", tx, FLOOR + 8.5, tz, 0.6, 4.4, C.metal)
 			end
-			-- Doğu duvarında bilgi panosu
-			local board = K.box(f, "LabBoard", x1 - T / 2 - 0.3, FLOOR + 7, cz, 0.4, 5, 9, C.shadow)
+			-- Doğu duvarında bilgi panosu. Duvar korkuluğunun ÖNÜNDE (depodaki
+			-- kablo panosu gibi): eskiden duvara 0.1 stud yakındı, korkuluk bandı
+			-- panonun ve "SPECIMEN LOG" yazısının içinden geçiyordu
+			local board = K.box(f, "LabBoard", x1 - T / 2 - 1.15, FLOOR + 7, cz, 0.4, 5, 9, C.shadow)
+			K.box(f, "LabBoardFrame", x1 - T / 2 - 0.85, FLOOR + 7, cz, 0.3, 5.6, 9.6, C.frameDark)
 			K.text(board, Enum.NormalId.Left, "SPECIMEN LOG", C.cyan)
 		end
 	end,

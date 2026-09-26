@@ -16,6 +16,11 @@
 	Kullanım (init.client.luau içinde, screen kurulduktan sonra):
 		local Menus = require(script.Menus)
 		local menus = Menus.Create(screen)
+
+	GÖRÜNÜŞ mağaza dilinde (CardKit): her satır kendi renginde ışınlı kart
+	(unvan kademe rengi, iksir mağazadaki rengi; kilitli/boş gri), solda
+	ikon rozeti, sağda tıknaz durum düğmesi (WEAR / IN USE / DRINK / LOCKED).
+	Eskiden düz gri satırlar ve ince yazılardı.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,6 +30,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local Menus = {}
@@ -43,6 +49,17 @@ local GOOD = UiKit.GOOD
 local ROW = UiKit.ROW
 
 local POTION_ACCENT = Color3.fromRGB(150, 226, 160)
+
+-- Kart renkleri: kilitli/boş satır ve mağazadaki iksir renkleri
+local LOCKED_TINT = Color3.fromRGB(70, 78, 96)
+local POTION_TINT: { [string]: Color3 } = {
+	Income2x = Color3.fromRGB(56, 170, 70),
+	Income3x = Color3.fromRGB(214, 150, 20),
+	FastSteal = Color3.fromRGB(226, 84, 60),
+	StrongLock = Color3.fromRGB(40, 140, 220),
+}
+local PILL_GREEN = Color3.fromRGB(88, 226, 60)
+local PILL_YELLOW = Color3.fromRGB(255, 200, 40)
 
 export type Menu = {
 	Open: (tab: string) -> (),
@@ -205,29 +222,16 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 	local badgeBody = UiKit.Crewmate(badge, 24, ACCENT)
 	badgeBody.ZIndex = 12
 
-	local heading = Instance.new("TextLabel")
-	heading.Position = UDim2.new(0, 52, 0, 14)
-	heading.Size = UDim2.new(1, -60, 0, 26)
-	heading.BackgroundTransparency = 1
-	heading.Font = Enum.Font.GothamBold
-	heading.TextSize = 19
+	local heading = CardKit.bold(overlay, "TITLES", 26, ACCENT, 11, 3)
+	heading.Position = UDim2.new(0, 52, 0, 8)
+	heading.Size = UDim2.new(1, -60, 0, 30)
 	heading.TextXAlignment = Enum.TextXAlignment.Left
-	heading.TextColor3 = ACCENT
-	heading.Text = "TITLES"
-	heading.ZIndex = 11
-	heading.Parent = overlay
 
-	local hint = Instance.new("TextLabel")
+	local hint = CardKit.bold(overlay, "", 14, Color3.fromRGB(200, 210, 230), 11, 1.6)
 	hint.Position = UDim2.new(0, 52, 0, 38)
-	hint.Size = UDim2.new(1, -40, 0, 18)
-	hint.BackgroundTransparency = 1
-	hint.Font = Enum.Font.GothamMedium
-	hint.TextSize = 12
+	hint.Size = UDim2.new(1, -60, 0, 18)
 	hint.TextXAlignment = Enum.TextXAlignment.Left
-	hint.TextColor3 = MUTED
-	hint.Text = ""
-	hint.ZIndex = 11
-	hint.Parent = overlay
+	CardKit.fit(hint, 14, 9)
 
 	local close: TextButton? = nil
 	if not host then
@@ -249,17 +253,20 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 
 	local listLayout = Instance.new("UIListLayout")
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Padding = UDim.new(0, 6)
+	listLayout.Padding = UDim.new(0, 8)
 	listLayout.Parent = list
 
 	-- ─── Satır kalıbı ───────────────────────────────────────────────────────
 
 	type Row = {
 		frame: TextButton,
+		card: Frame,
 		name: TextLabel,
 		detail: TextLabel,
 		badge: TextLabel,
+		pill: Frame,
 		slot: Frame,
+		scale: UIScale,
 	}
 
 	local rows: { Row } = {}
@@ -269,72 +276,78 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 			return rows[index]
 		end
 
+		-- Tıklama bütün satırda: kart ve yazılar tıklamayı yutmuyor
 		local frame = Instance.new("TextButton")
 		frame.LayoutOrder = index
-		frame.Size = UDim2.new(1, -6, 0, 52)
-		frame.BackgroundColor3 = ROW
-		frame.BorderSizePixel = 0
+		frame.Size = UDim2.new(1, -10, 0, 66)
+		frame.BackgroundTransparency = 1
 		frame.AutoButtonColor = false
 		frame.Text = ""
 		frame.ZIndex = 11
 		frame.Parent = list
+		local scale = Instance.new("UIScale")
+		scale.Parent = frame
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 8)
-		corner.Parent = frame
+		local card = CardKit.card(frame, LOCKED_TINT, UDim2.fromScale(1, 1), 11, UDim2.fromScale(0.1, 0.5), 240)
 
 		--[[
-			Satırın solunda küçük bir figür yuvası.
-
-			Unvanlarda mürettebat silueti (unvan rengiyle), iksirlerde
-			şişe. İkisi de Frame'den; liste bir metin yığını olmaktan
-			çıkıp bakışta taranabilir hale geliyor.
+			Solda ikon rozeti: unvanlarda mürettebat silueti (unvan
+			rengiyle), iksirlerde şişe.
 		]]
-		local slot = Instance.new("Frame")
+		local slotBadge = CardKit.badge(card, 50, LOCKED_TINT, 14)
+		slotBadge.AnchorPoint = Vector2.new(0, 0.5)
+		slotBadge.Position = UDim2.new(0, 8, 0.5, 0)
+		local slot = slotBadge:FindFirstChild("Slot") :: Frame
 		slot.Name = "Slot"
-		slot.Position = UDim2.fromOffset(12, 12)
-		slot.Size = UDim2.fromOffset(28, 28)
-		slot.BackgroundTransparency = 1
-		slot.ZIndex = 12
-		slot.Parent = frame
 
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.new(0, 50, 0, 8)
-		name.Size = UDim2.new(1, -146, 0, 20)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 15
+		local name = CardKit.bold(card, "", 20, CardKit.WHITE, 16, 2.5)
 		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextColor3 = INK
-		name.ZIndex = 12
-		name.Parent = frame
+		name.Position = UDim2.new(0, 66, 0, 8)
+		name.Size = UDim2.new(1, -186, 0, 24)
+		CardKit.fit(name, 20, 11)
 
-		local detail = Instance.new("TextLabel")
-		detail.Position = UDim2.new(0, 50, 0, 27)
-		detail.Size = UDim2.new(1, -146, 0, 18)
-		detail.BackgroundTransparency = 1
-		detail.Font = Enum.Font.GothamMedium
-		detail.TextSize = 12
+		local detail = CardKit.bold(card, "", 13, Color3.fromRGB(225, 232, 248), 16, 1.5)
 		detail.TextXAlignment = Enum.TextXAlignment.Left
-		detail.TextColor3 = MUTED
-		detail.ZIndex = 12
-		detail.Parent = frame
+		detail.Position = UDim2.new(0, 66, 0, 34)
+		detail.Size = UDim2.new(1, -186, 0, 18)
+		CardKit.fit(detail, 13, 8)
 
-		local badge = Instance.new("TextLabel")
-		badge.AnchorPoint = Vector2.new(1, 0.5)
-		badge.Position = UDim2.new(1, -14, 0.5, 0)
-		badge.Size = UDim2.new(0, 88, 0, 24)
-		badge.BackgroundTransparency = 1
-		badge.Font = Enum.Font.GothamBold
-		badge.TextSize = 12
-		badge.TextXAlignment = Enum.TextXAlignment.Right
-		badge.TextColor3 = MUTED
-		badge.ZIndex = 12
-		badge.Parent = frame
+		-- Sağda tıknaz durum düğmesi (görsel; tıklama satırın kendisinde)
+		local pill = Instance.new("Frame")
+		pill.AnchorPoint = Vector2.new(1, 0.5)
+		pill.Position = UDim2.new(1, -10, 0.5, 0)
+		pill.Size = UDim2.fromOffset(106, 38)
+		pill.BackgroundColor3 = PILL_GREEN
+		pill.BorderSizePixel = 0
+		pill.ZIndex = 15
+		pill.Parent = card
+		CardKit.corner(pill, 10)
+		CardKit.border(pill, CardKit.OUTLINE, 2.5)
+		CardKit.gradient(pill, CardKit.WHITE, Color3.fromRGB(200, 200, 200))
+		local badge = CardKit.bold(pill, "", 17, CardKit.WHITE, 16, 2)
+		badge.Size = UDim2.new(1, -8, 1, 0)
+		badge.Position = UDim2.fromOffset(4, 0)
+		CardKit.fit(badge, 17, 9)
 
-		local row = { frame = frame, name = name, detail = detail, badge = badge, slot = slot }
+		local row = { frame = frame, card = card, name = name, detail = detail, badge = badge, pill = pill, slot = slot, scale = scale }
 		rows[index] = row
 		return row
+	end
+
+	--[[ Satırın rengi ve sağdaki düğmenin hâli (nil renk = gri, basılamaz görünümü). ]]
+	local function paintRow(row: Row, tint: Color3, pillText: string, pillColor: Color3?)
+		CardKit.tintCard(row.card, tint)
+		local badgeFrame = row.slot.Parent :: Frame
+		if badgeFrame then
+			badgeFrame.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.45)
+			local g = badgeFrame:FindFirstChildOfClass("UIGradient")
+			if g then
+				g.Color = ColorSequence.new(tint:Lerp(Color3.new(0, 0, 0), 0.2), tint:Lerp(Color3.new(0, 0, 0), 0.6))
+			end
+		end
+		row.badge.Text = pillText
+		row.pill.Visible = pillText ~= ""
+		row.pill.BackgroundColor3 = pillColor or CardKit.GREY
 	end
 
 	--[[
@@ -377,11 +390,11 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 
 		row.frame.MouseEnter:Connect(function()
 			if rowAction[index] then
-				row.frame.BackgroundColor3 = Color3.fromRGB(38, 44, 56)
+				row.scale.Scale = 1.02
 			end
 		end)
 		row.frame.MouseLeave:Connect(function()
-			row.frame.BackgroundColor3 = ROW
+			row.scale.Scale = 1
 		end)
 		row.frame.Activated:Connect(function()
 			local action = rowAction[index]
@@ -440,12 +453,11 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 		autoRow.frame.Visible = true
 		-- Otomatik seçim: nötr gri figür
 		clearSlot(autoRow.slot)
-		UiKit.Crewmate(autoRow.slot, 24, UiKit.MUTED).ZIndex = 13
+		UiKit.Crewmate(autoRow.slot, 34, Color3.fromRGB(220, 226, 240)).ZIndex = 16
 		autoRow.name.Text = "Automatic"
-		autoRow.name.TextColor3 = INK
 		autoRow.detail.Text = "Always wear your highest title"
-		autoRow.badge.Text = if activeTitle == "" then "IN USE" else ""
-		autoRow.badge.TextColor3 = GOOD
+		paintRow(autoRow, Color3.fromRGB(60, 110, 220), if activeTitle == "" then "IN USE" else "AUTO",
+			if activeTitle == "" then PILL_YELLOW else PILL_GREEN)
 		rowAction[index] = function()
 			equipRemote:FireServer("")
 		end
@@ -464,16 +476,15 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 				else UiKit.DIM
 
 			clearSlot(widget.slot)
-			UiKit.Crewmate(widget.slot, 24, tone).ZIndex = 13
+			UiKit.Crewmate(widget.slot, 34, if row.unlocked then tone:Lerp(Color3.new(1, 1, 1), 0.3) else UiKit.DIM).ZIndex = 16
 
 			widget.name.Text = row.name
-			widget.name.TextColor3 = tone
 
 			if row.unlocked then
 				widget.detail.Text = "Unlocked"
-				widget.detail.TextColor3 = MUTED
-				widget.badge.Text = if row.id == activeTitle then "IN USE" else "WEAR"
-				widget.badge.TextColor3 = if row.id == activeTitle then GOOD else ACCENT
+				local wearing = row.id == activeTitle
+				paintRow(widget, tone:Lerp(Color3.new(0, 0, 0), 0.25), if wearing then "IN USE" else "WEAR",
+					if wearing then PILL_YELLOW else PILL_GREEN)
 
 				local id = row.id
 				rowAction[index] = function()
@@ -481,9 +492,7 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 				end
 			else
 				widget.detail.Text = describeCondition(row)
-				widget.detail.TextColor3 = UiKit.DIM
-				widget.badge.Text = "LOCKED"
-				widget.badge.TextColor3 = UiKit.DIM
+				paintRow(widget, LOCKED_TINT, "LOCKED", nil)
 				rowAction[index] = nil
 			end
 		end
@@ -509,37 +518,31 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 			local remaining = math.max(0, row.activeUntil - now)
 			local has = row.count > 0
 
-			drawVial(
-				widget.slot,
-				POTION_ACCENT,
-				row.count / math.max(1, Config.PotionStackLimit),
-				has or remaining > 0
-			)
+			local tint = POTION_TINT[row.id] or POTION_ACCENT
+			clearSlot(widget.slot)
+			UiKit.Vial(widget.slot, 34, tint:Lerp(Color3.new(1, 1, 1), 0.35),
+				math.max(0.35, row.count / math.max(1, Config.PotionStackLimit)), has or remaining > 0)
 
 			widget.name.Text = row.name
-			widget.name.TextColor3 = if has or remaining > 0 then INK else UiKit.DIM
 
 			if remaining > 0 then
-				widget.detail.Text = string.format("%s  ·  active %s",
+				widget.detail.Text = string.format('%s  ·  <font color="#7CFF5B">active %s</font>',
 					row.description, Config.FormatDuration(remaining))
-				widget.detail.TextColor3 = GOOD
 			else
 				widget.detail.Text = string.format("%s  ·  lasts %s",
 					row.description, Config.FormatDuration(row.seconds))
-				widget.detail.TextColor3 = MUTED
 			end
 
 			if has then
-				widget.badge.Text = string.format("DRINK  x%d", row.count)
-				widget.badge.TextColor3 = ACCENT
+				paintRow(widget, tint:Lerp(Color3.new(0, 0, 0), 0.2), string.format("DRINK x%d", row.count), PILL_GREEN)
 
 				local id = row.id
 				rowAction[index] = function()
 					useRemote:FireServer(id)
 				end
 			else
-				widget.badge.Text = "NONE"
-				widget.badge.TextColor3 = UiKit.DIM
+				paintRow(widget, if remaining > 0 then tint:Lerp(Color3.new(0, 0, 0), 0.35) else LOCKED_TINT,
+					if remaining > 0 then "ACTIVE" else "NONE", if remaining > 0 then PILL_YELLOW else nil)
 				rowAction[index] = nil
 			end
 		end

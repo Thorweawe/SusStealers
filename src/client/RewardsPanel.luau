@@ -14,6 +14,10 @@
 
 	`onBadge` toplanabilir ödül sayısını üst şeritteki hediye düğmesine
 	bildiriyor.
+
+	GÖRÜNÜŞ mağaza dilinde (CardKit): pembe başlık şeridi, renkli sekme
+	kartları, ışınlı kutular (bugün altın ve nabız atıyor, alınan yeşil ve
+	büyük tik, gelecek gri-mavi), tıknaz CLAIM düğmeleri.
 ]]
 
 local Players = game:GetService("Players")
@@ -24,6 +28,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 local EggStyle = require(script.Parent.EggStyle)
 
@@ -31,7 +36,12 @@ local RewardsPanel = {}
 
 local player = Players.LocalPlayer
 
-local ACCENT = UiKit.CREW.PINK
+local ACCENT = Color3.fromRGB(236, 80, 160)
+local TODAY_TINT = Color3.fromRGB(230, 160, 20)
+local DONE_TINT = Color3.fromRGB(50, 150, 60)
+local LATER_TINT = Color3.fromRGB(60, 90, 150)
+local TAB_TINT = { daily = Color3.fromRGB(230, 150, 30), playtime = Color3.fromRGB(40, 150, 220) }
+local W, H, HEADER = 700, 540, 64
 local GOLD = Color3.fromRGB(255, 200, 70)
 local Z = 45
 
@@ -75,13 +85,13 @@ local function drawIcon(slot: Frame, reward: Config.RewardDef, dim: boolean)
 		return if dim then c:Lerp(UiKit.DIM, 0.7) else c
 	end
 	if reward.kind == "cash" then
-		UiKit.Coin(slot, 30, tone(UiKit.CREW.LIME))
+		UiKit.Coin(slot, 44, tone(Color3.fromRGB(255, 210, 60)))
 	elseif reward.kind == "potion" then
-		UiKit.Vial(slot, 32, tone(Color3.fromRGB(150, 226, 160)), 0.8, true)
+		UiKit.Vial(slot, 46, tone(Color3.fromRGB(150, 236, 160)), 0.8, true)
 	elseif dim then
-		UiKit.Egg(slot, 34, tone(Color3.fromRGB(255, 190, 220)))
+		UiKit.Egg(slot, 48, tone(Color3.fromRGB(255, 190, 220)))
 	else
-		EggStyle.Draw(slot, 34, reward.egg)
+		EggStyle.Draw(slot, 48, reward.egg)
 	end
 end
 
@@ -89,68 +99,34 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	local root = UiKit.Window(screen, "RewardsPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(560, 440)
+	root.Size = UDim2.fromOffset(W, H)
 	root.Visible = false
 	root.ZIndex = Z
 
-	-- ─── Başlık ─────────────────────────────────────────────────────────────
-
-	local band = Instance.new("Frame")
-	band.Size = UDim2.new(1, 0, 0, 54)
-	band.BackgroundColor3 = ACCENT:Lerp(Color3.new(0, 0, 0), 0.55)
-	band.BorderSizePixel = 0
-	band.ZIndex = Z + 1
-	band.Parent = root
-	UiKit.Corner(band, 14)
-	local bandFoot = Instance.new("Frame")
-	bandFoot.Position = UDim2.new(0, 0, 1, -14)
-	bandFoot.Size = UDim2.new(1, 0, 0, 14)
-	bandFoot.BackgroundColor3 = band.BackgroundColor3
-	bandFoot.BorderSizePixel = 0
-	bandFoot.ZIndex = Z + 1
-	bandFoot.Parent = band
-
-	local badge = Instance.new("Frame")
-	badge.AnchorPoint = Vector2.new(0.5, 0.5)
-	badge.Position = UDim2.new(0.5, -96, 0.5, 0)
-	badge.Size = UDim2.fromOffset(34, 34)
-	badge.BackgroundTransparency = 1
-	badge.ZIndex = Z + 2
-	badge.Parent = band
-	UiKit.Gift(badge, 32, Color3.fromRGB(255, 120, 170))
-
-	local heading = Instance.new("TextLabel")
-	heading.AnchorPoint = Vector2.new(0.5, 0.5)
-	heading.Position = UDim2.fromScale(0.5, 0.5)
-	heading.Size = UDim2.fromOffset(220, 30)
-	heading.BackgroundTransparency = 1
-	heading.Font = Enum.Font.GothamBlack
-	heading.TextSize = 24
-	heading.TextColor3 = Color3.new(1, 1, 1)
-	heading.TextStrokeTransparency = 0.5
-	heading.Text = "• REWARDS •"
-	heading.ZIndex = Z + 2
-	heading.Parent = band
-
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 3
+	local skin = CardKit.skin(root, ACCENT, "Rewards", HEADER, Z)
+	local close = skin.close
+	skin.title.Position = UDim2.fromOffset(78, 4)
+	local crest = CardKit.badge(skin.header, 50, ACCENT, Z + 4)
+	crest.AnchorPoint = Vector2.new(0, 0.5)
+	crest.Position = UDim2.new(0, 18, 0.5, 0)
+	UiKit.Gift(crest:FindFirstChild("Slot") :: Frame, 34, Color3.fromRGB(255, 140, 190))
 
 	-- ─── Sekmeler ───────────────────────────────────────────────────────────
 
 	local tabs = Instance.new("Frame")
-	tabs.Position = UDim2.fromOffset(16, 64)
-	tabs.Size = UDim2.new(1, -32, 0, 40)
+	tabs.Position = UDim2.fromOffset(16, 12)
+	tabs.Size = UDim2.new(1, -32, 0, 54)
 	tabs.BackgroundTransparency = 1
 	tabs.ZIndex = Z + 1
-	tabs.Parent = root
+	tabs.Parent = skin.body
 
 	local tabLayout = Instance.new("UIListLayout")
 	tabLayout.FillDirection = Enum.FillDirection.Horizontal
-	tabLayout.Padding = UDim.new(0, 10)
+	tabLayout.Padding = UDim.new(0, 12)
 	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	tabLayout.Parent = tabs
 
-	type Tab = { button: TextButton, stroke: UIStroke, dot: TextLabel }
+	type Tab = { card: Frame, scale: UIScale, dot: TextLabel, tint: Color3 }
 	local tabButtons: { [string]: Tab } = {}
 	local current = "daily"
 
@@ -159,12 +135,12 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	local function makePage(id: string): Frame
 		local page = Instance.new("Frame")
 		page.Name = id
-		page.Position = UDim2.fromOffset(16, 114)
-		page.Size = UDim2.new(1, -32, 1, -128)
+		page.Position = UDim2.fromOffset(16, 78)
+		page.Size = UDim2.new(1, -32, 1, -90)
 		page.BackgroundTransparency = 1
 		page.ZIndex = Z + 1
 		page.Visible = false
-		page.Parent = root
+		page.Parent = skin.body
 		pages[id] = page
 		return page
 	end
@@ -172,23 +148,36 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	local redraw: () -> ()
 
 	local function makeTab(id: string, text: string, order: number)
-		local button = Instance.new("TextButton")
-		button.LayoutOrder = order
-		button.Size = UDim2.new(0.5, -5, 1, 0)
-		button.BackgroundColor3 = UiKit.ROW
-		button.BorderSizePixel = 0
-		button.AutoButtonColor = false
-		button.Font = Enum.Font.GothamBlack
-		button.TextSize = 14
-		button.TextColor3 = UiKit.INK
-		button.Text = text
-		button.ZIndex = Z + 2
-		button.Parent = tabs
-		UiKit.Corner(button, 10)
-		local stroke = UiKit.Stroke(button, ACCENT, 1.6, 1)
-		local dot = UiKit.Badge(button)
-		tabButtons[id] = { button = button, stroke = stroke, dot = dot }
-		button.MouseButton1Click:Connect(function()
+		local tint = TAB_TINT[id]
+		local holder = Instance.new("Frame")
+		holder.LayoutOrder = order
+		holder.Size = UDim2.new(0.5, -6, 1, 0)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = Z + 2
+		holder.Parent = tabs
+		local scale = Instance.new("UIScale")
+		scale.Parent = holder
+		local card = CardKit.card(holder, tint, UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.5, 0.5), 300)
+		local label = CardKit.bold(card, text, 24, CardKit.WHITE, Z + 4, 3)
+		label.Size = UDim2.fromScale(1, 1)
+		CardKit.fit(label, 24, 12)
+		local dot = CardKit.bold(holder, "", 16, CardKit.WHITE, Z + 6, 2)
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.new(1, -4, 0, 4)
+		dot.Size = UDim2.fromOffset(28, 28)
+		dot.BackgroundTransparency = 0
+		dot.BackgroundColor3 = Color3.fromRGB(226, 30, 40)
+		dot.Visible = false
+		CardKit.corner(dot, 14)
+		CardKit.border(dot, CardKit.OUTLINE, 2.5)
+		local hit = Instance.new("TextButton")
+		hit.Size = UDim2.fromScale(1, 1)
+		hit.BackgroundTransparency = 1
+		hit.Text = ""
+		hit.ZIndex = Z + 7
+		hit.Parent = holder
+		tabButtons[id] = { card = card, scale = scale, dot = dot, tint = tint }
+		hit.MouseButton1Click:Connect(function()
 			current = id
 			redraw()
 		end)
@@ -197,89 +186,67 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	makeTab("daily", "DAILY STREAK", 1)
 	makeTab("playtime", "PLAYTIME GIFTS", 2)
 
-	-- ─── Günlük seri sayfası ────────────────────────────────────────────────
+	-- ─── Kutu kalıbı ────────────────────────────────────────────────────────
 
-	local dailyPage = makePage("daily")
-
-	local streakLabel = Instance.new("TextLabel")
-	streakLabel.Size = UDim2.new(1, 0, 0, 22)
-	streakLabel.BackgroundTransparency = 1
-	streakLabel.Font = Enum.Font.GothamBlack
-	streakLabel.TextSize = 16
-	streakLabel.TextColor3 = GOLD
-	streakLabel.ZIndex = Z + 2
-	streakLabel.Parent = dailyPage
-
-	local dayGrid = Instance.new("Frame")
-	dayGrid.Position = UDim2.fromOffset(0, 30)
-	dayGrid.Size = UDim2.new(1, 0, 0, 212)
-	dayGrid.BackgroundTransparency = 1
-	dayGrid.ZIndex = Z + 1
-	dayGrid.Parent = dailyPage
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(118, 100)
-	grid.CellPadding = UDim2.fromOffset(8, 10)
-	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = dayGrid
-
-	type Tile = { frame: Frame, stroke: UIStroke, title: TextLabel, icon: Frame, amount: TextLabel, mark: TextLabel }
+	type Tile = { frame: Frame, card: Frame, title: TextLabel, icon: Frame, amount: TextLabel, mark: TextLabel, scale: UIScale }
 
 	local function makeTile(parent: Instance, order: number): Tile
 		local frame = Instance.new("Frame")
 		frame.LayoutOrder = order
-		frame.BackgroundColor3 = UiKit.ROW
-		frame.BorderSizePixel = 0
+		frame.BackgroundTransparency = 1
 		frame.ZIndex = Z + 2
 		frame.Parent = parent
-		UiKit.Corner(frame, 12)
-		local stroke = UiKit.Stroke(frame, ACCENT, 1.4, 0.7)
+		local scale = Instance.new("UIScale")
+		scale.Parent = frame
+		local card = CardKit.card(frame, LATER_TINT, UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.5, 0.42), 240)
 
-		local title = Instance.new("TextLabel")
-		title.Position = UDim2.fromOffset(0, 6)
-		title.Size = UDim2.new(1, 0, 0, 16)
-		title.BackgroundTransparency = 1
-		title.Font = Enum.Font.GothamBlack
-		title.TextSize = 12
-		title.TextColor3 = UiKit.INK
-		title.ZIndex = Z + 3
-		title.Parent = frame
+		local title = CardKit.bold(card, "", 20, CardKit.WHITE, Z + 5, 2.5)
+		title.Position = UDim2.fromOffset(0, 4)
+		title.Size = UDim2.new(1, 0, 0, 24)
 
 		local icon = Instance.new("Frame")
 		icon.AnchorPoint = Vector2.new(0.5, 0)
-		icon.Position = UDim2.new(0.5, 0, 0, 26)
-		icon.Size = UDim2.fromOffset(38, 38)
+		icon.Position = UDim2.new(0.5, 0, 0, 30)
+		icon.Size = UDim2.fromOffset(52, 52)
 		icon.BackgroundTransparency = 1
-		icon.ZIndex = Z + 3
-		icon.Parent = frame
+		icon.ZIndex = Z + 5
+		icon.Parent = card
 
-		local amount = Instance.new("TextLabel")
-		amount.Position = UDim2.new(0, 4, 1, -30)
-		amount.Size = UDim2.new(1, -8, 0, 24)
-		amount.BackgroundTransparency = 1
-		amount.Font = Enum.Font.GothamBold
-		amount.TextSize = 12
-		amount.TextWrapped = true
-		amount.TextColor3 = UiKit.MUTED
-		amount.ZIndex = Z + 3
-		amount.Parent = frame
+		local amount = CardKit.bold(card, "", 16, CardKit.YELLOW, Z + 5, 2)
+		amount.Position = UDim2.new(0, 4, 0, 84)
+		amount.Size = UDim2.new(1, -8, 0, 20)
+		CardKit.fit(amount, 16, 9)
 
-		-- Toplandı işareti: kutunun üstüne yarı saydam tik
-		local mark = Instance.new("TextLabel")
+		-- Toplandı işareti: kutunun üstüne yarı saydam büyük tik
+		local mark = CardKit.bold(card, "✓", 52, Color3.fromRGB(140, 255, 120), Z + 8, 4)
 		mark.Size = UDim2.fromScale(1, 1)
 		mark.BackgroundColor3 = Color3.new(0, 0, 0)
-		mark.BackgroundTransparency = 0.45
-		mark.Font = Enum.Font.GothamBlack
-		mark.TextSize = 34
-		mark.TextColor3 = UiKit.GOOD
-		mark.Text = "✓"
+		mark.BackgroundTransparency = 0.5
 		mark.Visible = false
-		mark.ZIndex = Z + 5
-		mark.Parent = frame
-		UiKit.Corner(mark, 12)
+		CardKit.corner(mark, 14)
 
-		return { frame = frame, stroke = stroke, title = title, icon = icon, amount = amount, mark = mark }
+		return { frame = frame, card = card, title = title, icon = icon, amount = amount, mark = mark, scale = scale }
 	end
+
+	-- ─── Günlük seri sayfası ────────────────────────────────────────────────
+
+	local dailyPage = makePage("daily")
+
+	local streakLabel = CardKit.bold(dailyPage, "", 22, CardKit.YELLOW, Z + 2, 2.5)
+	streakLabel.Size = UDim2.new(1, 0, 0, 26)
+
+	local dayGrid = Instance.new("Frame")
+	dayGrid.Position = UDim2.fromOffset(0, 34)
+	dayGrid.Size = UDim2.new(1, 0, 0, 250)
+	dayGrid.BackgroundTransparency = 1
+	dayGrid.ZIndex = Z + 1
+	dayGrid.Parent = dailyPage
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.fromOffset(146, 114)
+	grid.CellPadding = UDim2.fromOffset(12, 12)
+	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = dayGrid
 
 	local dayTiles: { Tile } = {}
 	for i = 1, #Config.DailyRewards do
@@ -290,21 +257,13 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 
 	local claimRemote = Net.Get("RewardClaim")
 
-	local dailyHolder, dailyClaim = UiKit.Raised(dailyPage, "ClaimDaily", UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), UDim2.fromOffset(220, 46), 12)
-	dailyHolder.AnchorPoint = Vector2.new(0.5, 1)
-	dailyHolder.Position = UDim2.new(0.5, 0, 1, 0)
-	dailyHolder.ZIndex = Z + 2
-	local dailyClaimText = Instance.new("TextLabel")
-	dailyClaimText.Size = UDim2.fromScale(1, 1)
-	dailyClaimText.BackgroundTransparency = 1
-	dailyClaimText.Font = Enum.Font.GothamBlack
-	dailyClaimText.TextSize = 16
-	dailyClaimText.TextColor3 = Color3.new(1, 1, 1)
-	dailyClaimText.TextStrokeTransparency = 0.5
-	dailyClaimText.ZIndex = Z + 6
-	dailyClaimText.Parent = dailyClaim
-	dailyClaim.MouseButton1Click:Connect(function()
-		if dailyClaim.Active then
+	local dailyButton = CardKit.button(dailyPage, UDim2.fromOffset(300, 62), Z + 3, 28)
+	dailyButton.holder.AnchorPoint = Vector2.new(0.5, 1)
+	dailyButton.holder.Position = UDim2.new(0.5, 0, 1, -2)
+	local dailyPulse = Instance.new("UIScale")
+	dailyPulse.Parent = dailyButton.holder
+	dailyButton.button.MouseButton1Click:Connect(function()
+		if dailyButton.button.Active then
 			claimRemote:FireServer("daily")
 		end
 	end)
@@ -313,56 +272,38 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 
 	local playPage = makePage("playtime")
 
-	local playLabel = Instance.new("TextLabel")
-	playLabel.Size = UDim2.new(1, 0, 0, 22)
-	playLabel.BackgroundTransparency = 1
-	playLabel.Font = Enum.Font.GothamBlack
-	playLabel.TextSize = 16
-	playLabel.TextColor3 = UiKit.VISOR
-	playLabel.ZIndex = Z + 2
-	playLabel.Parent = playPage
+	local playLabel = CardKit.bold(playPage, "", 22, Color3.fromRGB(120, 210, 255), Z + 2, 2.5)
+	playLabel.Size = UDim2.new(1, 0, 0, 26)
 
 	local playGrid = Instance.new("Frame")
-	playGrid.Position = UDim2.fromOffset(0, 30)
-	playGrid.Size = UDim2.new(1, 0, 1, -30)
+	playGrid.Position = UDim2.fromOffset(0, 34)
+	playGrid.Size = UDim2.new(1, 0, 1, -34)
 	playGrid.BackgroundTransparency = 1
 	playGrid.ZIndex = Z + 1
 	playGrid.Parent = playPage
 	local grid2 = Instance.new("UIGridLayout")
-	grid2.CellSize = UDim2.fromOffset(160, 124)
-	grid2.CellPadding = UDim2.fromOffset(10, 10)
+	grid2.CellSize = UDim2.fromOffset(200, 160)
+	grid2.CellPadding = UDim2.fromOffset(12, 12)
 	grid2.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid2.SortOrder = Enum.SortOrder.LayoutOrder
 	grid2.Parent = playGrid
 
-	type PlayTile = { tile: Tile, holder: Frame, button: TextButton, buttonText: TextLabel }
+	type PlayTile = { tile: Tile, buy: CardKit.Button }
 	local playTiles: { PlayTile } = {}
 	for i, reward in Config.PlaytimeRewards do
 		local tile = makeTile(playGrid, i)
 		tile.title.Text = string.format("%d MIN", reward.minutes or 0)
-		tile.amount.Position = UDim2.new(0, 4, 0, 66)
-		tile.amount.Size = UDim2.new(1, -8, 0, 16)
 
-		local holder, button = UiKit.Raised(tile.frame, "Claim", UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), UDim2.new(1, -16, 0, 30), 8)
-		holder.AnchorPoint = Vector2.new(0.5, 1)
-		holder.Position = UDim2.new(0.5, 0, 1, -6)
-		holder.ZIndex = Z + 3
-		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1, 1)
-		text.BackgroundTransparency = 1
-		text.Font = Enum.Font.GothamBlack
-		text.TextSize = 13
-		text.TextColor3 = Color3.new(1, 1, 1)
-		text.TextStrokeTransparency = 0.5
-		text.ZIndex = Z + 7
-		text.Parent = button
+		local buy = CardKit.button(tile.card, UDim2.new(1, -20, 0, 44), Z + 6, 22)
+		buy.holder.AnchorPoint = Vector2.new(0.5, 1)
+		buy.holder.Position = UDim2.new(0.5, 0, 1, -8)
 		local index = i
-		button.MouseButton1Click:Connect(function()
-			if button.Active then
+		buy.button.MouseButton1Click:Connect(function()
+			if buy.button.Active then
 				claimRemote:FireServer("playtime", index)
 			end
 		end)
-		table.insert(playTiles, { tile = tile, holder = holder, button = button, buttonText = text })
+		table.insert(playTiles, { tile = tile, buy = buy })
 	end
 
 	-- ─── Durum ──────────────────────────────────────────────────────────────
@@ -376,22 +317,12 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		return state.seconds + (os.clock() - state.receivedAt)
 	end
 
-	local function setButton(button: TextButton, text: TextLabel, label: string, tint: Color3?)
-		text.Text = label
-		button.Active = tint ~= nil
-		local base = tint or UiKit.DIM
-		button.BackgroundColor3 = base
-		local grad = button:FindFirstChildOfClass("UIGradient")
-		if grad then
-			grad.Color = ColorSequence.new(base:Lerp(Color3.new(1, 1, 1), 0.22), base:Lerp(Color3.new(0, 0, 0), 0.18))
-		end
-	end
 
 	local function slotOf(streak: number): number
 		return ((math.max(1, streak) - 1) % #Config.DailyRewards) + 1
 	end
 
-	local claimTint = UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35)
+	local clockPulse = 0
 
 	local function readyCount(): number
 		local n = if state.canClaim then 1 else 0
@@ -405,13 +336,14 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	end
 
 	redraw = function()
+		clockPulse += 1
 		for id, page in pages do
 			page.Visible = id == current
 		end
 		for id, tab in tabButtons do
 			local on = id == current
-			tab.button.BackgroundColor3 = if on then ACCENT:Lerp(UiKit.ROW, 0.6) else UiKit.ROW
-			tab.stroke.Transparency = if on then 0.1 else 1
+			CardKit.tintCard(tab.card, if on then tab.tint else tab.tint:Lerp(Color3.fromRGB(70, 78, 96), 0.6))
+			tab.scale.Scale = if on then 1 else 0.95
 		end
 
 		-- Günlük: bu döngüde bugün hangi kutu
@@ -424,10 +356,9 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			drawIcon(tile.icon, reward, not (isToday or done))
 			tile.amount.Text = describe(reward)
 			tile.mark.Visible = done
-			tile.stroke.Color = if isToday then GOLD else ACCENT
-			tile.stroke.Transparency = if isToday then 0 else 0.7
-			tile.stroke.Thickness = if isToday then 2.6 else 1.4
-			tile.frame.BackgroundColor3 = if isToday then GOLD:Lerp(UiKit.ROW, 0.75) else UiKit.ROW
+			CardKit.tintCard(tile.card, if isToday then TODAY_TINT elseif done then DONE_TINT else LATER_TINT)
+			-- Bugünün kutusu nabız atıyor (saniyede bir çizim, iki adımda)
+			tile.scale.Scale = if isToday then (if clockPulse % 2 == 0 then 1.06 else 1) else 1
 		end
 
 		local left = state.resetAt - workspace:GetServerTimeNow()
@@ -435,10 +366,12 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			streakLabel.Text = if state.nextStreak > 1
 				then string.format("STREAK %d  ·  claim day %d!", state.nextStreak - 1, state.nextStreak)
 				else "Claim your daily reward!"
-			setButton(dailyClaim, dailyClaimText, "CLAIM DAY " .. state.nextStreak, claimTint)
+			dailyButton.set("CLAIM DAY " .. state.nextStreak, CardKit.GREEN)
+			dailyPulse.Scale = if clockPulse % 2 == 0 then 1.05 else 1
 		else
 			streakLabel.Text = string.format("STREAK %d  ·  next reward in %s", state.streak, clock(left))
-			setButton(dailyClaim, dailyClaimText, "COME BACK IN " .. clock(left), nil)
+			dailyButton.set("COME BACK IN " .. clock(left), nil)
+			dailyPulse.Scale = 1
 		end
 
 		-- Oynama süresi
@@ -452,14 +385,12 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			drawIcon(entry.tile.icon, reward, not (ready or done))
 			entry.tile.amount.Text = describe(reward)
 			entry.tile.mark.Visible = done
-			entry.holder.Visible = not done
-			entry.tile.stroke.Color = if ready then GOLD else ACCENT
-			entry.tile.stroke.Transparency = if ready then 0 else 0.7
-			entry.tile.stroke.Thickness = if ready then 2.6 else 1.4
+			entry.buy.holder.Visible = not done
+			CardKit.tintCard(entry.tile.card, if ready then TODAY_TINT elseif done then DONE_TINT else LATER_TINT)
 			if ready then
-				setButton(entry.button, entry.buttonText, "CLAIM", claimTint)
+				entry.buy.set("CLAIM", CardKit.GREEN)
 			else
-				setButton(entry.button, entry.buttonText, clock(need - played), nil)
+				entry.buy.set(clock(need - played), nil)
 			end
 		end
 
@@ -519,7 +450,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		end
 	end)
 
-	close.Activated:Connect(function()
+	close.MouseButton1Click:Connect(function()
 		root.Visible = false
 	end)
 

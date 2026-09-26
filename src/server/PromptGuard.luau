@@ -95,8 +95,19 @@ end
 	herkese ortak, kişisel süre ancak burada uygulanabiliyor.
 ]]
 function PromptGuard.Validate(prompt: ProximityPrompt, player: Player, requiredHold: number?): boolean
+	--[[
+		Prompt bir parçada ya da bir Attachment'ta olabilir. ESKİ HATA:
+		yalnızca parça kabul ediliyordu; çarkın promptu göz hizasındaki bir
+		Attachment'a taşınınca her basış sessizce reddedildi ("free spin
+		çalışmıyor").
+	]]
 	local anchor = prompt.Parent
-	if not (anchor and anchor:IsA("BasePart")) then
+	local anchorPosition: Vector3
+	if anchor and anchor:IsA("BasePart") then
+		anchorPosition = anchor.Position
+	elseif anchor and anchor:IsA("Attachment") then
+		anchorPosition = anchor.WorldPosition
+	else
 		return false
 	end
 
@@ -113,7 +124,7 @@ function PromptGuard.Validate(prompt: ProximityPrompt, player: Player, requiredH
 	end
 
 	local reach = prompt.MaxActivationDistance + DISTANCE_TOLERANCE
-	if (root.Position - anchor.Position).Magnitude > reach then
+	if (root.Position - anchorPosition).Magnitude > reach then
 		return false
 	end
 

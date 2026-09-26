@@ -44,6 +44,8 @@ local lastIndex: { [Player]: number } = {}
 -- adımı geçmesin diye adım başladığında o anki değeri kaydediyoruz
 local lockBaseline: { [Player]: { plot: Model, at: number } } = {}
 local lastSkipAt: { [Player]: number } = {}
+-- Çalma adımında çalınacak rakip yokken geçen süre (tek başına oyuncu takılmasın)
+local aloneSince: { [Player]: number } = {}
 local paused = false
 
 --[[
@@ -252,6 +254,40 @@ end
 
 -- ─── İlerleme ───────────────────────────────────────────────────────────────
 
+--[[ Başka bir oyuncunun üssünde çalınabilecek (dolu kaide) karakter var mı. ]]
+local function rivalAvailable(player: Player): boolean
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			local plot = PlotService.GetPlotOf(other)
+			if plot then
+				for _, podium in PlotService.GetPodiums(plot) do
+					if PlotService.IsOccupied(podium) then
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+--[[
+	Çalma adımı çalınacak kimse yokken Config.TutorialAloneSkipSeconds
+	sonra kendiliğinden geçiyor. Rakip gelirse sayaç sıfırlanıyor.
+]]
+local function aloneLongEnough(player: Player): boolean
+	if rivalAvailable(player) then
+		aloneSince[player] = nil
+		return false
+	end
+	local since = aloneSince[player]
+	if not since then
+		aloneSince[player] = os.clock()
+		return false
+	end
+	return os.clock() - since >= Config.TutorialAloneSkipSeconds
+end
+
 --[[
 	Sıradaki adımın koşulu sağlandıysa ilerletir ve ödülü verir.
 
@@ -269,7 +305,16 @@ function TutorialService.Check(player: Player)
 
 	while true do
 		local step = Config.GetTutorialStep(profile.tutorialStep + 1)
-		if not step or checkValue(player, step.check) < step.goal then
+		if not step then
+			break
+		end
+		local done = checkValue(player, step.check) >= step.goal
+		if not done and step.check == "steals" and aloneLongEnough(player) then
+			done = true
+			aloneSince[player] = nil
+			notify(player, "No rival crew aboard right now - you'll steal once someone joins!", false)
+		end
+		if not done then
 			break
 		end
 
@@ -412,6 +457,7 @@ function TutorialService.Start()
 		lastIndex[player] = nil
 		lockBaseline[player] = nil
 		lastSkipAt[player] = nil
+		aloneSince[player] = nil
 	end)
 
 	--[[

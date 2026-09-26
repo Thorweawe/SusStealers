@@ -678,6 +678,13 @@ Config.Tutorial = {
 ]]
 Config.TutorialFinishBonus = 50000
 
+--[[
+	Çalma adımında sunucuda çalınacak kimse yoksa (başka oyuncu yok ya da
+	kaideleri boş) bu kadar saniye sonra adım kendiliğinden geçiyor.
+	Eskiden tek başına oyuncu öğreticide takılı kalıyordu.
+]]
+Config.TutorialAloneSkipSeconds = 15
+
 --[[ Sıra numarasıyla adım. Aralık dışıysa nil. ]]
 function Config.GetTutorialStep(index: number): TutorialStep?
 	return Config.Tutorial[index]

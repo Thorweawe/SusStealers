@@ -1081,6 +1081,23 @@ case("Çark: dünyada kurulu ve promptu var", function()
 	end
 end)
 
+case("Çark: prompt basışı kabul ediliyor (Attachment'taki prompt)", function(ctx)
+	local wheel = workspace.Decor:FindFirstChild("Wheel")
+	local point = wheel and wheel:FindFirstChild("SpinPromptPoint", true)
+	local prompt = point and point:FindFirstChild("SpinPrompt") :: ProximityPrompt?
+	ok("prompt var", prompt ~= nil)
+	local root = ctx.player.Character and ctx.player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if prompt and root and point and point:IsA("Attachment") then
+		local before = root.CFrame
+		root.CFrame = CFrame.new(point.WorldPosition + Vector3.new(0, 0, 0.5))
+		-- Basılı tutma süresini atlamak için sıfır süreyle doğrula
+		ok("yakında kabul", PromptGuard.Validate(prompt, ctx.player, 0))
+		root.CFrame = CFrame.new(point.WorldPosition + Vector3.new(0, 0, 200))
+		ok("uzakta ret", not PromptGuard.Validate(prompt, ctx.player, 0))
+		root.CFrame = before
+	end
+end)
+
 case("Çark: bedava çevirme hakkı harcıyor", function(ctx)
 	ctx.profile.lastSpinAt = 0
 	setCash(ctx.player, 0)
