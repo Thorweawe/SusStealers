@@ -945,31 +945,116 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 		end
 	end
 
-	-- ── Pencereler ────────────────────────────────────────────────────────
-	local FW = 1.3       -- çerçeve genişliği
+	-- ── Pencereler: uzay gemisi lombozları ─────────────────────────────────
+	--[[
+		Eskiden ofis penceresiydi: dikdörtgen cam, ortada kayıt, düz çerçeve
+		("camlar temaya uygun değil, uzay mekiğindeyiz"). Artık her pencere
+		yuvası duvarla kapanıyor ve ortasında YUVARLAK LOMBOZ var:
+
+		  - kalın metal bilezik (duvarın iki yüzünden taşan silindir) ve
+		    içinde koyu ikinci halka
+		  - bileziğin çevresinde cıvatalar
+		  - camın içinde uzay: koyu lacivert, yıldızlar, bazen uzak bir
+		    gezegen. Parçayla oyulamayan daire, silindirin uç yüzündeki
+		    SurfaceGui'de yuvarlak (UICorner) bir çerçeve; ışıktan etkilenmiyor,
+		    karanlık odada da parlıyor. Her lombozun yıldızları konumundan
+		    tohumlanıyor: yan yana iki pencere aynı değil.
+
+		Silindirin ekseni duvar normali boyunca: Right yüzü içeri, Left yüzü
+		dışarı bakıyor (frame * Angles(0, 90°, 0): yerel X = içe).
+	]]
+	local SPACE_TOP = Color3.fromRGB(8, 10, 28)
+	local SPACE_BOTTOM = Color3.fromRGB(26, 20, 60)
+	local PLANETS = { Color3.fromRGB(220, 120, 70), Color3.fromRGB(90, 160, 230), Color3.fromRGB(170, 110, 220), Color3.fromRGB(120, 200, 140) }
+
+	local function spaceView(part: BasePart, face: Enum.NormalId, seed: number)
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "SpaceView"
+		gui.Face = face
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 20
+		gui.LightInfluence = 0
+		gui.Brightness = 1.4
+		gui.Parent = part
+		local disc = Instance.new("Frame")
+		disc.Size = UDim2.fromScale(1, 1)
+		disc.BackgroundColor3 = SPACE_TOP
+		disc.BorderSizePixel = 0
+		disc.ClipsDescendants = true
+		disc.Parent = gui
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(0.5, 0)
+		round.Parent = disc
+		local g = Instance.new("UIGradient")
+		g.Rotation = 90 + (seed % 40) - 20
+		g.Color = ColorSequence.new(SPACE_TOP, SPACE_BOTTOM)
+		g.Parent = disc
+		local rng = Random.new(seed)
+		-- Uzak gezegen: dört lombozdan birinde
+		if rng:NextNumber() < 0.25 then
+			local planet = Instance.new("Frame")
+			local ps = rng:NextNumber(0.28, 0.45)
+			planet.AnchorPoint = Vector2.new(0.5, 0.5)
+			planet.Position = UDim2.fromScale(rng:NextNumber(0.3, 0.7), rng:NextNumber(0.3, 0.7))
+			planet.Size = UDim2.fromScale(ps, ps)
+			planet.BackgroundColor3 = PLANETS[rng:NextInteger(1, #PLANETS)]
+			planet.BorderSizePixel = 0
+			planet.Parent = disc
+			local pr = Instance.new("UICorner")
+			pr.CornerRadius = UDim.new(0.5, 0)
+			pr.Parent = planet
+			local shade = Instance.new("UIGradient")
+			shade.Rotation = rng:NextNumber(0, 360)
+			shade.Transparency = NumberSequence.new(0, 0)
+			shade.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(40, 40, 60))
+			shade.Parent = planet
+		end
+		for _ = 1, 16 do
+			local star = Instance.new("Frame")
+			local sz = if rng:NextNumber() < 0.2 then 4 else 2
+			star.AnchorPoint = Vector2.new(0.5, 0.5)
+			star.Position = UDim2.fromScale(rng:NextNumber(0.12, 0.88), rng:NextNumber(0.12, 0.88))
+			star.Size = UDim2.fromOffset(sz, sz)
+			star.BackgroundColor3 = Color3.fromRGB(255, 250, 235)
+			star.BackgroundTransparency = rng:NextNumber(0, 0.4)
+			star.BorderSizePixel = 0
+			star.Parent = disc
+			local sc = Instance.new("UICorner")
+			sc.CornerRadius = UDim.new(0.5, 0)
+			sc.Parent = star
+		end
+	end
+
 	for _, win in windowsAt do
 		local w0, w1 = win[1], win[2]
 		local wc = (w0 + w1) / 2
 		local wh = wt - wb
-		piece(tag .. "Glass", wc, (wb + wt) / 2, 0, w1 - w0, wh, 0.4, C.glass,
-			{ material = Enum.Material.Glass, transparency = 0.62, collide = true, reflect = 0.08 })
-		-- Orta kayıt: camı böl, ölçek versin
-		piece(tag .. "Mullion", wc, (wb + wt) / 2, 0, 0.7, wh + 0.2, 0.9, C.frame)
-		-- İç ve dış çerçeve
-		for _, side in { 1, -1 } do
-			local dc = side * (T / 2 + 0.3)
-			piece(tag .. "WinFrame", wc, wt + FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame)
-			piece(tag .. "WinFrame", wc, wb - FW / 2, dc, (w1 - w0) + FW * 2, FW, 0.6, C.frame)
-			piece(tag .. "WinFrame", w0 - FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame)
-			piece(tag .. "WinFrame", w1 + FW / 2, (wb + wt) / 2, dc, FW, wh, 0.6, C.frame)
+		local yc = (wb + wt) / 2
+		-- Yuva duvarla kapanıyor; lomboz onun ortasında
+		piece(tag .. "PortPanel", wc, yc, 0, w1 - w0, wh, T, C.wallMid)
+
+		local D = math.min(w1 - w0, wh) * 0.78
+		local axis = frame * CFrame.new(wc, yc, 0) * CFrame.Angles(0, math.rad(90), 0)
+		K.boxAt(parent, tag .. "PortRim", axis, Vector3.new(T + 1.2, D + 2.4, D + 2.4), C.frame,
+			{ shape = Enum.PartType.Cylinder, collide = true })
+		K.boxAt(parent, tag .. "PortRing", axis, Vector3.new(T + 1.5, D + 0.8, D + 0.8), C.frameDark,
+			{ shape = Enum.PartType.Cylinder, collide = true })
+		local view = K.boxAt(parent, tag .. "PortGlass", axis, Vector3.new(T + 1.7, D, D), SPACE_TOP,
+			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.Glass, reflect = 0.12 })
+		view.CastShadow = false
+		local worldPos = (frame * CFrame.new(wc, yc, 0)).Position
+		local seed = math.floor(worldPos.X * 7.3 + worldPos.Z * 3.1 + worldPos.Y * 11)
+		spaceView(view, Enum.NormalId.Right, seed)
+		spaceView(view, Enum.NormalId.Left, seed + 101)
+
+		-- Cıvatalar: bileziğin iç yüzünde, sekiz tane
+		local boltR = (D + 2.4) / 2 - 0.55
+		for k = 0, 7 do
+			local ang = k * math.pi / 4 + math.pi / 8
+			local bolt = frame * CFrame.new(wc + math.cos(ang) * boltR, yc + math.sin(ang) * boltR, -(T / 2 + 0.62))
+			K.boxAt(parent, tag .. "PortBolt", bolt, Vector3.new(0.45, 0.45, 0.45), C.frameDark,
+				{ shape = Enum.PartType.Ball })
 		end
-		--[[
-			Köşe pahları kaldırıldı: her pencerenin dört köşesinde çerçevenin
-			dışına taşan dörtgenler vardı ve duvar boyunca yüzlerce küçük
-			çıkıntı sahneyi kalabalıklaştırıyordu. Düz çerçeve daha sakin.
-		]]
-		-- Pencere altı pervaz (iç)
-		piece(tag .. "Sill", wc, wb - FW - 0.25, T / 2 + 0.55, (w1 - w0) + FW * 2 + 0.6, 0.5, 1.1, C.frameDark)
 	end
 
 	-- ── İç yüz süslemeleri (kapılar ve köşeler hariç) ─────────────────────
