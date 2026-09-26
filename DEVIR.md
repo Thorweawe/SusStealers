@@ -13,6 +13,23 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-26 (21) — Yusuf (Batur'un şeridine de yazıldı)
+
+- **Mağaza baştan (`ShopPanel`):** yeşil başlık, FEATURED / PASSES / MONEY / POTIONS / BOOSTS
+  bölümleri, sağda bölüm düğmeleri, ışınlı renkli kartlar, büyük Robux düğmeleri.
+- **Kart görselleri:** `tools/shop_art.py` (store_icons.py'nin çizimleri, zeminsiz/yazısız +
+  iksirler + `rays`) → `shop_art/*.png`. Studio Import Queue ile yüklendi, kimlikler
+  `ShopPanel.luau` içindeki `ART` tablosunda. Import Queue **Türkçe karakterli yoldan
+  (Masaüstü) yükleyemiyor**; PNG'leri önce ASCII bir klasöre kopyala.
+- **İksirler Robux ile (sunucu):** `Config.Products` içinde `kind = "potion"` 4 ürün (id = 0,
+  mağazada SOON). `PotionService` "potion" ödülünü kaydediyor: envantere giriyor, o iksir
+  doluysa hemen içiliyor (parası ödenen ürün boşa gitmesin). Ürün ikonları:
+  `store_icons/product_potion_*.png`.
+- **Instant Spawn mağazadan kalktı** (`Config.Products.SkipConveyor` silindi); ConveyorService'in
+  "conveyor" ödülü duruyor.
+- **Pass/ürün kimlikleri girildi** (5 pass, 7 ürün). **Testler artık gerçek kayda yazmıyor**
+  (`DataService._SetSavingPaused`); eskiden deneme parası oyuncu kaydına geçiyordu.
+
 ## 2026-09-26 (20) — Batur (Yusuf'un şeridine yazıldı)
 
 - **`UiKit.IconButton` yazısı büyüdü ve sığdırılıyor:** TextSize 13 + TextScaled +

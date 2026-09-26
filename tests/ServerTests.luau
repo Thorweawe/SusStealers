@@ -661,19 +661,27 @@ case("Monetization: ürün ve pass kimlikleri girilmiş ve benzersiz", function(
 		seen[def.id] = key
 	end
 	for key, def in Config.Products do
-		ok(key .. " kimliği var", def.id > 0)
-		ok(key .. " kimliği tekrar etmiyor", seen[def.id] == nil, seen[def.id])
-		seen[def.id] = key
+		-- İksir ürünleri henüz Creator Dashboard'da açılmadı (0 = mağazada SOON)
+		if def.kind ~= "potion" then
+			ok(key .. " kimliği var", def.id > 0)
+		end
+		if def.id > 0 then
+			ok(key .. " kimliği tekrar etmiyor", seen[def.id] == nil, seen[def.id])
+			seen[def.id] = key
+		end
 	end
 end)
 
 case("Monetization: ürün tanımları tutarlı", function()
-	local kinds = { cash = true, conveyor = true, lucky = true, rebirth = true, spin = true }
+	local kinds = { cash = true, conveyor = true, lucky = true, rebirth = true, spin = true, potion = true }
 
 	for key, def in Config.Products do
 		ok(key .. " tipi tanınıyor", kinds[def.kind] == true, def.kind)
 		if def.kind == "cash" then
 			ok(key .. " tutarı pozitif", (def.amount or 0) > 0)
+		end
+		if def.kind == "potion" then
+			ok(key .. " iksiri var", def.potion ~= nil and Config.GetPotion(def.potion) ~= nil)
 		end
 	end
 end)

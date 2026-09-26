@@ -1134,8 +1134,9 @@ Config.PassStrongLockCooldown = 50
 export type ProductDef = {
 	id: number,
 	name: string,
-	kind: string,       -- cash | conveyor | lucky | rebirth | spin
+	kind: string,       -- cash | conveyor | lucky | rebirth | spin | potion
 	amount: number?,
+	potion: string?,    -- kind = "potion": verilecek iksirin kimliği (Config.Potions)
 }
 
 Config.Products = {
@@ -1143,10 +1144,21 @@ Config.Products = {
 	Cash100K       = { id = 3714873855, name = "$100K",           kind = "cash", amount =   100000 },
 	Cash1M         = { id = 3714873899, name = "$1M",             kind = "cash", amount =  1000000 },
 	Cash10M        = { id = 3714873959, name = "$10M",            kind = "cash", amount = 10000000 },
-	SkipConveyor   = { id = 3714873580, name = "Instant Spawn",   kind = "conveyor" },
+	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı: bant zaten
+	-- sürekli karakter getiriyor, parayla beklemeyi atlamak anlamlı değildi.
+	-- ConveyorService'in "conveyor" ödülü duruyor; ürün tekrar eklenirse çalışır.
 	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },
 	InstantRebirth = { id = 3714874005, name = "Instant Rebirth", kind = "rebirth" },
 	ExtraSpin      = { id = 3714873337, name = "Extra Spin",      kind = "spin" },
+	--[[
+		Mağazadaki iksirler (Robux). Kimlikler Creator Dashboard'da ürün
+		açılınca yazılacak; 0 iken mağazada "SOON". Ürün ikonları:
+		store_icons/product_potion_*.png.
+	]]
+	PotionIncome2x   = { id = 0, name = "Double Income Potion",   kind = "potion", potion = "Income2x" },
+	PotionIncome3x   = { id = 0, name = "Triple Income Potion",   kind = "potion", potion = "Income3x" },
+	PotionFastSteal  = { id = 0, name = "Fast Hands Potion",      kind = "potion", potion = "FastSteal" },
+	PotionStrongLock = { id = 0, name = "Reinforced Lock Potion", kind = "potion", potion = "StrongLock" },
 } :: { [string]: ProductDef }
 
 -- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez

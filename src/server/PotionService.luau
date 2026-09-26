@@ -178,6 +178,29 @@ function PotionService.Start()
 		İçme isteği. İstemciden gelen tek şey bir iksir kimliği; envanterde
 		yoksa Use reddediyor. Sel basmasın diye bekletme var.
 	]]
+	--[[
+		Mağazadan Robux'la alınan iksir (Config.Products, kind = "potion").
+		Envantere giriyor; envanter o iksirde doluysa (PotionStackLimit)
+		hemen içiliyor — parası ödenmiş ürün asla boşa gitmemeli, ödül
+		verilemezse Roblox makbuzu tekrar tekrar gönderirdi.
+	]]
+	MonetizationService.RegisterGranter("potion", function(player, product)
+		local id = product.potion
+		local def = id and Config.GetPotion(id)
+		if not def then
+			return false
+		end
+		if PotionService.Grant(player, def.id, 1) then
+			notify(player, string.format("%s added to your potions", def.name), false)
+			return true
+		end
+		MonetizationService.GrantBoost(player, def.kind, def.seconds, def.multiplier, def.name)
+		notify(player, string.format("Potions full - %s drunk right away (%s)",
+			def.name, Config.FormatDuration(def.seconds)), false)
+		PotionService.Publish(player, true)
+		return true
+	end)
+
 	local useRemote = Net.Get("PotionUse")
 	useRemote.OnServerEvent:Connect(function(player, potionId)
 		if typeof(potionId) ~= "string" or #potionId > 64 then
