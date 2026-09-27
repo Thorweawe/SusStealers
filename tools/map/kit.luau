@@ -535,6 +535,51 @@ function K.boxAt(parent: Instance, name: string, cf: CFrame, size: Vector3, colo
 end
 
 --[[
+	Oyulmuş parça (CSG): `build` yerel (0,0,0) çevresinde bir gövde ve
+	çıkarılacak parçaları kuruyor; GeometryService ile bir kez kesilip
+	`key` altında saklanıyor, sonraki çağrılar klonluyor (aynı boyutta 83
+	lomboz için 5 kesim). Sonuç `cf`'ye taşınıyor. Aynalı CFrame, K.part'taki
+	gibi düzeltiliyor (şekiller Z'de simetrik olmalı).
+]]
+local GeometryService = game:GetService("GeometryService")
+local carvedCache: { [string]: { union: BasePart, offset: CFrame } } = {}
+function K.carved(parent: Instance, name: string, cf: CFrame, color: Color3, key: string, build: () -> (BasePart, { BasePart }), solidPart: boolean?): BasePart
+	local entry = carvedCache[key]
+	if not entry then
+		local body, cutters = build()
+		local result = GeometryService:SubtractAsync(body, cutters, {
+			CollisionFidelity = Enum.CollisionFidelity.PreciseConvexDecomposition,
+			RenderFidelity = Enum.RenderFidelity.Precise,
+			SplitApart = false,
+		})
+		body:Destroy()
+		for _, c in cutters do
+			c:Destroy()
+		end
+		-- Şablon hiçbir yere bağlanmıyor (bu kurulum boyunca bellekte), klonlar dünyada
+		local union = result[1]
+		entry = { union = union, offset = union.CFrame }
+		carvedCache[key] = entry
+	end
+	local p = entry.union:Clone()
+	local target = cf * entry.offset
+	if target.RightVector:Cross(target.UpVector):Dot(target.LookVector) > 0 then
+		target = CFrame.fromMatrix(target.Position, target.RightVector, target.UpVector)
+	end
+	p.Name = name
+	p.CFrame = target
+	p.Anchored = true
+	p.UsePartColor = true
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.CanCollide = solidPart == true
+	p.CanQuery = p.CanCollide
+	p.CanTouch = false
+	p.Parent = parent
+	return p
+end
+
+--[[
 	Dikey silindir. Roblox silindirinin ekseni yerel X; dik durması için
 	Z etrafında 90° çevriliyor. Boyut: (yükseklik, çap, çap).
 ]]
@@ -948,113 +993,53 @@ function K.wall(parent: Instance, a: Vector2, b: Vector2, inside: number, spec: 
 
 	-- ── Pencereler: uzay gemisi lombozları ─────────────────────────────────
 	--[[
-		Eskiden ofis penceresiydi: dikdörtgen cam, ortada kayıt, düz çerçeve
-		("camlar temaya uygun değil, uzay mekiğindeyiz"). Artık her pencere
-		yuvası duvarla kapanıyor ve ortasında YUVARLAK LOMBOZ var:
+		Her pencere yuvası duvarla kapanıyor ve ortasında YUVARLAK LOMBOZ var.
+		2026-09-28'den beri lomboz GERÇEK açıklık ("pencereler dışarıyı
+		göstersin, png olmasın"): eskiden camın yerinde yıldızlı SurfaceGui
+		resmi vardı. Artık:
 
-		  - kalın metal bilezik (duvarın iki yüzünden taşan silindir) ve
-		    içinde koyu ikinci halka
+		  - yuva paneli ortası yuvarlak oyulmuş bir parça (CSG: kutu − silindir)
+		  - kalın metal bilezik ve içinde koyu ikinci halka (silindir − silindir)
 		  - bileziğin çevresinde cıvatalar
-		  - camın içinde uzay: koyu lacivert, yıldızlar, bazen uzak bir
-		    gezegen. Parçayla oyulamayan daire, silindirin uç yüzündeki
-		    SurfaceGui'de yuvarlak (UICorner) bir çerçeve; ışıktan etkilenmiyor,
-		    karanlık odada da parlıyor. Her lombozun yıldızları konumundan
-		    tohumlanıyor: yan yana iki pencere aynı değil.
+		  - açıklıkta ince, hafif yansıtan saydam cam (oyuncu dışarı düşmesin)
 
-		Silindirin ekseni duvar normali boyunca: Right yüzü içeri, Left yüzü
-		dışarı bakıyor (frame * Angles(0, 90°, 0): yerel X = içe).
+		Dışarıda ne varsa (motorlar, gezegenler, asteroitler, uzay soygununun
+		gezegen yolu) camdan görünüyor. CSG her boyut için bir kez yapılıyor
+		(K.carved), sonra klonlanıyor: 83 lomboz, 5 farklı boyut.
+
+		Silindirin ekseni duvar normali boyunca (frame * Angles(0, 90°, 0)).
 	]]
-	local SPACE_TOP = Color3.fromRGB(12, 16, 46)
-	local SPACE_BOTTOM = Color3.fromRGB(52, 30, 96)
-	local PLANETS = { Color3.fromRGB(220, 120, 70), Color3.fromRGB(90, 160, 230), Color3.fromRGB(170, 110, 220), Color3.fromRGB(120, 200, 140) }
-
-	local function spaceView(part: BasePart, face: Enum.NormalId, seed: number)
-		local gui = Instance.new("SurfaceGui")
-		gui.Name = "SpaceView"
-		gui.Face = face
-		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		gui.PixelsPerStud = 20
-		gui.LightInfluence = 0
-		gui.Brightness = 1.4
-		gui.Parent = part
-		local disc = Instance.new("Frame")
-		disc.Size = UDim2.fromScale(1, 1)
-		-- Beyaz zemin: UIGradient rengi zeminle ÇARPIYOR, koyu zeminde geçiş siyaha gömülüyordu
-		disc.BackgroundColor3 = Color3.new(1, 1, 1)
-		disc.BorderSizePixel = 0
-		disc.ClipsDescendants = true
-		disc.Parent = gui
-		local round = Instance.new("UICorner")
-		round.CornerRadius = UDim.new(0.5, 0)
-		round.Parent = disc
-		local g = Instance.new("UIGradient")
-		g.Rotation = 90 + (seed % 40) - 20
-		g.Color = ColorSequence.new(SPACE_TOP, SPACE_BOTTOM)
-		g.Parent = disc
-		local rng = Random.new(seed)
-		-- Uzak gezegen: dört lombozdan birinde
-		if rng:NextNumber() < 0.25 then
-			local planet = Instance.new("Frame")
-			local ps = rng:NextNumber(0.28, 0.45)
-			planet.AnchorPoint = Vector2.new(0.5, 0.5)
-			planet.Position = UDim2.fromScale(rng:NextNumber(0.3, 0.7), rng:NextNumber(0.3, 0.7))
-			planet.Size = UDim2.fromScale(ps, ps)
-			planet.BackgroundColor3 = PLANETS[rng:NextInteger(1, #PLANETS)]
-			planet.BorderSizePixel = 0
-			planet.Parent = disc
-			local pr = Instance.new("UICorner")
-			pr.CornerRadius = UDim.new(0.5, 0)
-			pr.Parent = planet
-			local shade = Instance.new("UIGradient")
-			shade.Rotation = rng:NextNumber(0, 360)
-			shade.Transparency = NumberSequence.new(0, 0)
-			shade.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(40, 40, 60))
-			shade.Parent = planet
-		end
-		for _ = 1, 16 do
-			local star = Instance.new("Frame")
-			local sz = if rng:NextNumber() < 0.2 then 6 else 3
-			star.AnchorPoint = Vector2.new(0.5, 0.5)
-			star.Position = UDim2.fromScale(rng:NextNumber(0.12, 0.88), rng:NextNumber(0.12, 0.88))
-			star.Size = UDim2.fromOffset(sz, sz)
-			star.BackgroundColor3 = Color3.fromRGB(255, 250, 235)
-			star.BackgroundTransparency = rng:NextNumber(0, 0.4)
-			star.BorderSizePixel = 0
-			star.Parent = disc
-			local sc = Instance.new("UICorner")
-			sc.CornerRadius = UDim.new(0.5, 0)
-			sc.Parent = star
-		end
-	end
-
 	for _, win in windowsAt do
 		local w0, w1 = win[1], win[2]
 		local wc = (w0 + w1) / 2
 		local wh = wt - wb
 		local yc = (wb + wt) / 2
-		-- Yuva duvarla kapanıyor; lomboz onun ortasında
-		piece(tag .. "PortPanel", wc, yc, 0, w1 - w0, wh, T, C.wallMid)
-
 		local D = math.min(w1 - w0, wh) * 0.78
-		local axis = frame * CFrame.new(wc, yc, 0) * CFrame.Angles(0, math.rad(90), 0)
-		K.boxAt(parent, tag .. "PortRim", axis, Vector3.new(T + 1.2, D + 2.4, D + 2.4), C.frame,
-			{ shape = Enum.PartType.Cylinder, collide = true })
-		K.boxAt(parent, tag .. "PortRing", axis, Vector3.new(T + 1.5, D + 0.8, D + 0.8), C.frameDark,
-			{ shape = Enum.PartType.Cylinder, collide = true })
-		-- Görüntü parçası DÜZ malzeme ve önünde Glass YOK: Roblox Glass
-		-- malzemesi SurfaceGui'yi çizmiyor, arkasındakini de göstermiyor
-		-- (lomboz simsiyah kalıyordu). Cam parıltısı önündeki saydam, hafif
-		-- yansıtan düz katmandan.
-		local view = K.boxAt(parent, tag .. "PortGlass", axis, Vector3.new(T + 1.7, D, D), SPACE_TOP,
-			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.SmoothPlastic })
-		view.CastShadow = false
-		local pane = K.boxAt(parent, tag .. "PortPane", axis, Vector3.new(T + 1.9, D, D), C.glass,
-			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.SmoothPlastic, transparency = 0.9, reflect = 0.25 })
+		local at = frame * CFrame.new(wc, yc, 0)
+		local turned = CFrame.Angles(0, math.rad(90), 0)
+
+		-- Yuva paneli: ortası D çapında delik
+		K.carved(parent, tag .. "PortPanel", at, C.wallMid, string.format("panel %.2f %.2f %.2f %.2f", w1 - w0, wh, T, D),
+			function()
+				local slab = K.boxAt(workspace, "Slab", CFrame.identity, Vector3.new(w1 - w0, wh, T), C.wallMid)
+				local hole = K.boxAt(workspace, "Hole", turned, Vector3.new(T + 2, D, D), C.wallMid, { shape = Enum.PartType.Cylinder })
+				return slab, { hole }
+			end, true)
+		-- Bilezik ve iç halka: içleri boş silindirler
+		K.carved(parent, tag .. "PortRim", at, C.frame, string.format("rim %.2f %.2f", T, D), function()
+			local outer = K.boxAt(workspace, "Outer", turned, Vector3.new(T + 1.2, D + 2.4, D + 2.4), C.frame, { shape = Enum.PartType.Cylinder })
+			local inner = K.boxAt(workspace, "Inner", turned, Vector3.new(T + 3, D - 0.1, D - 0.1), C.frame, { shape = Enum.PartType.Cylinder })
+			return outer, { inner }
+		end, true)
+		K.carved(parent, tag .. "PortRing", at, C.frameDark, string.format("ring %.2f %.2f", T, D), function()
+			local outer = K.boxAt(workspace, "Outer", turned, Vector3.new(T + 1.5, D + 0.8, D + 0.8), C.frameDark, { shape = Enum.PartType.Cylinder })
+			local inner = K.boxAt(workspace, "Inner", turned, Vector3.new(T + 3, D - 0.6, D - 0.6), C.frameDark, { shape = Enum.PartType.Cylinder })
+			return outer, { inner }
+		end, true)
+		-- Cam: çok saydam, hafif yansıyan; dışarısı net görünüyor
+		local pane = K.boxAt(parent, tag .. "PortPane", at * turned, Vector3.new(0.3, D - 0.4, D - 0.4), C.glass,
+			{ shape = Enum.PartType.Cylinder, collide = true, material = Enum.Material.Glass, transparency = 0.82, reflect = 0.08 })
 		pane.CastShadow = false
-		local worldPos = (frame * CFrame.new(wc, yc, 0)).Position
-		local seed = math.floor(worldPos.X * 7.3 + worldPos.Z * 3.1 + worldPos.Y * 11)
-		spaceView(view, Enum.NormalId.Right, seed)
-		spaceView(view, Enum.NormalId.Left, seed + 101)
 
 		-- Cıvatalar: bileziğin iç yüzünde, sekiz tane
 		local boltR = (D + 2.4) / 2 - 0.55

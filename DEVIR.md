@@ -13,6 +13,21 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (35) — Batur (harita, iki şeridi de ilgilendirir)
+
+**Lombozlar gerçek pencere, dışarısı dolu.** Harita tam kuruldu: `çakışan yüz 0 | oyun alanı ihlali 0`, **169/169 test temiz**.
+
+- `tools/map/kit.luau`: yuvarlak lombozlardaki yıldızlı SurfaceGui resmi (SpaceView) kalktı. Yuva paneli
+  ortası oyulmuş CSG parçası (`K.carved`: GeometryService ile boyut başına bir kez kesiliyor, klonlanıyor),
+  bilezik ve iç halka içi boş silindir, açıklıkta ince saydam cam (çarpışmalı). Dışarısı camdan görünüyor.
+- `tools/map/exterior.luau` yeni "Beyond" klasörü + Drifters'a eklemeler: çatıda güneş panelleri, yanıp sönen
+  antenler, dönen radar, kenar lambaları; süzülen 5 uydu, 3 yük gemisi, ~56 asteroit (üç kuşak),
+  4 fırlatılmış mürettebat; uzakta halka istasyon, 3 nebula, kuyruklu yıldız, 90 parlayan yıldız.
+  Hepsi hayalet ve uzay soygununun uçuş hacminin (Config.Space.Bounds) DIŞINDA.
+- Haritayı yeniden kurarsan (build_decor) aynı sonuç çıkar; Studio'daki yer kaydedilip yayınlanmalı.
+
+---
+
 ## 2026-09-28 (34) — Batur (Yusuf'un şeridine de yazıldı)
 
 **Gezegen yolu doldu + eski UI'lar yeni dilde.** Studio'ya aktarıldı, **169/169 test temiz**.
