@@ -223,8 +223,13 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 	local original: { [GuiObject]: UDim2 } = {}
 	local originalAnchor: { [GuiObject]: Vector2 } = {}
 
-	--[[ Üst çubuktaki düğme dizisinin sağı, root biriminde (bulunamazsa nil). ]]
-	local function besideTopbar(): UDim2?
+	--[[
+		Üst çubuktaki düğme dizisinin sağı, root biriminde (bulunamazsa nil).
+		Öğenin başlığı ("Head", yoksa kendisi) düğmelerle DİKEYDE ORTALI:
+		eskiden üst kenarlar hizalıydı; ölçekli (telefonda küçülen) başlık
+		44'lük düğmelerin üst yarısında kalıyor, asimetrik duruyordu.
+	]]
+	local function besideTopbar(element: GuiObject): UDim2?
 		local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
 		local bar = pg and pg:FindFirstChild("SusStealersTopbar")
 		local row = bar and bar:FindFirstChild("Buttons")
@@ -234,7 +239,11 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 		local rowAt = screenPosition(row)
 		local rootAt = screenPosition(root)
 		local x = rowAt.X + row.AbsoluteSize.X + 12 - rootAt.X
-		local y = rowAt.Y - rootAt.Y
+		-- Düğme yüzü: dizinin boyu eksi kabartma gölgesi (UiKit.Raised, 4)
+		local face = math.max(0, row.AbsoluteSize.Y - 4)
+		local head = element:FindFirstChild("Head")
+		local headH = if head and head:IsA("GuiObject") then head.Size.Y.Offset * scale else element.AbsoluteSize.Y
+		local y = rowAt.Y + (face - headH) / 2 - rootAt.Y
 		return UDim2.fromOffset(x / scale, y / scale)
 	end
 
@@ -248,7 +257,7 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 				original[element] = element.Position
 				originalAnchor[element] = element.AnchorPoint
 			end
-			local target = if moved.beside == "topbar" then besideTopbar() else moved.position
+			local target = if moved.beside == "topbar" then besideTopbar(element) else moved.position
 			if device == "Touch" and target then
 				element.AnchorPoint = moved.anchor
 				element.Position = target

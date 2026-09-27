@@ -69,7 +69,8 @@ M.Z1 = M.centerZ + ((M.ROWS - 1) * M.ROW_SPACING / 2 + M.halfZ + M.MARGIN)
 
 M.WALL_T = 2.4          -- duvar kalınlığı
 M.WALL_H = 52           -- 3 kat (37) + karakter + etiket + pay
-M.ROOM_HX = 42          -- oda (üs bölgesi) yarı genişliği: koridor 36 kalıyor
+-- Oda (üs bölgesi) yarı genişliği: koridor PLOT_SPACING - 2 × bu = 36 kalıyor
+M.ROOM_HX = (M.PLOT_SPACING - 36) / 2
 M.ROOM_FRONT = 8        -- odanın üs önünden koridora taşması
 M.PART_WALL_H = 15      -- oda bölme duvarı yüksekliği
 M.GATE_W = 36           -- lobiye açılan kapı = koridor genişliği

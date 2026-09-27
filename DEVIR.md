@@ -13,6 +13,47 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (32) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
+
+Batur telefondan istedi, Claude oturumu (bulut) yazdı. **Studio'ya aktarılmadı,
+testler koşulmadı** — Studio'da: önce `git pull`, Studio'dakini dosyaya çek ve
+`git diff` (fark varsa dur), sonra aktar, **haritayı yeniden kur** ve testleri koş.
+
+- **Canavar gezegene gömülmüyor** (`SpaceService`): kovalama hedefi oyuncunun gövde
+  yüksekliği kadar altı olduğu için plato hizasında kaçanın peşinde canavar
+  platoya/küreye giriyor, "çıkmaya çalışırken" takılıp geç çıkıyordu.
+  - `keepOffPlanets`: mesanın içindeyse tepesine, kürenin içindeyse yüzeyine itiyor
+    (bütün gezegenler). Yerinde sayarsa `outwardFrom` ile kenardan kayıyor.
+  - Hareket tek yerde: `moveMonster`.
+  - Yakalama/atak mesafesi `reachPoint`: ayaktan tepeye dikey gövdenin oyuncuya en
+    yakın noktası (canavar artık platonun altına inemediği için).
+- **Kapsülde hep uçuyor** (`CapsuleFX`): içerideyken poz bırakılmıyor, WASD/joystick
+  tüpün içinde uçuruyor (`FLOAT_SPEED` 9). Kapıya doğru kenara gelince alçalıp
+  bırakıyor, yürüyerek çıkılıyor; kapıda 1.2 sn durursa yeniden havalanıyor.
+  `moving()` yerine `moveInput()` (kameraya göre yön).
+- **Speed Coil uzayda işlemiyor** (`StealService.applyWalkSpeed`): `InSpace` ya da
+  `SpaceCarry` varken bobin hızı sayılmıyor; SpaceService bu nitelikler değişince
+  `RefreshSpeed` çağırıyor. `SpaceFX` uçuşa, güverteden koşarak çıkılsa bile uzay
+  hızından hızlı başlamıyor.
+- **Üst şerit düğmeleri simetrik** (`Topbar`): üç ikon aynı boy (`ICON` 28; eskiden
+  24/30/28), Davet'teki mürettebat ortada (0.42'deydi), "+" köşede rozet.
+  **Mobilde olay çizelgesi** düğmelerle dikeyde ortalı (`DeviceLayout.besideTopbar`;
+  eskiden üst kenar hizalıydı, ölçekli başlık düğmelerin üst yarısında kalıyordu).
+- **Üs alanı genişledi:** `Config.PlotSpacing` 120 → 136, `PlotRowSpacing` 116 → 128;
+  `kit.luau` `ROOM_HX` artık `(PLOT_SPACING - 36) / 2` (42 → 50, koridor yine 36).
+  - `Config.Space.GateX` ve `Landing.X` ızgaradan türetiliyor (180 → 204).
+    `SpaceField.InSafe` doğu sınırı da (450 → 498).
+  - Haritada sabit kalan iki yer türetildi: tavan cam şeridi (`station.luau`) ve
+    dış kanatçıklar (`exterior.luau`).
+  - **Harita yeniden kurulmadan oyun açılırsa üsler odalara oturmaz.** README "Harita"
+    komutunu çalıştır; `check.luau` raporu `cakisan yuz: 0 | oyun alani ihlali: 0` olmalı.
+- **Biraz daha kolay:** `Capsule.Rate` 0.14 → 0.15, `Space.GrabHold` 1.2 → 1.0,
+  `CrewRespawn` 9 → 8, `CatchRadius` 7 → 6.5, `LungeCooldown` 3.5 → 4; mini oyun
+  alanı %38 → %40.
+- **Oyun ve grup açıklamaları** yeni temaya göre: `ROBLOX-ACIKLAMALAR.md`.
+- **Testler:** "Uzay: canavar gezegenin içine gömülmüyor" (yeni; `_KeepOffPlanets`,
+  `_StepToward`, `_MonsterPosition`, `_ResetMonster`), bobin testine uzay kontrolleri.
+
 ## 2026-09-27 (31) — Yusuf (Batur'un şeridine de yazıldı: uzay yürüyüşü yeniden, konveyör kalktı)
 
 Yusuf'un istediği düzen (30)'daki uzay yürüyüşünden farklıydı; onun kodunun üstüne kuruldu.

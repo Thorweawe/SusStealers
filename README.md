@@ -450,6 +450,11 @@ loadstring(src)()
 _G.MAP_ONLY = nil
 ```
 
+**`Config.PlotSpacing` / `PlotRowSpacing` değişince harita mutlaka yeniden
+kurulmalı** (tamamını, `MAP_ONLY` olmadan): odalar, duvarlar ve Launch Bay
+kapısı (`Config.Space.GateX`) bu sayılardan türetiliyor, üsler ise çalışma
+anında PlotService'te kuruluyor. Kurulmazsa üsler eski odalara oturmaz.
+
 Kurulumun sonunda `tools/map/check.luau` ölçerek denetim yapıyor: aynı
 düzlemde çakışan yüzler (titreme) ve üslerin oyun alanına giren katı
 parçalar. Rapor `cakisan yuz: 0 | oyun alani ihlali: 0` olmalı. Bilerek

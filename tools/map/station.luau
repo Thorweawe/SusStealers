@@ -160,7 +160,7 @@ return {
 		local CY = M.WALL_H + 0.6
 
 		-- Omurganın üstünde yıldızlara bakan cam şerit
-		local sky = { -30, M.SPINE_Z0 + 8, 390, M.SPINE_Z1 - 8 }
+		local sky = { M.X0 + 48, M.SPINE_Z0 + 8, M.X1 - 48, M.SPINE_Z1 - 8 }
 		local slabArea = { M.IX0, M.IZ0, M.IX1, M.IZ1 }
 		for _, r in K.rectSubtract(slabArea, sky) do
 			K.box(ceil, "CeilingSlab", (r[1] + r[3]) / 2, CY, (r[2] + r[4]) / 2, r[3] - r[1], 1.2, r[4] - r[2], C.ceiling)

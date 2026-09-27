@@ -137,6 +137,11 @@ local function applyWalkSpeed(player: Player)
 	local boost = if typeof(gearSpeed) == "number" then gearSpeed else 0
 	local gearSprint = player:GetAttribute("GearSprint")
 	local sprintBoost = if typeof(gearSprint) == "number" then gearSprint else boost
+	-- Uzay soygununda bobin işlemiyor (kullanıcı kararı): uçuşta, güvertede
+	-- canavardan çalınanı taşırken yalnızca uzay hızı sayılıyor
+	if player:GetAttribute("InSpace") == true or player:GetAttribute("SpaceCarry") == true then
+		boost, sprintBoost = 0, 0
+	end
 
 	if carrying[player] then
 		humanoid.WalkSpeed = carrySpeedFor(player)

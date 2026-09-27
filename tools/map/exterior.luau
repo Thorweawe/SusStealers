@@ -80,7 +80,8 @@ return {
 		-- ─── Kanatlar (kuzey) ───────────────────────────────────────────────
 		do
 			local f = K.folder("Wings", ex)
-			for _, x in { 40, 320 } do
+			-- Kapının (orta koridor) iki yanında simetrik
+			for _, x in { M.centerX - 140, M.centerX + 140 } do
 				local w = Instance.new("WedgePart")
 				w.Name = "Fin"
 				w.Anchored = true

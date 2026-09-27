@@ -37,8 +37,14 @@ Config.PodiumRowZ = 9
 	PlotSpacing - PlotSize.X = yanal boşluk, PlotRowSpacing - PlotSize.Z = dikey.
 ]]
 Config.PlotColumns = 4
-Config.PlotSpacing = 120       -- yanal boşluk 48 stud (üs 72 geniş)
-Config.PlotRowSpacing = 116    -- dikey boşluk 64 stud (üs 52 derin)
+--[[
+	2026-09-27: üslerin olduğu alan genişledi (120/116 → 136/128). Odalar
+	(kit.luau ROOM_HX 42 → 50) de büyüdü, koridor yine 36. Launch Bay
+	kapısı (Config.Space.GateX) buradan türetiliyor. Değiştirince haritayı
+	yeniden kur (README "Harita").
+]]
+Config.PlotSpacing = 136       -- yanal boşluk 64 stud (üs 72 geniş)
+Config.PlotRowSpacing = 128    -- dikey boşluk 76 stud (üs 52 derin)
 
 --[[
 	Üs odaları: harita The Skeld, her üs bir Skeld odası. Sıra üs numarasına
@@ -2628,7 +2634,8 @@ Config.Space = {
 	MaxSpeed = 1000,            -- kayıt kırpması
 
 	-- Launch Bay: kuzey duvarın dışında, orta koridorun ucunda
-	GateX = 180,
+	-- Orta koridorun ucu: üs ızgarasının ortası (PlotSpacing'den)
+	GateX = (Config.PlotColumns - 1) * Config.PlotSpacing / 2,
 	GateWidth = 36,
 	GateHeight = 24,
 	WallZ = -68,                -- kuzey duvarın merkez çizgisi
@@ -2643,12 +2650,13 @@ Config.Space = {
 	BoundsMax = Vector3.new(580, 280, -68),
 
 	-- Fırlatılan oyuncunun indiği yer: gemide, kapının içinde
-	Landing = Vector3.new(180, 3.5, -40),
+	Landing = Vector3.new((Config.PlotColumns - 1) * Config.PlotSpacing / 2, 3.5, -40),
 
 	CrewPerPlanet = 5,
 	CrewRing = 13,              -- mürettebat yayının yarıçapı
-	CrewRespawn = 9,
-	GrabHold = 1.2,
+	-- 2026-09-27 "biraz daha kolay": 9 → 8 sn, basılı tutma 1.2 → 1.0
+	CrewRespawn = 8,
+	GrabHold = 1.0,
 	GrabDistance = 12,
 
 	--[[
@@ -2661,10 +2669,10 @@ Config.Space = {
 	WakeDelay = 0.9,            -- (varsayılan; canavarın wake'i öncelikli)
 	LungeRange = 28,
 	LungeTime = 0.8,
-	LungeCooldown = 3.5,
+	LungeCooldown = 4,          -- (3.5'ten; biraz daha kolay)
 	ChaseStartMul = 0.8,        -- kovalamaya need × bu hızla başlıyor...
 	ChaseRamp = 2.5,            -- ...bu kadar sn'de need'e çıkıyor
-	CatchRadius = 7,            -- + ölçek × 2
+	CatchRadius = 6.5,          -- + ölçek × 2 (7'den; biraz daha kolay)
 	ReturnSpeedMul = 1.4,
 	GrabTime = 1.3,             -- elinde tutup sallıyor
 	ThrowTime = 1.9,            -- gemiye uçuş süresi
@@ -2751,7 +2759,8 @@ end
 	yükseltmeler gibi), kazanılmış hızı değil.
 ]]
 Config.Capsule = {
-	Rate = 0.14,
+	-- 2026-09-27 dördüncü: "çok az kolay" — 0.14 → 0.15 (~%7 hızlı, son canavara ~6.5 sa)
+	Rate = 0.15,
 	--[[
 		2026-09-27 üçüncü denge: "44 dk'da son canavara gelmek çok hızlı".
 		Mini oyunsuz kaba süreler (kapsül seviyesi →):

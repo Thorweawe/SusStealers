@@ -57,7 +57,9 @@ end
 --[[ Gemi ya da güverte: canavar erişemez, teslim burada. ]]
 function SpaceField.InSafe(p: Vector3): boolean
 	-- Gemi içi: kuzey duvarın içi ve istasyonun x aralığı (lobi dahil)
-	local inShip = p.Z > SpaceField.WallOuterZ() and p.X > -90 and p.X < 450 and p.Y > -40 and p.Y < 120
+	-- Doğu duvarı üs ızgarasına bağlı (PlotSpacing): payıyla sağ kenar
+	local x1 = (Config.PlotColumns - 1) * Config.PlotSpacing + 90
+	local inShip = p.Z > SpaceField.WallOuterZ() and p.X > -90 and p.X < x1 and p.Y > -40 and p.Y < 120
 	return inShip or SpaceField.InDeck(p)
 end
 

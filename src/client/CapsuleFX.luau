@@ -4,10 +4,11 @@
 
 	Oyuncu kendi kapsülüne girince ("InCapsule" niteliği):
 
-	  Uçuş pozu   — durduğu an karakter tüpün ortasında süzülüyor, yatay
-	                "uçan" pozda, hafifçe sallanarak. Yüksekliği mini
-	                oyundaki roketle birlikte iniyor-çıkıyor. Yürüme tuşuna
-	                basınca poz bırakılıyor, kapıdan yürüyüp çıkılıyor.
+	  Uçuş pozu   — içeride karakter HEP uçuyor: yatay "uçan" pozda,
+	                hafifçe sallanarak; yüksekliği mini oyundaki roketle
+	                birlikte iniyor-çıkıyor. WASD / joystick onu tüpün
+	                içinde uçurarak gezdiriyor. Kapıya doğru kenara varınca
+	                alçalıp bırakılıyor, kapıdan yürüyüp çıkılıyor.
 	  Mini oyun   — Stardew'deki balık tutma gibi: sağda dikey bir hat,
 	                içinde gezinen yeşil alan ve bir roket. Basılı tut
 	                (tık / Space / dokun) → roket yükselir, bırak → düşer.
@@ -43,13 +44,16 @@ local Z = 28
 -- Mini oyun ayarları (hat yüksekliğinin kesri olarak)
 -- 2026-09-27: "çok zor" — alan büyüdü, roket ve alan yavaşladı, çubuk
 -- daha hızlı doluyor ve yavaş boşalıyor
-local ZONE_H = 0.38
+-- 2026-09-27 ikinci tur: "biraz daha kolay" — alan %38'den %40'a
+local ZONE_H = 0.40
 local RISE = 1.9           -- basılıyken yukarı ivme
 local FALL = 1.6           -- bırakınca aşağı ivme
 local MAX_V = 0.9
 local FILL = 0.18          -- alandayken çubuk dolma hızı (sn başına)
 local DRAIN = 0.06
 local START = 0.25
+-- Kapsülün içinde uçarken yatay hız (stud/sn)
+local FLOAT_SPEED = 9
 -- Tur arası: sunucunun beklemesi (CatchCooldown) dolmadan çubuk dolamasın
 local INTRO = math.max(1.5, Config.Capsule.CatchCooldown - (1 - START) / FILL + 0.1)
 
@@ -316,7 +320,11 @@ function CapsuleFX.Start(screen: Instance): Handle
 		end
 	end))
 
-	local function moving(): boolean
+	--[[
+		Yürüme girdisi, dünyada yatay yön olarak (kameraya göre). Kontrol
+		modülü (joystick dahil) boşsa klavye.
+	]]
+	local function moveInput(): Vector3
 		local move = Vector3.zero
 		if controls then
 			local ok, mv = pcall(function()
@@ -326,18 +334,28 @@ function CapsuleFX.Start(screen: Instance): Handle
 				move = mv
 			end
 		end
-		if move.Magnitude > 0.1 then
-			return true
-		end
-		if UserInputService:GetFocusedTextBox() then
-			return false
-		end
-		for _, k in { Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Left, Enum.KeyCode.Right } do
-			if UserInputService:IsKeyDown(k) then
-				return true
+		if move.Magnitude < 0.1 and not UserInputService:GetFocusedTextBox() then
+			local function key(a: Enum.KeyCode, b: Enum.KeyCode): number
+				return if UserInputService:IsKeyDown(a) or UserInputService:IsKeyDown(b) then 1 else 0
 			end
+			move = Vector3.new(key(Enum.KeyCode.D, Enum.KeyCode.Right) - key(Enum.KeyCode.A, Enum.KeyCode.Left), 0,
+				key(Enum.KeyCode.S, Enum.KeyCode.Down) - key(Enum.KeyCode.W, Enum.KeyCode.Up))
 		end
-		return false
+		if move.Magnitude < 0.1 then
+			return Vector3.zero
+		end
+		local cam = workspace.CurrentCamera
+		if not cam then
+			return Vector3.zero
+		end
+		local look = cam.CFrame.LookVector
+		local flatLook = Vector3.new(look.X, 0, look.Z)
+		flatLook = if flatLook.Magnitude > 0.01 then flatLook.Unit else Vector3.new(0, 0, -1)
+		local right = cam.CFrame.RightVector
+		local flatRight = Vector3.new(right.X, 0, right.Z)
+		flatRight = if flatRight.Magnitude > 0.01 then flatRight.Unit else Vector3.new(1, 0, 0)
+		local dir = flatRight * move.X + flatLook * -move.Z
+		return if dir.Magnitude > 1 then dir.Unit else dir
 	end
 
 	-- ─── Uçuş pozu ──────────────────────────────────────────────────────
@@ -411,8 +429,15 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local zoneC, zoneTarget, zoneSpeed, nextTarget = 0.5, 0.5, 0.4, 0
 	local progress = START
 	local roundAt = 0          -- bu andan önce tur başlamadı (hazırlık)
-	local stillSince = 0
-	local walkedOff = false
+	--[[
+		Kapsülün içinde karakter HEP uçuyor (2026-09-27 istek): WASD / joystick
+		onu tüpün içinde uçurarak gezdiriyor, poz bırakılmıyor. Kapıya doğru
+		kenara varınca süzülerek alçalıyor ve uçuş bırakılıyor, kapıdan
+		yürüyüp çıkıyor. Kapıda durup beklerse yeniden havalanıyor.
+	]]
+	local drift = Vector3.zero      -- pedin merkezinden yatay kayma
+	local leaving = false
+	local leftAt = 0
 	local clock = 0
 
 	local camera = workspace.CurrentCamera
@@ -441,8 +466,17 @@ function CapsuleFX.Start(screen: Instance): Handle
 			TweenService:Create(gameScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 			newRound(Config.Capsule.CatchWarmup + 0.2)
 			rocketY, rocketV = 0.3, 0
-			stillSince = os.clock()
-			walkedOff = false
+			drift = Vector3.zero
+			leaving = false
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local capsule = myCapsule()
+			local pad = capsule and capsule:FindFirstChild("Pad")
+			if root and root:IsA("BasePart") and pad and pad:IsA("BasePart") then
+				-- Girdiği yerden havalansın, ortaya ışınlanmasın
+				local d = root.Position - pad.Position
+				drift = Vector3.new(d.X, 0, d.Z)
+			end
 			if cam then
 				baseFov = cam.FieldOfView
 				TweenService:Create(cam, TweenInfo.new(0.6), { FieldOfView = baseFov + 8 }):Play()
@@ -553,36 +587,76 @@ function CapsuleFX.Start(screen: Instance): Handle
 			st.Position = UDim2.fromScale(st.Position.X.Scale, y)
 		end
 
-		-- Uçuş pozu: durunca tüpte süzül, yürümeye başlayınca bırak
+		-- Uçuş: içerideyken hep havada; WASD tüpün içinde uçuruyor
 		local capsule = myCapsule()
 		local pad = capsule and capsule:FindFirstChild("Pad")
-		if moving() then
-			stillSince = now
-			walkedOff = true
-			setFloating(false)
-		elseif walkedOff and now - stillSince > 1.2 then
-			walkedOff = false
+		local zonePart = capsule and capsule:FindFirstChild("Zone")
+		if not (capsule and pad and pad:IsA("BasePart")) then
+			return
 		end
-		if not walkedOff and pad and pad:IsA("BasePart") and now - stillSince > 0.4 then
-			setFloating(true)
-			if floatPos and floatRot then
-				local base = pad.Position
-				local height = 3.6 + rocketY * 6 + math.sin(clock * 2.2) * 0.4
-				floatPos.Position = base + Vector3.new(math.sin(clock * 0.9) * 0.8, height, math.cos(clock * 0.7) * 0.8)
-				-- Kapıya (üsse) bakan, öne yatık "süzülen" poz; yükselirken burun kalkar
-				local capsuleCf = (capsule :: Model):GetPivot()
-				local look = -capsuleCf.LookVector
-				local door = capsule and capsule:FindFirstChild("Screen")
-				if door and door:IsA("BasePart") then
-					local toDoor = Vector3.new(door.Position.X - base.X, 0, door.Position.Z - base.Z)
-					if toDoor.Magnitude > 0.1 then
-						look = toDoor.Unit
-					end
-				end
-				local pitch = math.rad(-42) + math.clamp(rocketV, -1, 1) * math.rad(15)
-				local roll = math.sin(clock * 1.6) * math.rad(10)
-				floatRot.CFrame = CFrame.lookAt(Vector3.zero, look) * CFrame.Angles(pitch, 0, roll)
+		local base = pad.Position
+		local limit = math.max(2, ((zonePart and zonePart:GetAttribute("Radius") :: number?) or 7) - 1.6)
+		-- Kapı yönü: tabelaya (Screen) doğru, yoksa modelin önü
+		local doorDir = -(capsule :: Model):GetPivot().LookVector
+		local door = capsule:FindFirstChild("Screen")
+		if door and door:IsA("BasePart") then
+			local toDoor = Vector3.new(door.Position.X - base.X, 0, door.Position.Z - base.Z)
+			if toDoor.Magnitude > 0.1 then
+				doorDir = toDoor.Unit
 			end
+		end
+		doorDir = Vector3.new(doorDir.X, 0, doorDir.Z)
+		doorDir = if doorDir.Magnitude > 0.01 then doorDir.Unit else Vector3.new(0, 0, -1)
+
+		local dir = moveInput()
+		if leaving then
+			-- Kapıdan yürüyor; durup beklerse (hâlâ içerideyse) yeniden havalan
+			if dir.Magnitude > 0.05 then
+				leftAt = now
+			elseif now - leftAt > 1.2 then
+				leaving = false
+				local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+				if root and root:IsA("BasePart") then
+					local d = root.Position - base
+					drift = Vector3.new(d.X, 0, d.Z)
+				end
+			end
+		end
+		if leaving then
+			return
+		end
+
+		drift += dir * FLOAT_SPEED * dt
+		if dir.Magnitude < 0.05 then
+			-- Boştayken yavaşça tüpün ortasına süzül
+			drift = drift:Lerp(Vector3.zero, math.min(1, dt * 0.8))
+		end
+		local out = if drift.Magnitude > 0.01 then drift.Unit else doorDir
+		local towardDoor = out:Dot(doorDir)
+		if drift.Magnitude >= limit then
+			-- Kapı boşluğu ±46° (CapsuleModel): yalnızca o yönde bırak, camda değil
+			if towardDoor > 0.72 and dir:Dot(doorDir) > 0.3 then
+				-- Kapının ağzında: uçuşu bırak, yürüyerek çık
+				leaving = true
+				leftAt = now
+				setFloating(false)
+				return
+			end
+			drift = out * limit
+		end
+
+		setFloating(true)
+		if floatPos and floatRot then
+			-- Kapıya yaklaştıkça alçalıyor: bırakıldığında yere yakın olsun
+			local edge = math.clamp((drift.Magnitude - 1.5) / math.max(0.1, limit - 1.5), 0, 1) * math.max(0, towardDoor)
+			local height = (3.6 + rocketY * 6) * (1 - 0.65 * edge) + math.sin(clock * 2.2) * 0.4
+			local sway = if dir.Magnitude > 0.05 then Vector3.zero else Vector3.new(math.sin(clock * 0.9) * 0.8, 0, math.cos(clock * 0.7) * 0.8)
+			floatPos.Position = base + drift + sway + Vector3.new(0, height, 0)
+			-- Uçtuğu yöne, dururken kapıya (üsse) bakan öne yatık poz; yükselirken burun kalkar
+			local look = if dir.Magnitude > 0.05 then dir.Unit else doorDir
+			local pitch = math.rad(-42) + math.clamp(rocketV, -1, 1) * math.rad(15)
+			local roll = math.sin(clock * 1.6) * math.rad(10)
+			floatRot.CFrame = CFrame.lookAt(Vector3.zero, look) * CFrame.Angles(pitch, 0, roll)
 		end
 	end))
 

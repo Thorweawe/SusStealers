@@ -62,6 +62,8 @@ local CLUTTER = {
 
 local BUTTON = 44
 local GAP = 12
+-- Üç düğmede aynı ikon boyu (eskiden 24 / 30 / 28: asimetrik görünüyordu)
+local ICON = 28
 
 export type Bar = {
 	SetGiftBadge: (count: number) -> (),
@@ -103,21 +105,27 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 	inviteSlot.BackgroundTransparency = 1
 	inviteSlot.ZIndex = 5
 	inviteSlot.Parent = inviteButton
-	-- Mürettebat + artı: "birini ekle"
-	local crew = UiKit.Crewmate(inviteSlot, 24, UiKit.CREW.LIME:Lerp(Color3.new(1, 1, 1), 0.35))
-	crew.Position = UDim2.fromScale(0.42, 0.52)
+	--[[
+		Mürettebat + artı: "birini ekle". Mürettebat ortada (eskiden 0.42'de,
+		sola kaymış duruyordu; üç düğmenin ikonları aynı boyda ve ortada
+		olmalı), artı köşede küçük bir rozet.
+	]]
+	local crew = UiKit.Crewmate(inviteSlot, ICON, UiKit.CREW.LIME:Lerp(Color3.new(1, 1, 1), 0.35))
+	-- Sırt çantası sağa taşıyor: görsel merkez ortada kalsın diye biraz sola
+	crew.Position = UDim2.new(0.5, -math.floor(ICON * 0.06 + 0.5), 0.5, 0)
 	local plus = Instance.new("TextLabel")
-	plus.AnchorPoint = Vector2.new(1, 0)
-	plus.Position = UDim2.new(1, -3, 0, 1)
-	plus.Size = UDim2.fromOffset(16, 16)
-	plus.BackgroundTransparency = 1
+	plus.AnchorPoint = Vector2.new(0.5, 0.5)
+	plus.Position = UDim2.new(1, -7, 0, 7)
+	plus.Size = UDim2.fromOffset(14, 14)
+	plus.BackgroundColor3 = Color3.fromRGB(30, 120, 50)
+	plus.BorderSizePixel = 0
 	plus.Font = Enum.Font.FredokaOne
-	plus.TextSize = 18
+	plus.TextSize = 14
 	plus.TextColor3 = Color3.new(1, 1, 1)
-	plus.TextStrokeTransparency = 0.3
 	plus.Text = "+"
 	plus.ZIndex = crew.ZIndex + 4
 	plus.Parent = inviteSlot
+	UiKit.Corner(plus, 7)
 
 	local inviteTip = Instance.new("TextLabel")
 	inviteTip.AnchorPoint = Vector2.new(0.5, 0)
@@ -164,7 +172,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 	giftSlot.BackgroundTransparency = 1
 	giftSlot.ZIndex = 5
 	giftSlot.Parent = giftButton
-	UiKit.Gift(giftSlot, 30, Color3.fromRGB(255, 120, 170))
+	UiKit.Gift(giftSlot, ICON, Color3.fromRGB(255, 120, 170))
 	local giftBadge = UiKit.Badge(giftButton)
 	giftButton.MouseButton1Click:Connect(onGift)
 
@@ -220,7 +228,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 		-- Kendini yeniden çizen parçalar (ekipman çubuğu) gizliyken görünmesin
 		screen:SetAttribute("UiHidden", hidden)
 		UiKit.ClearSlot(eyeSlot)
-		UiKit.EyeIcon(eyeSlot, 28, hidden)
+		UiKit.EyeIcon(eyeSlot, ICON, hidden)
 		tip.Text = if hidden then "Show UI  (H)" else "Hide UI  (H)"
 	end
 	apply()

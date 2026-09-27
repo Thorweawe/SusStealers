@@ -3034,6 +3034,16 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 		eq("bobinle yürüme", humanoid.WalkSpeed, coil.walkSpeed)
 		StealService.SetSprinting(ctx.player, true)
 		eq("bobinle koşu", humanoid.WalkSpeed, coil.sprintSpeed)
+		-- Uzay soygununda bobin işlemiyor
+		ctx.player:SetAttribute("InSpace", true)
+		StealService.RefreshSpeed(ctx.player)
+		eq("uzayda bobin koşusu yok", humanoid.WalkSpeed, Config.SprintWalkSpeed)
+		ctx.player:SetAttribute("InSpace", nil)
+		ctx.player:SetAttribute("SpaceCarry", true)
+		StealService.SetSprinting(ctx.player, false)
+		eq("uzaydan taşırken bobin yok", humanoid.WalkSpeed, Config.NormalWalkSpeed)
+		ctx.player:SetAttribute("SpaceCarry", nil)
+		StealService.SetSprinting(ctx.player, true)
 		ctx.player:SetAttribute("GearSpeed", nil)
 		ctx.player:SetAttribute("GearSprint", nil)
 		StealService.RefreshSpeed(ctx.player)
@@ -4121,6 +4131,30 @@ case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
 	ok("uzayda alet yok", not GearService.Use(ctx.player, "EmergencyButton"))
 	ctx.player:SetAttribute("InSpace", nil)
 	GearService._ResetCooldowns(ctx.player)
+end)
+
+case("Uzay: canavar gezegenin içine gömülmüyor", function()
+	for _, def in Config.SpaceMonsters do
+		local top = def.position.Y
+		local home = SpaceField.MonsterHome(def).Position
+		local p, pushed = SpaceService._KeepOffPlanets(home)
+		ok(def.id .. " evi itilmiyor", not pushed and (p - home).Magnitude < 1e-3)
+		local under = SpaceService._KeepOffPlanets(def.position - Vector3.new(0, 4, 0))
+		ok(def.id .. " platonun içinden tepeye", under.Y >= top - 1e-3)
+		local center = SpaceField.PlanetCenter(def)
+		local deep = SpaceService._KeepOffPlanets(center + Vector3.new(3, -def.radius * 0.5, 0))
+		ok(def.id .. " kürenin dışına", (deep - center).Magnitude >= def.radius)
+	end
+	-- Plato hizasında kaçan oyuncunun peşinde: kovalama adımı gezegene girmiyor
+	local def = Config.SpaceMonsters[1]
+	local center = SpaceField.PlanetCenter(def)
+	SpaceService._ResetMonster(1)
+	for _ = 1, 30 do
+		SpaceService._StepToward(1, center + Vector3.new(0, -def.radius * 0.5, 0), 1 / 30)
+	end
+	local pos = SpaceService._MonsterPosition(1)
+	ok("aşağıdaki hedefe giderken de dışarıda", (pos - center).Magnitude >= def.radius - 0.01)
+	SpaceService._ResetMonster(1)
 end)
 
 case("Kapsül: içinde durunca uzay hızı artıyor, başkasınınkinde artmıyor", function(ctx)

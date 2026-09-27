@@ -408,7 +408,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		flying = on
 		local humanoid, root = humanoidOf()
 		if on and humanoid and root then
+			-- Güverteden koşarak (bobinle) çıkan uzay hızından hızlı başlamasın
 			flyVelocity = root.AssemblyLinearVelocity
+			if flyVelocity.Magnitude > mySpeed() then
+				flyVelocity = flyVelocity.Unit * mySpeed()
+			end
 			local att = Instance.new("Attachment")
 			att.Name = "SpaceFlyAtt"
 			att.Parent = root

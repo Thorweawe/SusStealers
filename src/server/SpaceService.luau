@@ -495,6 +495,7 @@ local function drop(player: Player)
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
+	StealService.RefreshSpeed(player)
 	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
 	if spot then
 		spot.held = false
@@ -551,6 +552,7 @@ function onGrab(player: Player, spot: Spot)
 		from = spot.position,
 	}
 	player:SetAttribute("SpaceCarry", true)
+	StealService.RefreshSpeed(player)
 	DataService.Discover(player, unitId)
 
 	local monster = monsters[spot.planet]
@@ -613,6 +615,7 @@ local function deliver(player: Player, root: BasePart)
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
+	StealService.RefreshSpeed(player)
 	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
 	if spot then
 		spot.held = false
@@ -744,6 +747,78 @@ local function clampOutside(m: Monster, p: Vector3): Vector3
 	return p
 end
 
+--[[
+	Canavar gezegenlerin İÇİNE girmiyor. ESKİ HATA: kovalama hedefi
+	oyuncunun gövde yüksekliği kadar altıydı; plato hizasında kaçan
+	oyuncunun peşinden canavar platoya / küreye gömülüyor, "çıkmaya
+	çalışırken" takılıp geç çıkıyordu. Plato (mesa) içindeyse tepesine,
+	kürenin içindeyse yüzeyine itiliyor. İtildiyse true.
+]]
+local function keepOffPlanets(p: Vector3): (Vector3, boolean)
+	local pushed = false
+	for _, def in Config.SpaceMonsters do
+		local top = def.position.Y
+		local flat = Vector3.new(p.X - def.position.X, 0, p.Z - def.position.Z)
+		if flat.Magnitude < SpaceField.PlateauRadius(def) + 1.5 and p.Y < top and p.Y > top - SpaceField.PlateauDepth(def) - 2 then
+			p = Vector3.new(p.X, top, p.Z)
+			pushed = true
+		end
+		local center = SpaceField.PlanetCenter(def)
+		local off = p - center
+		-- Plato tepesi merkezden radius + 0.3 uzakta: ev noktası itilmesin
+		local minR = def.radius + 0.25
+		if off.Magnitude < minR then
+			p = center + (if off.Magnitude > 0.01 then off.Unit else Vector3.yAxis) * minR
+			pushed = true
+		end
+	end
+	return p, pushed
+end
+
+--[[ Gezegenin kenarından dışarı (yatay): itilip yerinde sayan canavar buradan kayıyor. ]]
+local function outwardFrom(p: Vector3): Vector3
+	local best: Config.SpaceMonsterDef? = nil
+	local bestD = math.huge
+	for _, def in Config.SpaceMonsters do
+		local d = (p - SpaceField.PlanetCenter(def)).Magnitude - def.radius
+		if d < bestD then
+			best, bestD = def, d
+		end
+	end
+	if not best then
+		return Vector3.yAxis
+	end
+	local flat = Vector3.new(p.X - best.position.X, 0, p.Z - best.position.Z)
+	return if flat.Magnitude > 0.1 then flat.Unit else SpaceField.Facing(best)
+end
+
+--[[
+	Yakalama noktası: canavarın ayağından tepesine dikey bir gövde; oyuncuya
+	en yakın noktası. Canavar artık platonun altına inemediği için tek bir
+	gövde merkezi, plato hizasındaki oyuncuya erişemiyordu.
+]]
+local function reachPoint(m: Monster, target: Vector3): Vector3
+	local feet = m.position
+	local y = math.clamp(target.Y, feet.Y + 1, feet.Y + bodyHeight(m.def) * 1.3)
+	return Vector3.new(feet.X, y, feet.Z)
+end
+
+--[[ Canavarı hedefe doğru bir adım yürütür (gezegenlere girmeden). Hedefe kalan farkı döner. ]]
+local function moveMonster(m: Monster, moveTo: Vector3, speed: number, dt: number): Vector3
+	local delta = moveTo - m.position
+	if delta.Magnitude > 0.05 then
+		local step = math.min(delta.Magnitude, speed * dt)
+		local from = m.position
+		local nextPos, pushed = keepOffPlanets(from + delta.Unit * step)
+		-- Gezegene yaslanıp yerinde sayıyorsa kenarından kayarak çıksın
+		if pushed and (nextPos - from).Magnitude < step * 0.4 then
+			nextPos = keepOffPlanets(from + (outwardFrom(from) * 0.8 + delta.Unit * 0.2).Unit * step)
+		end
+		m.position = clampOutside(m, nextPos)
+	end
+	return delta
+end
+
 local function stepMonsters(dt: number)
 	local s = Config.Space
 	local now = os.clock()
@@ -783,7 +858,7 @@ local function stepMonsters(dt: number)
 				moveTo = root.Position - Vector3.new(0, bodyHeight(m.def), 0)
 				look = root.Position - m.position
 				local reach = SpaceField.CatchRadius(m.def)
-				local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
+				local body = reachPoint(m, root.Position)
 				-- Ani atak (ileri canavarlar): yakına gelince kısa süre need × lunge
 				local lunge = m.def.lunge or 1
 				if lunge > 1 and now >= m.nextLunge and (body - root.Position).Magnitude <= s.LungeRange then
@@ -843,11 +918,7 @@ local function stepMonsters(dt: number)
 		end
 
 		if moveTo then
-			local delta = moveTo - m.position
-			if delta.Magnitude > 0.05 then
-				local step = math.min(delta.Magnitude, speed * dt)
-				m.position = clampOutside(m, m.position + delta.Unit * step)
-			end
+			local delta = moveMonster(m, moveTo, speed, dt)
 			if not look and delta.Magnitude > 0.5 then
 				look = delta
 			end
@@ -893,6 +964,8 @@ local function stepPlayers()
 		local inSpace = SpaceField.InSpace(pos)
 		if (player:GetAttribute("InSpace") == true) ~= inSpace then
 			player:SetAttribute("InSpace", if inSpace then true else nil)
+			-- Bobin hızı uzayda sayılmıyor (StealService bakıyor)
+			StealService.RefreshSpeed(player)
 		end
 		if inSpace and StealService.IsCarrying(player) then
 			-- Gemiden çalınan karakter uzaya çıkamaz: sahibine döner
@@ -1059,6 +1132,32 @@ function SpaceService._Step(dt: number)
 	stepMonsters(dt)
 end
 
+function SpaceService._KeepOffPlanets(p: Vector3): (Vector3, boolean)
+	return keepOffPlanets(p)
+end
+
+function SpaceService._StepToward(planet: number, target: Vector3, dt: number)
+	local m = monsters[planet]
+	if m then
+		moveMonster(m, target, m.def.need, dt)
+	end
+end
+
+function SpaceService._MonsterPosition(planet: number): Vector3
+	local m = monsters[planet]
+	return if m then m.position else Vector3.zero
+end
+
+function SpaceService._ResetMonster(planet: number)
+	local m = monsters[planet]
+	if m then
+		m.position = m.home.Position
+		m.facing = m.home.LookVector
+		m.target = nil
+		setState(m, "idle")
+	end
+end
+
 function SpaceService._ClearImmunity(player: Player)
 	immuneUntil[player] = nil
 	grabbedBy[player] = nil
@@ -1145,6 +1244,7 @@ function SpaceService.Start()
 			player:SetAttribute("InSpace", nil)
 			player:SetAttribute("SpaceCarry", nil)
 			player:SetAttribute("SpaceGrabbed", nil)
+			StealService.RefreshSpeed(player)
 		end)
 	end
 	for _, player in Players:GetPlayers() do
