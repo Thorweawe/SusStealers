@@ -722,30 +722,31 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 	part("ZoneRingInner", Vector3.new(ZONE_D - 2.4, 0.16, ZONE_D - 2.4), Vector3.new(0, 0.22, -8), DARK, false).Transparency = 0.55
 
 	--[[
-		═══ SATICI ══════════════════════════════════════════════════════════
+		═══ SATICI: UZAYLI ═══════════════════════════════════════════════════
 
-		Uzatıldı: gövde ölçüleri 1.35 kat ve tezgâhın üstünden görünsün diye
-		yükseltildi. Önceki hâlinde tezgâhın arkasında kalıyor, sadece
-		kafasının üstü görünüyordu.
+		2026-09-28 (Yusuf): "stand daki adamı güzelleştir, uzaylıya benzeyen
+		bir yaratık olabilir". Eski görevli (mor-gri mürettebat) yerine yeşil,
+		tombul bir uzaylı: armut gövde, iri kafa, tek kocaman göz (parlak
+		iris), iki anten (uçları parlıyor, ışıltı saçıyor), tezgâha dayalı
+		kısa kollar, önlükte UPGRADES rozeti. Rengi hiçbir mürettebatta yok;
+		"bu satılık değil, dükkâncı" okunuyor. Katı (içinden geçilmiyor).
 
-		Kasten EŞSİZ: rengi hiçbir mürettebat tulumunda yok (soluk mor-gri),
-		vizörü sarı (hepsininki mavi), kulaklığı da hiçbir nadirlik
-		kademesinde yok. Bakınca "bu satılık bir karakter değil, görevli"
-		anlaşılıyor.
+		Stand da süslendi: kenarlarda neon şeritler, arka duvarda parlayan
+		yükseltme kapsülleri rafı, tabelanın altında ışık ve tezgâhın önünde
+		holografik halka.
 	]]
-	local SKIN = Color3.fromRGB(122, 112, 148)
-	local VISOR = Color3.fromRGB(240, 226, 150)
-	local S = 1.35                       -- ölçek
+	local SKIN = Color3.fromRGB(120, 220, 110)
+	local SKIN_DARK = Color3.fromRGB(70, 160, 80)
+	local BELLY = Color3.fromRGB(190, 245, 170)
+	local IRIS = Color3.fromRGB(255, 120, 220)
+	local S = 1.3                        -- ölçek
 	local FEET = 0.6                     -- tezgâhın arkasında bir basamak
 
-	-- z: sirt cantasi 1.35*1 = 1.35 derin ve arka pano z = bz+2.2'de.
-	-- 0.4'te canta panonun icine giriyordu; -0.9 onu tamamen one aliyor.
 	local vroot = Vector3.new(bx, topY + FEET, bz - 0.9)
 
-	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?): Part
-		local p = newAnchoredPart(name, size * S, CFrame.new(origin + vroot + offset * S), color, booth)
+	local function vendor(name: string, size: Vector3, offset: Vector3, color: Color3, shape: Enum.PartType?, rot: CFrame?): Part
+		local p = newAnchoredPart(name, size * S, CFrame.new(origin + vroot + offset * S) * (rot or CFrame.identity), color, booth)
 		p.Material = Enum.Material.SmoothPlastic
-		-- Satıcı katı: içinden geçilen hiçbir şey olmasın
 		p.CanCollide = true
 		if shape then
 			p.Shape = shape
@@ -753,77 +754,119 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 		return p
 	end
 
-	-- Satıcının üstünde durduğu basamak: tezgâhın üstünden görünsün
 	part("VendorStep", Vector3.new(6, FEET, 3), Vector3.new(0, FEET / 2, 0.4), SHELL)
 
-	-- Gövde silindir; ekseni X olduğu için Z etrafında 90° çevriliyor
-	local body = vendor("VendorBody", Vector3.new(2.2, 2.6, 2.2), Vector3.new(0, 1.9, 0), SKIN, Enum.PartType.Cylinder)
-	body.CFrame = CFrame.new(origin + vroot + Vector3.new(0, 1.9 * S, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	-- Gövde: armut (alt geniş top + üst dar top) ve karın
+	vendor("VendorBody", Vector3.new(2.6, 2.4, 2.4), Vector3.new(0, 1.3, 0), SKIN, Enum.PartType.Ball)
+	vendor("VendorChest", Vector3.new(2.1, 2, 2), Vector3.new(0, 2.4, 0), SKIN, Enum.PartType.Ball)
+	vendor("VendorBelly", Vector3.new(1.7, 1.7, 0.6), Vector3.new(0, 1.6, -1.0), BELLY, Enum.PartType.Ball)
+	-- Önlük ve rozet
+	local apron = vendor("VendorApron", Vector3.new(1.7, 1.2, 0.2), Vector3.new(0, 2.2, -1.02), ACCENT)
+	apron.CanCollide = false
+	local badgeGui = Instance.new("SurfaceGui")
+	badgeGui.Face = Enum.NormalId.Front
+	badgeGui.CanvasSize = Vector2.new(120, 80)
+	badgeGui.LightInfluence = 0
+	badgeGui.Parent = apron
+	local badgeText = Instance.new("TextLabel")
+	badgeText.Size = UDim2.fromScale(1, 1)
+	badgeText.BackgroundTransparency = 1
+	badgeText.Font = Enum.Font.FredokaOne
+	badgeText.TextScaled = true
+	badgeText.TextColor3 = Color3.new(1, 1, 1)
+	badgeText.Text = "⬆"
+	badgeText.Parent = badgeGui
 
-	vendor("VendorHead", Vector3.new(2.2, 2.2, 2.2), Vector3.new(0, 3.2, 0), SKIN, Enum.PartType.Ball)
-	vendor("VendorVisor", Vector3.new(1.5, 0.95, 0.6), Vector3.new(0, 3.25, -0.95), VISOR)
-	vendor("VendorPack", Vector3.new(0.9, 2.1, 1), Vector3.new(0, 2.1, 1.35), SKIN)
-	for _, s in { -1, 1 } do
-		vendor("VendorLeg", Vector3.new(0.8, 1.4, 1.1), Vector3.new(s * 0.6, 0.7, 0), SKIN)
-		vendor("VendorPhone", Vector3.new(0.5, 1, 1), Vector3.new(s * 1.2, 3.3, 0), TRIM)
+	-- Kafa: iri, hafif basık; tek kocaman göz
+	vendor("VendorHead", Vector3.new(3, 2.6, 2.7), Vector3.new(0, 4.2, 0), SKIN, Enum.PartType.Ball)
+	vendor("VendorEye", Vector3.new(1.55, 1.55, 0.8), Vector3.new(0, 4.35, -1.1), Color3.new(1, 1, 1), Enum.PartType.Ball)
+	local iris = vendor("VendorIris", Vector3.new(0.85, 0.85, 0.4), Vector3.new(0, 4.3, -1.45), IRIS, Enum.PartType.Ball)
+	iris.Material = Enum.Material.Neon
+	vendor("VendorPupil", Vector3.new(0.42, 0.42, 0.3), Vector3.new(0, 4.3, -1.62), Color3.fromRGB(20, 10, 30), Enum.PartType.Ball)
+	vendor("VendorShine", Vector3.new(0.2, 0.2, 0.12), Vector3.new(0.2, 4.5, -1.72), Color3.new(1, 1, 1), Enum.PartType.Ball).Material = Enum.Material.Neon
+	-- Göz kapağı çizgisi ve gülümseme
+	vendor("VendorBrow", Vector3.new(1.4, 0.18, 0.3), Vector3.new(0, 5.15, -1.05), SKIN_DARK)
+	vendor("VendorSmile", Vector3.new(1.0, 0.16, 0.2), Vector3.new(0, 3.45, -1.25), Color3.fromRGB(40, 60, 40))
+	-- Yanaklar
+	for _, side in { -1, 1 } do
+		vendor("VendorCheek", Vector3.new(0.5, 0.35, 0.2), Vector3.new(side * 0.95, 3.7, -1.1), Color3.fromRGB(255, 150, 170), Enum.PartType.Ball)
 	end
-	-- Kulaklık köprüsü: iki kulaklığı birleştiren bant
-	vendor("VendorBridge", Vector3.new(2.5, 0.35, 0.9), Vector3.new(0, 4.3, 0), TRIM)
-	vendor("VendorCap", Vector3.new(1.9, 0.55, 1.9), Vector3.new(0, 4.62, 0), ACCENT)
-	vendor("VendorCapTip", Vector3.new(1.5, 0.22, 1.1), Vector3.new(0, 4.4, -1.1), ACCENT)
-end
 
---[[
-	═══ KİLİT KONSOLU ═══════════════════════════════════════════════════════
+	-- Antenler: eğik sap + parlayan uç, uçtan ışıltı
+	for _, side in { -1, 1 } do
+		local tilt = CFrame.Angles(0, 0, math.rad(side * -22))
+		vendor("VendorAntenna", Vector3.new(0.18, 1.7, 0.18), Vector3.new(side * 0.75, 6.0, 0.1), SKIN_DARK, nil, tilt)
+		local tip = vendor("VendorAntennaTip", Vector3.new(0.55, 0.55, 0.55), Vector3.new(side * 1.12, 6.85, 0.1), Color3.fromRGB(255, 240, 120), Enum.PartType.Ball)
+		tip.Material = Enum.Material.Neon
+		tip.CanCollide = false
+		local glow = Instance.new("ParticleEmitter")
+		glow.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		glow.Color = ColorSequence.new(Color3.fromRGB(255, 250, 180))
+		glow.LightEmission = 1
+		glow.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0) })
+		glow.Lifetime = NumberRange.new(0.6, 1.1)
+		glow.Rate = 4
+		glow.Speed = NumberRange.new(0.5, 1.2)
+		glow.SpreadAngle = Vector2.new(180, 180)
+		glow.Parent = tip
+	end
 
-	Kilit promptu üssün ÖNÜNDEKİ tabelaya bağlıydı. Tabela koridora bakıyor,
-	yani oyuncu üssünü kilitlemek için dışarı çıkıp kapının önüne gitmek
-	zorundaydı — hırsız içerideyken yapılacak en son şey.
+	-- Kısa kollar tezgâha dayalı, üç parmaklı eller
+	for _, side in { -1, 1 } do
+		vendor("VendorArm", Vector3.new(0.55, 1.5, 0.55), Vector3.new(side * 1.25, 2.6, -0.8), SKIN, nil,
+			CFrame.Angles(math.rad(-50), 0, math.rad(side * 18)))
+		vendor("VendorHand", Vector3.new(0.7, 0.45, 0.7), Vector3.new(side * 1.45, 2.95, -1.55), SKIN_DARK, Enum.PartType.Ball)
+	end
+	-- Ayaklar
+	for _, side in { -1, 1 } do
+		vendor("VendorFoot", Vector3.new(0.9, 0.45, 1.2), Vector3.new(side * 0.7, 0.22, -0.2), SKIN_DARK, Enum.PartType.Ball)
+	end
 
-	Artık üssün İÇİNDE, kaidelerin yanında fiziksel bir düğme var: kırmızı
-	kubbe, altında kaide, çevresinde uyarı şeridi. Acil toplantı düğmesinin
-	küçük kardeşi; oyunun kendi diliyle "bu bir acil durum düğmesi" diyor.
-
-	Sol ön köşede duruyor — yükseltme kulübesi sağda, doğuş pedi ortada,
-	merdiven daha solda; arada kalan boşluk burası.
-]]
-local function buildLockConsole(parent: Instance, origin: Vector3)
-	local halfZ = Config.PlotSize.Z / 2
-	local topY = Config.PlotSize.Y / 2
-
-	local cx = -Config.PlotSize.X / 2 + 18
-	local cz = -halfZ + 11
-
-	local console = Instance.new("Model")
-	console.Name = "LockConsole"
-	console.Parent = parent
-
-	local SHELL = LOOK.shell
-	local TRIM = LOOK.frame
-
-	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, collide: boolean?): Part
-		local p = newAnchoredPart(name, size, CFrame.new(origin + Vector3.new(cx, topY, cz) + offset), color, console)
-		p.CanCollide = collide ~= false
+	-- ─── Stand süsleri ─────────────────────────────────────────────────
+	local function neon(name: string, size: Vector3, offset: Vector3, color: Color3)
+		local p = part(name, size, offset, color, false)
+		p.Material = Enum.Material.Neon
 		return p
 	end
-
-	-- Zeminde uyarı halkası: düğmenin alanı belli olsun
-	part("LockRing", Vector3.new(9, 0.14, 9), Vector3.new(0, 0.13, 0), LOOK.accent, false).Transparency = 0.7
-
-	part("LockBase", Vector3.new(6, 1.2, 6), Vector3.new(0, 0.6, 0), TRIM)
-	part("LockColumn", Vector3.new(3.4, 3.4, 3.4), Vector3.new(0, 2.9, 0), SHELL)
-	part("LockCollar", Vector3.new(5, 0.4, 5), Vector3.new(0, 4.7, 0), TRIM)
-
-	-- Kırmızı kubbe: promptun bağlandığı parça
-	local dome = part("LockButton", Vector3.new(3.2, 3.2, 3.2), Vector3.new(0, 5.6, 0), Color3.fromRGB(178, 44, 40))
-	dome.Shape = Enum.PartType.Ball
-	dome.Material = Enum.Material.Neon
-
-	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(178, 44, 40)
-	light.Range = 12
-	light.Brightness = 0.9
-	light.Parent = dome
+	-- Kenar şeritleri (yan duvarların ön kenarı ve çatı altı)
+	for _, side in { -1, 1 } do
+		neon("BoothEdge", Vector3.new(0.25, 9.6, 0.25), Vector3.new(side * 6.4, 5, -3.05), ACCENT)
+	end
+	neon("BoothRoofEdge", Vector3.new(14.2, 0.25, 0.25), Vector3.new(0, 9.95, -4.15), ACCENT)
+	-- Arka rafta parlayan yükseltme kapsülleri
+	part("BoothShelf", Vector3.new(10, 0.3, 1.2), Vector3.new(0, 6.6, 1.2), TRIM, false)
+	local canisterColors = { Color3.fromRGB(90, 220, 255), Color3.fromRGB(255, 200, 60), Color3.fromRGB(150, 255, 120), Color3.fromRGB(255, 110, 200) }
+	for i, color in canisterColors do
+		local x = -3.6 + (i - 1) * 2.4
+		local glass = part("Canister", Vector3.new(1.6, 0.9, 0.9), Vector3.new(x, 7.55, 1.2), color, false)
+		glass.Shape = Enum.PartType.Cylinder
+		glass.CFrame = CFrame.new(origin + root + Vector3.new(x, 7.55, 1.2)) * CFrame.Angles(0, 0, math.rad(90))
+		glass.Material = Enum.Material.Neon
+		glass.Transparency = 0.25
+		part("CanisterCap", Vector3.new(1, 0.2, 1), Vector3.new(x, 8.45, 1.2), TRIM, false)
+	end
+	-- Tabela ışığı
+	local signLight = Instance.new("PointLight")
+	signLight.Color = ACCENT
+	signLight.Range = 14
+	signLight.Brightness = 1.2
+	signLight.Parent = sign
+	-- Tezgâhın önünde holografik halka ışıltısı
+	local holo = part("BoothHolo", Vector3.new(1, 0.1, 1), Vector3.new(0, 0.4, -8), ACCENT, false)
+	holo.Transparency = 1
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Color = ColorSequence.new(ACCENT)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Lifetime = NumberRange.new(1, 1.6)
+	sparkle.Rate = 5
+	sparkle.Speed = NumberRange.new(1, 2)
+	sparkle.SpreadAngle = Vector2.new(20, 20)
+	sparkle.Shape = Enum.ParticleEmitterShape.Cylinder
+	sparkle.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+	sparkle.Parent = holo
+	holo.Size = Vector3.new(11, 0.1, 11)
 end
 
 --[[
@@ -960,7 +1003,7 @@ local function buildPlot(index: number): Model
 	end
 
 	buildUpgradeBooth(plot, origin)
-	buildLockConsole(plot, origin)
+	-- Kilit konsolu 2026-09-28'de kalktı (oyuncudan çalma ve kilit yok)
 
 	--[[
 		Uzay kapsülü: üssün arkasında, zeminin DIŞINDA (oda ile arka duvar

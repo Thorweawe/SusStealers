@@ -1,12 +1,12 @@
 --!strict
 --[[
-	Oyuncu ayarları: müzik ve efekt sesi, kamera sarsıntısı (başlangıç
-	ekranındaki SETTINGS) ve yumurtadan çıkınca silinecek pet kademeleri
+	Oyuncu ayarları: müzik ve efekt sesi, kamera sarsıntısı, başkalarının
+	petleri, düşük grafik (başlangıç ekranındaki ve oyun içi SETTINGS) ve yumurtadan çıkınca silinecek pet kademeleri
 	(yumurta panelindeki AUTO-DELETE, uygulaması PetService.TryHatch).
 
 	Ayarlar profilde duruyor ki oyuncu her girişte yeniden kurmasın. Sunucu
 	onları oyuncuya nitelik olarak yazıyor (SettingMusic, SettingSfx,
-	SettingShake); istemci niteliği okuyup sesi ve sarsıntıyı ayarlıyor.
+	SettingShake, SettingPets, SettingLowGfx); istemci niteliği okuyup sesi ve sarsıntıyı ayarlıyor.
 	Oyuna hiçbir etkisi yok, yalnızca oyuncunun kendi ekranı ve kulağı.
 ]]
 
@@ -25,12 +25,14 @@ local SettingsService = {}
 local MIN_INTERVAL = 0.25
 local lastAt: { [Player]: number } = {}
 
-type Settings = { music: number, sfx: number, shake: boolean, autoDelete: { [string]: boolean }? }
+type Settings = { music: number, sfx: number, shake: boolean, pets: boolean?, lowGfx: boolean?, autoDelete: { [string]: boolean }? }
 
 local function publish(player: Player, settings: Settings)
 	player:SetAttribute("SettingMusic", settings.music)
 	player:SetAttribute("SettingSfx", settings.sfx)
 	player:SetAttribute("SettingShake", settings.shake)
+	player:SetAttribute("SettingPets", settings.pets ~= false)
+	player:SetAttribute("SettingLowGfx", settings.lowGfx == true)
 	-- Otomatik silinen kademeler virgüllü liste (nitelik tablo tutamıyor), kademe sırasıyla
 	local list = {}
 	for rarity, on in settings.autoDelete or {} do
@@ -68,8 +70,10 @@ function SettingsService.Apply(player: Player, payload: any, now: number?): Sett
 			(settings :: any)[key] = math.clamp(v, 0, 1)
 		end
 	end
-	if typeof(payload.shake) == "boolean" then
-		settings.shake = payload.shake
+	for _, key in { "shake", "pets", "lowGfx" } do
+		if typeof(payload[key]) == "boolean" then
+			(settings :: any)[key] = payload[key]
+		end
 	end
 	--[[
 		Otomatik silme (yumurta panelindeki Auto-Delete): kademe -> açık mı.

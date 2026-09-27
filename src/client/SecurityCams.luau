@@ -120,6 +120,14 @@ function SecurityCams.Start()
 		grade.TintColor = Color3.fromRGB(215, 255, 225)
 		grade.Parent = Lighting
 
+		--[[ Kamera açıkken yakın promptlar kapalı: konsolun kendi "E" promptu
+		     E'yi yutuyordu, kameralar arasında geçilemiyordu. ]]
+		local promptsWereOn = true
+		pcall(function()
+			promptsWereOn = ProximityPromptService.Enabled
+			ProximityPromptService.Enabled = false
+		end)
+
 		-- HUD gizli, karakter duruyor
 		local hud = playerGui:FindFirstChild("SusStealersHud")
 		local hudWasEnabled = hud and hud:IsA("ScreenGui") and hud.Enabled
@@ -330,7 +338,7 @@ function SecurityCams.Start()
 			local k = input.KeyCode
 			if k == Enum.KeyCode.Escape or k == Enum.KeyCode.Backspace or k == Enum.KeyCode.ButtonB then
 				close()
-			elseif processed then
+			elseif processed and UserInputService:GetFocusedTextBox() then
 				return
 			elseif k == Enum.KeyCode.Q or k == Enum.KeyCode.Left or k == Enum.KeyCode.ButtonL1 or k == Enum.KeyCode.DPadLeft then
 				show(index - 1)
@@ -379,6 +387,9 @@ function SecurityCams.Start()
 				if controls then
 					controls:Enable()
 				end
+				pcall(function()
+					ProximityPromptService.Enabled = promptsWereOn
+				end)
 			end,
 		}
 		show(1)

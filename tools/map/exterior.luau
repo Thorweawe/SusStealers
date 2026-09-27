@@ -4,7 +4,6 @@
 	  Motorlar   — batıda iki dev motor gövdesi, arkalarında mavi alev
 	               (Skeld'in iticileri). Batı pencerelerinden görünüyor.
 	  Burun      — doğuda, kokpit camının altından uzanan sivri pruva
-	  Kanatlar   — kuzeyde iki kobalt mavisi yüzgeç
 	  Uzay       — uzakta bir gezegen ve uydusu; pencerelerin önünden yavaşça
 	               geçen asteroitler ve fırlatılmış bir mürettebat (DecorFX
 	               DriftSpeed/DriftRange ile kaydırıyor)
@@ -86,25 +85,9 @@ return {
 			nav:SetAttribute("PulsePeriod", 1.8)
 		end
 
-		-- ─── Kanatlar (kuzey) ───────────────────────────────────────────────
-		do
-			local f = K.folder("Wings", ex)
-			-- Kapının (orta koridor) iki yanında simetrik
-			for _, x in { M.centerX - 140, M.centerX + 140 } do
-				local w = Instance.new("WedgePart")
-				w.Name = "Fin"
-				w.Anchored = true
-				w.CanQuery = false
-				w.CanTouch = false
-				w.Material = Enum.Material.SmoothPlastic
-				w.Color = cobalt
-				w.Size = Vector3.new(4, 30, 60)
-				-- Eğim kuzeye doğru alçalıyor
-				w.CFrame = CFrame.new(x, 10, M.Z0 - T / 2 - 30) * CFrame.Angles(0, math.rad(180), 0)
-				w.Parent = f
-				K.box(f, "FinTip", x, -4.2, M.Z0 - T / 2 - 58, 4.4, 1.6, 4, C.red, { emit = "Indicator" })
-			end
-		end
+		-- Kuzey kanatçıkları KALKTI (2026-09-28): Launch Bay'den çıkarken iki yanda
+		-- duran mavi kamalar "saçma duruyor" denildi.
+		K.folder("Wings", ex):Destroy()
 
 		-- ─── Uzay ───────────────────────────────────────────────────────────
 		do

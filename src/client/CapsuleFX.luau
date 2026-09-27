@@ -4,17 +4,14 @@
 
 	Oyuncu kendi kapsülüne girince ("InCapsule" niteliği):
 
-	  Uçuş pozu   — içeride karakter HEP uçuyor: yatay "uçan" pozda,
-	                hafifçe sallanarak; yüksekliği mini oyundaki roketle
-	                birlikte iniyor-çıkıyor. WASD / joystick onu tüpün
-	                içinde uçurarak gezdiriyor. Kapıya doğru kenara varınca
-	                alçalıp bırakılıyor, kapıdan yürüyüp çıkılıyor.
-	  Mini oyun   — Stardew'deki balık tutma gibi: sağda dikey bir hat,
-	                içinde gezinen yeşil alan ve bir roket. Basılı tut
-	                (tık / Space / dokun) → roket yükselir, bırak → düşer.
-	                Roket alandayken sağdaki çubuk dolar, dışındayken boşalır.
-	                Dolunca sunucuya "CapsuleCatch": kapsülün 10 saniyelik
-	                kazancı bir anda gelir (sunucu sınırlıyor).
+	  Uçuş pozu   — içeride karakter tüpün ortasında süzülüyor, mini
+	                oyundaki roketle birlikte yatıp yükseliyor (yürümüyor).
+	                Çıkış: EXIT düğmesi ya da Space → kapının dışına iner.
+	  Mini oyun   — ASTEROID RUN: WASD / joystick'le roketi sür, zig-zag
+	                inen taş sıralarındaki boşluklardan geç. Çarpmadan
+	                uçtukça mesafe çubuğu dolar; dolunca "CapsuleCatch":
+	                kapsülün birkaç saniyelik kazancı bir anda gelir
+	                (sunucu sınırlıyor). Training Console kolaylaştırıyor.
 	  Kart        — üst ortada uzay hızı, saniyelik artış, sıradaki canavar.
 ]]
 
@@ -40,44 +37,6 @@ export type Handle = {
 
 local player = Players.LocalPlayer
 local Z = 28
-
---[[
-	Mini oyun ayarları (hat yüksekliğinin kesri olarak).
-
-	2026-09-28: "mini oyunu zorlaştır, yeni bir yükseltme yeri de onu
-	kolaylaştırsın". Taban artık ZOR: dar alan (%26), sık ve hızlı kayıyor,
-	çubuk yavaş doluyor ve hızlı boşalıyor. Kapsülün solundaki Training
-	Console istasyonu (TrainingConsole yükseltmesi, Config.GetTrainingAssist
-	0..1) kolaylaştırıyor: tavanda alan %42, alan yavaş, çubuk hızlı dolup
-	yavaş boşalıyor — eski kolay ayarın biraz üstü.
-]]
-local ZONE_H_MIN, ZONE_H_ASSIST = 0.26, 0.16
-local FILL_MIN, FILL_ASSIST = 0.13, 0.09     -- alandayken çubuk dolma hızı (sn başına)
-local DRAIN_MIN, DRAIN_ASSIST = 0.11, -0.06  -- alan dışında boşalma
-local ZONE_SPEED_ASSIST = -0.45              -- alanın kayma hızı çarpanına katkı
-local RISE = 2.1           -- basılıyken yukarı ivme
-local FALL = 1.8           -- bırakınca aşağı ivme
-local MAX_V = 1.0
-local START = 0.25
--- Kapsülün içinde uçarken yatay hız (stud/sn)
-local FLOAT_SPEED = 9
-
-type Tuning = { zoneH: number, fill: number, drain: number, zoneMul: number, intro: number }
-
---[[ Training Console seviyesine göre o anki ayarlar. ]]
-local function tuning(): Tuning
-	local level = Players.LocalPlayer:GetAttribute("Upg_TrainingConsole")
-	local a = Config.GetTrainingAssist(if typeof(level) == "number" then level else 0)
-	local fill = FILL_MIN + FILL_ASSIST * a
-	return {
-		zoneH = ZONE_H_MIN + ZONE_H_ASSIST * a,
-		fill = fill,
-		drain = DRAIN_MIN + DRAIN_ASSIST * a,
-		zoneMul = 1 + ZONE_SPEED_ASSIST * a,
-		-- Tur arası: sunucunun beklemesi (CatchCooldown) dolmadan çubuk dolamasın
-		intro = math.max(1.5, Config.Capsule.CatchCooldown - (1 - START) / fill + 0.1),
-	}
-end
 
 local function speed(): number
 	local v = player:GetAttribute("SpaceSpeed")
@@ -188,12 +147,24 @@ function CapsuleFX.Start(screen: Instance): Handle
 		end
 	end
 
-	-- ─── Mini oyun paneli ───────────────────────────────────────────────
+	-- ─── Mini oyun paneli: ASTEROID RUN ─────────────────────────────────
+	--[[
+		2026-09-28 (Yusuf): "WASD ile roketi yönetip taşlardan kaçsın, araba
+		sürer gibi zig-zag". Yukarıdan sıra sıra taş iniyor, her sırada bir
+		boşluk var ve boşluk sıradan sıraya sağa-sola kayıyor (zig-zag).
+		WASD / oklar / joystick roketi sürüyor (karakter tüpün ortasında
+		sabit süzülüyor, yürümüyor). Taşa çarpmadan uçtukça sağdaki mesafe
+		çubuğu doluyor, çarpınca geri gidiyor; yıldızlar ileri atıyor. Dolunca
+		"CapsuleCatch" (sunucu CatchCooldown / CatchWarmup ile sınırlıyor).
+		Çıkış: EXIT düğmesi ya da Space — karakter kapının dışına iniyor.
+	]]
+	local TRACK_W, TRACK_H = 232, 310
+	local PANEL_W = TRACK_W + 70
 	local gameFrame = Instance.new("Frame")
 	gameFrame.Name = "CapsuleGame"
 	gameFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	gameFrame.Position = UDim2.fromScale(0.7, 0.54)
-	gameFrame.Size = UDim2.fromOffset(190, 380)
+	gameFrame.Position = UDim2.fromScale(0.72, 0.55)
+	gameFrame.Size = UDim2.fromOffset(PANEL_W, TRACK_H + 104)
 	gameFrame.BackgroundTransparency = 1
 	gameFrame.Visible = false
 	gameFrame.Parent = screen
@@ -201,72 +172,59 @@ function CapsuleFX.Start(screen: Instance): Handle
 	gameScale.Parent = gameFrame
 
 	local panel = CardKit.card(gameFrame, Color3.fromRGB(34, 60, 150), UDim2.fromScale(1, 1), Z, UDim2.fromScale(0.5, 0.2), 380)
-	local head = CardKit.bold(panel, "FLIGHT TRAINING", 16, CardKit.YELLOW, Z + 3, 2)
+	local head = CardKit.bold(panel, "ASTEROID RUN", 18, CardKit.YELLOW, Z + 3, 2)
 	head.Position = UDim2.fromOffset(0, 8)
-	head.Size = UDim2.new(1, 0, 0, 20)
-	local sub = CardKit.bold(panel, "Keep the rocket in the green zone!", 11, CardKit.WHITE, Z + 3, 1.5)
-	sub.Position = UDim2.fromOffset(8, 28)
-	sub.Size = UDim2.new(1, -16, 0, 26)
-	sub.TextWrapped = true
+	head.Size = UDim2.new(1, 0, 0, 22)
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local sub = CardKit.bold(panel, if touch then "Steer with the joystick. Dodge the rocks!" else "Steer with WASD. Dodge the rocks!", 11, CardKit.WHITE, Z + 3, 1.5)
+	sub.Position = UDim2.fromOffset(8, 30)
+	sub.Size = UDim2.new(1, -16, 0, 16)
 
-	local TRACK_Y, TRACK_H = 60, 250
+	local TRACK_Y = 52
 	local track = Instance.new("Frame")
 	track.Name = "Track"
-	track.Position = UDim2.fromOffset(34, TRACK_Y)
-	track.Size = UDim2.fromOffset(64, TRACK_H)
-	track.BackgroundColor3 = Color3.fromRGB(10, 14, 36)
+	track.Position = UDim2.fromOffset(14, TRACK_Y)
+	track.Size = UDim2.fromOffset(TRACK_W, TRACK_H)
+	track.BackgroundColor3 = Color3.fromRGB(8, 10, 30)
 	track.BorderSizePixel = 0
 	track.ClipsDescendants = true
 	track.ZIndex = Z + 3
 	track.Parent = panel
 	CardKit.corner(track, 10)
 	CardKit.border(track, CardKit.OUTLINE, 3)
-	-- Hattın içinde kayan yıldızlar
+	CardKit.gradient(track, Color3.fromRGB(26, 20, 70), Color3.fromRGB(6, 10, 30))
+	-- Kayan yıldızlar (üç katman, farklı hız)
 	local stars: { Frame } = {}
-	for i = 1, 12 do
+	for i = 1, 22 do
 		local st = Instance.new("Frame")
-		st.Size = UDim2.fromOffset(2, 2 + (i % 3) * 2)
-		st.Position = UDim2.fromScale((i * 0.37) % 1, (i * 0.23) % 1)
+		local big = i % 3
+		st.Size = UDim2.fromOffset(1 + big, 2 + big * 3)
+		st.Position = UDim2.fromScale((i * 0.371) % 1, (i * 0.237) % 1)
 		st.BackgroundColor3 = Color3.fromRGB(200, 230, 255)
-		st.BackgroundTransparency = 0.3
+		st.BackgroundTransparency = 0.55 - big * 0.2
 		st.BorderSizePixel = 0
 		st.ZIndex = Z + 3
 		st.Parent = track
 		table.insert(stars, st)
 	end
 
-	local zone = Instance.new("Frame")
-	zone.Name = "Zone"
-	zone.AnchorPoint = Vector2.new(0, 0.5)
-	zone.Size = UDim2.new(1, 0, ZONE_H_MIN, 0)
-	zone.BackgroundColor3 = Color3.fromRGB(80, 230, 90)
-	zone.BackgroundTransparency = 0.25
-	zone.BorderSizePixel = 0
-	zone.ZIndex = Z + 4
-	zone.Parent = track
-	CardKit.corner(zone, 8)
-	CardKit.gradient(zone, Color3.fromRGB(150, 255, 150), Color3.fromRGB(40, 170, 60))
-	local zoneStroke = CardKit.border(zone, Color3.fromRGB(220, 255, 220), 2, 0.2)
-	local _ = zoneStroke
-
-	local rocket = CardKit.bold(track, "🚀", 30, CardKit.WHITE, Z + 6, 0)
+	local rocket = CardKit.bold(track, "🚀", 30, CardKit.WHITE, Z + 7, 0)
 	rocket.AnchorPoint = Vector2.new(0.5, 0.5)
 	rocket.Size = UDim2.fromOffset(40, 40)
-	rocket.Rotation = -45
 	local flame = Instance.new("Frame")
 	flame.AnchorPoint = Vector2.new(0.5, 0)
-	flame.Size = UDim2.fromOffset(10, 14)
 	flame.BackgroundColor3 = Color3.fromRGB(255, 170, 60)
 	flame.BorderSizePixel = 0
-	flame.ZIndex = Z + 5
+	flame.ZIndex = Z + 6
 	flame.Parent = track
 	CardKit.corner(flame, 5)
+	CardKit.gradient(flame, Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 90, 30), 90)
 
-	-- İlerleme çubuğu (dikey)
+	-- Mesafe çubuğu (dikey)
 	local prog = Instance.new("Frame")
 	prog.Name = "Progress"
-	prog.Position = UDim2.fromOffset(116, TRACK_Y)
-	prog.Size = UDim2.fromOffset(34, TRACK_H)
+	prog.Position = UDim2.fromOffset(TRACK_W + 26, TRACK_Y)
+	prog.Size = UDim2.fromOffset(28, TRACK_H)
 	prog.BackgroundColor3 = Color3.fromRGB(16, 18, 28)
 	prog.BorderSizePixel = 0
 	prog.ZIndex = Z + 3
@@ -276,77 +234,136 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local fill = Instance.new("Frame")
 	fill.AnchorPoint = Vector2.new(0, 1)
 	fill.Position = UDim2.fromScale(0, 1)
-	fill.Size = UDim2.fromScale(1, START)
+	fill.Size = UDim2.fromScale(1, 0)
 	fill.BackgroundColor3 = CardKit.YELLOW
 	fill.BorderSizePixel = 0
 	fill.ZIndex = Z + 4
 	fill.Parent = prog
 	CardKit.corner(fill, 8)
 	CardKit.gradient(fill, Color3.fromRGB(255, 240, 140), Color3.fromRGB(255, 160, 30))
+	local goal = CardKit.bold(prog, "🏁", 16, CardKit.WHITE, Z + 5, 0)
+	goal.AnchorPoint = Vector2.new(0.5, 1)
+	goal.Position = UDim2.new(0.5, 0, 0, -2)
+	goal.Size = UDim2.fromOffset(24, 20)
 
-	local hint = CardKit.bold(panel, if UserInputService.TouchEnabled then "HOLD THE BUTTON" else "HOLD CLICK / SPACE", 12, CardKit.YELLOW, Z + 3, 1.5)
-	hint.Position = UDim2.fromOffset(0, TRACK_Y + TRACK_H + 6)
-	hint.Size = UDim2.new(1, 0, 0, 16)
-
-	-- Dokunmatik: panelin altında büyük basılı tutma düğmesi
-	local holdButton = Instance.new("TextButton")
-	holdButton.Name = "Hold"
-	holdButton.AnchorPoint = Vector2.new(0.5, 0)
-	holdButton.Position = UDim2.new(0.5, 0, 1, 8)
-	holdButton.Size = UDim2.fromOffset(170, 52)
-	holdButton.BackgroundColor3 = CardKit.GREEN
-	holdButton.AutoButtonColor = false
-	holdButton.Text = ""
-	holdButton.Visible = UserInputService.TouchEnabled
-	holdButton.ZIndex = Z + 3
-	holdButton.Parent = gameFrame
-	CardKit.corner(holdButton, 14)
-	CardKit.border(holdButton, CardKit.OUTLINE, 3)
-	local holdLabel = CardKit.bold(holdButton, "HOLD TO FLY", 20, CardKit.WHITE, Z + 4, 2.5)
-	holdLabel.Size = UDim2.fromScale(1, 1)
+	-- Çıkış düğmesi
+	local exitButton = Instance.new("TextButton")
+	exitButton.Name = "Exit"
+	exitButton.AnchorPoint = Vector2.new(0.5, 1)
+	exitButton.Position = UDim2.new(0.5, 0, 1, -10)
+	exitButton.Size = UDim2.fromOffset(170, 34)
+	exitButton.BackgroundColor3 = Color3.fromRGB(210, 70, 80)
+	exitButton.AutoButtonColor = false
+	exitButton.Text = ""
+	exitButton.ZIndex = Z + 3
+	exitButton.Parent = panel
+	CardKit.corner(exitButton, 10)
+	CardKit.border(exitButton, CardKit.OUTLINE, 3)
+	CardKit.gradient(exitButton, Color3.fromRGB(255, 120, 120), Color3.fromRGB(170, 40, 60))
+	local exitLabel = CardKit.bold(exitButton, if touch then "EXIT CAPSULE" else "EXIT CAPSULE [SPACE]", 14, CardKit.WHITE, Z + 4, 2)
+	exitLabel.Size = UDim2.fromScale(1, 1)
 
 	-- Tur arası yazısı
-	local banner = CardKit.bold(panel, "", 22, CardKit.WHITE, Z + 9, 3)
+	local banner = CardKit.bold(track, "", 24, CardKit.WHITE, Z + 9, 3)
 	banner.AnchorPoint = Vector2.new(0.5, 0.5)
-	banner.Position = UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2)
-	banner.Size = UDim2.new(1, -10, 0, 60)
+	banner.Position = UDim2.fromScale(0.5, 0.4)
+	banner.Size = UDim2.new(1, -10, 0, 70)
 	banner.TextWrapped = true
 
-	-- ─── Girdi: basılı tutma ────────────────────────────────────────────
-	local holdingKey = false
-	local holdingButton = false
-	local holdingTouch = 0
-	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
-		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonR2 or input.KeyCode == Enum.KeyCode.ButtonA then
-			holdingKey = true
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and not processed then
-			holdingKey = true
-		end
-	end))
-	table.insert(connections, UserInputService.InputEnded:Connect(function(input)
-		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonR2 or input.KeyCode == Enum.KeyCode.ButtonA
-			or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			holdingKey = false
-		end
-	end))
-	table.insert(connections, holdButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			holdingButton = true
-			holdingTouch += 1
-		end
-	end))
-	table.insert(connections, holdButton.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			holdingTouch = math.max(0, holdingTouch - 1)
-			holdingButton = holdingTouch > 0
-		end
-	end))
-
 	--[[
-		Yürüme girdisi, dünyada yatay yön olarak (kameraya göre). Kontrol
-		modülü (joystick dahil) boşsa klavye.
+		Ayarlar. Taban hızlı ve dar; Training Console (Config.GetTrainingAssist
+		0..1) taşları yavaşlatıyor, boşluğu genişletiyor, çarpma cezasını
+		azaltıyor. Kapsül seviyesi taşları biraz hızlandırıyor.
 	]]
-	local function moveInput(): Vector3
+	type Tuning = { fall: number, rowEvery: number, gap: number, penalty: number, fill: number }
+	local function tuning(): Tuning
+		local level = player:GetAttribute("Upg_TrainingConsole")
+		local a = Config.GetTrainingAssist(if typeof(level) == "number" then level else 0)
+		return {
+			fall = (150 + math.min(45, capsuleLevel() * 2.5)) * (1 - 0.3 * a),
+			rowEvery = 1.0 + 0.35 * a,
+			gap = 76 + 38 * a,
+			penalty = 0.24 - 0.12 * a,
+			fill = 1 / (8.5 - 1.5 * a),
+		}
+	end
+
+	type Rock = { x: number, y: number, r: number, spin: number, frame: GuiObject, star: boolean }
+	local rocks: { Rock } = {}
+
+	local function addRock(x: number, y: number, r: number)
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Size = UDim2.fromOffset(r * 2, r * 2)
+		f.BackgroundColor3 = Color3.fromRGB(150, 120, 100)
+		f.BorderSizePixel = 0
+		f.ZIndex = Z + 5
+		f.Parent = track
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0.42, 0)
+		c.Parent = f
+		CardKit.gradient(f, Color3.fromRGB(185, 160, 140), Color3.fromRGB(90, 70, 62), 45)
+		CardKit.border(f, Color3.fromRGB(40, 28, 26), 2)
+		for k = 1, 2 do
+			local crater = Instance.new("Frame")
+			crater.AnchorPoint = Vector2.new(0.5, 0.5)
+			crater.Size = UDim2.fromScale(0.26 + k * 0.04, 0.26 + k * 0.04)
+			crater.Position = UDim2.fromScale(if k == 1 then 0.34 else 0.64, if k == 1 then 0.4 else 0.66)
+			crater.BackgroundColor3 = Color3.fromRGB(80, 60, 56)
+			crater.BackgroundTransparency = 0.25
+			crater.BorderSizePixel = 0
+			crater.ZIndex = Z + 5
+			crater.Parent = f
+			CardKit.corner(crater, 20)
+		end
+		table.insert(rocks, { x = x, y = y, r = r, spin = (math.random() - 0.5) * 160, frame = f, star = false })
+	end
+
+	local function addStar(x: number, y: number)
+		local s = CardKit.bold(track, "⭐", 22, CardKit.WHITE, Z + 6, 0)
+		s.AnchorPoint = Vector2.new(0.5, 0.5)
+		s.Size = UDim2.fromOffset(26, 26)
+		table.insert(rocks, { x = x, y = y, r = 11, spin = 90, frame = s, star = true })
+	end
+
+	local function clearRocks()
+		for _, rock in rocks do
+			rock.frame:Destroy()
+		end
+		table.clear(rocks)
+	end
+
+	-- Zig-zag: boşluk her sırada bir yöne kayıyor, kenara varınca dönüyor
+	local gapX = TRACK_W / 2
+	local gapDir = 1
+	local function spawnRow(t: Tuning)
+		local half = t.gap / 2
+		local step = 36 + math.random() * 56
+		if math.random() < 0.2 then
+			gapDir = -gapDir
+		end
+		gapX += gapDir * step
+		local lo, hi = half + 6, TRACK_W - half - 6
+		if gapX < lo or gapX > hi then
+			gapX = math.clamp(gapX, lo, hi)
+			gapDir = -gapDir
+		end
+		local x = 12 + math.random() * 8
+		while x < TRACK_W - 8 do
+			local r = 11 + math.random() * 5
+			if math.abs(x - gapX) > half + r and math.random() > 0.12 then
+				addRock(x, -24 - math.random() * 10, r)
+			end
+			x += r * 2 + 8 + math.random() * 8
+		end
+		if math.random() < 0.35 then
+			addStar(gapX, -26)
+		end
+	end
+
+	-- ─── Girdi ──────────────────────────────────────────────────────────
+	--[[ Ham yön girdisi (ekrana göre): X sağ, Y yukarı. Joystick/gamepad dahil. ]]
+	local function steerInput(): Vector2
 		local move = Vector3.zero
 		if controls then
 			local ok, mv = pcall(function()
@@ -363,24 +380,11 @@ function CapsuleFX.Start(screen: Instance): Handle
 			move = Vector3.new(key(Enum.KeyCode.D, Enum.KeyCode.Right) - key(Enum.KeyCode.A, Enum.KeyCode.Left), 0,
 				key(Enum.KeyCode.S, Enum.KeyCode.Down) - key(Enum.KeyCode.W, Enum.KeyCode.Up))
 		end
-		if move.Magnitude < 0.1 then
-			return Vector3.zero
-		end
-		local cam = workspace.CurrentCamera
-		if not cam then
-			return Vector3.zero
-		end
-		local look = cam.CFrame.LookVector
-		local flatLook = Vector3.new(look.X, 0, look.Z)
-		flatLook = if flatLook.Magnitude > 0.01 then flatLook.Unit else Vector3.new(0, 0, -1)
-		local right = cam.CFrame.RightVector
-		local flatRight = Vector3.new(right.X, 0, right.Z)
-		flatRight = if flatRight.Magnitude > 0.01 then flatRight.Unit else Vector3.new(1, 0, 0)
-		local dir = flatRight * move.X + flatLook * -move.Z
-		return if dir.Magnitude > 1 then dir.Unit else dir
+		local v = Vector2.new(move.X, -move.Z)
+		return if v.Magnitude > 1 then v.Unit else v
 	end
 
-	-- ─── Uçuş pozu ──────────────────────────────────────────────────────
+	-- ─── Uçuş pozu (tüpün ortasında sabit) ──────────────────────────────
 	local floatAtt: Attachment? = nil
 	local floatPos: AlignPosition? = nil
 	local floatRot: AlignOrientation? = nil
@@ -404,7 +408,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 			ap.Mode = Enum.PositionAlignmentMode.OneAttachment
 			ap.Attachment0 = att
 			ap.MaxForce = math.huge
-			ap.Responsiveness = 14
+			ap.Responsiveness = 12
 			ap.Position = root.Position
 			ap.Parent = root
 			local ao = Instance.new("AlignOrientation")
@@ -421,7 +425,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 				floatPose:Destroy()
 			end
 			floatPose = FlyPose.Start(character :: Model)
-			floatPose:SetBlend(1)
+			floatPose:SetBlend(0.7)
 		else
 			if floatPos then
 				floatPos:Destroy()
@@ -446,37 +450,81 @@ function CapsuleFX.Start(screen: Instance): Handle
 
 	-- ─── Durum ──────────────────────────────────────────────────────────
 	local inside = false
+	local exiting = false
 	local lastSpeed = speed()
-	local rocketY, rocketV = 0.3, 0
-	local zoneC, zoneTarget, zoneSpeed, nextTarget = 0.5, 0.5, 0.4, 0
-	local progress = START
+	local rx, ry = TRACK_W / 2, TRACK_H - 50
+	local vx, vy = 0, 0
+	local progress = 0
 	local roundAt = 0          -- bu andan önce tur başlamadı (hazırlık)
-	--[[
-		Kapsülün içinde karakter HEP uçuyor (2026-09-27 istek): WASD / joystick
-		onu tüpün içinde uçurarak gezdiriyor, poz bırakılmıyor. Kapıya doğru
-		kenara varınca süzülerek alçalıyor ve uçuş bırakılıyor, kapıdan
-		yürüyüp çıkıyor. Kapıda durup beklerse yeniden havalanıyor.
-	]]
-	local drift = Vector3.zero      -- pedin merkezinden yatay kayma
-	local leaving = false
-	local leftAt = 0
+	local nextRowAt = 0
+	local invulnUntil = 0
+	local lastCatchAt = -math.huge
 	local clock = 0
 
 	local camera = workspace.CurrentCamera
 	local baseFov = if camera then camera.FieldOfView else 70
 
 	local function newRound(delay: number)
-		progress = START
+		progress = 0
 		roundAt = os.clock() + delay
-		zoneC = 0.5
-		zoneTarget = 0.5
+		nextRowAt = roundAt
+		clearRocks()
+		rx, ry, vx, vy = TRACK_W / 2, TRACK_H - 50, 0, 0
+		gapX = TRACK_W / 2
 	end
+
+	--[[ Tüpün geometrisi: ped merkezi, yarıçap, kapı yönü. ]]
+	local function capsuleFrame(): (Vector3?, number, Vector3)
+		local capsule = myCapsule()
+		local pad = capsule and capsule:FindFirstChild("Pad")
+		if not (capsule and pad and pad:IsA("BasePart")) then
+			return nil, 0, Vector3.new(0, 0, -1)
+		end
+		local zonePart = capsule:FindFirstChild("Zone")
+		local limit = math.max(2, ((zonePart and zonePart:GetAttribute("Radius") :: number?) or 7) - 1.6)
+		local doorDir = -(capsule :: Model):GetPivot().LookVector
+		local door = capsule:FindFirstChild("Screen")
+		if door and door:IsA("BasePart") then
+			local toDoor = Vector3.new(door.Position.X - pad.Position.X, 0, door.Position.Z - pad.Position.Z)
+			if toDoor.Magnitude > 0.1 then
+				doorDir = toDoor.Unit
+			end
+		end
+		doorDir = Vector3.new(doorDir.X, 0, doorDir.Z)
+		doorDir = if doorDir.Magnitude > 0.01 then doorDir.Unit else Vector3.new(0, 0, -1)
+		return pad.Position, limit, doorDir
+	end
+
+	--[[ Çıkış: uçuşu bırak, kapının dışına in (sunucu InCapsule'ü kendisi kaldırıyor). ]]
+	local function exitCapsule()
+		if not inside or exiting then
+			return
+		end
+		local base, limit, doorDir = capsuleFrame()
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not (base and root and root:IsA("BasePart")) then
+			return
+		end
+		exiting = true
+		setFloating(false)
+		local spot = base + doorDir * (limit + 4.5) + Vector3.new(0, 3.2, 0)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = CFrame.lookAt(spot, spot + doorDir)
+		gameFrame.Visible = false
+	end
+	table.insert(connections, exitButton.Activated:Connect(exitCapsule))
+	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
+		if inside and not processed and (input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonB) then
+			exitCapsule()
+		end
+	end))
 
 	local function setInside(on: boolean)
 		if on == inside then
 			return
 		end
 		inside = on
+		exiting = false
 		refresh()
 		local cam = workspace.CurrentCamera
 		if on then
@@ -487,18 +535,6 @@ function CapsuleFX.Start(screen: Instance): Handle
 			TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 			TweenService:Create(gameScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 			newRound(Config.Capsule.CatchWarmup + 0.2)
-			rocketY, rocketV = 0.3, 0
-			drift = Vector3.zero
-			leaving = false
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local capsule = myCapsule()
-			local pad = capsule and capsule:FindFirstChild("Pad")
-			if root and root:IsA("BasePart") and pad and pad:IsA("BasePart") then
-				-- Girdiği yerden havalansın, ortaya ışınlanmasın
-				local d = root.Position - pad.Position
-				drift = Vector3.new(d.X, 0, d.Z)
-			end
 			if cam then
 				baseFov = cam.FieldOfView
 				TweenService:Create(cam, TweenInfo.new(0.6), { FieldOfView = baseFov + 8 }):Play()
@@ -507,6 +543,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 			holder.Visible = false
 			gameFrame.Visible = false
 			setFloating(false)
+			clearRocks()
 			if cam then
 				TweenService:Create(cam, TweenInfo.new(0.4), { FieldOfView = baseFov }):Play()
 			end
@@ -548,139 +585,99 @@ function CapsuleFX.Start(screen: Instance): Handle
 				end
 			end
 		end
-		if not inside then
+		if not inside or exiting then
 			return
 		end
 		local now = os.clock()
+		local t = tuning()
 
-		-- Mini oyun
-		local holding = holdingKey or holdingButton
+		-- Roket: yumuşak ivmeyle yön; alt yarıda serbest
+		local steer = steerInput()
+		vx += (steer.X * 250 - vx) * math.min(1, dt * 9)
+		vy += (-steer.Y * 170 - vy) * math.min(1, dt * 9)
+		rx = math.clamp(rx + vx * dt, 16, TRACK_W - 16)
+		ry = math.clamp(ry + vy * dt, TRACK_H * 0.42, TRACK_H - 24)
+
 		local live = now >= roundAt
+		local scroll = if live then t.fall else 60
 		if live then
 			banner.Text = ""
-			rocketV += (if holding then RISE else -FALL) * dt
-			rocketV = math.clamp(rocketV, -MAX_V, MAX_V)
-			rocketY += rocketV * dt
-			if rocketY < 0 then
-				rocketY = 0
-				rocketV = -rocketV * 0.3
-			elseif rocketY > 1 then
-				rocketY = 1
-				rocketV = 0
+			if now >= nextRowAt then
+				nextRowAt = now + t.rowEvery * (0.85 + math.random() * 0.3)
+				spawnRow(t)
 			end
-			-- Alan rastgele hedeflere kayıyor (sık ve hızlı); Training Console yavaşlatıyor
-			local t = tuning()
-			zone.Size = UDim2.new(1, 0, t.zoneH, 0)
-			if now >= nextTarget then
-				nextTarget = now + 0.6 + math.random() * 1.1
-				zoneTarget = t.zoneH / 2 + math.random() * (1 - t.zoneH)
-				zoneSpeed = (0.26 + math.random() * 0.28 + math.min(0.12, capsuleLevel() * 0.006)) * t.zoneMul
-			end
-			local d = zoneTarget - zoneC
-			zoneC += math.sign(d) * math.min(math.abs(d), zoneSpeed * dt)
+			progress = math.min(1, progress + t.fill * dt)
+		else
+			local left = math.ceil(roundAt - now)
+			banner.Text = if left <= 1 then "GO!" else string.format("GET READY\n%d", left)
+		end
 
-			local inZone = math.abs(rocketY - zoneC) <= t.zoneH / 2
-			progress = math.clamp(progress + (if inZone then t.fill else -t.drain) * dt, 0, 1)
-			zone.BackgroundTransparency = if inZone then 0.05 else 0.35
-			if progress >= 1 then
-				-- Sunucu da aynı bonusu hesaplıyor; burada gösterim
+		-- Taşlar ve yıldızlar
+		local hurt = now < invulnUntil
+		for i = #rocks, 1, -1 do
+			local rock = rocks[i]
+			rock.y += scroll * dt
+			rock.frame.Position = UDim2.fromOffset(rock.x, rock.y)
+			rock.frame.Rotation += rock.spin * dt
+			local hit = (Vector2.new(rock.x, rock.y) - Vector2.new(rx, ry)).Magnitude < rock.r + 10
+			if hit and rock.star then
+				progress = math.min(1, progress + 0.07)
+				popup(gameFrame, "+BOOST", CardKit.YELLOW, 18, UDim2.fromOffset(14 + rx, TRACK_Y + ry - 20))
+				rock.frame:Destroy()
+				table.remove(rocks, i)
+			elseif hit and not hurt and live then
+				hurt = true
+				invulnUntil = now + 1.1
+				progress = math.max(0, progress - t.penalty)
+				SoundFX.RockBreak()
+				popup(gameFrame, "CRASH!", Color3.fromRGB(255, 110, 110), 20, UDim2.fromOffset(14 + rx, TRACK_Y + ry - 24))
+				vx = (if rx < rock.x then -1 else 1) * 260
+				rock.frame:Destroy()
+				table.remove(rocks, i)
+			elseif rock.y > TRACK_H + 30 then
+				rock.frame:Destroy()
+				table.remove(rocks, i)
+			end
+		end
+
+		-- Bitiş: sunucunun beklemesi dolmadan çubuk son çizgide bekliyor
+		if live and progress >= 1 then
+			if now - lastCatchAt >= Config.Capsule.CatchCooldown + 0.15 then
+				lastCatchAt = now
 				local bonus = Config.GetCapsuleGain(capsuleLevel(), speed()) * Config.Capsule.CatchBonusSeconds
 				catchRemote:FireServer()
 				SoundFX.Success()
 				popup(gameFrame, string.format("+%.2f SPEED!", bonus), CardKit.YELLOW, 26, UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2))
-				newRound(tuning().intro)
-			elseif progress <= 0 then
-				SoundFX.Deny()
-				popup(gameFrame, "MISSED!", Color3.fromRGB(255, 110, 110), 24, UDim2.new(0.5, 0, 0, TRACK_Y + 30))
-				newRound(1.5)
+				newRound(1.6)
+			else
+				progress = 0.995
 			end
-		else
-			local left = math.ceil(roundAt - now)
-			banner.Text = if left <= 1 then "GO!" else string.format("GET READY\n%d", left)
-			rocketY = math.max(0, rocketY - dt * 0.6)
 		end
 
-		zone.Position = UDim2.fromScale(0, 1 - zoneC)
-		rocket.Position = UDim2.new(0.5, 0, 0, (1 - rocketY) * (TRACK_H - 36) + 18)
-		flame.Visible = holding and live
-		flame.Position = rocket.Position + UDim2.fromOffset(-6, 12)
-		flame.Size = UDim2.fromOffset(10, 10 + math.abs(math.sin(clock * 30)) * 8)
+		rocket.Position = UDim2.fromOffset(rx, ry)
+		rocket.Rotation = -45 + math.clamp(vx / 250, -1, 1) * 18
+		rocket.TextTransparency = if hurt and math.floor(now * 12) % 2 == 0 then 0.7 else 0
+		flame.Position = UDim2.fromOffset(rx - 2, ry + 12)
+		flame.Size = UDim2.fromOffset(9, 10 + math.abs(math.sin(clock * 30)) * 9 + math.max(0, -vy) / 20)
 		fill.Size = UDim2.fromScale(1, progress)
 		for i, st in stars do
-			local y = (st.Position.Y.Scale + dt * (0.25 + (i % 3) * 0.2)) % 1
+			local y = (st.Position.Y.Scale + dt * (scroll / TRACK_H) * (0.4 + (i % 3) * 0.35)) % 1
 			st.Position = UDim2.fromScale(st.Position.X.Scale, y)
 		end
 
-		-- Uçuş: içerideyken hep havada; WASD tüpün içinde uçuruyor
-		local capsule = myCapsule()
-		local pad = capsule and capsule:FindFirstChild("Pad")
-		local zonePart = capsule and capsule:FindFirstChild("Zone")
-		if not (capsule and pad and pad:IsA("BasePart")) then
+		-- Karakter: tüpün ortasında süzülüyor; roketle birlikte yatıyor
+		local base, _, doorDir = capsuleFrame()
+		if not base then
 			return
 		end
-		local base = pad.Position
-		local limit = math.max(2, ((zonePart and zonePart:GetAttribute("Radius") :: number?) or 7) - 1.6)
-		-- Kapı yönü: tabelaya (Screen) doğru, yoksa modelin önü
-		local doorDir = -(capsule :: Model):GetPivot().LookVector
-		local door = capsule:FindFirstChild("Screen")
-		if door and door:IsA("BasePart") then
-			local toDoor = Vector3.new(door.Position.X - base.X, 0, door.Position.Z - base.Z)
-			if toDoor.Magnitude > 0.1 then
-				doorDir = toDoor.Unit
-			end
-		end
-		doorDir = Vector3.new(doorDir.X, 0, doorDir.Z)
-		doorDir = if doorDir.Magnitude > 0.01 then doorDir.Unit else Vector3.new(0, 0, -1)
-
-		local dir = moveInput()
-		if leaving then
-			-- Kapıdan yürüyor; durup beklerse (hâlâ içerideyse) yeniden havalan
-			if dir.Magnitude > 0.05 then
-				leftAt = now
-			elseif now - leftAt > 1.2 then
-				leaving = false
-				local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-				if root and root:IsA("BasePart") then
-					local d = root.Position - base
-					drift = Vector3.new(d.X, 0, d.Z)
-				end
-			end
-		end
-		if leaving then
-			return
-		end
-
-		drift += dir * FLOAT_SPEED * dt
-		if dir.Magnitude < 0.05 then
-			-- Boştayken yavaşça tüpün ortasına süzül
-			drift = drift:Lerp(Vector3.zero, math.min(1, dt * 0.8))
-		end
-		local out = if drift.Magnitude > 0.01 then drift.Unit else doorDir
-		local towardDoor = out:Dot(doorDir)
-		if drift.Magnitude >= limit then
-			-- Kapı boşluğu ±46° (CapsuleModel): yalnızca o yönde bırak, camda değil
-			if towardDoor > 0.72 and dir:Dot(doorDir) > 0.3 then
-				-- Kapının ağzında: uçuşu bırak, yürüyerek çık
-				leaving = true
-				leftAt = now
-				setFloating(false)
-				return
-			end
-			drift = out * limit
-		end
-
 		setFloating(true)
 		if floatPos and floatRot then
-			-- Kapıya yaklaştıkça alçalıyor: bırakıldığında yere yakın olsun
-			local edge = math.clamp((drift.Magnitude - 1.5) / math.max(0.1, limit - 1.5), 0, 1) * math.max(0, towardDoor)
-			local height = (3.6 + rocketY * 6) * (1 - 0.65 * edge) + math.sin(clock * 2.2) * 0.4
-			local sway = if dir.Magnitude > 0.05 then Vector3.zero else Vector3.new(math.sin(clock * 0.9) * 0.8, 0, math.cos(clock * 0.7) * 0.8)
-			floatPos.Position = base + drift + sway + Vector3.new(0, height, 0)
-			-- Uçtuğu yöne, dururken kapıya (üsse) bakan öne yatık poz; yükselirken burun kalkar
-			local look = if dir.Magnitude > 0.05 then dir.Unit else doorDir
-			local pitch = math.rad(-42) + math.clamp(rocketV, -1, 1) * math.rad(15)
-			local roll = math.sin(clock * 1.6) * math.rad(10)
-			floatRot.CFrame = CFrame.lookAt(Vector3.zero, look) * CFrame.Angles(pitch, 0, roll)
+			local right = doorDir:Cross(Vector3.yAxis)
+			local side = (rx / TRACK_W - 0.5) * 3
+			local height = 4.2 + (1 - ry / TRACK_H) * 3 + math.sin(clock * 2.2) * 0.35
+			floatPos.Position = base - right * side + Vector3.new(0, height, 0)
+			local roll = -math.clamp(vx / 250, -1, 1) * math.rad(28) + math.sin(clock * 1.6) * math.rad(5)
+			floatRot.CFrame = CFrame.lookAt(Vector3.zero, doorDir) * CFrame.Angles(math.rad(-30), 0, roll)
 		end
 	end))
 

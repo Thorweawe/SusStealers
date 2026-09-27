@@ -59,6 +59,7 @@ local AdminMapService = require(Server.AdminMapService)
 local SettingsService = require(Server.SettingsService)
 local SpaceService = require(Server.SpaceService)
 local SpaceBonusService = require(Server.SpaceBonusService)
+local JetpackService = require(Server.JetpackService)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
 local ServerTests = {}
@@ -1013,7 +1014,19 @@ case("Çark: bedava çevirme hakkı harcıyor", function(ctx)
 			ok("dilimde durdu", math.abs(sliceAt) < 180 / count, tostring(sliceAt))
 			near("bekleme boyunca yerinde", WheelSpin.Angle(wheel, finish + WheelSpin.HOLD * 0.9, 26), stop, 1e-6)
 		end
+		-- Ödül çark durunca veriliyor (pencere): henüz para gelmedi
+		eq("ödül çark durmadan verilmedi", EconomyService.GetCash(ctx.player), 0)
+		eq("pencere geri sayımı yazıldı", ctx.player:GetAttribute("SpinReadyAt"), ctx.profile.lastSpinAt + Config.SpinCooldownHours * 3600)
 	end
+	-- Bekleyen ödül sonraki testlerin parasına karışmasın
+	SpinService._CancelPending(ctx.player)
+
+	-- Anında (test yolu): ödül hemen geliyor
+	ctx.profile.lastSpinAt = 0
+	setCash(ctx.player, 0)
+	local spinsBefore = ctx.profile.spins
+	ok("anında çevirme", SpinService.Spin(ctx.player, true, true))
+	eq("ödül verildi (sayaç)", ctx.profile.spins, spinsBefore + 1)
 
 	ctx.profile.lastSpinAt = 0
 end)
@@ -1225,7 +1238,7 @@ end)
 case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
 		units = true, upgrades = true, spins = true, tasks = true, pets = true, gear = true,
-		salvaged = true, spaceSpeed = true, trainings = true, bestPlanet = true,
+		salvaged = true, spaceSpeed = true, trainings = true, bestPlanet = true, jetpacks = true,
 	}
 
 	local ids = {}
@@ -1312,6 +1325,16 @@ case("Öğretici: her adım önceki ödüllerle karşılanabiliyor", function()
 		upgrades = cheapest(Config.Upgrades, "baseCost"),
 		pets = cheapest(Config.Eggs, "price"),
 		gear = cheapest(Config.Gear, "price"),
+		-- En ucuz satılık (Robux'suz, bedava olmayan) jetpack
+		jetpacks = (function()
+			local best = math.huge
+			for _, def in Config.Jetpacks do
+				if def.pass == nil and def.price > 0 then
+					best = math.min(best, def.price)
+				end
+			end
+			return best
+		end)(),
 	}
 	local cash = Config.StartingCash
 	for _, step in Config.Tutorial do
@@ -1527,6 +1550,10 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 		GearShop = function()
 			local t = TutorialService._TargetFor(ctx.player, "GearShop")
 			return if t and t:FindFirstChild("GearPrompt") then t else nil
+		end,
+		JetpackStand = function()
+			local t = TutorialService._TargetFor(ctx.player, "JetpackStand")
+			return if t and t:FindFirstChild("JetpackPrompt") then t else nil
 		end,
 	}
 
@@ -2122,13 +2149,14 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on dokuzda (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
-		SettingsSave oyuncu ayarları için
-		eklendi; SpaceHit uzay soygununa geçilince kalktı;
+		Sınır yirmi ikide (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
+		SettingsSave oyuncu ayarları için eklendi; SpaceHit uzay soygununa
+		geçilince kalktı; 2026-09-28'de SpaceReturn istasyona dönüş,
+		JetpackAction jetpack dükkânı, SpinRequest çark penceresi eklendi;
 		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
 		kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 19, tostring(#listened))
+	ok("liste bilinçli", #listened <= 22, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -2946,29 +2974,27 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	eq("Ghost Serum iade edildi", p2.cash, Config.RetiredGear.GhostSerum)
 end)
 
-case("Ekipman: canavarlara karşı - sersemletiyor, bekleme süresi var", function(ctx)
+case("Ekipman: canavarlara değil oyunculara - bekleme ve bağışıklık var", function(ctx)
 	local stun = Config.GetGear("StunGun") :: Config.GearDef
 	local blast = Config.GetGear("EmergencyButton") :: Config.GearDef
 	local slap = Config.GetGear("SlapGlove") :: Config.GearDef
 	ok("stun donması bekleme süresinden çok kısa", (stun.stun or 0) * 4 <= (stun.cooldown or 0))
 	ok("buton beklemesi en az 30", (blast.cooldown or 0) >= 30)
 	ok("tokat beklemesi en az 4", (slap.cooldown or 0) >= 4)
+	ok("canavar vuruşu kalktı", (SpaceService :: any).HitMonsters == nil)
 
-	-- Canavarın yanında Stun Gun: canavar sersemliyor, sayaç artıyor
-	local root = ctx.player.Character.HumanoidRootPart :: BasePart
-	local home = root.CFrame
-	SpaceService._ResetMonster(1)
-	local body = SpaceService._MonsterPosition(1)
-	root.CFrame = CFrame.lookAt(body + Vector3.new(0, 8, 20), body + Vector3.new(0, 8, 0))
-	task.wait()
+	-- Tek oyunculu testte hedef yok: kullanım geçerli, sayaç artmıyor
 	GearService._ResetCooldowns(ctx.player)
 	local before = ctx.profile.stunned
 	ok("kullanıldı", GearService.Use(ctx.player, "StunGun"))
-	ok("canavar sersemledi", workspace.SpaceZone.Monsters.Monster1:GetAttribute("Stunned") == true or ctx.profile.stunned > before)
-	ok("sayaç arttı", ctx.profile.stunned > before, tostring(ctx.profile.stunned))
+	eq("kimse vurulmadı", ctx.profile.stunned, before)
+
+	-- Bağışıklık: vurulan GearHitImmunity sn tekrar vurulamıyor
+	GearService._MarkHit(ctx.player, os.clock())
+	ok("yeni vurulan bağışık", GearService.IsImmune(ctx.player))
+	ok("süre dolunca bağışıklık biter", not GearService.IsImmune(ctx.player, os.clock() + Config.GearHitImmunity + 0.1))
+	GearService._MarkHit(ctx.player, -math.huge)
 	GearService._ResetCooldowns(ctx.player)
-	SpaceService._ResetMonster(1)
-	root.CFrame = home
 end)
 
 case("Ekipman: bekleme süresi sunucuda, Ghost Serum kaldırıldı", function(ctx)
@@ -3857,7 +3883,7 @@ case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
 	eq("mutasyonsuz mürettebat yok", plain, 0)
 	EventService.End()
 
-	-- 2026-09-28: aletler uzayda canavarlara karşı ÇALIŞIYOR (kullanım reddedilmiyor)
+	-- 2026-09-28: aletler uzayda da kullanılıyor (oyunculara, hafif)
 	ctx.player:SetAttribute("InSpace", true)
 	GearService._ResetCooldowns(ctx.player)
 	ok("uzayda alet kullanılabiliyor", GearService.Use(ctx.player, "EmergencyButton"))
@@ -4000,54 +4026,35 @@ case("Uzay yolu: içerik uçulabilir alanda, gezegenlerin içinde değil", funct
 		return true
 	end
 	eq("rota sayısı", #SpaceField.Routes(), #Config.SpaceMonsters)
-	local rings = SpaceField.Rings()
-	ok("en az 10 halka", #rings >= 10, tostring(#rings))
-	for i, ring in rings do
-		ok(i .. ". halka alanda", inside(ring.cf.Position))
-		ok(i .. ". halka gezegende değil", clearOfPlanets(ring.cf.Position, ring.radius))
-	end
-	local dust = SpaceField.StardustSpots()
-	ok("yıldız tozu bol", #dust >= 40, tostring(#dust))
-	local dustClear = 0
-	for _, p in dust do
-		if inside(p) and clearOfPlanets(p, 2) then
-			dustClear += 1
-		end
-	end
-	eq("yıldız tozu alanda ve dışarıda", dustClear, #dust)
+	-- Halkalar ve yıldız tozu 2026-09-28'de kalktı: dünyada yoklar
+	local bonus = workspace:FindFirstChild("SpaceBonus")
+	ok("halka yok", bonus == nil or bonus:FindFirstChild("Ring1", true) == nil)
 	for i, p in SpaceField.CrateSpots() do
 		ok(i .. ". sandık alanda", inside(p) and clearOfPlanets(p, 4))
 	end
 	ok("dünyada kurulu", workspace:FindFirstChild("SpaceBonus") ~= nil)
 end)
 
-case("Uzay yolu: toplamak para veriyor, sonra yeniden beliriyor", function(ctx)
+case("Uzay yolu: sandık az veriyor, sonra yeniden beliriyor", function(ctx)
 	SpaceBonusService._Respawn()
 	local pickups = SpaceBonusService._Pickups()
-	local dustIndex, crateIndex = nil, nil
+	local crateIndex = nil
 	for i, p in pickups do
-		if p.kind == "stardust" and not dustIndex then
-			dustIndex = i
-		elseif p.kind == "crate" and not crateIndex then
+		ok("yalnızca sandık (yıldız tozu kalktı)", p.kind == "crate", p.kind)
+		if p.kind == "crate" and not crateIndex then
 			crateIndex = i
 		end
 	end
-	ok("ikisi de var", dustIndex ~= nil and crateIndex ~= nil)
-	if not (dustIndex and crateIndex) then return end
+	ok("sandık var", crateIndex ~= nil)
+	if not crateIndex then return end
 
 	setCash(ctx.player, 0)
-	ok("yıldız tozu toplandı", SpaceBonusService._Collect(ctx.player, dustIndex))
-	ok("para geldi", EconomyService.GetCash(ctx.player) >= Config.SpaceBonus.StardustMin)
-	ok("hemen tekrar toplanmıyor", not SpaceBonusService._Collect(ctx.player, dustIndex))
-	eq("gizlendi", pickups[dustIndex].part.Transparency, 1)
-
-	local before = EconomyService.GetCash(ctx.player)
 	ok("sandık açıldı", SpaceBonusService._Collect(ctx.player, crateIndex))
-	ok("sandık büyük ödül", EconomyService.GetCash(ctx.player) - before >= Config.SpaceBonus.CrateMin)
-	ok("sandık ödülü yıldız tozundan büyük", Config.SpaceBonus.CrateMin > Config.SpaceBonus.StardustMin * 10)
+	ok("taban ödül geldi", EconomyService.GetCash(ctx.player) >= Config.SpaceBonus.CrateMin)
+	ok("hemen tekrar açılmıyor", not SpaceBonusService._Collect(ctx.player, crateIndex))
 
 	SpaceBonusService._Respawn()
-	ok("yeniden belirdi", SpaceBonusService._Collect(ctx.player, dustIndex))
+	ok("yeniden belirdi", SpaceBonusService._Collect(ctx.player, crateIndex))
 	SpaceBonusService._Respawn()
 end)
 
@@ -4057,7 +4064,72 @@ case("Uzay yolu: Golden Comet başlıyor ve bitiyor", function()
 	ok("kuyruklu yıldız dünyada", SpaceBonusService.GetComet() ~= nil)
 	stop()
 	eq("durdu", SpaceBonusService.GetComet(), nil)
-	ok("halka çarpanı teslim toleransına dahil (hız hilesi sanılmasın)", Config.SpaceBonus.RingBoostMul > 1)
+	ok("teslim toleransı payı duruyor", Config.SpaceBonus.RingBoostMul >= 1)
+end)
+
+case("Jetpack: parayla alınıyor, gidişte hızlandırıyor, taşırken değil", function(ctx)
+	local scout = Config.GetJetpack("Scout") :: Config.JetpackDef
+	ok("Scout tanımlı", scout ~= nil and scout.price > 0)
+	eq("başlangıç paketi bedava ve 1x", Config.GetJetpackBoost("Starter", false), 1)
+	ok("Scout gidişte hızlı", Config.GetJetpackBoost("Scout", false) > 1)
+	eq("taşırken bonus yok", Config.GetJetpackBoost("Scout", true), 1)
+	-- Sıra: ucuzdan pahalıya daha hızlı (Robux'lular hariç)
+	local lastBoost, lastPrice = 0, -1
+	for _, def in Config.Jetpacks do
+		if def.pass == nil then
+			ok(def.id .. " öncekinden hızlı", def.boost > lastBoost)
+			ok(def.id .. " öncekinden pahalı", def.price > lastPrice)
+			lastBoost, lastPrice = def.boost, def.price
+		end
+	end
+
+	ctx.profile.jetpacks = {}
+	ctx.profile.jetpack = "Starter"
+	setCash(ctx.player, scout.price - 1)
+	ok("parası yetmeyince alınamıyor", not JetpackService.Buy(ctx.player, "Scout"))
+	eq("para harcanmadı", EconomyService.GetCash(ctx.player), scout.price - 1)
+	setCash(ctx.player, scout.price)
+	ok("alındı", JetpackService.Buy(ctx.player, "Scout"))
+	eq("para düştü", EconomyService.GetCash(ctx.player), 0)
+	eq("kuşanıldı", ctx.player:GetAttribute("Jetpack"), "Scout")
+	ok("sahiplik yayında", string.find(tostring(ctx.player:GetAttribute("JetpacksOwned")), "Scout", 1, true) ~= nil)
+	ok("başlangıca dönülebiliyor", JetpackService.Equip(ctx.player, "Starter"))
+	ok("sahip olunmayan kuşanılamıyor", not JetpackService.Equip(ctx.player, "Quasar"))
+	ok("Robux'lu parayla alınamıyor", not JetpackService.Buy(ctx.player, "Plasma"))
+
+	ctx.profile.jetpacks = {}
+	ctx.profile.jetpack = "Starter"
+	JetpackService.Publish(ctx.player)
+end)
+
+case("Uzay: mürettebat hep birlikte değişiyor, sayaç herkese aynı", function()
+	SpaceService.RotateCrew()
+	local at = workspace:GetAttribute("CrewRotateAt")
+	ok("sayaç yazıldı", typeof(at) == "number")
+	if typeof(at) == "number" then
+		near("5 dakika sonra", at - workspace:GetServerTimeNow(), Config.Space.CrewRotate, 2)
+	end
+	local filled = 0
+	for k = 1, Config.Space.CrewPerPlanet do
+		if SpaceService._Spot(1, k) then
+			filled += 1
+		end
+	end
+	eq("ilk gezegen dolu", filled, Config.Space.CrewPerPlanet)
+	ok("çalınınca 1 dakikada yenisi", Config.Space.CrewRespawn == 60)
+end)
+
+case("Uzay: istasyona dönüş yalnızca uzayda ve boş elle", function(ctx)
+	ctx.player:SetAttribute("InSpace", nil)
+	ok("gemideyken dönüş yok", not SpaceService.ReturnToStation(ctx.player))
+	ctx.player:SetAttribute("InSpace", true)
+	local root = ctx.player.Character.HumanoidRootPart :: BasePart
+	local home = root.CFrame
+	ok("uzayda dönüyor", SpaceService.ReturnToStation(ctx.player))
+	ok("güverteye indi", (root.Position - SpaceField.DeckCenter()).Magnitude < 40)
+	ok("art arda dönüş yok", not SpaceService.ReturnToStation(ctx.player))
+	ctx.player:SetAttribute("InSpace", nil)
+	root.CFrame = home
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────

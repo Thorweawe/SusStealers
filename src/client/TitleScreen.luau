@@ -310,9 +310,12 @@ function TitleScreen.Show(options: Options?): Handle
 	local open = true
 	local connections: { RBXScriptConnection } = {}
 
-	-- ── Oyuncu kontrolleri, sohbet, oyuncu listesi: menü boyunca kapalı ──
+	-- ── Oyuncu kontrolleri ve sohbet: menü boyunca kapalı ──
+	--[[ Oyuncu listesi burada YOK: init.client onu kalıcı kapatıyor. Eskiden
+	     menü açılırken hâlâ açıksa "geri açılacaklar"a giriyordu ve oyuna
+	     dönünce Roblox'un listesi bizim tablonun üstüne geri geliyordu. ]]
 	local hiddenCore: { Enum.CoreGuiType } = {}
-	for _, kind in { Enum.CoreGuiType.Chat, Enum.CoreGuiType.PlayerList } do
+	for _, kind in { Enum.CoreGuiType.Chat } do
 		local ok, enabled = pcall(function()
 			return StarterGui:GetCoreGuiEnabled(kind)
 		end)
@@ -913,7 +916,7 @@ function TitleScreen.Show(options: Options?): Handle
 		{ icon = "crew", color = UiKit.CREW.CYAN, title = "Steal from space monsters", text = "Fly out of the Launch Bay, grab a crewmate guarded by a space monster and race it home. Every crewmate on your podiums earns cash each second." },
 		{ icon = "bag", color = UiKit.CREW.RED, title = "Train your space speed", text = "Stand in the capsule behind your base and win its mini game. Faster crewmates are guarded by faster monsters: speed unlocks them." },
 		{ icon = "flame", color = UiKit.CREW.ORANGE, title = "Grow your crew", text = "Spend cash on upgrades like Jet Boost and Quick Hands, and on new floors. Rebirth when you are rich enough: you start over, but earn more forever." },
-		{ icon = "egg", color = UiKit.CREW.PINK, title = "Hatch pets & gear up", text = "Pets boost your cash and flight speed. Gear from the Weapons room stuns monsters that chase you." },
+		{ icon = "egg", color = UiKit.CREW.PINK, title = "Hatch pets & gear up", text = "Pets boost your cash and flight speed. Gear from the Weapons room lets you slap, zap and blast other players." },
 		{ icon = "bolt", color = UiKit.CREW.YELLOW, title = "Tasks, events & titles", text = "Do tasks around the ship, catch the events and unlock rare titles that glow above your head!" },
 	}
 	for i, tip in tips do

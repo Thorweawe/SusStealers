@@ -372,6 +372,47 @@ local function dizzy(character: Model, seconds: number, color: Color3)
 	end)
 end
 
+-- ─── Savrulma (vurulan oyuncu) ─────────────────────────────────────────────
+
+--[[
+	Kendi karakterim vuruldu. İstasyonda yere savruluyor (PlatformStand +
+	hız, sersemlik bitince kalkıyor). Uzayda uçuş denetimi SpaceFX'te: ona
+	yerel nitelikle "şu kadar sn savruluyorsun, şu hızla" diyoruz, o da
+	dönerek sürükleniyor (istasyon animasyonundan farklı, 2026-09-28).
+]]
+local function knockSelf(from: Vector3, knock: number, stun: number, inSpace: boolean)
+	local character = player.Character
+	local root = character and rootOf(character)
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (root and humanoid) then
+		return
+	end
+	local away = root.Position - from
+	away = if away.Magnitude > 0.1 then away.Unit else -root.CFrame.LookVector
+	if inSpace then
+		player:SetAttribute("SpaceKnock", away * knock + Vector3.new(0, knock * 0.25, 0))
+		player:SetAttribute("SpaceStunUntil", os.clock() + stun)
+		return
+	end
+	local flat = Vector3.new(away.X, 0, away.Z)
+	flat = if flat.Magnitude > 0.1 then flat.Unit else -root.CFrame.LookVector
+	humanoid.PlatformStand = true
+	root.AssemblyLinearVelocity = flat * knock + Vector3.new(0, knock * 0.45, 0)
+	root.AssemblyAngularVelocity = Vector3.new(math.random(-6, 6), math.random(-3, 3), math.random(-6, 6))
+	task.delay(stun, function()
+		if humanoid.Parent then
+			humanoid.PlatformStand = false
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end)
+end
+
+--[[
+	Yerel alet kullanımı (tıklandığı an): gezen süs mürettebat (MapLife)
+	kendi istemcisinde savrulsun diye. (Konum, bakış, alet kimliği)
+]]
+GearFX.LocalUsed = Instance.new("BindableEvent")
+
 -- ─── Başlatma ───────────────────────────────────────────────────────────────
 
 function GearFX.Start(shaker: Shaker?): Handle
@@ -398,6 +439,10 @@ function GearFX.Start(shaker: Shaker?): Handle
 			end
 			lastLocal[gearDef.id] = now
 			play(player.Character, gearDef.id)
+			local me = player.Character and rootOf(player.Character)
+			if me then
+				GearFX.LocalUsed:Fire(me.Position, me.CFrame.LookVector, gearDef.id)
+			end
 			if gearDef.kind == "slap" then
 				local character = player.Character
 				local root = character and rootOf(character)
@@ -418,7 +463,7 @@ function GearFX.Start(shaker: Shaker?): Handle
 	end
 	table.insert(connections, player.CharacterAdded:Connect(watchCharacter))
 
-	table.insert(connections, remote.OnClientEvent:Connect(function(kind, character, a, b, c, d)
+	table.insert(connections, remote.OnClientEvent:Connect(function(kind, character, a, b, c, d, ...)
 		if typeof(character) ~= "Instance" or not character:IsA("Model") then
 			return
 		end
@@ -458,38 +503,30 @@ function GearFX.Start(shaker: Shaker?): Handle
 					end)
 				end
 			end
-		elseif kind == "monster" and typeof(a) == "string" then
-			-- Canavar vuruldu: holder modeli `character` argümanında
-			local gearId, monster = a, character
-			local stun = if typeof(c) == "number" then math.clamp(c, 0, 6) else 1
+		elseif kind == "hit" and typeof(a) == "string" and typeof(b) == "Vector3" then
+			-- Oyuncu vuruldu: (karakter, alet, merkez, savrulma, sersemlik, uzayda mı)
+			local gearId = a
+			local knock = if typeof(c) == "number" then math.clamp(c, 0, 120) else 30
+			local stun = if typeof(d) == "number" then math.clamp(d, 0, 4) else 1
+			local inSpace = select(1, ...) == true
 			local delay = if gearId == "SlapGlove" then 0.18 elseif gearId == "EmergencyButton" then 0.3 else 0.08
 			task.delay(delay, function()
-				local anchor, lift = anchorOf(monster)
-				local at = if anchor then anchor.Position + Vector3.new(0, lift, 0) else nil
-				if gearId == "SlapGlove" then
-					popWord(monster, "SLAP!", Color3.fromRGB(255, 235, 90))
-					if at then
-						burst(at, Color3.fromRGB(255, 250, 220), 40, 26)
-						SoundFX.GearSound("GearSlap", at)
-					end
-					dizzy(monster, stun, Color3.fromRGB(255, 225, 80))
-				elseif gearId == "StunGun" then
-					popWord(monster, "ZAP!", Color3.fromRGB(120, 210, 255))
-					if at then
-						burst(at, Color3.fromRGB(120, 210, 255), 50, 24)
-					end
-					dizzy(monster, stun, Color3.fromRGB(120, 210, 255))
-				else
-					popWord(monster, "BOOM!", Color3.fromRGB(255, 90, 90))
-					if at then
-						burst(at, Color3.fromRGB(255, 140, 90), 50, 30)
-					end
-					dizzy(monster, stun, Color3.fromRGB(255, 225, 80))
+				local anchor = rootOf(character)
+				local at = if anchor then anchor.Position else nil
+				local color = if gearId == "StunGun" then Color3.fromRGB(120, 210, 255)
+					elseif gearId == "EmergencyButton" then Color3.fromRGB(255, 120, 90) else Color3.fromRGB(255, 235, 90)
+				local word = if inSpace then (if gearId == "StunGun" then "ZZAP!" else "SPIN!")
+					elseif gearId == "SlapGlove" then "SLAP!" elseif gearId == "StunGun" then "ZAP!" else "BOOM!"
+				popWord(character, word, color)
+				if at then
+					burst(at, color, if inSpace then 30 else 40, if inSpace then 18 else 26)
+					SoundFX.GearSound(if gearId == "StunGun" then "GearZap" elseif gearId == "SlapGlove" then "GearSlap" else "GearBlast", at)
 				end
-				if shaker and anchor and player.Character then
-					local myRoot = rootOf(player.Character)
-					if myRoot and (myRoot.Position - anchor.Position).Magnitude < 80 then
-						shaker.Shake(0.4, 0.25)
+				dizzy(character, stun, color)
+				if mine then
+					knockSelf(b, knock, stun, inSpace)
+					if shaker then
+						shaker.Shake(if inSpace then 0.8 else 1.2, 0.35)
 					end
 				end
 			end)

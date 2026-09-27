@@ -55,7 +55,7 @@ export type Profile = {
 	--[[
 		Unvan ve görev sayaçları (2026-09-28; hepsi yalnızca ARTIYOR):
 		  trainings     — kapsül mini oyununu kazanma
-		  stunned       — ekipmanla sersemletilen canavar
+		  stunned       — ekipmanla vurulan oyuncu (2026-09-28'e kadar canavar)
 		  thrown        — canavarın gemiye fırlatması
 		  mutatedSteals — uzaydan getirilen mutasyonlu mürettebat
 		  bossSteals    — son canavardan (Void Leviathan) getirilen
@@ -126,6 +126,9 @@ export type Profile = {
 	-- Satın alınmış ekipman (Gear Shop): kimlik -> true. Kalıcı; rebirth'te
 	-- sıfırlanmıyor, bir kez alınan alet hep geliyor.
 	gear: { [string]: boolean },
+	-- Jetpack'ler (JetpackService): sahip olunanlar ve kuşanılan
+	jetpacks: { [string]: boolean },
+	jetpack: string,
 	-- Kozmetikler: sahip olunanlar (kimlik -> true) ve takılı şapka / iz.
 	-- Boş dize = takılı değil. Kalıcı; rebirth'te sıfırlanmıyor.
 	cosmetics: { [string]: boolean },
@@ -133,7 +136,7 @@ export type Profile = {
 	trail: string,
 	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor.
 	-- autoDelete: yumurtadan çıkınca envantere girmeden silinecek kademeler
-	settings: { music: number, sfx: number, shake: boolean, autoDelete: { [string]: boolean } },
+	settings: { music: number, sfx: number, shake: boolean, pets: boolean, lowGfx: boolean, autoDelete: { [string]: boolean } },
 	-- Pet indeksi: bir kez bile elde edilmiş (ya da otomatik silinmiş) pet kimlikleri
 	petsFound: { [string]: boolean },
 }
@@ -216,6 +219,8 @@ local function newProfile(): Profile
 		indexClaimed = {},
 		codes = {},
 		gear = {},
+		jetpacks = {},
+		jetpack = "Starter",
 		cosmetics = {},
 		hat = "",
 		trail = "",
@@ -223,6 +228,8 @@ local function newProfile(): Profile
 			music = Config.DefaultSettings.music,
 			sfx = Config.DefaultSettings.sfx,
 			shake = Config.DefaultSettings.shake,
+			pets = Config.DefaultSettings.pets,
+			lowGfx = Config.DefaultSettings.lowGfx,
 			autoDelete = {},
 		},
 		petsFound = {},
@@ -516,6 +523,18 @@ local function sanitize(raw: any): Profile
 			end
 		end
 	end
+	if typeof(raw.jetpacks) == "table" then
+		for id, flag in raw.jetpacks do
+			if typeof(id) == "string" and flag == true and Config.GetJetpack(id) then
+				profile.jetpacks[id] = true
+			end
+		end
+	end
+	-- Kuşanılan: tanımlı olmalı (sahipliği JetpackService pass'le birlikte doğruluyor)
+	if typeof(raw.jetpack) == "string" and Config.GetJetpack(raw.jetpack) then
+		profile.jetpack = raw.jetpack
+	end
+
 	if typeof(raw.gear) == "table" then
 		for id, flag in raw.gear do
 			if typeof(id) == "string" and Config.GetGear(id) and flag == true then
@@ -555,8 +574,10 @@ local function sanitize(raw: any): Profile
 				(profile.settings :: any)[key] = math.clamp(v, 0, 1)
 			end
 		end
-		if typeof(s.shake) == "boolean" then
-			profile.settings.shake = s.shake
+		for _, key in { "shake", "pets", "lowGfx" } do
+			if typeof(s[key]) == "boolean" then
+				(profile.settings :: any)[key] = s[key]
+			end
 		end
 		if typeof(s.autoDelete) == "table" then
 			for rarity, on in s.autoDelete do
@@ -699,6 +720,7 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.indexClaimed = table.clone(profile.indexClaimed)
 	snapshot.codes = table.clone(profile.codes)
 	snapshot.gear = table.clone(profile.gear)
+	snapshot.jetpacks = table.clone(profile.jetpacks)
 	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.settings = table.clone(profile.settings)
 	snapshot.settings.autoDelete = table.clone(profile.settings.autoDelete)

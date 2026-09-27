@@ -3,16 +3,17 @@
 	Ekipman: lobideki Gear Shop'tan (Weapons) oyun içi parayla alınan
 	kalıcı aletler. Liste ve sayılar Config.Gear'da.
 
-	2026-09-28: oyuncudan çalma kalktı; aletler artık OYUNCULARA değil
-	UZAYDAKİ CANAVARLARA (ve gemide üssü soyan impostora) karşı:
+	2026-09-28 (Yusuf): aletler OYUNCULARA ve gezen impostora karşı;
+	canavarlara işlemiyor. Uzayda da çalışıyor ama hafif (sabotaj):
 
-	  Slap Glove       — öndeki yakın canavarı itiyor, kısa sersemletiyor.
+	  Slap Glove       — öndeki oyuncuyu savuruyor, kısa sersemletiyor.
 	  Speed Coil       — gemide elde tutarken koşudan hızlı (uzayda işlemiyor).
-	  Stun Gun         — baktığı yöndeki canavarı uzaktan donduruyor.
-	  Emergency Button — çevredeki bütün canavarları savuruyor, sersemletiyor.
+	  Stun Gun         — baktığı yöndeki oyuncuyu uzaktan donduruyor.
+	  Emergency Button — çevredeki herkesi savuruyor.
 
-	Sersemleyen canavar kimseyi yakalayamıyor ve kovalamaya yeniden yavaş
-	başlıyor (SpaceService.HitMonsters). Kovalanırken kaçış aracı.
+	Uzayda etki ~%60, taşınan mürettebat düşmüyor (canavar yetişebilir).
+	Savrulma vurulanın istemcisinde (GearFX "hit"): istasyonda yere, uzayda
+	dönerek sürüklenme. Gezen süs mürettebata (MapLife) istemci vuruyor.
 
 	═══ GÜVENLİK ══════════════════════════════════════════════════════════
 
@@ -33,7 +34,6 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local MovementService = require(script.Parent.MovementService)
 local RogueService = require(script.Parent.RogueService)
-local SpaceService = require(script.Parent.SpaceService)
 
 local GearService = {}
 
@@ -102,11 +102,64 @@ local function hitRogue(player: Player, origin: Vector3, range: number): boolean
 	return result == "ok"
 end
 
---[[ Vurulan canavarlara efekt: holder modeli + aletin kimliği + vuruşun merkezi. ]]
-local function monsterFx(hit: { Model }, def: Config.GearDef, from: Vector3)
-	for _, holder in hit do
-		fx("monster", holder, def.id, from, def.stun or 1)
+-- ─── Oyuncuya vuruş ─────────────────────────────────────────────────────────
+
+--[[
+	2026-09-28 (Yusuf): aletler canavarlara DEĞİL oyunculara (ve gezen
+	impostora). Uzayda oyuncular birbirini hafifçe sabote edebiliyor:
+	sersemleme ve savrulma istasyondakinin ~%60'ı, taşınan mürettebat
+	DÜŞMÜYOR — yalnızca canavar yetişebilir. İstasyonda eskisi gibi savurma.
+	Görünüş de farklı (GearFX "hit" son argümanı: uzayda dönerek sürüklenme,
+	istasyonda yere savrulma).
+]]
+local SPACE_HIT_MUL = 0.6
+local lastHit: { [Player]: number } = {}
+
+function GearService.IsImmune(target: Player, now: number?): boolean
+	local last = lastHit[target]
+	return last ~= nil and (now or os.clock()) - last < Config.GearHitImmunity
+end
+
+function GearService._MarkHit(target: Player, at: number?)
+	lastHit[target] = at or os.clock()
+end
+
+local function hitPlayer(attacker: Player, target: Player, def: Config.GearDef, from: Vector3): boolean
+	local character = target.Character
+	if not character or GearService.IsImmune(target) then
+		return false
 	end
+	-- Canavarın elindeki ya da güvenli güvertedeki oyuncuya olmaz
+	if target:GetAttribute("SpaceGrabbed") then
+		return false
+	end
+	lastHit[target] = os.clock()
+	local inSpace = target:GetAttribute("InSpace") == true
+	local mul = if inSpace then SPACE_HIT_MUL else 1
+	fx("hit", character, def.id, from, (def.knock or 30) * mul, (def.stun or 1) * mul, inSpace)
+	notify(target, string.format("%s hit you with a %s!", attacker.DisplayName, def.name), true)
+	return true
+end
+
+--[[ Önündeki en yakın oyuncu (menzilde, bakışla açının kosinüsü > minDot). ]]
+local function targetInFront(player: Player, root: BasePart, range: number, minDot: number): Player?
+	local best: Player? = nil
+	local bestDistance = range
+	local look = root.CFrame.LookVector
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			local otherRoot = rootOf(other)
+			if otherRoot then
+				local offset = otherRoot.Position - root.Position
+				local distance = offset.Magnitude
+				local facing = distance < 0.01 or look:Dot(offset.Unit) > minDot
+				if distance <= bestDistance and facing then
+					best, bestDistance = other, distance
+				end
+			end
+		end
+	end
+	return best
 end
 
 -- ─── Kullanım ───────────────────────────────────────────────────────────────
@@ -132,33 +185,35 @@ function GearService.Use(player: Player, id: string): boolean
 
 	if def.kind == "slap" then
 		fx("use", character, id)
-		local hit = SpaceService.HitMonsters(root.Position, range, def.stun or 1, def.knock or 0, look, 0.2)
-		monsterFx(hit, def, root.Position)
-		count = #hit
-		if count == 0 then
+		local target = targetInFront(player, root, range, 0.2)
+		if target and hitPlayer(player, target, def, root.Position) then
+			count = 1
+		else
 			hitRogue(player, root.Position, range)
 		end
 	elseif def.kind == "stun" then
-		-- Dar koni (~30°): nişan alınıyor. Işın efekti hedefe gitsin diye ilk hedef de gidiyor
-		local hit = SpaceService.HitMonsters(root.Position, range, def.stun or 1, 0, look, 0.85)
-		fx("use", character, id, hit[1])
-		monsterFx(hit, def, root.Position)
-		count = #hit
-		if count == 0 then
+		-- Dar koni (~30°): nişan alınıyor. Işın efekti hedefe gitsin diye hedef de gidiyor
+		local target = targetInFront(player, root, range, 0.85)
+		fx("use", character, id, if target then target.Character else nil)
+		if target and hitPlayer(player, target, def, root.Position) then
+			count = 1
+		else
 			hitRogue(player, root.Position + look * (range / 2), range / 2)
 		end
 	elseif def.kind == "blast" then
 		fx("use", character, id)
-		local hit = SpaceService.HitMonsters(root.Position, range, def.stun or 1, def.knock or 0, nil, nil)
-		monsterFx(hit, def, root.Position)
-		count = #hit
-		if count == 0 and not hitRogue(player, root.Position, range) and player:GetAttribute("InSpace") then
-			notify(player, "No monster was close enough", false)
+		for _, other in Players:GetPlayers() do
+			local otherRoot = rootOf(other)
+			if other ~= player and otherRoot and (otherRoot.Position - root.Position).Magnitude <= range then
+				if hitPlayer(player, other, def, root.Position) then
+					count += 1
+				end
+			end
 		end
+		hitRogue(player, root.Position, range)
 	end
 	if count > 0 then
 		DataService.Bump(player, "stunned", count)
-		notify(player, if count == 1 then "Monster stunned! Get away!" else string.format("%d monsters stunned! Get away!", count), false)
 	end
 	return true
 end

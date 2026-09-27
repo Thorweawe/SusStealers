@@ -60,6 +60,7 @@ type Spot = {
 	model: Model?,
 	emptySince: number?,
 	held: boolean,       -- biri taşıyor: yenisi gelmesin, düşerse aynısı dönsün
+	anchor: BasePart?,   -- görünmez yer işareti: istemci boşken geri sayımı buna yazıyor
 }
 
 type Monster = {
@@ -75,7 +76,7 @@ type Monster = {
 	target: Player?,
 	lungeUntil: number,     -- ani atak bu ana kadar sürüyor
 	nextLunge: number,      -- bir sonraki atak en erken
-	stunUntil: number,      -- ekipmanla sersemletildi: bu ana kadar yerinde (GearService)
+	stunUntil: number,      -- sersemletildi (kalkan iksiri): bu ana kadar yerinde
 }
 
 type Carry = {
@@ -115,6 +116,8 @@ local function stealthOf(player: Player?): number
 end
 -- Testler döngüyü durduruyor (canavar test oyuncusunu yakalamasın)
 local paused = false
+-- Bir sonraki ortak mürettebat rotasyonu (sunucu saati)
+local rotateAt = math.huge
 
 --[[
 	Olayların uzaya etkisi (EventService):
@@ -308,10 +311,11 @@ local function buildDeck(zone: Model)
 		{ Material = Enum.Material.ForceField, Transparency = 0.55, CanCollide = false, CanQuery = false, CastShadow = false })
 	local _ = field
 	-- Tabela: içeriden LAUNCH BAY, dışarıdan SAFE ZONE
+	-- Yazı tabelaya sığıyor: eskiden 6 px/stud'da 120 punto "LAUN" diye kesiliyordu
 	local board = part(deck, "ArchSign", Vector3.new(40, 4.6, 0.4), CFrame.new(X, top + archH + 2.5, z0 + 4.25), Color3.fromRGB(20, 26, 46))
-	sign(board, Enum.NormalId.Back, { { text = "LAUNCH BAY", color = Color3.fromRGB(130, 225, 255), size = 120 } }, 6)
+	sign(board, Enum.NormalId.Back, { { text = "LAUNCH BAY", color = Color3.fromRGB(130, 225, 255), size = 72 } }, 20)
 	local outBoard = part(deck, "SafeSign", Vector3.new(40, 4.6, 0.4), CFrame.new(X, top + archH + 2.5, z0 - 0.25), Color3.fromRGB(20, 46, 30))
-	sign(outBoard, Enum.NormalId.Front, { { text = "SAFE ZONE", color = Color3.fromRGB(120, 255, 140), size = 120 } }, 6)
+	sign(outBoard, Enum.NormalId.Front, { { text = "SAFE ZONE", color = Color3.fromRGB(120, 255, 140), size = 72 } }, 20)
 	local beamLight = Instance.new("SurfaceLight")
 	beamLight.Face = Enum.NormalId.Bottom
 	beamLight.Range = 32
@@ -326,7 +330,7 @@ local function buildDeck(zone: Model)
 		{ text = "1. Fly to a planet", color = WHITE, size = 34 },
 		{ text = "2. Hold on a crewmate to steal it", color = WHITE, size = 34 },
 		{ text = "3. Fly back here before the monster catches you!", color = Color3.fromRGB(255, 140, 170), size = 34 },
-		{ text = "Train in your base Capsule to fly faster", color = Color3.fromRGB(255, 220, 110), size = 30 },
+		{ text = "Buy a jetpack here to fly out faster!", color = Color3.fromRGB(255, 220, 110), size = 30 },
 	}, 18)
 end
 
@@ -352,7 +356,7 @@ local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMon
 	cyl(model, "Plateau", def.position - Vector3.new(0, depth / 2, 0), Vector3.yAxis, depth, plateauR * 2 + 1.5, def.planetColor2)
 	cyl(model, "PlateauRim", def.position - Vector3.new(0, 0.4, 0), Vector3.yAxis, 0.6, plateauR * 2 + 2.2, def.glow,
 		{ Material = Enum.Material.Neon, CanCollide = false })
-	cyl(model, "PlateauTop", def.position - Vector3.new(0, 0.05, 0), Vector3.yAxis, 0.1, plateauR * 2 - 2, def.planetColor2:Lerp(WHITE, 0.08), { CanCollide = false })
+	-- (PlateauTop kalktı: üst yüzü platoyla aynı düzlemdeydi, tepe titriyordu)
 
 	-- Kraterler ve lekeler (üst yarıküre, platonun dışında)
 	for k = 1, 22 do
@@ -454,11 +458,17 @@ local function placeSpot(spot: Spot, unitId: string, mutationId: string?, folder
 	end)
 	model:SetAttribute("Planet", spot.planet)
 	model:SetAttribute("Spot", spot.index)
+	-- İstemcinin nadirlik aurası (CrewAura) için
+	model:SetAttribute("UnitId", unitId)
+	model:SetAttribute("MutationId", mutationId)
 	model.Parent = folder
 	spot.model = model
 	spot.unitId = unitId
 	spot.mutationId = mutationId
 	spot.emptySince = nil
+	if spot.anchor then
+		spot.anchor:SetAttribute("RespawnAt", nil)
+	end
 end
 
 local crewFolder: Folder? = nil
@@ -650,7 +660,8 @@ local function deliver(player: Player, root: BasePart)
 	]]
 	local distance = (carry.from - root.Position).Magnitude
 	local jet = Config.GetJetBoost(UpgradeService.GetLevel(player, "JetBoost"))
-	-- Jet Boost ve hız halkaları (SpaceBonus) üst üste binebiliyor: ikisi de payda
+	-- Jet Boost payda; halkalar 2026-09-28'de kalktı ama çarpanı ek pay olarak duruyor.
+	-- Jetpack bonusu taşırken yok (Config.GetJetpackBoost), payda gerekmiyor.
 	local boost = (if jet then jet.mul else 1) * Config.SpaceBonus.RingBoostMul
 	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * boost) - 1
 	if os.clock() - carry.grabbedAt < minTime then
@@ -669,6 +680,9 @@ local function deliver(player: Player, root: BasePart)
 	if spot then
 		spot.held = false
 		spot.emptySince = os.clock()
+		if spot.anchor then
+			spot.anchor:SetAttribute("RespawnAt", workspace:GetServerTimeNow() + Config.Space.CrewRespawn)
+		end
 	end
 
 	if not placeOnPodium(player, carry.unitId, carry.mutationId, "stole") then
@@ -1096,42 +1110,62 @@ local function stepPlayers()
 			end
 		end
 	end
+
+	--[[
+		Ortak rotasyon: CrewRotate sn'de bir bütün gezegenlerdeki mürettebat
+		birlikte değişiyor (taşınanlar hariç). Zaman sunucu saati: istemci
+		workspace.CrewRotateAt'ten herkese aynı geri sayımı çiziyor.
+	]]
+	local serverNow = workspace:GetServerTimeNow()
+	if serverNow >= rotateAt then
+		SpaceService.RotateCrew()
+	end
 end
 
 -- ─── Dışa açık ──────────────────────────────────────────────────────────────
 
---[[
-	Ekipman vuruşu (GearService): `origin`dan `range` içindeki canavarlar
-	`stun` sn sersemliyor ve `knock` stud geri itiliyor. `look` verilirse
-	yalnızca önündekiler (bakışla açının kosinüsü > minDot). Vurulan
-	canavarların holder modelleri dönüyor (efekt için).
-]]
-function SpaceService.HitMonsters(origin: Vector3, range: number, stun: number, knock: number, look: Vector3?, minDot: number?): { Model }
-	local hit: { Model } = {}
-	local now = os.clock()
-	for _, m in monsters do
-		if m.state == "grab" or m.state == "throw" then
-			continue
+--[[ Bütün gezegenlerdeki mürettebatı birlikte yeniler (taşınanlar hariç). ]]
+function SpaceService.RotateCrew()
+	for _, list in spots do
+		for _, spot in list do
+			if not spot.held and crewFolder then
+				rollSpot(spot)
+			end
 		end
-		local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
-		local offset = body - origin
-		local reach = range + 4 * m.def.scale
-		if offset.Magnitude > reach then
-			continue
-		end
-		if look and offset.Magnitude > 0.5 and look.Unit:Dot(offset.Unit) < (minDot or 0) then
-			continue
-		end
-		m.stunUntil = math.max(m.stunUntil, now + stun)
-		if knock > 0 then
-			local flat = Vector3.new(offset.X, 0, offset.Z)
-			local dir = if flat.Magnitude > 0.1 then flat.Unit else -m.facing
-			local pushed, _ = keepOffPlanets(m.position + dir * knock)
-			m.position = pushed
-		end
-		table.insert(hit, m.root.Parent :: Model)
 	end
-	return hit
+	rotateAt = workspace:GetServerTimeNow() + Config.Space.CrewRotate
+	workspace:SetAttribute("CrewRotateAt", rotateAt)
+end
+
+--[[
+	"Return to Station": uzaydaki oyuncuyu güverteye ışınlar. Taşırken
+	olmaz (kaçmanın kısayolu olurdu), fırlatılırken olmaz. Kaide doluyken
+	uzakta kalan oyuncu için (2026-09-28 isteği). Remote "SpaceReturn".
+]]
+local lastReturn: { [Player]: number } = {}
+function SpaceService.ReturnToStation(player: Player): boolean
+	local root = rootOf(player)
+	if not root or not player:GetAttribute("InSpace") then
+		return false
+	end
+	if carrying[player] then
+		notify(player, "Bring the crewmate home first!", true)
+		return false
+	end
+	if grabbedBy[player] then
+		return false
+	end
+	local now = os.clock()
+	if now - (lastReturn[player] or -math.huge) < 3 then
+		return false
+	end
+	lastReturn[player] = now
+	local deck = SpaceField.DeckCenter() + Vector3.new(0, 3.5, 8)
+	if player.Character then
+		player.Character:PivotTo(CFrame.lookAt(deck, deck + Vector3.new(0, 0, -1)))
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	return true
 end
 
 function SpaceService.IsCarrying(player: Player): boolean
@@ -1340,19 +1374,17 @@ function SpaceService.Start()
 		local list: { Spot } = {}
 		for k, pos in SpaceField.CrewSpots(def) do
 			local spot: Spot = { planet = i, index = k, position = pos, held = false }
-			-- Mürettebatın altında parlak halka
-			cyl(planetFolder, "CrewPad", pos + Vector3.new(0, 0.06, 0), Vector3.yAxis, 0.12, 5, def.glow,
-				{ Material = Enum.Material.Neon, Transparency = 0.35, CanCollide = false })
+			-- Görünmez yer işareti (eskiden parlak halka vardı: "uzaydaki çemberler")
+			local anchor = part(crew, "CrewSpot", Vector3.one, CFrame.new(pos + Vector3.new(0, 3, 0)), WHITE,
+				{ Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+			anchor:SetAttribute("Planet", i)
+			spot.anchor = anchor
 			list[k] = spot
 		end
 		spots[i] = list
 	end
 	zone.Parent = workspace
-	for _, list in spots do
-		for _, spot in list do
-			rollSpot(spot)
-		end
-	end
+	SpaceService.RotateCrew()
 
 	--[[
 		Konveyör kalktı; onun ürünleri artık doğrudan kaideye karakter veriyor.
@@ -1387,8 +1419,13 @@ function SpaceService.Start()
 		watch(player)
 	end
 	Players.PlayerAdded:Connect(watch)
+	Net.Get("SpaceReturn").OnServerEvent:Connect(function(player)
+		SpaceService.ReturnToStation(player)
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		drop(player)
+		lastReturn[player] = nil
 		immuneUntil[player] = nil
 		grabbedBy[player] = nil
 		shieldReadyAt[player] = nil

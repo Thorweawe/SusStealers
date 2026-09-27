@@ -13,6 +13,21 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (36) — Yusuf (iki şeridi de ilgilendirir)
+
+**Büyük tur: denge, jetpack'ler, yeni pencereler, temizlik.** Studio'ya aktarıldı (önce Studio ile disk karşılaştırıldı, çakışma yoktu), dış harita (`exterior`) yeniden kuruldu, **172/172 test temiz**.
+
+- **Denge (`Config`)**: görev/çark/günlük/olay/sandık ödülleri gelir-saniyesiyle küçüldü (enflasyon yok), satış fiyatı = gelir × `SellIncomeSeconds` (45), kapsül eğrisi yavaşladı, yükseltme maliyetleri arttı.
+- **Jetpack'ler**: `Config.Jetpacks` (8 tane; Plasma/Galaxy Robux, pass kimliği 0 iken "SOON"), `shared/JetpackModel`, `server/JetpackService` (Launch Bay'de JETPACKS standı, "JetpackAction" remote), `client/JetpackPanel`. Bonus yalnızca GİDERKEN (`Config.GetJetpackBoost`, taşırken 1). Profil: `jetpacks`, `jetpack`.
+- **Uzay**: mürettebat 5 dk'da bir hep birlikte değişiyor (`workspace.CrewRotateAt`), çalınan yerine 1 dk sonra yenisi (`CrewSpot.RespawnAt`); üstlerinde geri sayım. "Return to Station" (R / düğme, "SpaceReturn"). Halkalar ve yıldız tozu kalktı, kayalar seyreldi, pano kenara, plato tepesi titremesi ve "LAUN" tabelası düzeldi, SAFE yanındaki mavi kanatçıklar kalktı. Fırlatılınca jetpack sırtta kalma hatası düzeldi. Mürettebata nadirlik aurası (`client/CrewAura`).
+- **Gear**: canavarlara değil OYUNCULARA (uzayda ×0.6, dönerek sürüklenme; istasyonda savrulma), 3 sn bağışıklık. `SpaceService.HitMonsters` silindi. "stunned" sayacı artık oyuncu vuruşu (görev/unvan metinleri değişti, unvan kimliği aynı).
+- **Kapsül mini oyunu**: ASTEROID RUN (WASD/joystick ile roket, zig-zag taş sıraları, EXIT/Space ile çıkış). "CapsuleCatch" aynı.
+- **Yeni pencereler**: `SettingsPanel` (üst şeritte ⚙; müzik/efekt, sarsıntı, başkalarının petleri, düşük grafik — profilde `pets`, `lowGfx`), `SpinPanel` (çark promptu pencereyi açıyor; "SpinRequest"/"SpinResult", ödül çark durunca veriliyor).
+- **Diğer**: Index görünümü yenilendi; uçuş pozları jetpack'e göre; güvenlik kamerasında E çalışıyor (promptlar kapalı); Roblox oyuncu listesi menüden sonra geri açılmıyor; hız hapında yalnızca "SPACE SPEED"; gezen süs mürettebat katı, hızlı çarpınca / gear'la devriliyor; yükseltme standında uzaylı satıcı + neon süsler; kilit konsolu silindi; öğreticiye "Buy a jetpack" adımı.
+- İstemciden sunucuya remote sınırı 22 (SpaceReturn, JetpackAction, SpinRequest eklendi).
+
+---
+
 ## 2026-09-28 (35) — Batur (harita, iki şeridi de ilgilendirir)
 
 **Lombozlar gerçek pencere, dışarısı dolu.** Harita tam kuruldu: `çakışan yüz 0 | oyun alanı ihlali 0`, **169/169 test temiz**.

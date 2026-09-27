@@ -441,6 +441,11 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 			local zone = workspace:FindFirstChild("SpaceZone")
 			local bay = zone and zone:FindFirstChild("LaunchBay")
 			return bay and bay:FindFirstChild("LaunchPad")
+		elseif hint == "JetpackStand" then
+			local zone = workspace:FindFirstChild("SpaceZone")
+			local bay = zone and zone:FindFirstChild("LaunchBay")
+			local stand = bay and bay:FindFirstChild("JetpackStand")
+			return stand and stand:FindFirstChild("Counter")
 		elseif hint == "Capsule" then
 			local capsule = plot and plot:FindFirstChild("Capsule")
 			return capsule and capsule:FindFirstChild("Pad")

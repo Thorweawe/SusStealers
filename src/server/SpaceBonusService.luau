@@ -155,7 +155,8 @@ end
 
 local function buildRocks(folder: Instance, cluster: SpaceField.RockCluster)
 	local r = Random.new(cluster.seed)
-	for k = 1, 9 do
+	-- 9 → 5 kaya: "biraz dolu görünsün ama kalabalık olmasın"
+	for k = 1, 5 do
 		local size = r:NextNumber(4, 13)
 		local p = cluster.center + Vector3.new(r:NextNumber(-1, 1), r:NextNumber(-0.6, 0.6), r:NextNumber(-1, 1)) * cluster.radius
 		part(folder, "Asteroid", Vector3.new(size, size * r:NextNumber(0.6, 1), size * r:NextNumber(0.7, 1.2)),
@@ -178,7 +179,8 @@ end
 local function buildBoard(folder: Instance)
 	local s = Config.Space
 	local center = SpaceField.DeckCenter()
-	local p = Vector3.new(s.GateX - s.DeckHalfWidth + 10, s.DeckTop + 9, center.Z + 6)
+	-- Güvertenin SAĞ yanında (solda bilgi panosu ve jetpack standı var; üst üste biniyordu)
+	local p = Vector3.new(s.GateX + s.DeckHalfWidth - 10, s.DeckTop + 9, center.Z + 6)
 	local board = part(folder, "PlanetBoard", Vector3.new(18, 13, 0.6), CFrame.lookAt(p, Vector3.new(center.X, p.Y, center.Z + 30)),
 		Color3.fromRGB(18, 22, 40), { Material = Enum.Material.SmoothPlastic })
 	part(folder, "PlanetBoardFrame", Vector3.new(19, 14, 0.4), board.CFrame * CFrame.new(0, 0, 0.25), Color3.fromRGB(80, 200, 255),
@@ -237,22 +239,14 @@ local function build()
 	model.Name = "SpaceBonus"
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
-	local rings = Instance.new("Folder")
-	rings.Name = "Rings"
-	rings.Parent = model
-	for i, ring in SpaceField.Rings() do
-		buildRing(rings, ring, i)
-	end
-
+	--[[
+		2026-09-28 (Yusuf): hız halkaları ("uzaydaki mavi çemberler") ve para
+		veren yıldız tozu ("küçük daireler") KALKTI. Hızı artık jetpack veriyor
+		(JetpackService), bedava para enflasyon yapıyordu. buildRing ve
+		SpaceField.Rings/StardustSpots duruyor ama kullanılmıyor.
+	]]
 	table.clear(pickups)
-	local dust = Instance.new("Folder")
-	dust.Name = "Stardust"
-	dust.Parent = model
-	for _, p in SpaceField.StardustSpots() do
-		local orb = part(dust, "Stardust", Vector3.one * 1.5, CFrame.new(p), DUST,
-			{ Shape = Enum.PartType.Ball, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
-		table.insert(pickups, { part = orb, position = p, readyAt = 0, kind = "stardust" })
-	end
+	local _ = { buildRing, DUST }
 
 	local crates = Instance.new("Folder")
 	crates.Name = "Crates"

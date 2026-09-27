@@ -11,6 +11,14 @@
 --
 -- Ödüller oyuncunun kendi gelirinin katı. Sabit tutar olsaydı geç oyunda
 -- anlamsızlaşır, erken oyunda dengeyi bozardı.
+--
+-- 2026-09-28 (Yusuf): çevirme artık PENCEREDEN (istemci SpinPanel). Prompt
+-- yalnızca pencereyi açıyor; SPIN düğmesi "SpinRequest" gönderiyor. Sunucu
+-- ödülü seçip "SpinResult" ile dilimi söylüyor, pencerede çark o dilimde
+-- duruyor ve ödül ANCAK O ZAMAN veriliyor (Config.SpinDuration sonra).
+-- Salondaki büyük çark da (boştaysa) aynı dilime dönüyor. Oyuncu başına
+-- kilit: iki oyuncu aynı anda çevirebiliyor. "SpinReadyAt" niteliği bedava
+-- hakkın geleceği an (os.time), pencere geri sayımı ondan.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,7 +29,6 @@ local Net = require(Shared.Net)
 local WheelSpin = require(Shared.WheelSpin)
 
 local PlotService = require(script.Parent.PlotService)
-local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
 local SpaceService = require(script.Parent.SpaceService)
@@ -33,8 +40,15 @@ local SpinService = {}
 local rng = Random.new()
 local notifyRemote: RemoteEvent
 
--- Çark dönerken ikinci çevirme kabul edilmiyor; ödül animasyonu bitsin
+-- Salondaki çark dönerken yeni çevirme onu yeniden başlatmıyor (pencere yine dönüyor)
 local spinning = false
+-- Oyuncunun kendi çevirmesi bitmeden (ödül verilmeden) ikincisi yok
+local busy: { [Player]: boolean } = {}
+-- Bekleyen ödülün jetonu: iptal edilince (testler) ödül verilmiyor
+local pending: { [Player]: number } = {}
+local pendingToken = 0
+local lastRequest: { [Player]: number } = {}
+local resultRemote: RemoteEvent? = nil
 local spinPrompt: ProximityPrompt? = nil
 
 --[[
@@ -71,6 +85,14 @@ function SpinService.GetCooldown(player: Player): number
 	local elapsed = os.time() - profile.lastSpinAt
 	local total = Config.SpinCooldownHours * 3600
 	return math.max(0, total - elapsed)
+end
+
+--[[ Pencerenin geri sayımı: bedava hakkın geleceği an (os.time). ]]
+local function publishReady(player: Player)
+	local profile = DataService.Get(player)
+	if profile then
+		player:SetAttribute("SpinReadyAt", profile.lastSpinAt + Config.SpinCooldownHours * 3600)
+	end
 end
 
 -- ─── Ödül ───────────────────────────────────────────────────────────────────
@@ -126,12 +148,7 @@ end
 	Çarkı `rewardId`nin dilimlerinden birinde durdurur. Kaç saniye sonra
 	durduğunu döner (ödül mesajı o zaman).
 ]]
-local function animate(rewardId: string): number
-	local wheel = getWheel()
-	if not wheel then
-		spinning = false
-		return 0
-	end
+local function pickSlice(rewardId: string): (number, number)
 	local slots = {}
 	for i, id in Config.SpinWheelSlices do
 		if id == rewardId then
@@ -139,7 +156,15 @@ local function animate(rewardId: string): number
 		end
 	end
 	local index = if #slots > 0 then slots[rng:NextInteger(1, #slots)] else 1
-	local jitter = rng:NextNumber(-WheelSpin.SLICE_JITTER, WheelSpin.SLICE_JITTER)
+	return index, rng:NextNumber(-WheelSpin.SLICE_JITTER, WheelSpin.SLICE_JITTER)
+end
+
+local function animate(index: number, jitter: number): number
+	local wheel = getWheel()
+	if not wheel or spinning then
+		return Config.SpinDuration
+	end
+	spinning = true
 
 	local now = workspace:GetServerTimeNow()
 	local start = now + 0.25 -- istemcilere niteliklerin ulaşması için pay
@@ -160,15 +185,8 @@ end
 
 -- ─── Dilimler ───────────────────────────────────────────────────────────────
 
--- Ödül -> dilim rengi ve yazısı
-local SLICE_LOOK: { [string]: { color: Color3, text: string } } = {
-	SmallCash = { color = Color3.fromRGB(88, 200, 74), text = "CASH" },
-	MedCash = { color = Color3.fromRGB(40, 150, 230), text = "BIG CASH" },
-	HugeCash = { color = Color3.fromRGB(255, 190, 30), text = "HUGE CASH" },
-	Spawn = { color = Color3.fromRGB(245, 120, 30), text = "CREWMATE" },
-	Mutation = { color = Color3.fromRGB(160, 80, 235), text = "MUTATED" },
-	FreeUnit = { color = Color3.fromRGB(230, 45, 70), text = "JACKPOT" },
-}
+-- Ödül -> dilim rengi ve yazısı (pencere de kullanıyor)
+local SLICE_LOOK = Config.SpinSliceLook
 
 --[[
 	Harita çarkı düz renkli, boş dilimlerle kuruyor (lobby.luau). Burada
@@ -277,9 +295,11 @@ end
 
 --[[
 	Çarkı çevirir. free true ise günlük hak harcanıyor, false ise
-	Robux ürününden geliyor ve hak kontrolü yapılmıyor.
+	Robux ürününden geliyor ve hak kontrolü yapılmıyor. Ödül seçiliyor,
+	dilim oyuncuya gidiyor ("SpinResult"), ödül çark durunca veriliyor.
+	`instant` (testler) beklemeden verir.
 ]]
-function SpinService.Spin(player: Player, free: boolean): boolean
+function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boolean
 	local profile = DataService.Get(player)
 	if not profile then
 		return false
@@ -290,8 +310,7 @@ function SpinService.Spin(player: Player, free: boolean): boolean
 		return false
 	end
 
-	if spinning then
-		notify(player, "The wheel is already spinning", true)
+	if busy[player] then
 		return false
 	end
 
@@ -306,30 +325,79 @@ function SpinService.Spin(player: Player, free: boolean): boolean
 	end
 
 	local reward = Config.RollSpinReward(rng)
-	local description = grantReward(player, reward)
-	if not description then
-		notify(player, "Could not grant the prize - try again", true)
-		return false
-	end
+	local index, jitter = pickSlice(reward.id)
 
-	-- Ödül verildikten sonra hakkı harca: veremezsek hak da gitmesin
-	DataService.Bump(player, "spins")
+	-- Hak şimdi harcanıyor (pencere kapatılıp yeniden açılınca tekrar çevrilmesin)
+	local previousSpinAt = profile.lastSpinAt
 	if free then
 		profile.lastSpinAt = os.time()
-		DataService.Save(player)
+		publishReady(player)
+	end
+	busy[player] = true
+	pendingToken += 1
+	local token = pendingToken
+	pending[player] = token
+
+	local function finish()
+		if pending[player] ~= token then
+			return
+		end
+		pending[player] = nil
+		busy[player] = nil
+		if not player.Parent then
+			return
+		end
+		local description = grantReward(player, reward)
+		if not description then
+			if free then
+				profile.lastSpinAt = previousSpinAt
+				publishReady(player)
+			end
+			notify(player, "Could not grant the prize - try again", true)
+			return
+		end
+		DataService.Bump(player, "spins")
+		if free then
+			DataService.Save(player)
+		end
+		notify(player, string.format("%s! You won %s", reward.name, description), false)
+		BadgeService.Award(player, "FirstSpin")
 	end
 
-	spinning = true
-	local stopsIn = animate(reward.id)
-
-	-- Ödül verildi; mesaj çark ödülün diliminde durunca
-	task.delay(stopsIn, function()
-		if player.Parent then
-			notify(player, string.format("%s! You won %s", reward.name, description), false)
-		end
-	end)
-	BadgeService.Award(player, "FirstSpin")
+	if instant then
+		finish()
+		return true
+	end
+	local stopsIn = animate(index, jitter)
+	if resultRemote then
+		resultRemote:FireClient(player, reward.id, reward.name, stopsIn, index, jitter)
+	end
+	task.delay(stopsIn, finish)
 	return true
+end
+
+--[[ Bekleyen ödülü iptal eder (yalnızca testler). ]]
+function SpinService._CancelPending(player: Player)
+	pending[player] = nil
+	busy[player] = nil
+end
+
+--[[ Penceredeki SPIN düğmesi: çarkın yanında olmalı, art arda istek yok. ]]
+function SpinService.TrySpin(player: Player): boolean
+	local now = os.clock()
+	if now - (lastRequest[player] or 0) < 1 then
+		return false
+	end
+	lastRequest[player] = now
+	local wheel = getWheel()
+	local plinth = wheel and wheel:FindFirstChild("WheelPlinth")
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if plinth and plinth:IsA("BasePart") and root and root:IsA("BasePart")
+		and (root.Position - plinth.Position).Magnitude > 40 then
+		return false
+	end
+	return SpinService.Spin(player, true)
 end
 
 -- ─── Prompt ─────────────────────────────────────────────────────────────────
@@ -363,19 +431,16 @@ local function setupPrompt()
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "SpinPrompt"
-	prompt.ActionText = "Lucky Spin"
-	prompt.ObjectText = "Free"
+	prompt.ActionText = "Open"
+	prompt.ObjectText = "Lucky Spin"
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.HoldDuration = 0.6
+	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 16
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = anchor
 
 	spinPrompt = prompt
-
-	PromptGuard.Connect(prompt, function(player)
-		SpinService.Spin(player, true)
-	end)
+	-- Tetikleme istemcide: pencereyi açıyor (SpinPanel); çevirme SpinRequest'le
 
 	--[[
 		Prompt herkese ortak, bekleme süresi kişisel. En yakın oyuncunun
@@ -391,13 +456,33 @@ local function setupPrompt()
 					ready += 1
 				end
 			end
-			prompt.ObjectText = if ready > 0 then "Free spin ready" else "Daily"
+			prompt.ObjectText = if ready > 0 then "Lucky Spin · FREE" else "Lucky Spin"
 		end
 	end)
 end
 
 function SpinService.Start()
 	notifyRemote = Net.Get("Notify")
+	resultRemote = Net.Get("SpinResult")
+	Net.Get("SpinRequest").OnServerEvent:Connect(function(player)
+		SpinService.TrySpin(player)
+	end)
+	local function onPlayer(player: Player)
+		task.spawn(function()
+			if DataService.WaitForProfile(player, 30) and player.Parent then
+				publishReady(player)
+			end
+		end)
+	end
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	Players.PlayerRemoving:Connect(function(player)
+		busy[player] = nil
+		pending[player] = nil
+		lastRequest[player] = nil
+	end)
 
 	MonetizationService.RegisterGranter("spin", function(player)
 		return SpinService.Spin(player, false)

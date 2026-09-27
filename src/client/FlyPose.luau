@@ -3,13 +3,14 @@
 	Uçuş animasyonu: uzayda (SpaceFX) ve kapsülde (CapsuleFX).
 
 	Eskiden karakter PlatformStand'le kaskatı bir heykel gibi 55-72°
-	yatırılıyordu ("uçma kötü görünüyor"). Şimdi iki döngü klibi oynuyor
-	ve hıza göre karışıyor:
+	yatırılıyordu. Şimdi iki döngü klibi oynuyor ve hıza göre karışıyor
+	(2026-09-28: jetpack'e uygun pozlar):
 
-	  Hover — dik süzülme: kollar yanlara açık, bir diz kırık, hafif salınım
-	  Move  — süper kahraman: sağ kol ileri uzanmış, sol kol geride,
-	          bacaklar arkada çırpınıyor. Gövdenin eğimini (~45°) çağıran
-	          AlignOrientation'la veriyor; bu klip yalnızca uzuvlar.
+	  Hover — dik süzülme: kollar hafif yanda dengede, bacaklar bitişik,
+	          dizler yumuşak, ağır salınım
+	  Move  — jetpack'le atılma: kollar geride gövdeye yakın (itiyor gibi),
+	          bacaklar bitişik ve düz, baş ileri bakıyor. Gövdenin eğimini
+	          (~45°) çağıran AlignOrientation'la veriyor; bu klip uzuvlar.
 
 	Klipler GearFX'teki gibi çalışma anında KeyframeSequence olarak
 	kuruluyor (KeyframeSequenceProvider, yalnızca R15). Karakterin kendi
@@ -34,55 +35,61 @@ type Frame = { [string]: { number } }
 type Clip = { duration: number, frames: { { t: number, pose: Frame } } }
 
 local HOVER: Clip = {
-	duration = 1.8,
+	duration = 2.2,
 	frames = {
 		{ t = 0, pose = {
-			RightUpperArm = { 25, 0, 38 }, RightLowerArm = { 25, 0, 0 },
-			LeftUpperArm = { 25, 0, -38 }, LeftLowerArm = { 25, 0, 0 },
-			LeftUpperLeg = { 12, 0, -4 }, LeftLowerLeg = { -22, 0, 0 },
-			RightUpperLeg = { -4, 0, 4 }, RightLowerLeg = { -38, 0, 0 },
-			Head = { 4, 0, 0 },
+			UpperTorso = { 2, 0, 0 },
+			RightUpperArm = { 14, 0, 26 }, RightLowerArm = { 22, 0, 0 },
+			LeftUpperArm = { 14, 0, -26 }, LeftLowerArm = { 22, 0, 0 },
+			RightUpperLeg = { 6, 0, 3 }, RightLowerLeg = { -16, 0, 0 },
+			LeftUpperLeg = { 10, 0, -3 }, LeftLowerLeg = { -22, 0, 0 },
+			Head = { 2, 0, 0 },
 		} },
 		{ t = 0.5, pose = {
-			RightUpperArm = { 30, 0, 46 }, RightLowerArm = { 30, 0, 0 },
-			LeftUpperArm = { 30, 0, -46 }, LeftLowerArm = { 30, 0, 0 },
-			LeftUpperLeg = { 4, 0, -4 }, LeftLowerLeg = { -32, 0, 0 },
-			RightUpperLeg = { 6, 0, 4 }, RightLowerLeg = { -26, 0, 0 },
-			Head = { 8, 0, 0 },
+			UpperTorso = { 4, 0, 0 },
+			RightUpperArm = { 20, 0, 32 }, RightLowerArm = { 30, 0, 0 },
+			LeftUpperArm = { 20, 0, -32 }, LeftLowerArm = { 30, 0, 0 },
+			RightUpperLeg = { 12, 0, 3 }, RightLowerLeg = { -26, 0, 0 },
+			LeftUpperLeg = { 4, 0, -3 }, LeftLowerLeg = { -14, 0, 0 },
+			Head = { 6, 0, 0 },
 		} },
 		{ t = 1, pose = {
-			RightUpperArm = { 25, 0, 38 }, RightLowerArm = { 25, 0, 0 },
-			LeftUpperArm = { 25, 0, -38 }, LeftLowerArm = { 25, 0, 0 },
-			LeftUpperLeg = { 12, 0, -4 }, LeftLowerLeg = { -22, 0, 0 },
-			RightUpperLeg = { -4, 0, 4 }, RightLowerLeg = { -38, 0, 0 },
-			Head = { 4, 0, 0 },
+			UpperTorso = { 2, 0, 0 },
+			RightUpperArm = { 14, 0, 26 }, RightLowerArm = { 22, 0, 0 },
+			LeftUpperArm = { 14, 0, -26 }, LeftLowerArm = { 22, 0, 0 },
+			RightUpperLeg = { 6, 0, 3 }, RightLowerLeg = { -16, 0, 0 },
+			LeftUpperLeg = { 10, 0, -3 }, LeftLowerLeg = { -22, 0, 0 },
+			Head = { 2, 0, 0 },
 		} },
 	},
 }
 
 local MOVE: Clip = {
-	duration = 1.1,
+	duration = 0.9,
 	frames = {
 		{ t = 0, pose = {
-			RightUpperArm = { 168, 0, 8 }, RightLowerArm = { 6, 0, 0 },
-			LeftUpperArm = { -22, 0, -16 }, LeftLowerArm = { 12, 0, 0 },
-			LeftUpperLeg = { -8, 0, -3 }, LeftLowerLeg = { -24, 0, 0 },
-			RightUpperLeg = { 2, 0, 3 }, RightLowerLeg = { -12, 0, 0 },
-			Head = { 30, 0, 0 },
+			UpperTorso = { -4, 0, 0 },
+			RightUpperArm = { -30, 0, 12 }, RightLowerArm = { 14, 0, 0 },
+			LeftUpperArm = { -30, 0, -12 }, LeftLowerArm = { 14, 0, 0 },
+			RightUpperLeg = { -4, 0, 2 }, RightLowerLeg = { -10, 0, 0 },
+			LeftUpperLeg = { -4, 0, -2 }, LeftLowerLeg = { -12, 0, 0 },
+			Head = { 36, 0, 0 },
 		} },
 		{ t = 0.5, pose = {
-			RightUpperArm = { 174, 0, 4 }, RightLowerArm = { 2, 0, 0 },
-			LeftUpperArm = { -30, 0, -12 }, LeftLowerArm = { 16, 0, 0 },
-			LeftUpperLeg = { 0, 0, -3 }, LeftLowerLeg = { -34, 0, 0 },
-			RightUpperLeg = { -8, 0, 3 }, RightLowerLeg = { -22, 0, 0 },
-			Head = { 32, 0, 0 },
+			UpperTorso = { -2, 0, 0 },
+			RightUpperArm = { -36, 0, 16 }, RightLowerArm = { 10, 0, 0 },
+			LeftUpperArm = { -36, 0, -16 }, LeftLowerArm = { 10, 0, 0 },
+			RightUpperLeg = { -8, 0, 2 }, RightLowerLeg = { -16, 0, 0 },
+			LeftUpperLeg = { -2, 0, -2 }, LeftLowerLeg = { -8, 0, 0 },
+			Head = { 38, 0, 0 },
 		} },
 		{ t = 1, pose = {
-			RightUpperArm = { 168, 0, 8 }, RightLowerArm = { 6, 0, 0 },
-			LeftUpperArm = { -22, 0, -16 }, LeftLowerArm = { 12, 0, 0 },
-			LeftUpperLeg = { -8, 0, -3 }, LeftLowerLeg = { -24, 0, 0 },
-			RightUpperLeg = { 2, 0, 3 }, RightLowerLeg = { -12, 0, 0 },
-			Head = { 30, 0, 0 },
+			UpperTorso = { -4, 0, 0 },
+			RightUpperArm = { -30, 0, 12 }, RightLowerArm = { 14, 0, 0 },
+			LeftUpperArm = { -30, 0, -12 }, LeftLowerArm = { 14, 0, 0 },
+			RightUpperLeg = { -4, 0, 2 }, RightLowerLeg = { -10, 0, 0 },
+			LeftUpperLeg = { -4, 0, -2 }, LeftLowerLeg = { -12, 0, 0 },
+			Head = { 36, 0, 0 },
 		} },
 	},
 }

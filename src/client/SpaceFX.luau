@@ -34,6 +34,7 @@ local SpaceField = require(Shared.SpaceField)
 
 local CardKit = require(script.Parent.CardKit)
 local FlyPose = require(script.Parent.FlyPose)
+local JetpackModel = require(Shared.JetpackModel)
 local SoundFX = require(script.Parent.SoundFX)
 
 local SpaceFX = {}
@@ -327,71 +328,51 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	task.spawn(watchZone)
 
 	-- ─── Jetpack (uzaydaki herkes) ──────────────────────────────────────
-	local jetpacks: { [Player]: Model } = {}
+	--[[
+		Kuşanılan jetpack (Jetpack niteliği, JetpackService) sırtta, modeli
+		shared/JetpackModel. Alev gücü karakterin hızıyla artıyor. Uzaydayken
+		ya da canavarın elindeyken görünüyor; SpaceGrabbed de dinleniyor —
+		eskiden fırlatılıp gemiye inen oyuncunun sırtında kalıyordu.
+	]]
+	type Pack = { model: Model, id: string, setFlame: (number) -> () }
+	local jetpacks: { [Player]: Pack } = {}
 
-	local function buildJetpack(character: Model): Model?
+	local function buildJetpack(character: Model, id: string): Pack?
 		local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
 		if not (torso and torso:IsA("BasePart")) then
 			return nil
 		end
-		local pack = Instance.new("Model")
-		pack.Name = "SpaceJetpack"
-		local function piece(name: string, size: Vector3, offset: CFrame, color: Color3, shape: Enum.PartType?, material: Enum.Material?): BasePart
-			local p = Instance.new("Part")
-			p.Name = name
-			p.Size = size
-			p.Color = color
-			p.Material = material or Enum.Material.SmoothPlastic
-			if shape then
-				p.Shape = shape
+		local def = Config.GetJetpack(id) or Config.Jetpacks[1]
+		local origin = torso.CFrame * CFrame.new(0, 0.05, torso.Size.Z / 2 - 0.15)
+		local model = JetpackModel.Build(def, origin, math.clamp(torso.Size.X / 2, 0.7, 1.4))
+		model.Name = "SpaceJetpack"
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = false
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = torso
+				weld.Part1 = d
+				weld.Parent = d
 			end
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			p.Massless = true
-			p.CastShadow = false
-			p.CFrame = torso.CFrame * offset
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = torso
-			weld.Part1 = p
-			weld.Parent = p
-			p.Parent = pack
-			return p
 		end
-		piece("Pack", Vector3.new(1.7, 1.7, 0.7), CFrame.new(0, 0.1, 0.8), Color3.fromRGB(200, 208, 222))
-		for _, x in { -0.55, 0.55 } do
-			piece("Tank", Vector3.new(1.8, 0.8, 0.8), CFrame.new(x, 0, 1.25) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(230, 70, 70), Enum.PartType.Cylinder)
-			local nozzle = piece("Nozzle", Vector3.new(0.5, 0.6, 0.6), CFrame.new(x, -1.05, 1.25) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(70, 76, 90), Enum.PartType.Cylinder)
-			local a = Instance.new("Attachment")
-			a.Position = Vector3.new(-0.3, 0, 0)
-			a.Parent = nozzle
-			local flame = Instance.new("ParticleEmitter")
-			flame.Texture = "rbxasset://textures/particles/fire_main.dds"
-			flame.Color = ColorSequence.new(Color3.fromRGB(120, 210, 255), Color3.fromRGB(255, 140, 60))
-			flame.LightEmission = 1
-			flame.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 0) })
-			flame.Transparency = NumberSequence.new(0.1, 1)
-			flame.Lifetime = NumberRange.new(0.2, 0.35)
-			flame.Speed = NumberRange.new(10, 14)
-			flame.EmissionDirection = Enum.NormalId.Left
-			flame.Rate = 60
-			flame.Parent = a
-		end
-		pack.Parent = character
-		return pack
+		model.Parent = character
+		local setFlame = JetpackModel.AddFlames(model, def)
+		return { model = model, id = def.id, setFlame = setFlame }
 	end
 
 	local function refreshJetpack(other: Player)
 		local want = other:GetAttribute("InSpace") == true or other:GetAttribute("SpaceGrabbed") ~= nil
+		local id = other:GetAttribute("Jetpack")
+		local wantId = if typeof(id) == "string" then id else "Starter"
 		local character = other.Character
 		local pack = jetpacks[other]
-		if pack and (not want or not pack.Parent or pack.Parent ~= character) then
-			pack:Destroy()
+		if pack and (not want or pack.model.Parent ~= character or pack.id ~= wantId) then
+			pack.model:Destroy()
 			jetpacks[other] = nil
 			pack = nil
 		end
 		if want and not pack and character then
-			local built = buildJetpack(character)
+			local built = buildJetpack(character, wantId)
 			if built then
 				jetpacks[other] = built
 			end
@@ -399,9 +380,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	end
 
 	local function watchPlayer(other: Player)
-		table.insert(connections, other:GetAttributeChangedSignal("InSpace"):Connect(function()
-			refreshJetpack(other)
-		end))
+		for _, attr in { "InSpace", "SpaceGrabbed", "Jetpack" } do
+			table.insert(connections, other:GetAttributeChangedSignal(attr):Connect(function()
+				refreshJetpack(other)
+			end))
+		end
 		table.insert(connections, other.CharacterAdded:Connect(function()
 			jetpacks[other] = nil
 		end))
@@ -413,6 +396,104 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	table.insert(connections, Players.PlayerAdded:Connect(watchPlayer))
 	table.insert(connections, Players.PlayerRemoving:Connect(function(other)
 		jetpacks[other] = nil
+	end))
+
+	-- ─── Mürettebat geri sayımı ─────────────────────────────────────────
+	--[[
+		Her mürettebatın üstünde küçük saat: doluyken ortak rotasyona kalan
+		süre (workspace.CrewRotateAt), çalınıp boşken yenisinin gelişi
+		(CrewSpot.RespawnAt). Herkes aynı süreyi görüyor (sunucu saati).
+	]]
+	type SpotLabel = { part: BasePart, label: TextLabel }
+	local spotLabels: { SpotLabel } = {}
+	local function watchCrewSpots()
+		local zone = workspace:WaitForChild("SpaceZone", 60)
+		local crew = zone and zone:WaitForChild("Crew", 30)
+		if not crew then
+			return
+		end
+		local function add(p: Instance)
+			if not (p:IsA("BasePart") and p.Name == "CrewSpot") then
+				return
+			end
+			local gui = Instance.new("BillboardGui")
+			gui.Name = "CrewTimer"
+			gui.Size = UDim2.fromOffset(150, 26)
+			gui.StudsOffsetWorldSpace = Vector3.new(0, 6.2, 0)
+			gui.MaxDistance = 160
+			gui.LightInfluence = 0
+			gui.Parent = p
+			local label = CardKit.bold(gui, "", 17, Color3.fromRGB(200, 230, 255), 1, 2)
+			label.Size = UDim2.fromScale(1, 1)
+			table.insert(spotLabels, { part = p, label = label })
+		end
+		for _, child in crew:GetChildren() do
+			add(child)
+		end
+		table.insert(connections, crew.ChildAdded:Connect(add))
+	end
+	task.spawn(watchCrewSpots)
+
+	local function mmss(seconds: number): string
+		local t = math.max(0, math.ceil(seconds))
+		return string.format("%d:%02d", t // 60, t % 60)
+	end
+	local lastTimerAt = 0
+	local function stepTimers(now: number)
+		if now - lastTimerAt < 0.25 then
+			return
+		end
+		lastTimerAt = now
+		local serverNow = workspace:GetServerTimeNow()
+		local rotateAt = workspace:GetAttribute("CrewRotateAt")
+		for _, entry in spotLabels do
+			local respawnAt = entry.part:GetAttribute("RespawnAt")
+			local text
+			if typeof(respawnAt) == "number" then
+				text = "NEXT CREW " .. mmss(respawnAt - serverNow)
+				entry.label.TextColor3 = Color3.fromRGB(255, 210, 110)
+			elseif typeof(rotateAt) == "number" then
+				text = "⟳ " .. mmss(rotateAt - serverNow)
+				entry.label.TextColor3 = Color3.fromRGB(200, 230, 255)
+			else
+				text = ""
+			end
+			if entry.label.Text ~= text then
+				entry.label.Text = text
+			end
+		end
+	end
+
+	-- ─── Return to Station ──────────────────────────────────────────────
+	local returnRemote = Net.Get("SpaceReturn")
+	local returnButton = Instance.new("TextButton")
+	returnButton.Name = "ReturnToStation"
+	returnButton.AnchorPoint = Vector2.new(1, 1)
+	returnButton.Position = UDim2.new(1, -24, 1, -250)
+	returnButton.Size = UDim2.fromOffset(210, 50)
+	returnButton.BackgroundColor3 = Color3.fromRGB(46, 96, 210)
+	returnButton.AutoButtonColor = false
+	returnButton.Text = ""
+	returnButton.Visible = false
+	returnButton.ZIndex = Z
+	returnButton.Parent = screen
+	CardKit.corner(returnButton, 14)
+	CardKit.border(returnButton, CardKit.OUTLINE, 3)
+	CardKit.gradient(returnButton, Color3.fromRGB(110, 170, 255), Color3.fromRGB(36, 70, 170))
+	local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local returnLabel = CardKit.bold(returnButton, if touchOnly then "🏠 RETURN TO STATION" else "🏠 RETURN TO STATION [R]", 17, CardKit.WHITE, Z + 1, 2.5)
+	returnLabel.Size = UDim2.fromScale(1, 1)
+	CardKit.fit(returnLabel, 17, 10)
+	local function requestReturn()
+		if returnButton.Visible then
+			returnRemote:FireServer()
+		end
+	end
+	table.insert(connections, returnButton.Activated:Connect(requestReturn))
+	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.R then
+			requestReturn()
+		end
 	end))
 
 	-- ─── Uçuş ───────────────────────────────────────────────────────────
@@ -569,7 +650,38 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	end
 
 	local function stepFlight(dt: number, root: BasePart)
-		local speed = mySpeed()
+		--[[
+			Gear'la vurulduysan (GearFX "hit", uzayda): denetim yok, sersemlik
+			boyunca dönerek sürükleniyorsun — istasyondaki yere savrulmadan
+			farklı. Hız GearFX'in yerel niteliklerinden.
+		]]
+		local stunUntil = player:GetAttribute("SpaceStunUntil")
+		if typeof(stunUntil) == "number" and os.clock() < stunUntil then
+			local knock = player:GetAttribute("SpaceKnock")
+			if typeof(knock) == "Vector3" then
+				flyVelocity = knock
+				player:SetAttribute("SpaceKnock", nil)
+			end
+			flyVelocity *= math.exp(-1.6 * dt)
+			if flyVel then
+				flyVel.VectorVelocity = flyVelocity
+			end
+			if flyAlign then
+				flyAlign.Enabled = false
+			end
+			root.AssemblyAngularVelocity = Vector3.new(5, 7, 3)
+			if flyPose then
+				flyPose:SetBlend(0)
+			end
+			return
+		elseif flyAlign and not flyAlign.Enabled then
+			flyAlign.Enabled = true
+			root.AssemblyAngularVelocity = Vector3.zero
+		end
+
+		-- Jetpack giderken hızlandırıyor; mürettebat taşırken kendi hızın
+		local carryingNow = player:GetAttribute("SpaceCarry") == true
+		local speed = mySpeed() * Config.GetJetpackBoost(player:GetAttribute("Jetpack") :: string?, carryingNow)
 		local boosting = os.clock() < boostUntil
 		if boosting then
 			local jet = jetParams()
@@ -705,7 +817,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		halkanın İÇİNDEN geçince. Konumlar shared/SpaceField.Rings (sunucu
 		aynı listeden kuruyor); patlama uçuşta, istemcide.
 	]]
-	local rings = SpaceField.Rings()
+	-- Hız halkaları 2026-09-28'de kalktı (hızı jetpack veriyor); liste boş
+	local rings: { SpaceField.Ring } = {}
 	local function flashRing(index: number)
 		local bonus = workspace:FindFirstChild("SpaceBonus")
 		local folder = bonus and bonus:FindFirstChild("Rings")
@@ -910,6 +1023,19 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		local inSpace = SpaceField.InSpace(root.Position) and humanoid.Health > 0
 		setFlying(inSpace)
 		stepBoostUi()
+		stepTimers(now)
+		-- Jetpack alevleri: hızla güçleniyor
+		for other, pack in jetpacks do
+			local character = other.Character
+			local r = character and character:FindFirstChild("HumanoidRootPart")
+			if r and r:IsA("BasePart") then
+				pack.setFlame(r.AssemblyLinearVelocity.Magnitude / 45)
+			end
+		end
+		local canReturn = flying and not grab and player:GetAttribute("SpaceCarry") ~= true
+		if returnButton.Visible ~= canReturn then
+			returnButton.Visible = canReturn
+		end
 		if flying then
 			stepRings(root)
 		end
@@ -1031,12 +1157,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			anchor.CFrame = CFrame.new(c)
 			anchor.Parent = workspace
 			local gui = Instance.new("BillboardGui")
-			gui.Size = UDim2.fromOffset(if a == "stardust" then 120 else 220, if a == "stardust" then 36 else 56)
+			gui.Size = UDim2.fromOffset(220, 56)
 			gui.AlwaysOnTop = true
 			gui.LightInfluence = 0
 			gui.Parent = anchor
-			local label = CardKit.bold(gui, "+$" .. Config.FormatCash(b), if a == "stardust" then 24 else 38,
-				if a == "stardust" then Color3.fromRGB(255, 236, 140) else Color3.fromRGB(255, 205, 60), 1, 3)
+			local label = CardKit.bold(gui, "+$" .. Config.FormatCash(b), 38, Color3.fromRGB(255, 205, 60), 1, 3)
 			label.Size = UDim2.fromScale(1, 1)
 			TweenService:Create(anchor, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.new(c + Vector3.new(0, 7, 0)) }):Play()
 			task.delay(0.7, function()
@@ -1045,9 +1170,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			task.delay(1.2, function()
 				anchor:Destroy()
 			end)
-			if a == "stardust" then
-				SoundFX.Event("income", false)
-			elseif a == "crate" then
+			if a == "crate" then
 				effects.Flash(Color3.fromRGB(255, 210, 90), 0.3, 0.4)
 				SoundFX.Success()
 			else
@@ -1070,8 +1193,9 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			end
 			setFlying(false)
 			for _, pack in jetpacks do
-				pack:Destroy()
+				pack.model:Destroy()
 			end
+			returnButton:Destroy()
 			localFolder:Destroy()
 			hud:Destroy()
 			shout:Destroy()

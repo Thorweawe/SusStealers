@@ -63,6 +63,10 @@ local HatchFX = require(script.HatchFX)
 local FuseFX = require(script.FuseFX)
 local AutoHatch = require(script.AutoHatch)
 local GearPanel = require(script.GearPanel)
+local JetpackPanel = require(script.JetpackPanel)
+local SettingsPanel = require(script.SettingsPanel)
+local SpinPanel = require(script.SpinPanel)
+local CrewAura = require(script.CrewAura)
 local Summons = require(script.Summons)
 local Hotbar = require(script.Hotbar)
 local AsteroidGame = require(script.AsteroidGame)
@@ -254,33 +258,16 @@ refreshCash()
 
 --[[
 	Uzay hızı: kapsülde kazanılan hız (canavarlara erişimi belirleyen sayı).
-	Alt satır katkıları söylüyor: kapsül seviyesi ve petlerin uçuşa eklediği
-	(pet takmanın geri bildirimi bu satır). 2026-09-28'e kadar burada gemideki
-	taşıma hızı yazıyordu; oyuncudan çalma kalkınca anlamsızlaştı.
+	2026-09-28 (Yusuf): alt satırda yalnızca "SPACE SPEED" — kapsül seviyesi
+	ve pet katkısı kalabalık yapıyordu (ikisi de kendi pencerelerinde yazıyor).
 ]]
 local function refreshSpeed()
 	local speed = player:GetAttribute("SpaceSpeed") :: number?
-	local level = player:GetAttribute("Upg_SpaceCapsule") :: number?
-	local petBonus = player:GetAttribute("PetSpeedBonus") :: number?
-
 	speedValue.Text = string.format("%.1f", speed or Config.Space.BaseSpeed)
-
-	local parts = {}
-	if (level or 0) > 0 then
-		table.insert(parts, string.format("Capsule Lv %d", level or 0))
-	end
-	if (petBonus or 0) > 0 then
-		table.insert(parts, string.format("pets +%.1f flight", (petBonus or 0) * Config.PetFlightMul))
-	end
-
-	speedSub.Text = if #parts > 0
-		then "SPACE SPEED · " .. table.concat(parts, " · ")
-		else "SPACE SPEED"
+	speedSub.Text = "SPACE SPEED"
 end
 
 player:GetAttributeChangedSignal("SpaceSpeed"):Connect(refreshSpeed)
-player:GetAttributeChangedSignal("Upg_SpaceCapsule"):Connect(refreshSpeed)
-player:GetAttributeChangedSignal("PetSpeedBonus"):Connect(refreshSpeed)
 refreshSpeed()
 
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────
@@ -753,6 +740,23 @@ mountPanel("GearPanel", function()
 	end)
 end)
 
+-- Şans çarkı penceresi (prompt sunucuda, SpinService; pencere SpinResult'u da dinliyor)
+mountPanel("SpinPanel", function()
+	local spin = SpinPanel.Create(screen)
+	previews.Spin = spin.Open
+end)
+
+-- Launch Bay'deki jetpack standı (prompt sunucuda, JetpackService)
+mountPanel("JetpackPanel", function()
+	local jetpacks = JetpackPanel.Create(screen)
+	previews.Jetpack = jetpacks.Open
+	game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt, who)
+		if who == player and prompt.Name == "JetpackPrompt" then
+			jetpacks.Open()
+		end
+	end)
+end)
+
 -- Ek odalardaki görevler (Storage, Laboratory): pencere ve sarı "!" işaretleri
 mountPanel("TaskGames", function()
 	local tasks = TaskGames.Create(screen)
@@ -780,6 +784,11 @@ end)
 -- Harita canlılığı: uyarı lambaları ve koridorda gezen mürettebat
 mountPanel("MapLife", function()
 	MapLife.Start()
+end)
+
+-- Gezegenlerdeki mürettebatın nadirlik aurası (ışıltı, küre, ışık sütunu)
+mountPanel("CrewAura", function()
+	CrewAura.Start()
 end)
 
 -- Summons sohbet sekmesi (nadir cikislar)
@@ -814,11 +823,13 @@ end)
 ]]
 mountPanel("Topbar", function()
 	local rewards: RewardsPanel.Panel? = nil
+	local settings = SettingsPanel.Create(screen)
+	previews.Settings = settings.Open
 	local bar = Topbar.Create(screen, function()
 		if rewards then
 			rewards.Toggle()
 		end
-	end)
+	end, settings.Toggle)
 	rewards = RewardsPanel.Create(screen, bar.SetGiftBadge)
 	previews.Rewards = function()
 		if rewards then

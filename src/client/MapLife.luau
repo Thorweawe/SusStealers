@@ -8,7 +8,10 @@
 	  Gezen mürettebat — istasyonda, odalarda, lobide dolaşan Among Us
 	                     mürettebatı. Rastgele bir yere yürüyor, orada biraz
 	                     duruyor ya da boş bir koltuğa oturup bir süre
-	                     dinleniyor. Sadece süs: çarpışmıyor, çalınamıyor, isim
+	                     dinleniyor. Süs ama katı (2026-09-28): içinden
+	                     geçilmiyor (görünmez "Bumper"), çok hızlı çarpınca
+	                     ya da alete (gear) hedef olunca yere devriliyor, biraz
+	                     sonra kalkıp yoluna devam ediyor. Çalınamıyor, isim
 	                     etiketi yok (kaidedeki karakterlerle karışmasın diye).
 
 	YOL: PathfindingService. İlk sürüm koridorda düz çizgide yürüyordu;
@@ -24,9 +27,14 @@ local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Players = game:GetService("Players")
+
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
 local RogueTrack = require(Shared.RogueTrack)
 local UnitModel = require(Shared.UnitModel)
+
+local GearFX = require(script.Parent.GearFX)
 
 local MapLife = {}
 
@@ -48,6 +56,9 @@ local WALK_SPEED = 6
 local SIT_CHANCE = 0.3
 local SIT_TIME = { 6, 16 }
 local IDLE_TIME = { 1.5, 5 }
+-- Bu hızın üstünde (yatay, stud/sn) çarpan oyuncu devirir: koşu (24) değil, hız aleti (32+)
+local TOPPLE_SPEED = 27
+local TOPPLE_TIME = 2.6
 
 type Walker = {
 	model: Model,
@@ -61,6 +72,10 @@ type Walker = {
 	busy: boolean,     -- yol hesaplanıyor
 	fails: number,     -- art arda bulunamayan yol
 	phase: number,
+	bumper: BasePart?,
+	downUntil: number,  -- devrik (0 = ayakta)
+	downAt: number,
+	downDir: Vector3,
 }
 
 --[[
@@ -141,6 +156,24 @@ function MapLife.Start(): Handle
 			end
 			local start = floors[rng:NextInteger(1, #floors)]
 			local lift = model:GetPivot().Position.Y
+			--[[ Katı gövde: tek görünmez kutu (parçaların kendisi çarpışsa
+			     ayak/sırt çıkıntılarına takılınıyordu). Yol bulucu onu
+			     görmüyor (PassThrough), yoksa kendi kutusundan çıkamıyordu. ]]
+			local extents = model:GetExtentsSize()
+			local height = math.max(2, extents.Y)
+			local bumper = Instance.new("Part")
+			bumper.Name = "Bumper"
+			bumper.Size = Vector3.new(math.min(3, extents.X * 0.8), height, math.min(3, extents.Z * 0.8))
+			bumper.CFrame = model:GetPivot() * CFrame.new(0, height / 2 - lift, 0)
+			bumper.Transparency = 1
+			bumper.Anchored = true
+			bumper.CanCollide = true
+			bumper.CanQuery = false
+			bumper.CanTouch = false
+			bumper.Parent = model
+			local modifier = Instance.new("PathfindingModifier")
+			modifier.PassThrough = true
+			modifier.Parent = bumper
 			model:PivotTo(CFrame.new(start + Vector3.new(0, lift, 0)))
 			model.Parent = folder
 			table.insert(walkers, {
@@ -155,6 +188,10 @@ function MapLife.Start(): Handle
 				busy = false,
 				fails = 0,
 				phase = i * 0.7,
+				bumper = bumper,
+				downUntil = 0,
+				downAt = 0,
+				downDir = Vector3.zAxis,
 			})
 		end
 	end
@@ -227,6 +264,62 @@ function MapLife.Start(): Handle
 		if w.seat then
 			reserved[w.seat] = nil
 			w.seat = nil
+		end
+	end
+
+	--[[ Yere devir: `dir` yönüne (yatay). Koltuktaysa kalkıyor. ]]
+	local function topple(w: Walker, dir: Vector3)
+		local now = os.clock()
+		if now < w.downUntil then
+			return
+		end
+		local flat = Vector3.new(dir.X, 0, dir.Z)
+		w.downDir = if flat.Magnitude > 0.01 then flat.Unit else -w.facing
+		w.downAt = now
+		w.downUntil = now + TOPPLE_TIME
+		standUp(w)
+		w.path = {}
+		if w.bumper then
+			w.bumper.CanCollide = false
+		end
+	end
+
+	-- Kendi aletim: menzildeki (vuruşta önümdeki) süs mürettebat devriliyor
+	local gearConn = GearFX.LocalUsed.Event:Connect(function(pos: Vector3, look: Vector3, gearId: string)
+		local def = Config.GetGear(gearId)
+		if not def or def.kind == "speed" or def.kind == "cloak" then
+			return
+		end
+		local range = def.range or 10
+		for _, w in walkers do
+			local offset = w.pos - pos
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			local d = flat.Magnitude
+			local inFront = d < 0.1 or look:Dot(flat.Unit) > (if def.kind == "stun" then 0.8 else 0.2)
+			if d <= range and (def.kind == "blast" or inFront) then
+				topple(w, if d > 0.1 then flat else look)
+			end
+		end
+	end)
+
+	--[[ Devrik pozu: ayak hizası etrafında 90° devrilip hafif kayıyor, sonra kalkıyor. ]]
+	local function poseDown(w: Walker, now: number)
+		local t = now - w.downAt
+		local left = w.downUntil - now
+		local tip = if t < 0.3 then 1 - (1 - t / 0.3) ^ 3 elseif left < 0.45 then math.max(0, left / 0.45) else 1
+		local slide = w.downDir * math.min(1.6, t * 6) * math.min(1, tip * 1.5)
+		local bounce = if t < 0.45 then math.abs(math.sin(t * 14)) * 0.25 * (1 - t / 0.45) else 0
+		local axis = Vector3.yAxis:Cross(w.downDir)
+		local rot = if axis.Magnitude > 0.01 then CFrame.fromAxisAngle(axis.Unit, math.rad(84) * tip) else CFrame.identity
+		local base = CFrame.lookAt(Vector3.zero, w.facing)
+		w.model:PivotTo(CFrame.new(w.pos + slide + Vector3.new(0, bounce, 0)) * rot * base * CFrame.new(0, w.lift, 0))
+		if left <= 0 then
+			w.pos += slide
+			w.downUntil = 0
+			if w.bumper then
+				w.bumper.CanCollide = true
+			end
+			w.waitUntil = now + 0.6
 		end
 	end
 
@@ -359,7 +452,22 @@ function MapLife.Start(): Handle
 		end
 
 		local now = os.clock()
+		-- Çok hızlı çarpan yerel oyuncu (hız aleti, jetpack) devirir
+		local me = Players.LocalPlayer.Character
+		local myRoot = me and me:FindFirstChild("HumanoidRootPart")
+		local myVel = if myRoot and myRoot:IsA("BasePart") then myRoot.AssemblyLinearVelocity else Vector3.zero
+		local myFlat = Vector3.new(myVel.X, 0, myVel.Z)
+		local fast = myFlat.Magnitude >= TOPPLE_SPEED
 		for _, w in walkers do
+			if w.downUntil > 0 then
+				poseDown(w, now)
+				continue
+			end
+			if fast and myRoot and (Vector3.new(myRoot.Position.X - w.pos.X, 0, myRoot.Position.Z - w.pos.Z)).Magnitude < 3.2
+				and math.abs(myRoot.Position.Y - w.pos.Y) < 5 then
+				topple(w, myFlat)
+				continue
+			end
 			if w.busy or now < w.waitUntil then
 				continue
 			end
@@ -427,6 +535,7 @@ function MapLife.Start(): Handle
 		Destroy = function()
 			connection:Disconnect()
 			rogueConnection:Disconnect()
+			gearConn:Disconnect()
 			for _, c in seatWatch do
 				c:Disconnect()
 			end

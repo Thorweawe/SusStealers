@@ -150,6 +150,8 @@ Config.DefaultSettings = {
 	music = 1,
 	sfx = 1,
 	shake = true,
+	pets = true,     -- başka oyuncuların petleri görünsün
+	lowGfx = false,  -- düşük grafik: gölge, parçacık ve ışık efektleri kapalı
 }
 
 -- ─── Ekonomi ────────────────────────────────────────────────────────────────
@@ -193,12 +195,12 @@ export type SpinReward = {
 }
 
 Config.SpinRewards = {
-	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  60, minimum =   1000 },
-	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 300, minimum =  10000 },
+	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  40, minimum =   1000 },
+	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 150, minimum =   8000 },
 	-- spawn/mutation/unit: karakter doğrudan kaideye (SpaceService.GrantUnit)
 	{ id = "Spawn",      name = "Free Crewmate",     weight = 15, kind = "spawn" },
 	{ id = "Mutation",   name = "Mutated Crewmate",  weight = 12, kind = "mutation" },
-	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 900, minimum = 100000 },
+	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 420, minimum =  60000 },
 	-- Jackpot: bir üst canavarın havuzundan
 	{ id = "FreeUnit",   name = "Jackpot Crewmate",  weight =  2, kind = "unit" },
 } :: { SpinReward }
@@ -213,6 +215,16 @@ Config.SpinWheelSlices = {
 	"SmallCash", "Spawn", "MedCash", "Mutation", "SmallCash", "HugeCash",
 	"MedCash", "Spawn", "SmallCash", "Mutation", "MedCash", "FreeUnit",
 }
+
+--[[ Dilimlerin rengi ve yazısı: salondaki çark (SpinService) ve pencere (SpinPanel). ]]
+Config.SpinSliceLook = {
+	SmallCash = { color = Color3.fromRGB(88, 200, 74), text = "CASH", icon = "💵" },
+	MedCash = { color = Color3.fromRGB(40, 150, 230), text = "BIG CASH", icon = "💰" },
+	HugeCash = { color = Color3.fromRGB(255, 190, 30), text = "HUGE CASH", icon = "💎" },
+	Spawn = { color = Color3.fromRGB(245, 120, 30), text = "CREWMATE", icon = "👾" },
+	Mutation = { color = Color3.fromRGB(160, 80, 235), text = "MUTATED", icon = "✨" },
+	FreeUnit = { color = Color3.fromRGB(230, 45, 70), text = "JACKPOT", icon = "🏆" },
+} :: { [string]: { color: Color3, text: string, icon: string } }
 
 --[[ Çarkta ağırlıklı ödül seçer. ]]
 function Config.RollSpinReward(rng: Random): SpinReward
@@ -279,25 +291,26 @@ export type TitleDef = {
 ]]
 Config.Titles = {
 	{ id = "Crewmate",      name = "Crewmate",           rarity = "Common",    stat = "salvaged",      threshold = 0,     order = 1,  incomeSeconds = 0,    minimum = 0,        hint = "Everyone starts here" },
-	{ id = "SpaceRookie",   name = "Space Rookie",       rarity = "Common",    stat = "salvaged",      threshold = 10,    order = 2,  incomeSeconds = 120,  minimum = 5000,     hint = "Steal 10 crewmates from space monsters" },
-	{ id = "SpaceThief",    name = "Space Thief",        rarity = "Uncommon",  stat = "salvaged",      threshold = 50,    order = 3,  incomeSeconds = 300,  minimum = 30000,    hint = "Steal 50 crewmates from space monsters" },
-	{ id = "Rocketeer",     name = "Rocketeer",          rarity = "Uncommon",  stat = "spaceSpeed",    threshold = 44,    order = 4,  incomeSeconds = 300,  minimum = 30000,    hint = "Reach 44 space speed" },
-	{ id = "Yeeted",        name = "Yeeted",             rarity = "Uncommon",  stat = "thrown",        threshold = 40,    order = 5,  incomeSeconds = 300,  minimum = 30000,    hint = "Get thrown back by monsters 40 times" },
-	{ id = "HeistPro",      name = "Heist Pro",          rarity = "Rare",      stat = "salvaged",      threshold = 200,   order = 6,  incomeSeconds = 900,  minimum = 150000,   hint = "Steal 200 crewmates from space monsters" },
-	{ id = "MonsterTamer",  name = "Monster Tamer",      rarity = "Rare",      stat = "stunned",       threshold = 100,   order = 7,  incomeSeconds = 900,  minimum = 150000,   hint = "Stun space monsters 100 times with gear" },
-	{ id = "IronWill",      name = "Iron Will",          rarity = "Rare",      stat = "trainings",     threshold = 150,   order = 8,  incomeSeconds = 900,  minimum = 150000,   hint = "Win the capsule mini game 150 times" },
-	{ id = "Captain",       name = "Captain",            rarity = "Rare",      stat = "rebirths",      threshold = 1,     order = 9,  incomeSeconds = 1200, minimum = 300000,   hint = "Rebirth once" },
-	{ id = "WarpRunner",    name = "Warp Runner",        rarity = "Epic",      stat = "spaceSpeed",    threshold = 90,    order = 10, incomeSeconds = 1800, minimum = 1000000,  hint = "Reach 90 space speed" },
-	{ id = "VoidRaider",    name = "Void Raider",        rarity = "Epic",      stat = "salvaged",      threshold = 750,   order = 11, incomeSeconds = 1800, minimum = 1000000,  hint = "Steal 750 crewmates from space monsters" },
-	{ id = "MutantHunter",  name = "Mutant Hunter",      rarity = "Epic",      stat = "mutatedSteals", threshold = 75,    order = 12, incomeSeconds = 1800, minimum = 1000000,  hint = "Steal 75 mutated crewmates" },
-	{ id = "Engineer",      name = "Engineer",           rarity = "Epic",      stat = "maxedUpgrades", threshold = 5,     order = 13, incomeSeconds = 1800, minimum = 1000000,  hint = "Max out 5 upgrades" },
-	{ id = "Lightspeed",    name = "Lightspeed",         rarity = "Legendary", stat = "spaceSpeed",    threshold = 120,   order = 14, incomeSeconds = 3600, minimum = 5000000,  hint = "Reach 120 space speed" },
-	{ id = "GalaxyBandit",  name = "Galaxy Bandit",      rarity = "Legendary", stat = "salvaged",      threshold = 2500,  order = 15, incomeSeconds = 3600, minimum = 5000000,  hint = "Steal 2,500 crewmates from space monsters" },
-	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 3600, minimum = 5000000,  hint = "Discover all 25 crewmates in the Index" },
-	{ id = "Admiral",       name = "Admiral",            rarity = "Legendary", stat = "rebirths",      threshold = 5,     order = 17, incomeSeconds = 3600, minimum = 5000000,  hint = "Rebirth 5 times" },
-	{ id = "LeviathanRobber", name = "Leviathan Robber", rarity = "Mythic",    stat = "bossSteals",    threshold = 50,    order = 18, incomeSeconds = 7200, minimum = 25000000, hint = "Steal 50 crewmates from the Void Leviathan" },
-	{ id = "AmogusPrime",   name = "Amogus Prime",       rarity = "Mythic",    stat = "secrets",       threshold = 1,     order = 19, incomeSeconds = 7200, minimum = 25000000, hint = "Own a Secret crewmate" },
-	{ id = "MonstersNightmare", name = "Monsters' Nightmare", rarity = "Secret", stat = "salvaged",   threshold = 10000, order = 20, incomeSeconds = 14400, minimum = 100000000, hint = "Steal 10,000 crewmates from space monsters" },
+	{ id = "SpaceRookie",   name = "Space Rookie",       rarity = "Common",    stat = "salvaged",      threshold = 10,    order = 2,  incomeSeconds = 60,  minimum = 2500,     hint = "Steal 10 crewmates from space monsters" },
+	{ id = "SpaceThief",    name = "Space Thief",        rarity = "Uncommon",  stat = "salvaged",      threshold = 50,    order = 3,  incomeSeconds = 150,  minimum = 15000,    hint = "Steal 50 crewmates from space monsters" },
+	{ id = "Rocketeer",     name = "Rocketeer",          rarity = "Uncommon",  stat = "spaceSpeed",    threshold = 44,    order = 4,  incomeSeconds = 150,  minimum = 15000,    hint = "Reach 44 space speed" },
+	{ id = "Yeeted",        name = "Yeeted",             rarity = "Uncommon",  stat = "thrown",        threshold = 40,    order = 5,  incomeSeconds = 150,  minimum = 15000,    hint = "Get thrown back by monsters 40 times" },
+	{ id = "HeistPro",      name = "Heist Pro",          rarity = "Rare",      stat = "salvaged",      threshold = 200,   order = 6,  incomeSeconds = 450,  minimum = 75000,   hint = "Steal 200 crewmates from space monsters" },
+	-- "stunned" 2026-09-28'den beri gear'la vurulan oyuncular (GearService); kimlik kayıtlar için aynı
+	{ id = "MonsterTamer",  name = "Space Bully",        rarity = "Rare",      stat = "stunned",       threshold = 100,   order = 7,  incomeSeconds = 450,  minimum = 75000,   hint = "Hit other players 100 times with gear" },
+	{ id = "IronWill",      name = "Iron Will",          rarity = "Rare",      stat = "trainings",     threshold = 150,   order = 8,  incomeSeconds = 450,  minimum = 75000,   hint = "Win the capsule mini game 150 times" },
+	{ id = "Captain",       name = "Captain",            rarity = "Rare",      stat = "rebirths",      threshold = 1,     order = 9,  incomeSeconds = 600, minimum = 150000,   hint = "Rebirth once" },
+	{ id = "WarpRunner",    name = "Warp Runner",        rarity = "Epic",      stat = "spaceSpeed",    threshold = 90,    order = 10, incomeSeconds = 900, minimum = 500000,  hint = "Reach 90 space speed" },
+	{ id = "VoidRaider",    name = "Void Raider",        rarity = "Epic",      stat = "salvaged",      threshold = 750,   order = 11, incomeSeconds = 900, minimum = 500000,  hint = "Steal 750 crewmates from space monsters" },
+	{ id = "MutantHunter",  name = "Mutant Hunter",      rarity = "Epic",      stat = "mutatedSteals", threshold = 75,    order = 12, incomeSeconds = 900, minimum = 500000,  hint = "Steal 75 mutated crewmates" },
+	{ id = "Engineer",      name = "Engineer",           rarity = "Epic",      stat = "maxedUpgrades", threshold = 5,     order = 13, incomeSeconds = 900, minimum = 500000,  hint = "Max out 5 upgrades" },
+	{ id = "Lightspeed",    name = "Lightspeed",         rarity = "Legendary", stat = "spaceSpeed",    threshold = 120,   order = 14, incomeSeconds = 1800, minimum = 2500000,  hint = "Reach 120 space speed" },
+	{ id = "GalaxyBandit",  name = "Galaxy Bandit",      rarity = "Legendary", stat = "salvaged",      threshold = 2500,  order = 15, incomeSeconds = 1800, minimum = 2500000,  hint = "Steal 2,500 crewmates from space monsters" },
+	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 1800, minimum = 2500000,  hint = "Discover all 25 crewmates in the Index" },
+	{ id = "Admiral",       name = "Admiral",            rarity = "Legendary", stat = "rebirths",      threshold = 5,     order = 17, incomeSeconds = 1800, minimum = 2500000,  hint = "Rebirth 5 times" },
+	{ id = "LeviathanRobber", name = "Leviathan Robber", rarity = "Mythic",    stat = "bossSteals",    threshold = 50,    order = 18, incomeSeconds = 3600, minimum = 12500000, hint = "Steal 50 crewmates from the Void Leviathan" },
+	{ id = "AmogusPrime",   name = "Amogus Prime",       rarity = "Mythic",    stat = "secrets",       threshold = 1,     order = 19, incomeSeconds = 3600, minimum = 12500000, hint = "Own a Secret crewmate" },
+	{ id = "MonstersNightmare", name = "Monsters' Nightmare", rarity = "Secret", stat = "salvaged",   threshold = 10000, order = 20, incomeSeconds = 7200, minimum = 50000000, hint = "Steal 10,000 crewmates from space monsters" },
 } :: { TitleDef }
 
 --[[
@@ -366,9 +379,11 @@ export type QuestTier = {
 	iki oturumda bitirilebilir bir hedef bırakıyor.
 ]]
 Config.QuestTiers = {
-	{ id = "short",  name = "30 Minutes", seconds =  1800, slots = 2, goalMul =  1, rewardSeconds =  120, rewardMinimum =   5000 },
-	{ id = "medium", name = "3 Hours",    seconds = 10800, slots = 2, goalMul =  4, rewardSeconds =  900, rewardMinimum =  50000 },
-	{ id = "daily",  name = "Daily",      seconds = 86400, slots = 2, goalMul = 12, rewardSeconds = 3600, rewardMinimum = 250000 },
+	-- 2026-09-28 dengesi: günlük görev 1 SAATLİK gelir veriyordu (bir oyuncu 62M aldı).
+	-- Ödüller artık birkaç dakikalık gelir: görev hedefe yönlendiriyor, para basmıyor.
+	{ id = "short",  name = "30 Minutes", seconds =  1800, slots = 2, goalMul =  1, rewardSeconds =   45, rewardMinimum =   2000 },
+	{ id = "medium", name = "3 Hours",    seconds = 10800, slots = 2, goalMul =  4, rewardSeconds =  180, rewardMinimum =  12000 },
+	{ id = "daily",  name = "Daily",      seconds = 86400, slots = 2, goalMul = 12, rewardSeconds =  480, rewardMinimum =  50000 },
 } :: { QuestTier }
 
 export type QuestDef = {
@@ -396,7 +411,7 @@ Config.Quests = {
 	{ id = "Train",   stat = "trainings", base = 3, maxGoal = 30, fromTier = 1, text = "Win the capsule mini game %s times" },
 	{ id = "Sell",    stat = "sold",     base = 3, maxGoal = 25, fromTier = 1, text = "Sell %s crewmates" },
 	{ id = "Earn",    stat = "earned",   base = 0, maxGoal = 0,  fromTier = 1, text = "Earn $%s", incomeSeconds = 300, minimum = 20000 },
-	{ id = "Stun",    stat = "stunned",  base = 2, maxGoal = 20, fromTier = 2, text = "Stun space monsters %s times with gear" },
+	{ id = "Stun",    stat = "stunned",  base = 2, maxGoal = 20, fromTier = 2, text = "Hit other players %s times with gear" },
 	{ id = "Mutated", stat = "mutatedSteals", base = 1, maxGoal = 5, fromTier = 2, text = "Steal %s mutated crewmates" },
 	{ id = "Upgrade", stat = "upgrades", base = 1, maxGoal =  4, fromTier = 2, text = "Buy %s base upgrades" },
 	{ id = "Spin",    stat = "spins",    base = 1, maxGoal =  1, fromTier = 3, text = "Spin the wheel %s time" },
@@ -601,14 +616,17 @@ Config.Tutorial = {
 	--[[
 		2026-09-28 YENİDEN: oyuncudan çalma kalktı ("rakipten çal", "kilitle"
 		adımları gitti). Akış oyunun asıl döngüsünü sırayla öğretiyor:
-		  soygun → ikinci soygun → kapsül → mini oyun → çark → yükseltme →
-		  daha güçlü canavar (hızın ne işe yaradığı) → pet → gear → görev.
+		  soygun → ikinci soygun → kapsül → mini oyun → çark → JETPACK →
+		  yükseltme → daha güçlü canavar (hızın ne işe yaradığı) → pet →
+		  gear → görev.
 		Ödüller bir sonraki adımın masrafını karşılıyor (test "her adım
-		karşılanabiliyor"): Supply Egg 50 bin, Slap Glove 250 bin.
+		karşılanabiliyor"): Scout Jet 15 bin, Supply Egg 50 bin, Slap Glove
+		250 bin. Jetpack adımının ödülü fiyatını geri veriyor ve Gear
+		adımına pay bırakıyor (yükseltmeler pahalandı).
 	]]
 	{
 		id = "Heist", title = "Your first heist", hint = "SpaceGate",
-		text = "Walk through the Launch Bay gate, fly to Glorp's planet and grab a crewmate. Fly back before Glorp catches you!",
+		text = "Go through the Launch Bay gate, fly to Glorp's planet and grab a crewmate. Fly back to the SAFE deck before Glorp catches you!",
 		check = "units", goal = 1, reward = 500,
 	},
 	{
@@ -623,13 +641,18 @@ Config.Tutorial = {
 	},
 	{
 		id = "CapsuleGame", title = "Win the capsule game", hint = "Capsule",
-		text = "Inside the capsule, hold SPACE (or tap) to keep the rocket in the green zone until the bar fills.",
+		text = "Inside the capsule, steer the rocket with WASD (or the joystick) and dodge the rocks until the bar fills.",
 		check = "trainings", goal = 1, reward = 5000,
 	},
 	{
 		id = "Spin", title = "Take your free spin", hint = "Wheel",
 		text = "The lucky wheel in the Cafeteria gives one free spin every day. Go claim today's!",
 		check = "spins", goal = 1, reward = 20000,
+	},
+	{
+		id = "Jetpack", title = "Buy a jetpack", hint = "JetpackStand",
+		text = "The JETPACKS stand on the Launch Bay deck sells faster jetpacks. Buy the Scout Jet: you fly out to the planets faster!",
+		check = "jetpacks", goal = 1, reward = 40000,
 	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
@@ -648,7 +671,7 @@ Config.Tutorial = {
 	},
 	{
 		id = "Gear", title = "Get a gear", hint = "GearShop",
-		text = "Gear from the Weapons room stuns monsters that chase you. Buy one and use it in space!",
+		text = "Gear from the Weapons room slaps, zaps and blasts other players, even while flying. Buy one and try it!",
 		check = "gear", goal = 1, reward = 50000,
 	},
 	{
@@ -935,7 +958,7 @@ Config.LightsOutChaseMul = 0.85
 	nakit ya da düşük ihtimalle bir karakter.
 ]]
 Config.MeltdownCores = 6
-Config.MeltdownRewardSeconds = 90   -- nakit ödül = saniyelik gelir × bu
+Config.MeltdownRewardSeconds = 40   -- nakit ödül = saniyelik gelir × bu (2026-09-28: 90'dan)
 Config.MeltdownMinCash = 5000
 Config.MeltdownUnitChance = 0.15
 Config.MeltdownUnitMinutes = 10     -- karakter ödülü: ~10 dk'lık gelirle alınabilecek en iyisi
@@ -1215,19 +1238,20 @@ export type UpgradeDef = {
 	yükseltmeleri SIFIRLIYOR (RebirthService).
 ]]
 Config.Upgrades = {
-	{ id = "SpaceCapsule",    name = "Space Capsule",    category = "training", baseMaxLevel = 6, baseCost = 4000,   costGrowth = 2.3,
+	-- 2026-09-28: "kapsül çok ucuz, çok hızlı maxlanıyor" — hepsi ~3-8 kat pahalı, büyüme dik
+	{ id = "SpaceCapsule",    name = "Space Capsule",    category = "training", baseMaxLevel = 6, baseCost = 25000,  costGrowth = 3.0,
 	  blurb = "Train your space speed faster in the capsule" },
-	{ id = "TrainingConsole", name = "Training Console", category = "training", baseMaxLevel = 5, baseCost = 25000,  costGrowth = 2.35,
+	{ id = "TrainingConsole", name = "Training Console", category = "training", baseMaxLevel = 5, baseCost = 90000,  costGrowth = 2.9,
 	  blurb = "Makes the capsule mini game easier" },
-	{ id = "QuickHands",      name = "Quick Hands",      category = "heist",    baseMaxLevel = 5, baseCost = 60000,  costGrowth = 2.3,
+	{ id = "QuickHands",      name = "Quick Hands",      category = "heist",    baseMaxLevel = 5, baseCost = 200000, costGrowth = 2.9,
 	  blurb = "Grab lost crewmates faster" },
-	{ id = "JetBoost",        name = "Jet Boost",        category = "heist",    baseMaxLevel = 5, baseCost = 150000, costGrowth = 2.4,
+	{ id = "JetBoost",        name = "Jet Boost",        category = "heist",    baseMaxLevel = 5, baseCost = 500000, costGrowth = 3.0,
 	  blurb = "Dash in space (Q). More power, less cooldown" },
-	{ id = "StealthSuit",     name = "Stealth Suit",     category = "heist",    baseMaxLevel = 5, baseCost = 400000, costGrowth = 2.4,
+	{ id = "StealthSuit",     name = "Stealth Suit",     category = "heist",    baseMaxLevel = 5, baseCost = 1500000, costGrowth = 3.0,
 	  blurb = "Monsters wake up later and reach less far" },
-	{ id = "LuckyScanner",    name = "Lucky Scanner",    category = "heist",    baseMaxLevel = 5, baseCost = 800000, costGrowth = 2.5,
+	{ id = "LuckyScanner",    name = "Lucky Scanner",    category = "heist",    baseMaxLevel = 5, baseCost = 4000000, costGrowth = 3.1,
 	  blurb = "Stolen crewmates may turn mutated" },
-	{ id = "CrewMorale",      name = "Crew Morale",      category = "base",     baseMaxLevel = 6, baseCost = 250000, costGrowth = 2.3,
+	{ id = "CrewMorale",      name = "Crew Morale",      category = "base",     baseMaxLevel = 6, baseCost = 800000, costGrowth = 2.9,
 	  blurb = "More cash from every podium" },
 } :: { UpgradeDef }
 
@@ -1522,6 +1546,13 @@ Config.MutationPriceFactor = 0.6
 	Secret ~4 dk'lık geliri eder).
 ]]
 Config.SellRefundFactor = 0.25
+--[[
+	2026-09-28: satış karakterin GELİRİNE bağlandı (değerine değil). Karakterler
+	bedava çalındığı için değer (price) üzerinden satış nadirlikle aşırı
+	büyüyordu. Satış = SellIncomeSeconds saniyelik gelir (mutasyon dahil):
+	kaide açmak için mantıklı, çal-sat döngüsü tutmaktan hep kârsız.
+]]
+Config.SellIncomeSeconds = 45
 
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
@@ -1582,7 +1613,13 @@ end
 
 --[[ Karakteri satınca eline geçen para. ]]
 function Config.GetSellPrice(unitId: string, mutationId: string?): number
-	return math.floor(Config.GetPrice(unitId, mutationId) * Config.SellRefundFactor)
+	local def = Config.GetUnit(unitId)
+	if not def then
+		return 0
+	end
+	local mutation = Config.GetMutation(mutationId)
+	local income = def.income * (if mutation then mutation.incomeMul else 1)
+	return math.max(1, math.floor(income * Config.SellIncomeSeconds))
 end
 
 --[[ Bir sonraki rebirth'ün maliyeti. Seviye 0 -> ilk rebirth'ün fiyatı. ]]
@@ -2186,12 +2223,12 @@ end
 	Oyun içi parayla bir kez alınan, kalıcı aletler. Her doğuşta sırt
 	çantasına geliyor.
 
-	2026-09-28: oyuncudan çalma kalktı. Aletler artık uzaydaki CANAVARLARA
-	karşı kaçış araçları (gemide üssü soyan impostoru da durduruyor):
-	vurulan canavar `stun` sn yerinde kalıyor, kimseyi yakalayamıyor ve
-	kovalamaya yeniden yavaş başlıyor; `knock` stud geri itiliyor
-	(SpaceService.HitMonsters). Güç bekleme süresiyle sınırlı: en iyi alet
-	bile bir kovalamada bir kez kurtarıyor.
+	2026-09-28 (Yusuf): aletler canavarlara İŞLEMİYOR; OYUNCULARA (ve
+	gemide gezen impostora) işliyor. Uzayda da kullanılıyor, oyuncular
+	birbirini hafifçe sabote edebiliyor: uzayda sersemlik/savrulma ×0.6 ve
+	vurulan dönerek sürükleniyor (istasyonda yere savruluyor). Taşınan
+	mürettebat düşmüyor. Vurulan GearHitImmunity sn tekrar vurulamıyor
+	(GearService).
 
 	Speed Coil yalnızca gemide (uzayda uçuş hızı kapsülden geliyor).
 ]]
@@ -2205,29 +2242,32 @@ export type GearDef = {
 	sprintSpeed: number?,  -- speed: elde tutup Shift'e basınca
 	cooldown: number?,     -- iki kullanım arası saniye
 	range: number?,        -- menzil / etki yarıçapı (stud)
-	stun: number?,         -- canavarın sersem kaldığı saniye
-	knock: number?,        -- canavarın geri itildiği mesafe (stud)
+	stun: number?,         -- vurulan oyuncunun sersem kaldığı saniye (uzayda ×0.6)
+	knock: number?,        -- vurulan oyuncunun savrulma hızı (uzayda ×0.6)
 }
 
 Config.Gear = {
 	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
 		cooldown = 8, range = 16, stun = 1.5, knock = 18,
-		blurb = "Slap a monster that gets too close: pushed back and dazed." },
+		blurb = "Slap the player in front of you: knocked back and dazed. Works in space too!" },
 	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
 		walkSpeed = 32, sprintSpeed = 40,
 		blurb = "Run way faster on the ship while holding it." },
 	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
 		cooldown = 20, range = 45, stun = 3,
-		blurb = "Zap a monster from afar: frozen for 3s while you escape." },
+		blurb = "Zap a player from afar: frozen for 3s. In space they spin out!" },
 	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
 		cooldown = 40, range = 28, stun = 2.5, knock = 30,
-		blurb = "Slam it: every monster around you is blasted away and dazed." },
+		blurb = "Slam it: every player around you is blasted away and dazed." },
 } :: { GearDef }
 
 --[[
 	Kaldırılan aletler -> iade. Kayıtta bulunursa (DataService sanitize)
 	aletin fiyatı paraya ekleniyor ve kayıttan siliniyor; bir kez oluyor.
 ]]
+-- Vurulan oyuncu bu kadar saniye tekrar vurulamıyor (sersemleme kilidi olmasın)
+Config.GearHitImmunity = 3
+
 Config.RetiredGear = {
 	GravityCoil = 800000,
 	-- 2026-09-27: "çok güçlü" — görünmezlik hem gemide hem uzayda fazla kaçırıyordu
@@ -2308,9 +2348,10 @@ end
 	yaramıyor (kilit oyunculara karşı); tek savunma sahibinin kendisi.
 	Hızı normal yürüyüşten yavaş: sahibi yetişebilsin.
 ]]
-Config.RogueIntervalMin = 300      -- iki impostor arası (sn), rastgele
-Config.RogueIntervalMax = 540
-Config.RogueFirstDelay = { 90, 180 } -- sunucu açıldıktan sonra ilki
+-- 2026-09-28: "sürekli çalmasın" — 5-9 dk'dan 15-25 dk'ya
+Config.RogueIntervalMin = 900      -- iki impostor arası (sn), rastgele
+Config.RogueIntervalMax = 1500
+Config.RogueFirstDelay = { 300, 600 } -- sunucu açıldıktan sonra ilki
 Config.RogueApproachSpeed = 11
 Config.RogueFleeSpeed = 13         -- NormalWalkSpeed'den yavaş olmalı
 Config.RogueHackSeconds = 8
@@ -2320,7 +2361,7 @@ Config.RogueFleeTimeout = 60       -- kaçarken takılırsa kaçmış sayılır
 -- yoldaydı, sahibinin yetişme şansı yoktu. 150 stud ≈ 12 sn kovalamaca.
 Config.RogueEscapeMinDistance = 150
 Config.RogueOfflineSeconds = 300   -- kaçınca karakterin gelirsiz kaldığı süre
-Config.RogueRewardSeconds = 120
+Config.RogueRewardSeconds = 60
 Config.RogueRewardMin = 5_000
 Config.RogueCatchHold = 1
 Config.RogueCatchRange = 12
@@ -2359,11 +2400,11 @@ export type RewardDef = {
 }
 
 Config.DailyRewards = {
-	{ kind = "cash",   seconds = 60,  minimum = 5000 },
+	{ kind = "cash",   seconds = 40,  minimum = 4000 },
 	{ kind = "potion", count = 1 },
-	{ kind = "cash",   seconds = 300, minimum = 25000 },
+	{ kind = "cash",   seconds = 150, minimum = 15000 },
 	{ kind = "egg",    egg = "SupplyEgg" },
-	{ kind = "cash",   seconds = 900, minimum = 100000 },
+	{ kind = "cash",   seconds = 400, minimum = 60000 },
 	{ kind = "potion", count = 2 },
 	-- Yedinci gün büyük: seriyi tamamlamanın hedefi bu
 	{ kind = "egg",    egg = "SkeldEgg" },
@@ -2402,11 +2443,11 @@ function Config.GetCode(text: string): CodeDef?
 end
 
 Config.PlaytimeRewards = {
-	{ minutes = 5,  kind = "cash",   seconds = 60,  minimum = 2000 },
+	{ minutes = 5,  kind = "cash",   seconds = 30,  minimum = 1500 },
 	{ minutes = 10, kind = "potion", count = 1 },
-	{ minutes = 20, kind = "cash",   seconds = 240, minimum = 10000 },
+	{ minutes = 20, kind = "cash",   seconds = 120, minimum = 8000 },
 	{ minutes = 30, kind = "egg",    egg = "SupplyEgg" },
-	{ minutes = 45, kind = "cash",   seconds = 600, minimum = 50000 },
+	{ minutes = 45, kind = "cash",   seconds = 300, minimum = 30000 },
 	{ minutes = 60, kind = "egg",    egg = "SkeldEgg" },
 } :: { RewardDef }
 
@@ -2551,8 +2592,14 @@ Config.Space = {
 
 	CrewPerPlanet = 5,
 	CrewRing = 13,              -- mürettebat yayının yarıçapı
-	-- 2026-09-27 "biraz daha kolay": 9 → 8 sn, basılı tutma 1.2 → 1.0
-	CrewRespawn = 8,
+	--[[
+		Mürettebat rotasyonu (2026-09-28): bütün gezegenlerdeki mürettebat
+		HEP BİRLİKTE her CrewRotate sn'de değişiyor (sunucuda, herkes aynısını
+		görüyor; üstünde geri sayım). Çalınan yerin yenisi CrewRespawn sn sonra
+		geliyor, sonra ortak rotasyona katılıyor.
+	]]
+	CrewRotate = 300,
+	CrewRespawn = 60,
 	GrabHold = 1.0,
 	GrabDistance = 12,
 
@@ -2592,6 +2639,8 @@ Config.SpaceBonus = {
 	RingRadius = 9,
 	RingBoostMul = 1.45,        -- halkadan geçince uçuş hızı çarpanı...
 	RingBoostTime = 1.8,        -- ...bu kadar sn
+	-- 2026-09-28: yıldız tozu ve hız halkaları KALKTI (para basıyordu, halkalar
+	-- kalabalık yapıyordu; hızı artık jetpack veriyor). Sandık azaldı ve seyrek.
 	StardustClusterSpacing = 95,
 	StardustPerCluster = 6,
 	StardustRadius = 6,         -- toplama mesafesi
@@ -2599,16 +2648,83 @@ Config.SpaceBonus = {
 	StardustIncomeSeconds = 1.5, -- ödül = saniyelik gelir × bu (en az StardustMin)
 	StardustMin = 40,
 	CrateRadius = 8,
-	CrateRespawn = 120,
-	CrateIncomeSeconds = 25,
-	CrateMin = 1500,
-	CratePotionChance = 0.12,
+	CrateRespawn = 300,
+	CrateIncomeSeconds = 6,
+	CrateMin = 400,
+	CratePotionChance = 0.06,
 	-- Golden Comet olayı: uzaydan geçen altın kuyruklu yıldız, ilk dokunan kazanır
 	CometSpeed = 38,
 	CometRadius = 10,
-	CometIncomeSeconds = 120,
-	CometMin = 25000,
+	CometIncomeSeconds = 60,
+	CometMin = 15000,
 }
+
+-- ─── Jetpack'ler ────────────────────────────────────────────────────────────
+--[[
+	Launch Bay'deki JETPACK standından alınıyor (JetpackService). Kuşanılan
+	jetpack GİDERKEN uçuş hızını çarpıyor (boost); bir mürettebat kapınca
+	kendi hızınla dönüyorsun — canavarla yarış yine kapsül hızına bağlı.
+	Uzak gezegenlere gitmek jetpack'le kısalıyor ("çok uzun sürüyor").
+
+	  price  — oyun içi para (0 = herkeste var)
+	  pass   — Robux gamepass kimliği (varsa price yerine; 0 iken "SOON")
+	Görünüş (SpaceFX): tank sayısı, renkler, kanat/halka, alev rengi.
+]]
+export type JetpackDef = {
+	id: string,
+	name: string,
+	boost: number,
+	price: number,
+	pass: number?,
+	robux: number?,        -- mağazada gösterilecek fiyat (pass fiyatı Roblox'ta ayarlanıyor)
+	tanks: number,
+	tank: Color3,
+	trim: Color3,
+	flame: Color3,
+	flame2: Color3,
+	wings: boolean?,
+	ring: boolean?,
+}
+
+Config.Jetpacks = {
+	{ id = "Starter", name = "Starter Pack", boost = 1.0,  price = 0,
+	  tanks = 1, tank = Color3.fromRGB(170, 178, 192), trim = Color3.fromRGB(90, 98, 112), flame = Color3.fromRGB(255, 180, 80), flame2 = Color3.fromRGB(255, 90, 40) },
+	{ id = "Scout",   name = "Scout Jet",    boost = 1.25, price = 15000,
+	  tanks = 2, tank = Color3.fromRGB(226, 70, 70), trim = Color3.fromRGB(220, 224, 232), flame = Color3.fromRGB(255, 200, 90), flame2 = Color3.fromRGB(255, 80, 40) },
+	{ id = "Comet",   name = "Comet Jet",    boost = 1.5,  price = 750000,
+	  tanks = 2, tank = Color3.fromRGB(60, 140, 240), trim = Color3.fromRGB(230, 236, 246), flame = Color3.fromRGB(140, 220, 255), flame2 = Color3.fromRGB(60, 120, 255), wings = true },
+	{ id = "Plasma",  name = "Plasma Jet",   boost = 1.75, price = 0, pass = 0, robux = 99,
+	  tanks = 2, tank = Color3.fromRGB(70, 230, 120), trim = Color3.fromRGB(30, 40, 50), flame = Color3.fromRGB(160, 255, 150), flame2 = Color3.fromRGB(40, 220, 90), wings = true },
+	{ id = "Nova",    name = "Nova Jet",     boost = 1.85, price = 40000000,
+	  tanks = 2, tank = Color3.fromRGB(255, 190, 50), trim = Color3.fromRGB(250, 246, 230), flame = Color3.fromRGB(255, 240, 150), flame2 = Color3.fromRGB(255, 150, 40), wings = true },
+	{ id = "Pulsar",  name = "Pulsar Jet",   boost = 2.2,  price = 2500000000,
+	  tanks = 2, tank = Color3.fromRGB(180, 90, 255), trim = Color3.fromRGB(40, 30, 60), flame = Color3.fromRGB(230, 170, 255), flame2 = Color3.fromRGB(160, 70, 255), wings = true, ring = true },
+	{ id = "Quasar",  name = "Quasar Jet",   boost = 2.55, price = 150000000000,
+	  tanks = 2, tank = Color3.fromRGB(30, 30, 44), trim = Color3.fromRGB(255, 70, 110), flame = Color3.fromRGB(255, 150, 190), flame2 = Color3.fromRGB(255, 50, 110), wings = true, ring = true },
+	{ id = "Galaxy",  name = "Galaxy Jet",   boost = 2.9,  price = 0, pass = 0, robux = 499,
+	  tanks = 2, tank = Color3.fromRGB(50, 30, 110), trim = Color3.fromRGB(120, 230, 255), flame = Color3.fromRGB(255, 255, 255), flame2 = Color3.fromRGB(120, 200, 255), wings = true, ring = true },
+} :: { JetpackDef }
+
+function Config.GetJetpack(id: string?): JetpackDef?
+	if not id then
+		return nil
+	end
+	for _, def in Config.Jetpacks do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+--[[ Giderken uçuş çarpanı: taşırken 1 (kendi hızın), değilse jetpack'in boost'u. ]]
+function Config.GetJetpackBoost(id: string?, carrying: boolean): number
+	if carrying then
+		return 1
+	end
+	local def = Config.GetJetpack(id)
+	return if def then def.boost else 1
+end
 
 function Config.GetSpaceMonster(id: string): SpaceMonsterDef?
 	for _, def in Config.SpaceMonsters do
@@ -2693,10 +2809,13 @@ Config.Capsule = {
 		Eskiden 120'ye ~4.6-6.5 sa. sv9+ için 2. kat (rebirth + kat parası)
 		gerekiyor; gerçek süre soygun ve para beklemesiyle biraz daha uzun.
 	]]
-	Rate = 0.16,
-	Growth = 1.15,
+	--[[ 2026-09-28 (Yusuf): "kapsül çok çok hızlı" — yeniden yavaşladı.
+	     Mini oyunsuz: 28 ~4 dk, 44 ~14 dk, 64 ~42 dk, 90 ~2 sa, 120 ~4 sa
+	     (kapsül sv 0/3/6/9/12; sv9+ 2. kat ister). Mini oyunla ~%30 kısa. ]]
+	Rate = 0.14,
+	Growth = 1.14,
 	Ref = 20,
-	Pow = 3.2,
+	Pow = 3.4,
 	Tick = 0.5,                 -- sunucunun ölçtüğü aralık
 	--[[
 		Mini oyun (Stardew balık tutma gibi): roketi hareketli yeşil alanda

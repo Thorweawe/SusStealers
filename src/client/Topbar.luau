@@ -1,8 +1,8 @@
 --!strict
 --[[
-	Roblox'un üst şeridine, sohbet düğmesinin hemen sağına üç düğme:
+	Roblox'un üst şeridine, sohbet düğmesinin hemen sağına dört düğme:
 
-	    [Roblox] [≡ 💬]  [DAVET] [HEDİYE] [GÖZ]
+	    [Roblox] [≡ 💬]  [DAVET] [HEDİYE] [GÖZ] [AYARLAR]
 
 	  DAVET  — Roblox'un arkadaş davet penceresi. Aynı sunucudaki her
 	           arkadaş küçük bir gelir bonusu veriyor (FriendService);
@@ -12,6 +12,7 @@
 	           ödül varsa köşesinde kırmızı sayı.
 	  GÖZ    — arayüzü gizle/göster (H tuşu da). Eskiden tek başına
 	           duruyordu ve Roblox'un düğmelerinden küçüktü.
+	  AYARLAR — oyun içi SETTINGS penceresi (SettingsPanel).
 
 	═══ YER VE BOYUT ═══════════════════════════════════════════════════════
 
@@ -58,6 +59,9 @@ local CLUTTER = {
 	"Hotbar",
 	"AsteroidGame",
 	"TaskGame",
+	"SettingsPanel",
+	"JetpackPanel",
+	"SpinPanel",
 }
 
 local BUTTON = 44
@@ -71,7 +75,7 @@ export type Bar = {
 	Destroy: () -> (),
 }
 
-function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
+function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> ())?): Bar
 	local layer = Instance.new("ScreenGui")
 	layer.Name = "SusStealersTopbar"
 	layer.ResetOnSpawn = false
@@ -87,7 +91,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 
 	local row = Instance.new("Frame")
 	row.Name = "Buttons"
-	row.Size = UDim2.fromOffset(BUTTON * 3 + GAP * 2, BUTTON + 4)
+	row.Size = UDim2.fromOffset(BUTTON * 4 + GAP * 3, BUTTON + 4)
 	row.BackgroundTransparency = 1
 	row.Parent = layer
 
@@ -245,6 +249,29 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 		tip.TextTransparency = 1
 	end)
 
+	-- ─── Ayarlar ────────────────────────────────────────────────────────────
+
+	local gearHolder, gearButton = UiKit.Raised(row, "Settings", Color3.fromRGB(46, 110, 200), UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	gearHolder.LayoutOrder = 3
+	local gearGlyph = Instance.new("TextLabel")
+	gearGlyph.Size = UDim2.fromScale(1, 1)
+	gearGlyph.BackgroundTransparency = 1
+	gearGlyph.Font = Enum.Font.GothamBlack
+	gearGlyph.TextScaled = true
+	gearGlyph.Text = "⚙"
+	gearGlyph.TextColor3 = Color3.new(1, 1, 1)
+	gearGlyph.ZIndex = 6
+	gearGlyph.Parent = gearButton
+	local gearPad = Instance.new("UIPadding")
+	gearPad.PaddingTop = UDim.new(0.16, 0)
+	gearPad.PaddingBottom = UDim.new(0.16, 0)
+	gearPad.Parent = gearGlyph
+	gearButton.MouseButton1Click:Connect(function()
+		if onSettings then
+			onSettings()
+		end
+	end)
+
 	--[[
 		Roblox'un şeridine hizalama. Yeni şeritte (yükseklik 58) Roblox'un
 		düğmeleri 44 ve alt kenara yakın; eski şeritte (36) daha küçük.
@@ -263,10 +290,10 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 			height, x = if topInset.Y > 0 then topInset.Y else 36, 228
 		end
 		local size = if height >= 50 then BUTTON else math.max(28, height - 6)
-		for _, holder in { inviteHolder, giftHolder, eyeHolder } do
+		for _, holder in { inviteHolder, giftHolder, eyeHolder, gearHolder } do
 			holder.Size = UDim2.fromOffset(size, size + 4)
 		end
-		row.Size = UDim2.fromOffset(size * 3 + GAP * 2, size + 4)
+		row.Size = UDim2.fromOffset(size * 4 + GAP * 3, size + 4)
 		row.Position = UDim2.fromOffset(x, math.max(2, height - size - 2))
 	end
 	place()

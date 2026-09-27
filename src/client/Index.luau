@@ -87,6 +87,71 @@ local function label(parent: Instance, props: { [string]: any }): TextLabel
 	return text
 end
 
+--[[
+	2026-09-28 (Yusuf): "index UI'ını değiştir, yazıları güzelleştir".
+	Başlıklar ve adlar tombul yazı (FredokaOne) + koyu kontur; kademe
+	başlıkları kendi renginde hap; kartların zemini kademe renginden
+	aşağı koyulaşan degrade (keşfedilmemişte sönük).
+]]
+local OUTLINE = Color3.fromRGB(14, 16, 28)
+
+local function pop(text: TextLabel, size: number, thickness: number?): TextLabel
+	text.Font = Enum.Font.FredokaOne
+	text.TextSize = size
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 1.6
+	stroke.Color = OUTLINE
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	stroke.Parent = text
+	return text
+end
+
+--[[ Kademe / yumurta başlığı: renkli hap, içinde beyaz tombul yazı. ]]
+local function header(row: Frame, text: string, tone: Color3, z: number): TextLabel
+	local pill = Instance.new("Frame")
+	pill.Size = UDim2.fromOffset(0, 22)
+	pill.AutomaticSize = Enum.AutomaticSize.X
+	pill.BackgroundColor3 = tone:Lerp(Color3.new(0, 0, 0), 0.25)
+	pill.BorderSizePixel = 0
+	pill.ZIndex = z
+	pill.Parent = row
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 11)
+	c.Parent = pill
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(tone:Lerp(Color3.new(1, 1, 1), 0.15), tone:Lerp(Color3.new(0, 0, 0), 0.35))
+	g.Rotation = 90
+	g.Parent = pill
+	local st = Instance.new("UIStroke")
+	st.Thickness = 2
+	st.Color = OUTLINE
+	st.Parent = pill
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
+	pad.Parent = pill
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.fromScale(0, 1)
+	l.AutomaticSize = Enum.AutomaticSize.X
+	l.BackgroundTransparency = 1
+	l.TextColor3 = Color3.new(1, 1, 1)
+	l.Text = text
+	l.ZIndex = z + 1
+	l.Parent = pill
+	pop(l, 15, 1.8)
+	return l
+end
+
+--[[ Kart zemini: kademe renginden koyuya degrade. ]]
+local function tint(button: GuiObject, tone: Color3)
+	button.BackgroundColor3 = Color3.new(1, 1, 1)
+	local g = Instance.new("UIGradient")
+	g.Name = "Tint"
+	g.Color = ColorSequence.new(tone:Lerp(UiKit.ROW, 0.45), UiKit.ROW:Lerp(Color3.new(0, 0, 0), 0.25))
+	g.Rotation = 90
+	g.Parent = button
+end
+
 function Index.Create(screen: ScreenGui): Catalog
 	local root = UiKit.Window(screen, "UnitIndex", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -123,8 +188,9 @@ function Index.Create(screen: ScreenGui): Catalog
 	local titleLabel = label(band, {
 		Position = UDim2.fromOffset(52, 0), Size = UDim2.new(0, 300, 1, 0),
 		Font = Enum.Font.GothamBlack, TextSize = 22, Text = "CREW INDEX",
-		TextStrokeTransparency = 0.5, ZIndex = Z + 2,
+		ZIndex = Z + 2,
 	})
+	pop(titleLabel, 28, 2.5)
 
 	local close = UiKit.CloseButton(root)
 	close.Position = UDim2.new(1, -10, 0, 10)
@@ -145,6 +211,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		Size = UDim2.new(0.6, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack,
 		Text = "Discovered 0 / " .. #Config.Units, TextColor3 = UiKit.CREW.LIME, ZIndex = Z + 2,
 	})
+	pop(discovered, 17)
 	local percent = label(left, {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0),
 		Size = UDim2.new(0.4, 0, 0, 20), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right,
@@ -215,10 +282,11 @@ function Index.Create(screen: ScreenGui): Catalog
 	local detailStroke = UiKit.Stroke(detail, ACCENT, 1.6, 0.4)
 
 	local detailName = label(detail, {
-		Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 28),
 		TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBlack, TextSize = 18,
 		TextScaled = false, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 2,
 	})
+	pop(detailName, 22, 2)
 
 	local stage = Instance.new("Frame")
 	stage.AnchorPoint = Vector2.new(0.5, 0)
@@ -242,6 +310,15 @@ function Index.Create(screen: ScreenGui): Catalog
 	local statRows: { { key: TextLabel, value: TextLabel } } = {}
 	for i = 1, 5 do
 		local y = 184 + (i - 1) * 26
+		local bg = Instance.new("Frame")
+		bg.Position = UDim2.fromOffset(8, y - 1)
+		bg.Size = UDim2.new(1, -16, 0, 24)
+		bg.BackgroundColor3 = UiKit.ROW
+		bg.BackgroundTransparency = if i % 2 == 1 then 0.2 else 0.6
+		bg.BorderSizePixel = 0
+		bg.ZIndex = Z + 1
+		bg.Parent = detail
+		UiKit.Corner(bg, 8)
 		local key = label(detail, {
 			Position = UDim2.fromOffset(16, y), Size = UDim2.new(0.5, -16, 0, 22),
 			Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = UiKit.MUTED, ZIndex = Z + 2,
@@ -341,7 +418,7 @@ function Index.Create(screen: ScreenGui): Catalog
 
 		-- Konveyör yok: "Cost / Pays back" yerine değeri ve nereden çalınacağı
 		-- (bu nadirliği veren ilk canavar: Steal an Egg tarzı "hangi yaratık")
-		local source = "Rivals only"
+		local source = "Events & wheel"
 		for _, monster in Config.SpaceMonsters do
 			if monster.odds[def.rarity] then
 				source = monster.name
@@ -363,7 +440,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 
 		local have = owned[def.id] or 0
-		hint.Text = if not isKnown then "Not discovered yet. Steal one from a space monster or a rival!"
+		hint.Text = if not isKnown then "Not discovered yet. Fly out and steal one from a space monster!"
 			elseif have > 0 then string.format("You have %d on your podiums.", have)
 			else "Discovered. Steal one from a space monster to own it."
 		hint.TextColor3 = if have > 0 then UiKit.GOOD else UiKit.DIM
@@ -398,10 +475,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		row.Parent = list
 		rowsByTier[tier] = row
 
-		label(row, {
-			Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBlack, TextSize = 13,
-			TextColor3 = tone, Text = string.upper(tier), ZIndex = Z + 3,
-		})
+		header(row, string.upper(tier), tone, Z + 3)
 
 		--[[
 			İndeks ödülü: satırın sağında. Satır eksikse "3 / 4 · +2%",
@@ -471,6 +545,7 @@ function Index.Create(screen: ScreenGui): Catalog
 			button.ZIndex = Z + 4
 			button.Parent = strip
 			UiKit.Corner(button, 10)
+			tint(button, tone)
 			local stroke = UiKit.Stroke(button, tone, 1.2, 0.7)
 
 			-- Üstte nadirlik rengi şerit: satırı taramadan kademe okunuyor
@@ -491,10 +566,11 @@ function Index.Create(screen: ScreenGui): Catalog
 			figure.Parent = button
 
 			local name = label(button, {
-				Position = UDim2.fromOffset(4, 74), Size = UDim2.new(1, -8, 0, 16),
+				Position = UDim2.fromOffset(4, 74), Size = UDim2.new(1, -8, 0, 18),
 				TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center,
 				TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 5,
 			})
+			pop(name, 13, 1.4)
 
 			label(button, {
 				Position = UDim2.fromOffset(8, 94), Size = UDim2.new(0.5, 0, 0, 16),
@@ -619,7 +695,7 @@ function Index.Create(screen: ScreenGui): Catalog
 				drawFigure(card.figure, card.def, isKnown, 44)
 				card.name.Text = if isKnown then card.def.name else "???"
 				card.name.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
-				card.button.BackgroundTransparency = if isKnown then 0 else 0.35
+				card.button.BackgroundTransparency = if isKnown then 0 else 0.45
 			end
 			local have = owned[card.def.id] or 0
 			card.count.Text = if have > 0 then "x" .. have else ""
@@ -692,6 +768,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		Size = UDim2.new(0.6, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack,
 		Text = "Discovered 0 / " .. #Config.Pets, TextColor3 = UiKit.CREW.PINK, ZIndex = Z + 2,
 	})
+	pop(petDiscovered, 17)
 	local petPercent = label(petLeft, {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0),
 		Size = UDim2.new(0.4, 0, 0, 20), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right,
@@ -801,11 +878,7 @@ function Index.Create(screen: ScreenGui): Catalog
 			row.BackgroundTransparency = 1
 			row.ZIndex = Z + 2
 			row.Parent = petList
-			label(row, {
-				Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBlack, TextSize = 13,
-				TextColor3 = tone, Text = string.format("%s  ·  $%s", string.upper(egg.name), Config.FormatCash(egg.price)),
-				ZIndex = Z + 3,
-			})
+			header(row, string.format("%s  ·  $%s", string.upper(egg.name), Config.FormatCash(egg.price)), tone, Z + 3)
 			local strip = Instance.new("ScrollingFrame")
 			strip.Position = UDim2.fromOffset(0, 22)
 			strip.Size = UDim2.new(1, 0, 0, CARD_H + 8)
@@ -837,6 +910,7 @@ function Index.Create(screen: ScreenGui): Catalog
 				button.ZIndex = Z + 4
 				button.Parent = strip
 				UiKit.Corner(button, 10)
+				tint(button, rtone)
 				local cstroke = UiKit.Stroke(button, rtone, 1.2, 0.7)
 				local cap = Instance.new("Frame")
 				cap.Size = UDim2.new(1, 0, 0, 6)
@@ -853,10 +927,11 @@ function Index.Create(screen: ScreenGui): Catalog
 				figure.ZIndex = Z + 5
 				figure.Parent = button
 				local name = label(button, {
-					Position = UDim2.fromOffset(4, 74), Size = UDim2.new(1, -8, 0, 16),
+					Position = UDim2.fromOffset(4, 74), Size = UDim2.new(1, -8, 0, 18),
 					TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center,
 					TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 5,
 				})
+				pop(name, 13, 1.4)
 				label(button, {
 					Position = UDim2.fromOffset(8, 94), Size = UDim2.new(0.5, 0, 0, 16),
 					TextSize = 10, Font = Enum.Font.GothamBlack, TextColor3 = rtone,
@@ -888,7 +963,7 @@ function Index.Create(screen: ScreenGui): Catalog
 				drawPetFigure(card.figure, card.def, isKnown, 44)
 				card.name.Text = if isKnown then card.def.name else "???"
 				card.name.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
-				card.button.BackgroundTransparency = if isKnown then 0 else 0.35
+				card.button.BackgroundTransparency = if isKnown then 0 else 0.45
 			end
 			local have = petsOwned[card.def.id] or 0
 			card.count.Text = if have > 0 then "x" .. have else ""

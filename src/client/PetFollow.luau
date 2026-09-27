@@ -176,6 +176,10 @@ local function step(dt: number)
 		if owner and owner:GetAttribute("Cloaked") == true then
 			hide = if owner == Players.LocalPlayer then 0.6 else 1
 		end
+		-- Ayar: başkalarının petlerini gizle (SettingsService "SettingPets")
+		if owner ~= Players.LocalPlayer and Players.LocalPlayer:GetAttribute("SettingPets") == false then
+			hide = 1
+		end
 		if hide ~= s.hidden then
 			s.hidden = hide
 			for _, d in model:GetDescendants() do

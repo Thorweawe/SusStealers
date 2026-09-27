@@ -124,6 +124,16 @@ local function checkValue(player: Player, check: string): number
 		-- Kapsülde antrenman (CapsuleService); tam sayıya yuvarlanmış
 		return math.floor(profile.spaceSpeed)
 
+	elseif check == "jetpacks" then
+		-- Satın alınan jetpack'ler (başlangıç paketi sayılmıyor)
+		local owned = 0
+		for _, has in profile.jetpacks do
+			if has then
+				owned += 1
+			end
+		end
+		return owned
+
 	elseif check == "gear" then
 		local owned = 0
 		for _, has in profile.gear do
@@ -155,6 +165,13 @@ local function targetFor(player: Player, hint: string): Instance?
 	elseif hint == "Capsule" then
 		local capsule = plot and plot:FindFirstChild("Capsule")
 		return capsule and (capsule:FindFirstChild("Pad") or capsule)
+
+	elseif hint == "JetpackStand" then
+		-- Launch Bay güvertesindeki jetpack dükkânı (JetpackService kuruyor)
+		local zone = workspace:FindFirstChild("SpaceZone")
+		local bay = zone and zone:FindFirstChild("LaunchBay")
+		local stand = bay and bay:FindFirstChild("JetpackStand")
+		return stand and (stand:FindFirstChild("Counter") or stand)
 
 	elseif hint == "Upgrades" then
 		-- Yükseltmeler ayrı tabelalardan tek bir kulübeye taşındı
