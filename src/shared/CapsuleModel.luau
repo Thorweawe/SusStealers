@@ -14,6 +14,8 @@
 	  Pad       — zemindeki parlak disk (istemci nabız veriyor)
 	  Screen    — kapının üstündeki tabela (SurfaceGui "Info": Title/Level)
 	  Console   — kapının sağındaki yükseltme konsolu (prompt sunucudan)
+	  Trainer   — kapının SOLUNDAKİ Training Console istasyonu: mini oyunu
+	              kolaylaştıran yükseltme (prompt sunucudan, ekranı "TrainerInfo")
 	  Warp      — tavandaki yıldız akışı (ParticleEmitter, antrenmanda açık)
 ]]
 
@@ -183,8 +185,41 @@ function CapsuleModel.Build(origin: CFrame): Model
 	part(model, "ConsoleScreen", Vector3.new(1.8, 0.1, 1.3), consoleCf * CFrame.new(0, 3.28, -0.15) * CFrame.Angles(math.rad(20), 0, 0), Color3.fromRGB(255, 200, 60),
 		{ Material = Enum.Material.Neon, CanCollide = false })
 
+	--[[
+		Training Console (2026-09-28): kapının solunda ayrı bir istasyon.
+		Kapsül mini oyununu kolaylaştıran yükseltme burada; eğik holografik
+		panelinde yeşil hedef çizgisi, üstünde kendi tabelası var.
+	]]
+	local trainerCf = origin * CFrame.new(-(R + 2.4), 0, -R + 0.6)
+	local TRAIN = Color3.fromRGB(110, 255, 140)
+	local trainer = part(model, "Trainer", Vector3.new(2.6, 3.2, 2), trainerCf * CFrame.new(0, 1.6, 0), METAL_DARK)
+	part(model, "TrainerBase", Vector3.new(3.2, 0.4, 2.6), trainerCf * CFrame.new(0, 0.2, 0), METAL)
+	part(model, "TrainerTop", Vector3.new(2.8, 0.3, 2.3), trainerCf * CFrame.new(0, 3.3, -0.1) * CFrame.Angles(math.rad(22), 0, 0), METAL)
+	part(model, "TrainerScreen", Vector3.new(2.2, 0.1, 1.6), trainerCf * CFrame.new(0, 3.48, -0.15) * CFrame.Angles(math.rad(22), 0, 0), TRAIN,
+		{ Material = Enum.Material.Neon, CanCollide = false })
+	-- Holografik hedef çizgisi: mini oyunun yeşil alanı gibi
+	part(model, "TrainerHolo", Vector3.new(0.15, 2.2, 1.4), trainerCf * CFrame.new(0, 5, 0), TRAIN,
+		{ Material = Enum.Material.Neon, Transparency = 0.45, CanCollide = false, CastShadow = false })
+	part(model, "TrainerHoloBar", Vector3.new(0.2, 0.6, 1.5), trainerCf * CFrame.new(0, 5.2, 0), Color3.fromRGB(255, 255, 255),
+		{ Material = Enum.Material.Neon, Transparency = 0.2, CanCollide = false, CastShadow = false })
+	local trainerSign = part(model, "TrainerSign", Vector3.new(5.2, 1.4, 0.2), trainerCf * CFrame.new(0, 7, 0), Color3.fromRGB(20, 30, 26))
+	local tgui = Instance.new("SurfaceGui")
+	tgui.Name = "TrainerInfo"
+	tgui.Face = Enum.NormalId.Front
+	tgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	tgui.PixelsPerStud = 40
+	tgui.LightInfluence = 0
+	tgui.Parent = trainerSign
+	local tlist = Instance.new("UIListLayout")
+	tlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	tlist.VerticalAlignment = Enum.VerticalAlignment.Center
+	tlist.Parent = tgui
+	text(tgui, "Title", "TRAINING CONSOLE", 22, TRAIN, 1)
+	text(tgui, "Level", "LEVEL 0", 18, Color3.new(1, 1, 1), 2)
+
 	model.PrimaryPart = base
 	local _ = console
+	local _t = trainer
 	return model
 end
 

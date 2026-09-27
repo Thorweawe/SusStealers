@@ -50,7 +50,7 @@ function VentService.TryVent(player: Player, from: BasePart, to: BasePart, now: 
 		return "nochar"
 	end
 
-	if character:FindFirstChild("CarriedUnit") then
+	if player:GetAttribute("SpaceCarry") == true then
 		notifyError(player, "You can't use vents while carrying a crewmate!")
 		return "carrying"
 	end

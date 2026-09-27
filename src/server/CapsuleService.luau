@@ -31,6 +31,8 @@ local CapsuleService = {}
 CapsuleService.NotifyKind = "upgrade"
 
 local UPGRADE_ID = "SpaceCapsule"
+-- Kapsülün solundaki ayrı istasyon: mini oyunu kolaylaştıran yükseltme
+local TRAINER_ID = "TrainingConsole"
 
 local notifyRemote: RemoteEvent? = nil
 local paused = false
@@ -78,12 +80,41 @@ local function insideCapsule(capsule: Instance, position: Vector3): boolean
 	return Vector2.new(d.X, d.Z).Magnitude <= radius and math.abs(d.Y) <= zone.Size.X / 2 + 1
 end
 
+--[[ Yükseltme promptunun alt yazısı: ad + fiyat (ya da MAX). ]]
+local function priceText(owner: Player?, id: string, name: string): string
+	if not owner then
+		return name
+	end
+	local profile = DataService.Get(owner)
+	local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
+	local cost = Config.GetUpgradeCost(id, UpgradeService.GetLevel(owner, id), floors)
+	return if cost then string.format("%s  $%s", name, Config.FormatCash(cost)) else name .. "  MAX"
+end
+
 local function refreshCapsule(plot: Model)
 	local capsule = plot:FindFirstChild("Capsule")
 	if not capsule then
 		return
 	end
 	local owner = PlotService.GetOwner(plot)
+	-- Training Console istasyonu: seviye tabelası ve prompt fiyatı
+	local trainer = capsule:FindFirstChild("Trainer")
+	local sign = capsule:FindFirstChild("TrainerSign")
+	local tinfo = sign and sign:FindFirstChild("TrainerInfo")
+	local tlabel = tinfo and tinfo:FindFirstChild("Level")
+	if tlabel and tlabel:IsA("TextLabel") then
+		local t = if owner then string.format("LEVEL %d", UpgradeService.GetLevel(owner, TRAINER_ID)) else "NO OWNER"
+		if tlabel.Text ~= t then
+			tlabel.Text = t
+		end
+	end
+	local tprompt = trainer and trainer:FindFirstChild("TrainingPrompt")
+	if tprompt and tprompt:IsA("ProximityPrompt") then
+		local t = priceText(owner, TRAINER_ID, "Training Console")
+		if tprompt.ObjectText ~= t then
+			tprompt.ObjectText = t
+		end
+	end
 	local level = if owner then UpgradeService.GetLevel(owner, UPGRADE_ID) else 0
 	local screen = capsule:FindFirstChild("Screen")
 	local info = screen and screen:FindFirstChild("Info")
@@ -110,7 +141,35 @@ local function refreshCapsule(plot: Model)
 	end
 end
 
+--[[ Training Console istasyonunun promptu (kapsülün solunda). ]]
+local function setupTrainer(plot: Model)
+	local capsule = plot:FindFirstChild("Capsule")
+	local trainer = capsule and capsule:FindFirstChild("Trainer")
+	if not (trainer and trainer:IsA("BasePart")) or trainer:FindFirstChild("TrainingPrompt") then
+		return
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "TrainingPrompt"
+	prompt.ActionText = "Upgrade"
+	prompt.ObjectText = "Training Console"
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 9
+	prompt.RequiresLineOfSight = false
+	-- İstemci (PromptFilter OWN_ONLY) başkasının üssünde gizliyor
+	prompt.Parent = trainer
+	PromptGuard.Connect(prompt, function(player)
+		if PlotService.GetOwner(plot) ~= player then
+			notify(player, "This isn't your training console", true)
+			return
+		end
+		if UpgradeService.TryUpgrade(player, TRAINER_ID) then
+			refreshCapsule(plot)
+		end
+	end)
+end
+
 local function setupConsole(plot: Model)
+	setupTrainer(plot)
 	local capsule = plot:FindFirstChild("Capsule")
 	local console = capsule and capsule:FindFirstChild("Console")
 	if not (console and console:IsA("BasePart")) or console:FindFirstChild("CapsulePrompt") then
@@ -193,6 +252,7 @@ function CapsuleService.TryCatch(player: Player): number?
 	local level = UpgradeService.GetLevel(player, UPGRADE_ID)
 	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * c.CatchBonusSeconds
 	profile.spaceSpeed = math.min(Config.Space.MaxSpeed, profile.spaceSpeed + bonus)
+	profile.trainings += 1
 	publish(player, profile.spaceSpeed)
 	return bonus
 end

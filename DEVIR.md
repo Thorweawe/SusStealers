@@ -13,6 +13,49 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (33) — Batur (Yusuf'un şeridine de yazıldı)
+
+**Oyuncudan çalma KALKTI.** Karakterler yalnızca uzaydaki canavarlardan çalınıyor.
+Studio'ya aktarıldı, **166/166 test temiz**.
+
+- **Silinenler:** `StealService` (yerine yalnızca yürüme/koşma: `MovementService`), `SabotageService`,
+  `SabotagePanel`, `CarryGuide`, `ThiefTrail`; remote'lar `StealAlert`, `SabotageAction`;
+  Impostor Hunt olayı (oyuncu impostor); kilit, çalma serisi, kurban sınırı, "Stop Thief".
+  Kayıttaki `sabotages` alanı yok sayılıyor; `robbed/caught/maxStreak` sayaçları kalktı.
+- **Ekipman canavarlara karşı** (`GearService` + `SpaceService.HitMonsters`): Stun Gun dondurur,
+  Slap Glove iter, Emergency Button çevredekileri savurur. Sersemleyen canavar kimseyi yakalamıyor,
+  kovalamaya yeniden yavaş başlıyor. İstemci efekti `GearFX` "monster".
+- **Robux ürünleri yeniden amaçlandı (kimlikler aynı):**
+  - Fast Steal pass'i / Fast Hands iksiri → uzayda kapma hızlı.
+  - Strong Lock pass'i / Reinforced Lock iksiri → **Monster Shield**: yakalanınca bir kez kurtarır (60 sn).
+  - **Roblox panelinde adları/açıklamaları güncellenmeli** (Batur).
+- **Yükseltmeler yeniden** (`Config.Upgrades`, kategorili, `UpgradePanel` kaydırılabilir 3 bölüm):
+  - Space Capsule
+  - **Training Console** (yeni istasyon: kapsülün SOLUNDA `Trainer`, prompt `TrainingPrompt`; mini oyunu kolaylaştırır)
+  - Quick Hands (kapma)
+  - **Jet Boost** (uzayda Q / BOOST düğmesi, `SpaceFX`)
+  - Stealth Suit (geç uyanma, kısa menzil)
+  - Lucky Scanner (çalınan mutasyonlu olabilir)
+  - Crew Morale (gelir)
+
+  Unit Guard / Carry Speed / Lock Power kalktı; harcanan para yüklemede iade (`Config.RetiredUpgrades`).
+- **Kapsül mini oyunu zorlaştı** (`CapsuleFX`: dar alan, hızlı kayma); Training Console kolaylaştırıyor.
+  **Kapsül eğrisi:** 120 hıza ~3.2 sa (ortalama mini oyun), eskiden 4.6–6.5 sa.
+- **Petlerin hız bonusu** artık uzayda uçuş hızına ekleniyor (`Config.GetFlightSpeed`); canavar eşiği yine kapsül hızı.
+  Sol alttaki gösterge "SPACE SPEED".
+- **Unvanlar yeniden** (`Config.Titles`, 20 unvan):
+  - Nadirlik kademeli, zorlaşan hedefler (10 → 10.000 soygun, hız, antrenman, sersemletme, mutasyon, koleksiyon, son canavar).
+  - Başın üstünde nadirlik renginde etiket (`TitleTags`, Mythic/Secret parlıyor), sohbette nadirlik rengi.
+  - Efsanevi ve üstü herkese duyuruluyor.
+  - Yeni sayaçlar: `trainings`, `stunned`, `thrown`, `mutatedSteals`, `bossSteals`, `bestPlanet`.
+- **Görevler:** Steal/Catch yerine Train, Stun, Mutated.
+- **Rozetler:**
+  - First Heist ilk teslimde.
+  - Caught Red-Handed gezen impostoru durdurunca.
+  - "Robbed" → Yeeted, "Streak Master" → Heist Master (ikisinin kimliği 0).
+- **Öğretici 10 adım:** soygun, ikinci soygun, kapsül, mini oyun, çark, yükseltme, Chomper (`Planet2`), pet, gear, görev.
+- Skor tablosundaki "Stolen" artık uzay teslimlerini sayıyor.
+
 ## 2026-09-27 (32) — Batur (Yusuf'un şeridine ve haritaya da yazıldı)
 
 Batur telefondan istedi, Claude oturumu (bulut) yazdı. **Studio'ya aktarılmadı,

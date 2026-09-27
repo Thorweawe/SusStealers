@@ -96,8 +96,8 @@ function Lobby.Create(screen: ScreenGui): Hub
 
 
 	local function carrying(): boolean
-		local char = player.Character
-		return char ~= nil and char:FindFirstChild("CarriedUnit") ~= nil
+		-- Canavardan çalınanı taşırken (SpaceService "SpaceCarry") ışınlanmak teslimi atlardı
+		return player:GetAttribute("SpaceCarry") == true
 	end
 
 	--[[

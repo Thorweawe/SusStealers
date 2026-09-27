@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Ekipmanın canlı tarafı: kol animasyonları, vuruş efektleri, savrulma.
+	Ekipmanın canlı tarafı: kol animasyonları ve vuruş efektleri.
 
 	═══ ANİMASYON ══════════════════════════════════════════════════════════
 
@@ -23,15 +23,15 @@
 
 	  Slap Glove       — kol sağa açılıp soldan tokat gibi savruluyor
 	  Stun Gun         — ateşte kol yukarı tepiyor, uçtan hedefe mavi ışın
-	  Ghost Serum      — şişe havaya kalkıyor, yeşil duman, karakter solar
 	  Emergency Button — kol yükselip düğmeye vuruyor, kırmızı şok halkası
 
-	═══ SAVRULMA ═══════════════════════════════════════════════════════════
+	═══ HEDEF: CANAVAR ═════════════════════════════════════════════════════
 
-	Karakterin fiziği kendi istemcisinde; sunucu "hit" deyince VURULANIN
-	istemcisi kendini savuruyor (PlatformStand + hız, sersemlik bitince
-	ayağa kalkıyor) ya da şok tabancasında donuyor (kök parça kısa süre
-	sabit). Diğer istemciler yalnızca efekti çiziyor.
+	2026-09-28: oyuncudan çalma kalktı, aletler uzaydaki canavarlara
+	vuruyor. Sunucu vurulan her canavar için "monster" gönderiyor (canavarın
+	holder modeli). Canavarın görseli istemcide ayrı kuruluyor, holder'ın
+	kökü görünmez ve ayak hizasında: efektler gövde yüksekliğinde
+	(anchorOf) çiziliyor; sersem yıldızları canavarla birlikte gidiyor.
 ]]
 
 local Debris = game:GetService("Debris")
@@ -225,17 +225,33 @@ local function headOf(character: Model): BasePart?
 	return rootOf(character)
 end
 
---[[ Karakterin başında beliren, yükselip sönen çizgi roman yazısı. ]]
+--[[
+	Efektin bağlanacağı parça ve onun üstündeki yükseklik. Canavarın
+	(MonsterId niteliği) kökü görünmez ve ayak hizasında: gövdesi
+	7 × ölçek yukarıda (SpaceService.bodyHeight ile aynı).
+]]
+local function anchorOf(model: Model): (BasePart?, number)
+	local monsterId = model:GetAttribute("MonsterId")
+	if typeof(monsterId) == "string" then
+		local def = Config.GetSpaceMonster(monsterId)
+		local scale = if def then def.scale else 1
+		return model.PrimaryPart, 7 * scale
+	end
+	return headOf(model), 0
+end
+
+--[[ Karakterin (ya da canavarın) başında beliren, yükselip sönen çizgi roman yazısı. ]]
 local function popWord(character: Model, text: string, color: Color3)
-	local head = headOf(character)
+	local head, lift = anchorOf(character)
 	if not head then
 		return
 	end
+	local big = lift > 0
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "GearWord"
 	gui.Adornee = head
-	gui.Size = UDim2.fromOffset(160, 60)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.2, 0)
+	gui.Size = UDim2.fromOffset(if big then 240 else 160, if big then 90 else 60)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 2.2 + lift * 1.6, 0)
 	gui.AlwaysOnTop = true
 	gui.LightInfluence = 0
 	gui.MaxDistance = 140
@@ -254,7 +270,7 @@ local function popWord(character: Model, text: string, color: Color3)
 	label.Text = text
 	label.Parent = gui
 	TweenService:Create(label, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(1, 1) }):Play()
-	TweenService:Create(gui, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffsetWorldSpace = Vector3.new(0, 4.2, 0) }):Play()
+	TweenService:Create(gui, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffsetWorldSpace = Vector3.new(0, 4.2 + lift * 1.6, 0) }):Play()
 	task.delay(0.45, function()
 		TweenService:Create(label, TweenInfo.new(0.35), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
 	end)
@@ -326,13 +342,17 @@ end
 
 --[[ Sersem yıldızları: başın çevresinde dönen sarı noktalar. ]]
 local function dizzy(character: Model, seconds: number, color: Color3)
-	local head = headOf(character)
+	local head, lift = anchorOf(character)
 	if not head then
 		return
 	end
+	-- Canavarda yıldızlar büyük ve gövdenin tepesinde geniş bir halkada
+	local size = if lift > 0 then 1.6 else 0.4
+	local ring = if lift > 0 then lift * 0.9 else 1.2
+	local up = if lift > 0 then lift * 1.7 else 1.1
 	local stars: { Part } = {}
-	for _ = 1, 3 do
-		table.insert(stars, fxPart(Vector3.new(0.4, 0.4, 0.4), head.CFrame, color, Enum.PartType.Ball))
+	for _ = 1, (if lift > 0 then 5 else 3) do
+		table.insert(stars, fxPart(Vector3.new(size, size, size), head.CFrame, color, Enum.PartType.Ball))
 	end
 	local started = os.clock()
 	local conn: RBXScriptConnection
@@ -346,75 +366,10 @@ local function dizzy(character: Model, seconds: number, color: Color3)
 			return
 		end
 		for i, s in stars do
-			local a = t * 6 + i * (math.pi * 2 / 3)
-			s.CFrame = CFrame.new(head.Position + Vector3.new(math.cos(a) * 1.2, 1.1, math.sin(a) * 1.2))
+			local a = t * 6 + i * (math.pi * 2 / #stars)
+			s.CFrame = CFrame.new(head.Position + Vector3.new(math.cos(a) * ring, up, math.sin(a) * ring))
 		end
 	end)
-end
-
--- ─── Kendi karakterin: savrulma, donma, görünmezlik ─────────────────────────
-
-local stunToken = 0
-
-local function knockSelf(gearId: string, from: Vector3, knock: number, stun: number, shaker: Shaker?)
-	local character = player.Character
-	local root = character and rootOf(character)
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not (character and root and humanoid) or humanoid.Health <= 0 then
-		return
-	end
-	stunToken += 1
-	local token = stunToken
-	if shaker then
-		shaker.Shake(if knock > 0 then 0.8 else 0.4, 0.35)
-	end
-
-	if knock <= 0 then
-		-- Şok: olduğu yerde donuyor
-		root.Anchored = true
-		task.delay(stun, function()
-			if token == stunToken and root.Parent then
-				root.Anchored = false
-			end
-		end)
-		return
-	end
-
-	-- Savrulma: vurandan uzağa, biraz yukarı, yuvarlanarak
-	local away = root.Position - from
-	away = Vector3.new(away.X, 0, away.Z)
-	if away.Magnitude < 0.1 then
-		away = -root.CFrame.LookVector
-	end
-	root.Anchored = false
-	humanoid.PlatformStand = true
-	root.AssemblyLinearVelocity = away.Unit * knock + Vector3.new(0, knock * 0.45, 0)
-	root.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5).Unit * 10
-	task.delay(stun, function()
-		if token == stunToken and humanoid.Parent then
-			humanoid.PlatformStand = false
-			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end
-	end)
-end
-
---[[
-	Görünmezken oyuncu kendini tamamen kaybetmesin: sunucu herkese
-	saydamlığı 1 yaptı, kendi ekranında gövde soluk görünüyor. Bu yerel
-	değer ağdan gitmiyor; bitince sunucunun geri yazdığı değer geliyor.
-]]
-local function ghostSelf(character: Model, on: boolean)
-	if not on then
-		return
-	end
-	task.wait()
-	for _, d in character:GetDescendants() do
-		if d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" and d.Transparency >= 1 and d.Parent and not d.Parent:IsA("Tool") then
-			d.Transparency = 0.75
-		elseif d:IsA("BasePart") and d.Parent and d.Parent:IsA("Tool") and d.Transparency >= 1 then
-			d.Transparency = 0.5
-		end
-	end
 end
 
 -- ─── Başlatma ───────────────────────────────────────────────────────────────
@@ -481,18 +436,14 @@ function GearFX.Start(shaker: Shaker?): Handle
 			if gearId == "StunGun" then
 				local from = toolTip(character)
 				local target = if typeof(b) == "Instance" and b:IsA("Model") then b else nil
-				local targetHead = target and headOf(target)
+				local anchor, lift = nil, 0
+				if target then
+					anchor, lift = anchorOf(target)
+				end
 				if from then
-					local to = if targetHead then targetHead.Position else (from + (if root then root.CFrame.LookVector else Vector3.zAxis) * 30)
+					local to = if anchor then anchor.Position + Vector3.new(0, lift, 0) else (from + (if root then root.CFrame.LookVector else Vector3.zAxis) * 30)
 					task.delay(0.05, zapBeam, from, to)
 					SoundFX.GearSound("GearZap", from)
-				end
-			elseif gearId == "GhostSerum" then
-				if root then
-					task.delay(0.3, function()
-						burst(root.Position, Color3.fromRGB(120, 255, 220), 30, 10)
-						SoundFX.GearSound("GearPoof", root.Position)
-					end)
 				end
 			elseif gearId == "EmergencyButton" then
 				local def = Config.GetGear(gearId)
@@ -507,40 +458,41 @@ function GearFX.Start(shaker: Shaker?): Handle
 					end)
 				end
 			end
-		elseif kind == "hit" and typeof(a) == "string" and typeof(b) == "Vector3" then
-			local gearId, from = a, b
-			local knock = if typeof(c) == "number" then c else 0
-			local stun = if typeof(d) == "number" then math.clamp(d, 0, 5) else 1
+		elseif kind == "monster" and typeof(a) == "string" then
+			-- Canavar vuruldu: holder modeli `character` argümanında
+			local gearId, monster = a, character
+			local stun = if typeof(c) == "number" then math.clamp(c, 0, 6) else 1
 			local delay = if gearId == "SlapGlove" then 0.18 elseif gearId == "EmergencyButton" then 0.3 else 0.08
 			task.delay(delay, function()
-				local head = headOf(character)
+				local anchor, lift = anchorOf(monster)
+				local at = if anchor then anchor.Position + Vector3.new(0, lift, 0) else nil
 				if gearId == "SlapGlove" then
-					popWord(character, "SLAP!", Color3.fromRGB(255, 235, 90))
-					if head then
-						burst(head.Position, Color3.fromRGB(255, 250, 220), 20, 14)
-						SoundFX.GearSound("GearSlap", head.Position)
+					popWord(monster, "SLAP!", Color3.fromRGB(255, 235, 90))
+					if at then
+						burst(at, Color3.fromRGB(255, 250, 220), 40, 26)
+						SoundFX.GearSound("GearSlap", at)
 					end
-					dizzy(character, stun, Color3.fromRGB(255, 225, 80))
+					dizzy(monster, stun, Color3.fromRGB(255, 225, 80))
 				elseif gearId == "StunGun" then
-					popWord(character, "ZAP!", Color3.fromRGB(120, 210, 255))
-					if head then
-						burst(head.Position, Color3.fromRGB(120, 210, 255), 26, 12)
+					popWord(monster, "ZAP!", Color3.fromRGB(120, 210, 255))
+					if at then
+						burst(at, Color3.fromRGB(120, 210, 255), 50, 24)
 					end
-					dizzy(character, stun, Color3.fromRGB(120, 210, 255))
+					dizzy(monster, stun, Color3.fromRGB(120, 210, 255))
 				else
-					popWord(character, "BOOM!", Color3.fromRGB(255, 90, 90))
-					dizzy(character, stun, Color3.fromRGB(255, 225, 80))
+					popWord(monster, "BOOM!", Color3.fromRGB(255, 90, 90))
+					if at then
+						burst(at, Color3.fromRGB(255, 140, 90), 50, 30)
+					end
+					dizzy(monster, stun, Color3.fromRGB(255, 225, 80))
 				end
-				if mine then
-					knockSelf(gearId, from, knock, stun, shaker)
+				if shaker and anchor and player.Character then
+					local myRoot = rootOf(player.Character)
+					if myRoot and (myRoot.Position - anchor.Position).Magnitude < 80 then
+						shaker.Shake(0.4, 0.25)
+					end
 				end
 			end)
-		elseif kind == "cloak" then
-			if mine then
-				task.spawn(ghostSelf, character, a == true)
-			elseif a == false and root then
-				burst(root.Position, Color3.fromRGB(120, 255, 220), 18, 8)
-			end
 		end
 	end))
 

@@ -444,8 +444,12 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		elseif hint == "Capsule" then
 			local capsule = plot and plot:FindFirstChild("Capsule")
 			return capsule and capsule:FindFirstChild("Pad")
-		elseif hint == "Sign" then
-			return plot and plot:FindFirstChild("Sign")
+		elseif string.sub(hint, 1, 6) == "Planet" then
+			-- Uzaydaki gezegen (SpaceService "PlanetN")
+			local zone = workspace:FindFirstChild("SpaceZone")
+			local planets = zone and zone:FindFirstChild("Planets")
+			local planet = planets and planets:FindFirstChild(hint)
+			return planet and (planet:FindFirstChild("Planet") or planet)
 		elseif hint == "Upgrades" then
 			return plot and plot:FindFirstChild("UpgradeBooth")
 		elseif hint == "Wheel" then

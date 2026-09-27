@@ -40,10 +40,12 @@ local UnitModel = require(Shared.UnitModel)
 local AnnounceService = require(script.Parent.AnnounceService)
 local BadgeService = require(script.Parent.BadgeService)
 local DataService = require(script.Parent.DataService)
+local EconomyService = require(script.Parent.EconomyService)
 local MonetizationService = require(script.Parent.MonetizationService)
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
-local StealService = require(script.Parent.StealService)
+local UpgradeService = require(script.Parent.UpgradeService)
+local MovementService = require(script.Parent.MovementService)
 
 local SpaceService = {}
 
@@ -73,6 +75,7 @@ type Monster = {
 	target: Player?,
 	lungeUntil: number,     -- ani atak bu ana kadar sürüyor
 	nextLunge: number,      -- bir sonraki atak en erken
+	stunUntil: number,      -- ekipmanla sersemletildi: bu ana kadar yerinde (GearService)
 }
 
 type Carry = {
@@ -94,6 +97,22 @@ local monsters: { Monster } = {}
 local carrying: { [Player]: Carry } = {}
 local immuneUntil: { [Player]: number } = {}
 local grabbedBy: { [Player]: Monster } = {}
+-- Canavar kalkanı yeniden ne zaman hazır (os.clock)
+local shieldReadyAt: { [Player]: number } = {}
+-- Lucky Scanner zarı (mürettebat balonlarının zarından ayrı)
+local luckRng = Random.new()
+
+-- Aşağıda tanımlı; daha önceki fonksiyonlar (catch) da kullanıyor
+local keepOffPlanets: (p: Vector3) -> (Vector3, boolean)
+
+--[[ Stealth Suit: hedef oyuncunun canavar uyanma süresi çarpanı (hedef yoksa 1). ]]
+local function stealthOf(player: Player?): number
+	if not player then
+		return 1
+	end
+	local wakeMul = Config.GetStealth(UpgradeService.GetLevel(player, "StealthSuit"))
+	return wakeMul
+end
 -- Testler döngüyü durduruyor (canavar test oyuncusunu yakalamasın)
 local paused = false
 
@@ -135,9 +154,12 @@ local function rootOf(player: Player): BasePart?
 	return nil
 end
 
+--[[ Uçuş hızı: kapsül hızı + pet bonusu (istemcideki SpaceFX ile aynı hesap). ]]
 local function speedOf(player: Player): number
 	local v = player:GetAttribute("SpaceSpeed")
-	return if typeof(v) == "number" then v else Config.Space.BaseSpeed
+	local pet = player:GetAttribute("PetSpeedBonus")
+	return Config.GetFlightSpeed(if typeof(v) == "number" then v else Config.Space.BaseSpeed,
+		if typeof(pet) == "number" then pet else 0)
 end
 
 -- ─── Yapı yardımcıları ──────────────────────────────────────────────────────
@@ -425,6 +447,10 @@ local function placeSpot(spot: Spot, unitId: string, mutationId: string?, folder
 	prompt.Parent = model.PrimaryPart
 	PromptGuard.Connect(prompt, function(player)
 		onGrab(player, spot)
+	end, function(player)
+		-- Fast Steal / Fast Hands ve Quick Hands kısaltıyor (istemci PromptFilter'da aynı hesap)
+		return Config.GetPersonalGrabHold(Config.Space.GrabHold,
+			MonetizationService.GetStealHoldMultiplier(player), UpgradeService.GetLevel(player, "QuickHands"))
 	end)
 	model:SetAttribute("Planet", spot.planet)
 	model:SetAttribute("Spot", spot.index)
@@ -495,7 +521,7 @@ local function drop(player: Player)
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
-	StealService.RefreshSpeed(player)
+	MovementService.RefreshSpeed(player)
 	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
 	if spot then
 		spot.held = false
@@ -520,9 +546,6 @@ function onGrab(player: Player, spot: Spot)
 		notify(player, "You're already carrying one - fly back to the Launch Bay!", true)
 		return
 	end
-	if StealService.IsCarrying(player) then
-		return
-	end
 	if grabbedBy[player] or os.clock() < (immuneUntil[player] or 0) then
 		return
 	end
@@ -536,6 +559,26 @@ function onGrab(player: Player, spot: Spot)
 		return
 	end
 	local unitId, mutationId = spot.unitId :: string, spot.mutationId
+	--[[
+		Lucky Scanner: mutasyonsuz mürettebat şansla mutasyonlu çıkıyor.
+		Hangi mutasyon olacağı mutasyonların kendi nadirliğiyle (chance).
+	]]
+	local lucky = false
+	if not mutationId and luckRng:NextNumber() < Config.GetLuckyChance(UpgradeService.GetLevel(player, "LuckyScanner")) then
+		local total = 0
+		for _, m in Config.Mutations do
+			total += m.chance
+		end
+		local roll = luckRng:NextNumber() * total
+		for _, m in Config.Mutations do
+			roll -= m.chance
+			if roll <= 0 then
+				mutationId = m.id
+				lucky = true
+				break
+			end
+		end
+	end
 	local model = attachToBack(player, unitId, mutationId)
 	if not model then
 		return
@@ -552,10 +595,13 @@ function onGrab(player: Player, spot: Spot)
 		from = spot.position,
 	}
 	player:SetAttribute("SpaceCarry", true)
-	StealService.RefreshSpeed(player)
+	MovementService.RefreshSpeed(player)
 	DataService.Discover(player, unitId)
 
 	local monster = monsters[spot.planet]
+	if lucky then
+		notify(player, string.format("LUCKY SCANNER! It's a %s!", unitName(unitId, mutationId)), false, "spin")
+	end
 	notify(player, string.format("Stole %s! Fly back to the Launch Bay!", unitName(unitId, mutationId)), false, "steal")
 	if monster then
 		if monster.state == "idle" or monster.state == "return" then
@@ -603,7 +649,8 @@ local function deliver(player: Player, root: BasePart)
 		sürede gelmiş olmalı. Hız hilesiyle ışınlanan karakterini geri verir.
 	]]
 	local distance = (carry.from - root.Position).Magnitude
-	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance) - 1
+	local jet = Config.GetJetBoost(UpgradeService.GetLevel(player, "JetBoost"))
+	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * (if jet then jet.mul else 1)) - 1
 	if os.clock() - carry.grabbedAt < minTime then
 		drop(player)
 		notify(player, "Too fast! The crewmate slipped back to its planet", true)
@@ -615,7 +662,7 @@ local function deliver(player: Player, root: BasePart)
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
-	StealService.RefreshSpeed(player)
+	MovementService.RefreshSpeed(player)
 	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
 	if spot then
 		spot.held = false
@@ -631,6 +678,23 @@ local function deliver(player: Player, root: BasePart)
 		return
 	end
 	DataService.Bump(player, "salvaged")
+	-- Skor tablosundaki "Stolen" ve MOST STOLEN panosu (eskiden oyuncudan çalma sayıyordu)
+	EconomyService.AddStealCount(player)
+	if carry.mutationId then
+		DataService.Bump(player, "mutatedSteals")
+	end
+	if carry.planet == #Config.SpaceMonsters then
+		DataService.Bump(player, "bossSteals")
+	end
+	local best = DataService.Get(player)
+	if best and carry.planet > best.bestPlanet then
+		best.bestPlanet = carry.planet
+	end
+	BadgeService.Award(player, "FirstSteal")
+	local profile = DataService.Get(player)
+	if profile and profile.salvaged >= 100 then
+		BadgeService.Award(player, "StreakMaster")
+	end
 	local name = unitName(carry.unitId, carry.mutationId)
 	notify(player, string.format("%s is on your podium!", name), false, "deposit")
 	fx(player, "delivered", name)
@@ -644,12 +708,36 @@ local function landing(): CFrame
 end
 
 local function catch(monster: Monster, player: Player)
+	--[[
+		Canavar kalkanı (Strong Lock pass'i / Reinforced Lock iksiri): hazırsa
+		oyuncu kurtuluyor — canavar sersemleyip geri itiliyor, karakter
+		sırtta kalıyor. Sonra ShieldCooldown sn yeniden dolmuyor.
+	]]
+	local now0 = os.clock()
+	if MonetizationService.HasShield(player) and now0 >= (shieldReadyAt[player] or 0) then
+		shieldReadyAt[player] = now0 + Config.ShieldCooldown
+		player:SetAttribute("ShieldReadyAt", workspace:GetServerTimeNow() + Config.ShieldCooldown)
+		monster.stunUntil = now0 + Config.ShieldStun
+		local root = rootOf(player)
+		if root then
+			local away = monster.position - root.Position
+			away = Vector3.new(away.X, 0, away.Z)
+			if away.Magnitude > 0.1 then
+				monster.position = (keepOffPlanets(monster.position + away.Unit * Config.ShieldKnock))
+			end
+		end
+		fx(player, "shield", monster.def.id)
+		notify(player, "MONSTER SHIELD! You broke free - fly!", false, "catch")
+		return
+	end
 	local carry = carrying[player]
 	local name = if carry then unitName(carry.unitId, carry.mutationId) else "it"
 	drop(player)
 	local s = Config.Space
 	local now = os.clock()
 	grabbedBy[player] = monster
+	DataService.Bump(player, "thrown")
+	BadgeService.Award(player, "Victim")
 	immuneUntil[player] = now + s.GrabTime + s.ThrowTime + s.ThrowImmunity
 	player:SetAttribute("SpaceGrabbed", monster.def.id)
 	monster.state = "grab"
@@ -700,6 +788,7 @@ local function buildMonsterRoot(folder: Instance, index: number, def: Config.Spa
 		target = nil,
 		lungeUntil = 0,
 		nextLunge = 0,
+		stunUntil = 0,
 	}
 end
 
@@ -754,7 +843,7 @@ end
 	çalışırken" takılıp geç çıkıyordu. Plato (mesa) içindeyse tepesine,
 	kürenin içindeyse yüzeyine itiliyor. İtildiyse true.
 ]]
-local function keepOffPlanets(p: Vector3): (Vector3, boolean)
+function keepOffPlanets(p: Vector3): (Vector3, boolean)
 	local pushed = false
 	for _, def in Config.SpaceMonsters do
 		local top = def.position.Y
@@ -827,8 +916,18 @@ local function stepMonsters(dt: number)
 		local moveTo: Vector3? = nil
 		local speed = need * s.ReturnSpeedMul
 		local look: Vector3? = nil
-
-		if m.state == "wake" then
+		--[[
+			Ekipmanla sersemletilen canavar (Stun Gun, Slap Glove, Emergency
+			Button) yerinde duruyor, kimseyi yakalamıyor; sersemlik bitince
+			kovalamaya YENİDEN YAVAŞ başlıyor (rampa baştan) — oyuncuya
+			gerçek bir kaçış penceresi.
+		]]
+		local stunned = now < m.stunUntil and m.state ~= "grab" and m.state ~= "throw"
+		if stunned then
+			if m.state == "chase" then
+				m.chaseAt = now
+			end
+		elseif m.state == "wake" then
 			local other, root = nearestCarrier(m)
 			if root then
 				look = root.Position - m.position
@@ -837,7 +936,7 @@ local function stepMonsters(dt: number)
 				-- Kükrerken taşıyan teslim etti / bıraktı: eve dön
 				m.target = nil
 				setState(m, "return")
-			elseif now - m.stateAt >= (m.def.wake or s.WakeDelay) * eventMods.wakeMul then
+			elseif now - m.stateAt >= (m.def.wake or s.WakeDelay) * eventMods.wakeMul * stealthOf(m.target) then
 				setState(m, "chase")
 				m.chaseAt = now
 			end
@@ -857,7 +956,8 @@ local function stepMonsters(dt: number)
 				speed = need * (s.ChaseStartMul + (1 - s.ChaseStartMul) * ramp)
 				moveTo = root.Position - Vector3.new(0, bodyHeight(m.def), 0)
 				look = root.Position - m.position
-				local reach = SpaceField.CatchRadius(m.def)
+				local _, reachMul = Config.GetStealth(UpgradeService.GetLevel(m.target :: Player, "StealthSuit"))
+				local reach = SpaceField.CatchRadius(m.def) * reachMul
 				local body = reachPoint(m, root.Position)
 				-- Ani atak (ileri canavarlar): yakına gelince kısa süre need × lunge
 				local lunge = m.def.lunge or 1
@@ -935,6 +1035,10 @@ local function stepMonsters(dt: number)
 			m.root.CFrame = cf
 		end
 		local holder = m.root.Parent :: Instance
+		local stunAttr = if stunned then true else nil
+		if holder:GetAttribute("Stunned") ~= stunAttr then
+			holder:SetAttribute("Stunned", stunAttr)
+		end
 		if holder:GetAttribute("State") ~= m.state then
 			holder:SetAttribute("State", m.state)
 		end
@@ -964,13 +1068,8 @@ local function stepPlayers()
 		local inSpace = SpaceField.InSpace(pos)
 		if (player:GetAttribute("InSpace") == true) ~= inSpace then
 			player:SetAttribute("InSpace", if inSpace then true else nil)
-			-- Bobin hızı uzayda sayılmıyor (StealService bakıyor)
-			StealService.RefreshSpeed(player)
-		end
-		if inSpace and StealService.IsCarrying(player) then
-			-- Gemiden çalınan karakter uzaya çıkamaz: sahibine döner
-			StealService.KnockDrop(player)
-			notify(player, "Stolen crewmates can't leave the ship! It went back home", true)
+			-- Bobin hızı uzayda sayılmıyor (MovementService bakıyor)
+			MovementService.RefreshSpeed(player)
 		end
 		if carrying[player] and not grabbedBy[player] and SpaceField.InSafe(pos) then
 			deliver(player, root)
@@ -998,6 +1097,40 @@ local function stepPlayers()
 end
 
 -- ─── Dışa açık ──────────────────────────────────────────────────────────────
+
+--[[
+	Ekipman vuruşu (GearService): `origin`dan `range` içindeki canavarlar
+	`stun` sn sersemliyor ve `knock` stud geri itiliyor. `look` verilirse
+	yalnızca önündekiler (bakışla açının kosinüsü > minDot). Vurulan
+	canavarların holder modelleri dönüyor (efekt için).
+]]
+function SpaceService.HitMonsters(origin: Vector3, range: number, stun: number, knock: number, look: Vector3?, minDot: number?): { Model }
+	local hit: { Model } = {}
+	local now = os.clock()
+	for _, m in monsters do
+		if m.state == "grab" or m.state == "throw" then
+			continue
+		end
+		local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
+		local offset = body - origin
+		local reach = range + 4 * m.def.scale
+		if offset.Magnitude > reach then
+			continue
+		end
+		if look and offset.Magnitude > 0.5 and look.Unit:Dot(offset.Unit) < (minDot or 0) then
+			continue
+		end
+		m.stunUntil = math.max(m.stunUntil, now + stun)
+		if knock > 0 then
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			local dir = if flat.Magnitude > 0.1 then flat.Unit else -m.facing
+			local pushed, _ = keepOffPlanets(m.position + dir * knock)
+			m.position = pushed
+		end
+		table.insert(hit, m.root.Parent :: Model)
+	end
+	return hit
+end
 
 function SpaceService.IsCarrying(player: Player): boolean
 	return carrying[player] ~= nil
@@ -1154,6 +1287,7 @@ function SpaceService._ResetMonster(planet: number)
 		m.position = m.home.Position
 		m.facing = m.home.LookVector
 		m.target = nil
+		m.stunUntil = 0
 		setState(m, "idle")
 	end
 end
@@ -1244,7 +1378,7 @@ function SpaceService.Start()
 			player:SetAttribute("InSpace", nil)
 			player:SetAttribute("SpaceCarry", nil)
 			player:SetAttribute("SpaceGrabbed", nil)
-			StealService.RefreshSpeed(player)
+			MovementService.RefreshSpeed(player)
 		end)
 	end
 	for _, player in Players:GetPlayers() do
@@ -1255,6 +1389,7 @@ function SpaceService.Start()
 		drop(player)
 		immuneUntil[player] = nil
 		grabbedBy[player] = nil
+		shieldReadyAt[player] = nil
 		for _, m in monsters do
 			if m.target == player then
 				m.target = nil

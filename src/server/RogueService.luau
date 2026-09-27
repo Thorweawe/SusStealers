@@ -49,7 +49,7 @@ local EconomyService = require(script.Parent.EconomyService)
 local EventService = require(script.Parent.EventService)
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
-local TitleService = require(script.Parent.TitleService)
+local BadgeService = require(script.Parent.BadgeService)
 local VentService = require(script.Parent.VentService)
 
 local RogueService = {}
@@ -573,8 +573,8 @@ function RogueService.TryCatch(player: Player): (string, number)
 	setGhost(r.podium, false)
 	local reward = Config.GetRogueReward(EconomyService.GetIncome(player))
 	EconomyService.AddCash(player, reward)
-	TitleService.AddCaught(player)
 	notify(player, string.format("You stopped the impostor! +$%s", Config.FormatCash(reward)), false)
+	BadgeService.Award(player, "ThiefCatcher")
 	return "ok", reward
 end
 

@@ -910,10 +910,10 @@ function TitleScreen.Show(options: Options?): Handle
 
 	local tips = {
 		{ icon = "crew", color = UiKit.CREW.CYAN, title = "Steal from space monsters", text = "Fly out of the Launch Bay, grab a crewmate guarded by a space monster and race it home. Every crewmate on your podiums earns cash each second." },
-		{ icon = "bag", color = UiKit.CREW.RED, title = "Steal from other bases", text = "Sneak into another base, grab a crewmate and carry it back to yours. Lock your base with the button inside to keep thieves out!" },
-		{ icon = "flame", color = UiKit.CREW.ORANGE, title = "Grow your crew", text = "Spend cash on upgrades and new floors. Rebirth when you are rich enough: you start over, but earn more forever." },
-		{ icon = "egg", color = UiKit.CREW.PINK, title = "Hatch pets", text = "Open eggs in the MedBay for pets that boost your cash and speed. Fuse 3 of the same pet into a bigger one at the scanner." },
-		{ icon = "bolt", color = UiKit.CREW.YELLOW, title = "Tasks & events", text = "Do tasks around the ship for rewards. Watch the event timer: sabotages, meetings and impostors shake things up!" },
+		{ icon = "bag", color = UiKit.CREW.RED, title = "Train your space speed", text = "Stand in the capsule behind your base and win its mini game. Faster crewmates are guarded by faster monsters: speed unlocks them." },
+		{ icon = "flame", color = UiKit.CREW.ORANGE, title = "Grow your crew", text = "Spend cash on upgrades like Jet Boost and Quick Hands, and on new floors. Rebirth when you are rich enough: you start over, but earn more forever." },
+		{ icon = "egg", color = UiKit.CREW.PINK, title = "Hatch pets & gear up", text = "Pets boost your cash and flight speed. Gear from the Weapons room stuns monsters that chase you." },
+		{ icon = "bolt", color = UiKit.CREW.YELLOW, title = "Tasks, events & titles", text = "Do tasks around the ship, catch the events and unlock rare titles that glow above your head!" },
 	}
 	for i, tip in tips do
 		local c = frame(list, "Tip" .. i, 43)

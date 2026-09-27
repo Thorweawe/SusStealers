@@ -21,6 +21,10 @@
 	kartlar, kalın konturlu yazılar, seviye çubuğu, tıknaz fiyat düğmesi.
 	Her kart yükseltmenin NE YAPTIĞINI sayıyla söylüyor ("8.8 → 9.0").
 	Kırmızı X pencereyi kulübeden uzaklaşana kadar kapatıyor.
+
+	2026-09-28: yükseltmeler yeni döngüye göre (Config.Upgrades): yedi kart
+	üç bölümde (SPACE TRAINING / HEIST GEAR / BASE), kaydırılabilir liste.
+	Kapsül ve Training Console kapsülün yanındaki istasyonlardan da alınıyor.
 ]]
 
 local Players = game:GetService("Players")
@@ -45,15 +49,28 @@ local Z = 30
 -- Her yükseltmenin kart rengi ve ikonu: kartlar birbirinden ayrılsın
 local TINT: { [string]: Color3 } = {
 	SpaceCapsule = Color3.fromRGB(40, 150, 220),
-	UnitGuard = Color3.fromRGB(60, 170, 80),
-	CarrySpeed = Color3.fromRGB(230, 110, 40),
-	LockPower = Color3.fromRGB(140, 80, 220),
+	TrainingConsole = Color3.fromRGB(60, 175, 90),
+	QuickHands = Color3.fromRGB(230, 110, 40),
+	JetBoost = Color3.fromRGB(235, 70, 60),
+	StealthSuit = Color3.fromRGB(120, 80, 210),
+	LuckyScanner = Color3.fromRGB(215, 160, 20),
+	CrewMorale = Color3.fromRGB(40, 165, 150),
 }
 local ICON: { [string]: string } = {
 	SpaceCapsule = "bolt",
-	UnitGuard = "crewmate",
-	CarrySpeed = "boot",
-	LockPower = "lock",
+	TrainingConsole = "clipboard",
+	QuickHands = "crewmate",
+	JetBoost = "boot",
+	StealthSuit = "lock",
+	LuckyScanner = "gift",
+	CrewMorale = "coin",
+}
+
+-- Bölümler: kategori -> başlık ve renk
+local SECTIONS = {
+	{ id = "training", title = "SPACE TRAINING", color = Color3.fromRGB(120, 210, 255) },
+	{ id = "heist", title = "HEIST GEAR", color = Color3.fromRGB(255, 150, 90) },
+	{ id = "base", title = "BASE", color = Color3.fromRGB(130, 240, 190) },
 }
 
 --[[
@@ -62,32 +79,58 @@ local ICON: { [string]: string } = {
 ]]
 type Effect = { label: string, value: (level: number) -> string }
 
+local function pct(x: number): string
+	return string.format("%d%%", math.floor(x * 100 + 0.5))
+end
+
 local EFFECT: { [string]: Effect } = {
 	-- Kapsülde saniyede kazanılan uzay hızı (şu anki hızla, CapsuleService)
 	SpaceCapsule = {
-		label = "Space Speed / sec",
+		label = "Training / sec",
 		value = function(level)
 			local speed = Players.LocalPlayer:GetAttribute("SpaceSpeed")
 			return string.format("+%.3f", Config.GetCapsuleGain(level, if typeof(speed) == "number" then speed else Config.Space.BaseSpeed))
 		end,
 	},
-	UnitGuard = {
-		label = "New crewmates safe for",
+	TrainingConsole = {
+		label = "Mini game ease",
 		value = function(level)
-			return string.format("%ds", Config.GetSafeSeconds(level))
+			return pct(Config.GetTrainingAssist(level))
 		end,
 	},
-	CarrySpeed = {
-		label = "Carry speed",
+	QuickHands = {
+		label = "Grab time",
 		value = function(level)
-			return string.format("%.2f", Config.GetCarryWalkSpeed(level))
+			return string.format("%.2fs", Config.Space.GrabHold * Config.GetGrabHoldMul(level))
 		end,
 	},
-	LockPower = {
-		label = "Lock / cooldown",
+	JetBoost = {
+		label = "Boost",
 		value = function(level)
-			local duration, cooldown = Config.GetLockValues(level)
-			return string.format("%ds / %ds", math.floor(duration), math.floor(cooldown))
+			local jet = Config.GetJetBoost(level)
+			if not jet then
+				return "locked"
+			end
+			return string.format("x%.2f · %.1fs · every %ds", jet.mul, jet.duration, math.floor(jet.cooldown + 0.5))
+		end,
+	},
+	StealthSuit = {
+		label = "Monster wake",
+		value = function(level)
+			local wake, reach = Config.GetStealth(level)
+			return string.format("x%.2f · reach -%s", wake, pct(1 - reach))
+		end,
+	},
+	LuckyScanner = {
+		label = "Mutation chance",
+		value = function(level)
+			return pct(Config.GetLuckyChance(level))
+		end,
+	},
+	CrewMorale = {
+		label = "Income",
+		value = function(level)
+			return "+" .. pct(Config.GetMoraleMultiplier(level) - 1)
 		end,
 	},
 }
@@ -114,11 +157,11 @@ type Row = {
 
 local HEADER = 64
 local ROW_H = 88
-local WIDTH = 600
+local WIDTH = 640
 
 function UpgradePanel.Create(screen: ScreenGui): Panel
-	local rowCount = #Config.Upgrades + 1
-	local height = HEADER + 12 + rowCount * (ROW_H + 10) + 30
+	-- Yedi kart + kat kartı + bölüm başlıkları sığmıyor: pencere sabit, liste kayıyor
+	local height = 600
 
 	local root = UiKit.Window(screen, "UpgradePanel", HEADER_COLOR)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -135,10 +178,16 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	-- ─── Kartlar ────────────────────────────────────────────────────────────
 
-	local list = Instance.new("Frame")
-	list.Position = UDim2.fromOffset(14, 12)
-	list.Size = UDim2.new(1, -28, 1, -12)
+	local list = Instance.new("ScrollingFrame")
+	list.Position = UDim2.fromOffset(14, 10)
+	list.Size = UDim2.new(1, -20, 1, -40)
 	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 8
+	list.ScrollBarImageColor3 = Color3.fromRGB(255, 200, 120)
+	list.CanvasSize = UDim2.new()
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
 	list.ZIndex = Z + 1
 	list.Parent = skin.body
 
@@ -149,7 +198,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	local buyRemote = Net.Get("UpgradeBuy")
 	local rows: { Row } = {}
-	local CARD_W = WIDTH - 28
+	local CARD_W = WIDTH - 44
 
 	local function makeCard(order: number, tint: Color3, icon: (slot: Frame) -> ()): Frame
 		local card = CardKit.card(list, tint, UDim2.fromOffset(CARD_W, ROW_H), Z + 2, UDim2.fromScale(0.09, 0.5), 300)
@@ -186,17 +235,36 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		return buy
 	end
 
-	for index, def in Config.Upgrades do
+	-- Bölüm başlıkları ve kartlar sırayla: başlık, o bölümün kartları
+	local order = 0
+	local cardOrder: { [string]: number } = {}
+	for _, section in SECTIONS do
+		order += 1
+		CardKit.section(list, section.title, section.color, CARD_W, Z + 2, order)
+		for _, def in Config.Upgrades do
+			if def.category == section.id then
+				order += 1
+				cardOrder[def.id] = order
+			end
+		end
+	end
+
+	for _, def in Config.Upgrades do
 		local tint = TINT[def.id] or GOLD
-		local card = makeCard(index, tint, function(slot)
+		local card = makeCard(cardOrder[def.id] or 99, tint, function(slot)
 			UiKit.Icon(slot, ICON[def.id] or "bolt", 50, tint:Lerp(CardKit.WHITE, 0.55))
 		end)
-		title(card, def.name)
-		local effect = line(card, 36, 17)
+		local nameLabel = title(card, def.name)
+		nameLabel.Size = UDim2.new(1, -270, 0, 24)
+		local blurb = line(card, 30, 13)
+		blurb.Text = def.blurb
+		blurb.TextColor3 = Color3.fromRGB(225, 230, 245)
+		local effect = line(card, 46, 16)
 
 		-- Seviye çubuğu: "12 seviyeden 4'ü" saymadan okunuyor
 		local bar = CardKit.bar(card, UDim2.new(1, -270, 0, 20), CardKit.YELLOW, Z + 5, 14)
-		bar.frame.Position = UDim2.fromOffset(92, 60)
+		bar.frame.Position = UDim2.fromOffset(92, 64)
+		bar.frame.Size = UDim2.new(1, -270, 0, 16)
 
 		local buy = makeBuy(card)
 		--[[
@@ -220,7 +288,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		kaldırıldı ("FLOOR 3 · Needs 2 rebirth" tabelası her üste bir ışık
 		sütunu ve yazı koyuyordu).
 	]]
-	local floorCard = makeCard(#Config.Upgrades + 1, GOLD, function(slot)
+	local floorCard = makeCard(order + 1, GOLD, function(slot)
 		UiKit.Icon(slot, "podium", 50, GOLD:Lerp(CardKit.WHITE, 0.5))
 	end)
 	local floorName = title(floorCard, "")
@@ -234,7 +302,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		end
 	end)
 
-	local foot = CardKit.bold(skin.body, "Upgrades reset on rebirth  ·  every new floor doubles each cap",
+	local foot = CardKit.bold(skin.body, "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more",
 		15, Color3.fromRGB(190, 200, 220), Z + 2, 2)
 	foot.AnchorPoint = Vector2.new(0.5, 1)
 	foot.Position = UDim2.new(0.5, 0, 1, -6)

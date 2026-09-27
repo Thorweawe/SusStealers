@@ -40,14 +40,7 @@ local notifyRemote: RemoteEvent
 -- Aynı yükü tekrar tekrar göndermemek için son gönderilen imza
 local lastSignature: { [Player]: string } = {}
 local lastIndex: { [Player]: number } = {}
--- Kilit adımının tabanı: üssü devralan oyuncu, önceki sahibinin kilidiyle
--- adımı geçmesin diye adım başladığında o anki değeri kaydediyoruz
-local lockBaseline: { [Player]: { plot: Model, at: number } } = {}
 local lastSkipAt: { [Player]: number } = {}
--- Çalma adımında çalınacak rakip yokken geçen süre (tek başına oyuncu takılmasın)
-local aloneSince: { [Player]: number } = {}
--- Çalma adımına ne zaman gelindi (Config.TutorialStealGiveUpSeconds)
-local stealStepSince: { [Player]: number } = {}
 local paused = false
 
 --[[
@@ -88,8 +81,11 @@ local function checkValue(player: Player, check: string): number
 	if check == "units" then
 		return #profile.units
 
-	elseif check == "steals" then
-		return profile.stolen
+	elseif check == "trainings" then
+		return profile.trainings
+
+	elseif check == "bestPlanet" then
+		return profile.bestPlanet
 
 	elseif check == "upgrades" then
 		local bought = 0
@@ -102,28 +98,6 @@ local function checkValue(player: Player, check: string): number
 
 	elseif check == "spins" then
 		return if profile.lastSpinAt > 0 then 1 else 0
-
-	elseif check == "locksUsed" then
-		--[[
-			Kilidin kendisi profilde tutulmuyor (StealService plot niteliğine
-			os.clock yazıyor, oturumla birlikte sıfırlanıyor). Bu yüzden
-			"kilit kullanıldı" bilgisini mutlak değerle değil, adım
-			başladığındaki değere göre ölçüyoruz.
-		]]
-		local plot = PlotService.GetPlotOf(player)
-		if not plot then
-			return 0
-		end
-
-		local usedAt = (plot:GetAttribute("LockUsedAt") :: number?) or 0
-		local baseline = lockBaseline[player]
-
-		if not baseline or baseline.plot ~= plot then
-			lockBaseline[player] = { plot = plot, at = usedAt }
-			return 0
-		end
-
-		return if usedAt > baseline.at then 1 else 0
 
 	elseif check == "tasks" then
 		-- Oturumda biten görevler (TaskService bekleme bitişini nitelik olarak yazıyor)
@@ -182,9 +156,6 @@ local function targetFor(player: Player, hint: string): Instance?
 		local capsule = plot and plot:FindFirstChild("Capsule")
 		return capsule and (capsule:FindFirstChild("Pad") or capsule)
 
-	elseif hint == "Sign" then
-		return plot and plot:FindFirstChild("Sign")
-
 	elseif hint == "Upgrades" then
 		-- Yükseltmeler ayrı tabelalardan tek bir kulübeye taşındı
 		return plot and plot:FindFirstChild("UpgradeBooth")
@@ -193,19 +164,12 @@ local function targetFor(player: Player, hint: string): Instance?
 		local decor = workspace:FindFirstChild("Decor")
 		return decor and decor:FindFirstChild("Wheel")
 
-	elseif hint == "RivalPlot" then
-		-- Sahibi olan başka bir üs; yoksa boş bir üs de iş görür çünkü
-		-- oyuncunun oraya gitmesi yeterli
-		local fallback: Model? = nil
-		for _, other in PlotService.GetAllPlots() do
-			if other ~= plot then
-				if PlotService.GetOwner(other) then
-					return other
-				end
-				fallback = fallback or other
-			end
-		end
-		return fallback
+	elseif string.sub(hint, 1, 6) == "Planet" then
+		-- Uzaydaki gezegen (SpaceService "PlanetN"); hedef tepedeki canavar
+		local zone = workspace:FindFirstChild("SpaceZone")
+		local planets = zone and zone:FindFirstChild("Planets")
+		local planet = planets and planets:FindFirstChild(hint)
+		return planet and (planet:FindFirstChild("Planet") or planet)
 
 	elseif hint == "Task" then
 		-- Config.Tasks sırasındaki ilk konsol (haritada TaskId niteliği)
@@ -329,40 +293,6 @@ end
 
 -- ─── İlerleme ───────────────────────────────────────────────────────────────
 
---[[ Başka bir oyuncunun üssünde çalınabilecek (dolu kaide) karakter var mı. ]]
-local function rivalAvailable(player: Player): boolean
-	for _, other in Players:GetPlayers() do
-		if other ~= player then
-			local plot = PlotService.GetPlotOf(other)
-			if plot then
-				for _, podium in PlotService.GetPodiums(plot) do
-					if PlotService.IsOccupied(podium) then
-						return true
-					end
-				end
-			end
-		end
-	end
-	return false
-end
-
---[[
-	Çalma adımı çalınacak kimse yokken Config.TutorialAloneSkipSeconds
-	sonra kendiliğinden geçiyor. Rakip gelirse sayaç sıfırlanıyor.
-]]
-local function aloneLongEnough(player: Player): boolean
-	if rivalAvailable(player) then
-		aloneSince[player] = nil
-		return false
-	end
-	local since = aloneSince[player]
-	if not since then
-		aloneSince[player] = os.clock()
-		return false
-	end
-	return os.clock() - since >= Config.TutorialAloneSkipSeconds
-end
-
 --[[
 	Sıradaki adımın koşulu sağlandıysa ilerletir ve ödülü verir.
 
@@ -384,24 +314,6 @@ function TutorialService.Check(player: Player)
 			break
 		end
 		local done = checkValue(player, step.check) >= step.goal
-		if not done and step.check == "steals" then
-			local since = stealStepSince[player]
-			if not since then
-				since = os.clock()
-				stealStepSince[player] = since
-			end
-			if aloneLongEnough(player) then
-				done = true
-				notify(player, "No rivals aboard - you'll steal from players once someone joins!", false)
-			elseif os.clock() - since >= Config.TutorialStealGiveUpSeconds then
-				done = true
-				notify(player, "Stealing takes practice - keep trying later!", false)
-			end
-			if done then
-				aloneSince[player] = nil
-				stealStepSince[player] = nil
-			end
-		end
 		if not done then
 			break
 		end
@@ -429,7 +341,6 @@ function TutorialService.Check(player: Player)
 	end
 
 	if advanced then
-		lockBaseline[player] = nil
 		DataService.RequestSave(player)
 	end
 
@@ -447,7 +358,6 @@ function TutorialService.Skip(player: Player)
 	end
 
 	profile.tutorialStep = SKIPPED
-	lockBaseline[player] = nil
 	DataService.RequestSave(player)
 
 	notify(player, "Tutorial skipped", false)
@@ -468,7 +378,7 @@ function TutorialService.SkipIfVeteran(player: Player): boolean
 		return false
 	end
 
-	local played = profile.stolen > 0
+	local played = profile.salvaged > 0
 		or profile.rebirths > 0
 		or #profile.units > 0
 		or profile.lastSpinAt > 0
@@ -543,10 +453,7 @@ function TutorialService.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		lastSignature[player] = nil
 		lastIndex[player] = nil
-		lockBaseline[player] = nil
 		lastSkipAt[player] = nil
-		aloneSince[player] = nil
-		stealStepSince[player] = nil
 	end)
 
 	--[[

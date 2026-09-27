@@ -18,6 +18,7 @@
 	  Jetpack   — uzaydaki herkesin sırtında (InSpace niteliği), alevli
 ]]
 
+local ContextActionService = game:GetService("ContextActionService")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -70,7 +71,16 @@ local function bearingTo(target: Vector3, from: Vector3): number
 	return -math.deg(math.atan2(camFlat:Cross(dir).Y, camFlat:Dot(dir)))
 end
 
+--[[ Uçuş hızı: kapsül hızı + pet bonusu (sunucudaki SpaceService.speedOf ile aynı). ]]
 local function mySpeed(): number
+	local v = player:GetAttribute("SpaceSpeed")
+	local pet = player:GetAttribute("PetSpeedBonus")
+	return Config.GetFlightSpeed(if typeof(v) == "number" then v else Config.Space.BaseSpeed,
+		if typeof(pet) == "number" then pet else 0)
+end
+
+--[[ Kapsülde kazanılan hız (pet bonusu olmadan): canavar eşikleri buna bakıyor. ]]
+local function trainedSpeed(): number
 	local v = player:GetAttribute("SpaceSpeed")
 	return if typeof(v) == "number" then v else Config.Space.BaseSpeed
 end
@@ -172,6 +182,27 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	dangerStroke.Thickness = 28
 	dangerStroke.Transparency = 1
 	dangerStroke.Parent = danger
+
+	--[[
+		JET BOOST (2026-09-28, JetBoost yükseltmesi): uçarken Q / gamepad X /
+		mobilde BOOST düğmesi kısa bir hız patlaması veriyor. Uçuş istemcide
+		olduğu için etki de burada; sunucu teslimdeki hız kontrolünde boost
+		çarpanını hesaba katıyor (SpaceService.deliver).
+	]]
+	local BOOST_ACTION = "SpaceJetBoost"
+	local boostUntil, boostReadyAt, boostCooldown = 0, 0, 1
+	local boostBound = false
+	local boostBar = CardKit.bar(screen, UDim2.fromOffset(230, 30), Color3.fromRGB(255, 170, 60), Z + 2, 15)
+	boostBar.frame.Name = "JetBoostBar"
+	boostBar.frame.AnchorPoint = Vector2.new(0.5, 1)
+	boostBar.frame.Position = UDim2.new(0.5, 0, 1, -178)
+	boostBar.frame.Visible = false
+
+	local function jetParams(): Config.JetBoost?
+		local level = player:GetAttribute("Upg_JetBoost")
+		return Config.GetJetBoost(if typeof(level) == "number" then level else 0)
+	end
+
 
 	-- ─── Canavar görselleri ─────────────────────────────────────────────
 	type Visual = {
@@ -536,8 +567,21 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 	local function stepFlight(dt: number, root: BasePart)
 		local speed = mySpeed()
-		local target = inputVector() * speed
-		local k = 1 - math.exp(-s.FlyAccel * dt)
+		local boosting = os.clock() < boostUntil
+		if boosting then
+			local jet = jetParams()
+			speed *= if jet then jet.mul else 1
+		end
+		local move = inputVector()
+		-- Boost sırasında tuşa basılmasa da ileri atılıyor (kameranın yatay yönü)
+		if boosting and move.Magnitude < 0.1 then
+			local camera = workspace.CurrentCamera
+			local look = if camera then camera.CFrame.LookVector else Vector3.new(0, 0, -1)
+			local flat = Vector3.new(look.X, 0, look.Z)
+			move = if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, -1)
+		end
+		local target = move * speed
+		local k = 1 - math.exp(-s.FlyAccel * (if boosting then 2.5 else 1) * dt)
 		flyVelocity = flyVelocity:Lerp(target, k)
 
 		-- Sınır: dışarı doğru hız sıfırlanıyor, dışarıdaysa içeri itiliyor
@@ -588,6 +632,88 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	-- ─── Yakalanma ve fırlatma ──────────────────────────────────────────
 	type Grab = { visual: Visual?, t0: number, hold: number, throw: number, from: Vector3?, last: Vector3? }
 	local grab: Grab? = nil
+
+	local function tryBoost()
+		local jet = jetParams()
+		local now = os.clock()
+		if not (jet and flying and not grab) or now < boostReadyAt then
+			return
+		end
+		boostUntil = now + jet.duration
+		boostCooldown = jet.cooldown
+		boostReadyAt = now + jet.cooldown
+		effects.Shake(0.35, 0.25)
+		local camera = workspace.CurrentCamera
+		if camera then
+			local base = camera.FieldOfView
+			TweenService:Create(camera, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { FieldOfView = base + 14 }):Play()
+			task.delay(jet.duration, function()
+				TweenService:Create(camera, TweenInfo.new(0.4), { FieldOfView = base }):Play()
+			end)
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then
+			SoundFX.GearSound("GearZap", root.Position)
+			local flame = Instance.new("ParticleEmitter")
+			flame.Name = "JetBoostFlame"
+			flame.Color = ColorSequence.new(Color3.fromRGB(255, 220, 120), Color3.fromRGB(255, 90, 30))
+			flame.LightEmission = 1
+			flame.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.4), NumberSequenceKeypoint.new(1, 0) })
+			flame.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+			flame.Lifetime = NumberRange.new(0.25, 0.45)
+			flame.Speed = NumberRange.new(8, 14)
+			flame.Rate = 90
+			flame.EmissionDirection = Enum.NormalId.Back
+			flame.Parent = root
+			task.delay(jet.duration, function()
+				flame.Enabled = false
+				task.wait(0.5)
+				flame:Destroy()
+			end)
+		end
+	end
+
+	local function setBoostBinding(on: boolean)
+		if on == boostBound then
+			return
+		end
+		boostBound = on
+		if on then
+			ContextActionService:BindAction(BOOST_ACTION, function(_, state)
+				if state == Enum.UserInputState.Begin then
+					tryBoost()
+				end
+				return Enum.ContextActionResult.Sink
+			end, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonX)
+			ContextActionService:SetTitle(BOOST_ACTION, "BOOST")
+			ContextActionService:SetPosition(BOOST_ACTION, UDim2.new(1, -210, 1, -150))
+		else
+			ContextActionService:UnbindAction(BOOST_ACTION)
+		end
+	end
+
+	--[[ Her karede: bağlama, gösterge. ]]
+	local function stepBoostUi()
+		local jet = jetParams()
+		local show = flying and jet ~= nil and not grab
+		setBoostBinding(show)
+		if boostBar.frame.Visible ~= show then
+			boostBar.frame.Visible = show
+		end
+		if not show then
+			return
+		end
+		local now = os.clock()
+		local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		if now < boostUntil then
+			boostBar.set(1, "BOOSTING!")
+		elseif now < boostReadyAt then
+			boostBar.set(1 - (boostReadyAt - now) / math.max(0.1, boostCooldown), string.format("BOOST %ds", math.ceil(boostReadyAt - now)))
+		else
+			boostBar.set(1, if touch then "BOOST READY" else "BOOST READY [Q]")
+		end
+	end
 
 	local function stepGrab(root: BasePart, humanoid: Humanoid)
 		local g = grab :: Grab
@@ -694,7 +820,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 			-- Etiket
 			local need = v.def.need
-			local ok = mySpeed() >= need
+			local ok = trainedSpeed() >= need
 			local text = string.format("Needs %d Space Speed  ·  up to %s", need, bestRarity(v.def))
 			if v.needLabel.Text ~= text then
 				v.needLabel.Text = text
@@ -728,6 +854,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 		local inSpace = SpaceField.InSpace(root.Position) and humanoid.Health > 0
 		setFlying(inSpace)
+		stepBoostUi()
 		if flying then
 			stepFlight(dt, root)
 		end
@@ -744,7 +871,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		end
 		if show then
 			local carrying = player:GetAttribute("SpaceCarry") == true
-			local speed = mySpeed()
+			local speed = trainedSpeed()
 			local best = Config.BestSpaceMonster(speed)
 			local goal: Vector3
 			if carrying then

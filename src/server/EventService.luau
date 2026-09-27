@@ -5,11 +5,12 @@
 	:15'te toplantı var" diye oyuna giriyor.
 
 	  Emergency Meeting  — 2 dk herkese 2x gelir
-	  Lights Sabotage    — ışıklar kararıyor, çalma süreleri kısalıyor
-	  Reactor Meltdown   — istasyonun rastgele yerlerine enerji çekirdeği
-	                       düşüyor, ilk dokunan alıyor (nakit / nadiren karakter)
-	  Impostor Among Us  — rastgele bir oyuncu 1 dk herkesin gördüğü impostor;
-	                       yakalanırsa yakalayan ONA ödüyor
+	  Lights Sabotage    — ışıklar kararıyor, uzaydaki canavarlar yarı kör
+	  Reactor Meltdown   — uzaya enerji çekirdekleri savruluyor, ilk dokunan
+	                       alıyor (nakit / nadiren karakter)
+	  Mutation Storm     — uzaydaki bütün mürettebat mutasyonlu
+
+	(Impostor Among Us 2026-09-28'de kalktı: oyuncudan çalmaya dayanıyordu.)
 
 	Takvim Config.Events'te, UTC saatine hizalı: bütün sunucularda aynı
 	anda başlıyor. Aynı anda tek olay: takvim zaten çakışmıyor, yine de
@@ -33,7 +34,6 @@ local Net = require(Shared.Net)
 
 local PlotService = require(script.Parent.PlotService)
 local EconomyService = require(script.Parent.EconomyService)
-local StealService = require(script.Parent.StealService)
 local AnnounceService = require(script.Parent.AnnounceService)
 local SpaceService = require(script.Parent.SpaceService)
 
@@ -54,7 +54,6 @@ type Active = {
 }
 local active: Active? = nil
 
-local impostor: Player? = nil
 local cores: Folder? = nil
 
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
@@ -116,12 +115,10 @@ end
 -- ─── Lights Sabotage ────────────────────────────────────────────────────────
 
 local function beginLights(): () -> ()
-	StealService.SetEventHoldMultiplier(Config.LightsOutHoldMul)
-	-- Uzay soygunu da etkileniyor: canavarlar karanlıkta geç fark edip yavaş kovalıyor
+	-- Canavarlar karanlıkta geç fark edip yavaş kovalıyor
 	SpaceService.SetEventMods({ wakeMul = Config.LightsOutWakeMul, chaseMul = Config.LightsOutChaseMul })
-	notifyAll("LIGHTS SABOTAGED! Stealing is faster and space monsters are half blind!")
+	notifyAll("LIGHTS SABOTAGED! Space monsters are half blind - perfect time for a heist!")
 	return function()
-		StealService.SetEventHoldMultiplier(1)
 		SpaceService.SetEventMods({})
 	end
 end
@@ -285,99 +282,12 @@ local function beginMeltdown(): () -> ()
 	end
 end
 
--- ─── Impostor Among Us ──────────────────────────────────────────────────────
-
---[[
-	Yakalayanın impostora ödediği tutar: parasının %3-5'i, en fazla tavan.
-	`roll` 0..1 arası (testler sabit verebilsin).
-]]
-function EventService.ImpostorPayment(catcherCash: number, roll: number): number
-	local share = Config.ImpostorPayMin + (Config.ImpostorPayMax - Config.ImpostorPayMin) * math.clamp(roll, 0, 1)
-	return math.max(0, math.min(Config.ImpostorPayCap, math.floor(catcherCash * share)))
-end
-
-local function tagImpostor(player: Player, on: boolean)
-	player:SetAttribute("Impostor", on)
-	local character = player.Character
-	local head = character and character:FindFirstChild("Head")
-	local old = head and head:FindFirstChild("ImpostorTag")
-	if old then
-		old:Destroy()
-	end
-	if on and head then
-		local tag = Instance.new("BillboardGui")
-		tag.Name = "ImpostorTag"
-		tag.Size = UDim2.fromOffset(160, 40)
-		tag.StudsOffset = Vector3.new(0, 3.2, 0)
-		tag.AlwaysOnTop = true
-		tag.MaxDistance = 250
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.FredokaOne
-		label.TextScaled = true
-		label.TextColor3 = Color3.fromRGB(255, 60, 60)
-		label.TextStrokeTransparency = 0.2
-		label.Text = "IMPOSTOR"
-		label.Parent = tag
-		tag.Parent = head
-	end
-end
-
---[[ StealService yakalama bildirimi: hırsız o anki impostorsa ödeme. ]]
-function EventService.OnCaught(thief: Player, catcher: Player, roll: number?): number
-	if thief ~= impostor or thief:GetAttribute("Impostor") ~= true then
-		return 0
-	end
-	local pay = EventService.ImpostorPayment(EconomyService.GetCash(catcher), roll or rng:NextNumber())
-	if pay <= 0 or not EconomyService.TrySpend(catcher, pay) then
-		return 0
-	end
-	EconomyService.AddCash(thief, pay)
-	notify(catcher, string.format("That was the IMPOSTOR! You paid them $%s", Config.FormatCash(pay)), true)
-	notify(thief, string.format("They caught you, impostor! +$%s", Config.FormatCash(pay)))
-	return pay
-end
-
-local function beginImpostor(): (() -> ())?
-	local candidates = {}
-	for _, p in Players:GetPlayers() do
-		if PlotService.GetPlotOf(p) and p.Character then
-			table.insert(candidates, p)
-		end
-	end
-	-- Tek başına impostor olmanın anlamı yok
-	if #candidates < 2 then
-		return nil
-	end
-	local chosen = candidates[rng:NextInteger(1, #candidates)]
-	impostor = chosen
-	tagImpostor(chosen, true)
-	notifyAll(string.format("%s is the IMPOSTOR for 1 minute! Catching them costs YOU money - lock your base!", chosen.DisplayName))
-	notify(chosen, "You are the IMPOSTOR! Steal - if they catch you, THEY pay you!")
-
-	local respawn = chosen.CharacterAdded:Connect(function()
-		task.wait(0.5)
-		if impostor == chosen then
-			tagImpostor(chosen, true)
-		end
-	end)
-	return function()
-		respawn:Disconnect()
-		if chosen.Parent then
-			tagImpostor(chosen, false)
-		end
-		impostor = nil
-	end
-end
-
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────
 
 local BEGIN: { [string]: () -> (() -> ())? } = {
 	Meeting = beginMeeting,
 	LightsOut = beginLights,
 	Meltdown = beginMeltdown,
-	Impostor = beginImpostor,
 	Storm = beginStorm,
 }
 
@@ -428,16 +338,6 @@ function EventService.Start()
 	notifyRemote = Net.Get("Notify")
 	workspace:SetAttribute("EventIncomeMul", 1)
 	publish()
-
-	StealService.OnCaught(function(thief, catcher)
-		EventService.OnCaught(thief, catcher)
-	end)
-
-	Players.PlayerRemoving:Connect(function(player)
-		if player == impostor then
-			EventService.End()
-		end
-	end)
 
 	-- Takvim: saniyede bir bak. Uyarı ve başlangıç için her olayın bir sonraki slotu.
 	local warned: { [string]: number } = {}

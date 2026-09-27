@@ -30,16 +30,9 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 local ChatTitles = {}
 
 --[[
-	Unvan rengi sırasına göre: alt unvanlar sönük, üst unvanlar parlak.
-	Nadirlik renkleriyle aynı mantık, oyuncu bir bakışta seviyeyi anlıyor.
+	Unvan rengi NADİRLİĞİNE göre (Config.GetTitleColor): 2026-09-28'den beri
+	unvanlar Common..Secret kademeli; Epic ve üstü kalın, Mythic/Secret ✦ ile.
 ]]
-local TIER_COLORS = {
-	Color3.fromRGB(170, 176, 186),  -- 1-2   sönük gri
-	Color3.fromRGB(120, 200, 255),  -- 3-4   mavi
-	Color3.fromRGB( 80, 220, 140),  -- 5-6   yeşil
-	Color3.fromRGB(190, 130, 255),  -- 7-8   mor
-	Color3.fromRGB(255, 175,  60),  -- 9-10  turuncu
-}
 
 -- Başka modüllerin mesaj dönüştürücüleri (unvandan ÖNCE çalışıyor)
 type Transform = (message: TextChatMessage, properties: TextChatMessageProperties) -> ()
@@ -50,24 +43,11 @@ function ChatTitles.AddTransform(fn: Transform)
 	table.insert(transforms, fn)
 end
 
-local colorById: { [string]: Color3 } = {}
-local nameById: { [string]: string } = {}
+local rarityByName: { [string]: string } = {}
 
 local function buildLookup()
-	local highest = 1
 	for _, def in Config.Titles do
-		if def.order > highest then
-			highest = def.order
-		end
-	end
-
-	for _, def in Config.Titles do
-		nameById[def.name] = def.id
-
-		-- order 1..highest aralığını renk kademelerine yay
-		local ratio = (def.order - 1) / math.max(1, highest - 1)
-		local index = math.clamp(math.floor(ratio * #TIER_COLORS) + 1, 1, #TIER_COLORS)
-		colorById[def.name] = TIER_COLORS[index]
+		rarityByName[def.name] = def.rarity
 	end
 end
 
@@ -110,7 +90,9 @@ function ChatTitles.Start()
 
 		-- Bir dönüştürücü öneki değiştirdiyse onun üstüne ekliyoruz
 		local prefix = if properties.PrefixText ~= "" then properties.PrefixText else message.PrefixText
-		local color = colorById[title] or TIER_COLORS[1]
+		local rarity = rarityByName[title] or "Common"
+		local color = Config.GetTitleColor(rarity)
+		local order = Config.Rarities[rarity] and Config.Rarities[rarity].order or 1
 
 		-- Geliştirici: kalın, kırmızı köşeli parantez, altın yazı
 		if title == Config.DeveloperTitle then
@@ -121,9 +103,10 @@ function ChatTitles.Start()
 			return properties
 		end
 
+		local shown = if order >= 6 then "✦ " .. title .. " ✦" elseif order >= 5 then "★ " .. title else title
 		properties.PrefixText = string.format(
-			'<font color="#%s">[%s]</font> %s',
-			toHex(color), title, prefix
+			if order >= 4 then '<b><font color="#%s">[%s]</font></b> %s' else '<font color="#%s">[%s]</font> %s',
+			toHex(color), shown, prefix
 		)
 
 		return properties

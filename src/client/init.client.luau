@@ -12,10 +12,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
-local CarryGuide = require(script.CarryGuide)
 local CapsuleFX = require(script.CapsuleFX)
 local CosmeticPanel = require(script.CosmeticPanel)
-local SabotagePanel = require(script.SabotagePanel)
 local AlertBanner = require(script.AlertBanner)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
@@ -40,8 +38,8 @@ local PromptStyle = require(script.PromptStyle)
 local SoundFX = require(script.SoundFX)
 local Toasts = require(script.Toasts)
 local SpaceFX = require(script.SpaceFX)
+local TitleTags = require(script.TitleTags)
 local TaskGames = require(script.TaskGames)
-local ThiefTrail = require(script.ThiefTrail)
 local UiKit = require(script.UiKit)
 
 -- Sunucu tarafi hazir olan paneller. Bunlari sunucu sehridi yazdi ama
@@ -140,7 +138,7 @@ statLayout.Parent = statBar
 local speedPill, speedDisc, speedValue, speedSub = UiKit.StatPill(statBar, "SpeedPill", UiKit.CREW.CYAN)
 speedPill.LayoutOrder = 1
 UiKit.Boot(speedDisc, 26, UiKit.CREW.CYAN)
-speedSub.Text = "STEAL SPEED"
+speedSub.Text = "SPACE SPEED"
 
 local cashPill, cashDisc, cashValue, cashSub = UiKit.StatPill(statBar, "CashPill", UiKit.CREW.LIME)
 cashPill.LayoutOrder = 2
@@ -173,7 +171,6 @@ local effects = ScreenFX.Create(screen)
 local alertBanner = AlertBanner.Create(screen)
 local BANNER_TITLES: { [string]: string } = {
 	rogue = "Rogue impostor!",
-	sabotage = "Sabotage!",
 }
 SoundFX.Preload()
 SoundFX.StartAmbient()
@@ -184,13 +181,8 @@ SoundFX.StartAmbient()
 	ikisi de hazır olmuş oluyor.
 ]]
 --[[
-	Müzik. Bölgeye göre değişiyor ve çalınma alarmı çalarken kısılıyor —
-	alarm oyuncunun duyması GEREKEN şey, müzik onunla yarışmamalı.
-
-	Burada tanımlı çünkü aşağıdaki StealAlert işleyicisi onu kullanıyor;
-	dosyanın sonunda tanımlansaydı Lua o satırda yerel değil GLOBAL
-	görürdü ve müzik hiç kısılmazdı. Kurulumu panellerle birlikte, en
-	sonda yapılıyor.
+	Müzik. Bölgeye göre değişiyor. Burada tanımlı çünkü yukarıdaki
+	işleyiciler ona ulaşabilsin; kurulumu panellerle birlikte, en sonda.
 ]]
 local music: Music.Handle? = nil
 
@@ -217,60 +209,6 @@ Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean,
 		showToast(text, if isError then BAD else GOOD)
 	end
 	SoundFX.Event(kind, isError)
-end)
-
-Net.Get("StealAlert").OnClientEvent:Connect(function(thiefName: string, unitName: string)
-	alertBanner.Show("You've been robbed!", string.format("%s took your %s - chase & press E", thiefName, unitName), nil, 6)
-
-	-- Çalınmak bedensel hissedilmeli: köşedeki yazıyı kaçırmak kolay,
-	-- kırmızı parlama ve sarsıntı kaçırılmıyor.
-	effects.Flash(Color3.fromRGB(255, 40, 60), 0.45, 0.7)
-	effects.Shake(1.6, 0.6)
-
-	--[[
-		Alarm hırsız karakteri bırakana kadar sürüyor. Karakterin sırtındaki
-		CarriedUnit istemciye replike olduğu için bunu sunucuya sormadan
-		izleyebiliyoruz: model kaybolduğu an teslim etmiş demektir.
-	]]
-	-- Alarm boyunca müziği geri çek, bitince aç
-	if music then
-		music.SetDucked(true)
-	end
-
-	--[[
-		Aynı koşul hem alarmı hem müziğin kısılmasını yönetiyor: hırsız
-		karakteri bıraktığı an ikisi de bitiyor. Ayrı bir zamanlayıcı
-		kursaydık biri diğerinden önce biter ve alarm sustuğu halde müzik
-		kısık kalırdı.
-
-		Süre sınırı ayrıca: koşul hiç false dönmezse (hırsız çıktı, olay
-		kaçtı) müzik sonsuza kadar kısık kalmasın.
-	]]
-	local function thiefStillCarrying(): boolean
-		for _, p in Players:GetPlayers() do
-			if p.DisplayName == thiefName then
-				local char = p.Character
-				return char ~= nil and char:FindFirstChild("CarriedUnit") ~= nil
-			end
-		end
-		return false -- hırsız oyundan çıktı
-	end
-
-	SoundFX.AlarmUntil(function()
-		local carrying = thiefStillCarrying()
-		if not carrying and music then
-			music.SetDucked(false)
-		end
-		return carrying
-	end, 45)
-
-	task.delay(46, function()
-		if music then
-			music.SetDucked(false)
-		end
-	end)
-
-	print(string.format("[SusStealers] Calinma bildirimi geldi: %s -> %s", thiefName, unitName))
 end)
 
 --[[
@@ -315,40 +253,33 @@ player:GetAttributeChangedSignal("FriendBonus"):Connect(refreshCash)
 refreshCash()
 
 --[[
-	Çalma hızı: karakter TAŞIRKEN ki yürüme hızı.
-
-	Oyunun en önemli sayılarından biri ve hiçbir yerde yazmıyordu —
-	oyuncu Carry Speed yükseltmesini alıyor ama bir şeyin değiştiğini
-	göremiyordu. Seviye sunucudan nitelik olarak geliyor (UpgradeService),
-	hızın kendisi de Config'den: iki taraf da aynı formülü kullanıyor.
+	Uzay hızı: kapsülde kazanılan hız (canavarlara erişimi belirleyen sayı).
+	Alt satır katkıları söylüyor: kapsül seviyesi ve petlerin uçuşa eklediği
+	(pet takmanın geri bildirimi bu satır). 2026-09-28'e kadar burada gemideki
+	taşıma hızı yazıyordu; oyuncudan çalma kalkınca anlamsızlaştı.
 ]]
 local function refreshSpeed()
-	local level = player:GetAttribute("Upg_CarrySpeed") :: number?
+	local speed = player:GetAttribute("SpaceSpeed") :: number?
+	local level = player:GetAttribute("Upg_SpaceCapsule") :: number?
 	local petBonus = player:GetAttribute("PetSpeedBonus") :: number?
-	local speed = Config.GetCarryWalkSpeed(level or 0, petBonus or 0)
 
-	speedValue.Text = string.format("%.1f", speed)
+	speedValue.Text = string.format("%.1f", speed or Config.Space.BaseSpeed)
 
-	--[[
-		Alt satır katkının NEREDEN geldiğini söylüyor. Tek bir sayı
-		gösterseydik oyuncu taktığı petin bir işe yarayıp yaramadığını
-		göremezdi — pet takmanın tek geri bildirimi bu satır.
-	]]
 	local parts = {}
 	if (level or 0) > 0 then
-		table.insert(parts, string.format("Lv %d", level or 0))
+		table.insert(parts, string.format("Capsule Lv %d", level or 0))
 	end
 	if (petBonus or 0) > 0 then
-		-- Pet katkısı tavanlı (Config.CarryPetBonusMax); gerçekte eklenen yazılsın
-		table.insert(parts, string.format("pets +%.2f", math.min(petBonus or 0, Config.CarryPetBonusMax)))
+		table.insert(parts, string.format("pets +%.1f flight", (petBonus or 0) * Config.PetFlightMul))
 	end
 
 	speedSub.Text = if #parts > 0
-		then "STEAL SPEED · " .. table.concat(parts, " · ")
-		else "STEAL SPEED"
+		then "SPACE SPEED · " .. table.concat(parts, " · ")
+		else "SPACE SPEED"
 end
 
-player:GetAttributeChangedSignal("Upg_CarrySpeed"):Connect(refreshSpeed)
+player:GetAttributeChangedSignal("SpaceSpeed"):Connect(refreshSpeed)
+player:GetAttributeChangedSignal("Upg_SpaceCapsule"):Connect(refreshSpeed)
 player:GetAttributeChangedSignal("PetSpeedBonus"):Connect(refreshSpeed)
 refreshSpeed()
 
@@ -385,9 +316,7 @@ end)
 DecorFX.Start()
 -- Petleri istemci yürütüyor (sunucu yalnızca kuruyor): akıcı takip
 PetFollow.Start()
-ThiefTrail.Start()
 
-local guide = CarryGuide.Create(screen)
 local board = Leaderboard.Create(screen)
 local prompts = PromptFilter.Create()
 local colors = OwnerColors.Create()
@@ -421,12 +350,6 @@ task.spawn(function()
 		end
 		task.wait(0.5)
 	end
-end)
-
--- Ok kameraya göre döndüğü için her kare güncellenmeli; 0.2 sn'de bir
--- güncellense kamerayı çevirdiğinde takılarak döner.
-RunService.RenderStepped:Connect(function()
-	guide.Update(currentPlot)
 end)
 
 task.spawn(function()
@@ -546,6 +469,11 @@ end)
 -- Ekipman: kol animasyonları, vuruş efektleri, savrulma (GearFX)
 mountPanel("GearFX", function()
 	GearFX.Start(effects)
+end)
+
+-- Başın üstünde unvan etiketi (nadirlik renginde)
+mountPanel("TitleTags", function()
+	TitleTags.Start()
 end)
 
 -- Uzay soygunu: uçuş, canavarlar, yakalanıp fırlatılma, görev kartı (SpaceFX)
@@ -743,25 +671,6 @@ mountPanel("Inventory", function()
 		end
 		player:GetAttributeChangedSignal("CosmeticsOwned"):Connect(refreshStyle)
 		refreshStyle()
-	end)
-
-	-- 5) SABOTAGE — rakip üslere tek kullanımlık sabotajlar
-	page("Sabotage", function()
-		local panel = SabotagePanel.Create(screen, content, function(text)
-			inventory.SetCount("sabotage", text)
-		end)
-		inventory.AddTab({
-			id = "sabotage",
-			label = "SABOTAGE",
-			tint = UiKit.CREW.RED,
-			order = 5,
-			icon = function(slot, size, tint)
-				UiKit.Bolt(slot, size, Color3.fromRGB(255, 120, 110))
-			end,
-		}, content:WaitForChild("SabotagePanel") :: GuiObject, panel.Toggle)
-		previews.Sabotage = function()
-			inventory.Open("sabotage")
-		end
 	end)
 
 	previews.Inventory = function()

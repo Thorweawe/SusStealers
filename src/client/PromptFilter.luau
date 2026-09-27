@@ -27,15 +27,10 @@ export type Filter = {
 -- Yalnızca kendi üssünde görünmeli
 local OWN_ONLY: { [string]: boolean } = {
 	SellPrompt = true,
-	LockPrompt = true,
 	RebirthPrompt = true,
 	UpgradePrompt = true,
 	CapsulePrompt = true,
-}
-
--- Yalnızca başkasının üssünde görünmeli
-local OTHERS_ONLY: { [string]: boolean } = {
-	StealPrompt = true,
+	TrainingPrompt = true,
 }
 
 --[[
@@ -45,7 +40,6 @@ local OTHERS_ONLY: { [string]: boolean } = {
 ]]
 local NEEDS_UNIT: { [string]: boolean } = {
 	SellPrompt = true,
-	StealPrompt = true,
 }
 
 --[[
@@ -59,7 +53,6 @@ local NEEDS_UNIT: { [string]: boolean } = {
 	yazıyor, o karar Batur'un.
 ]]
 local UI_OFFSET: { [string]: Vector2 } = {
-	LockPrompt = Vector2.new(0, -46),
 	RebirthPrompt = Vector2.new(0, 46),
 }
 
@@ -100,28 +93,43 @@ local function filledCount(plot: Model): number
 end
 
 --[[
-	Hırsızın sırtındaki "Stop Thief" (StealService CatchPrompt) yalnızca
-	soyulan oyuncuda açık. Sunucu kimi beklediğini OwnerId niteliğine
-	yazıyor. Prompt karakterin içinde, üslerin altında değil; bu yüzden
-	aşağıdaki üs taramasına girmiyor, geldiği anda burada süzülüyor.
-	Hırsız kendi sırtında, seyirciler de basamadıkları yazıyı görüyordu.
+	Uzaydaki mürettebatın kişisel kapma süresi (Fast Steal pass'i / Fast Hands
+	iksiri + Quick Hands yükseltmesi). Prompt herkese ortak, sunucu tabanı
+	yazıyor (Config.Space.GrabHold); kendi ekranımızda kısaltıyoruz. Sunucu
+	aynı formülle (Config.GetPersonalGrabHold) doğruluyor. Promptlar uzayda
+	(SpaceZone.Crew), üslerin altında değil: ayrı izleniyor.
 ]]
-local function filterCatchPrompt(d: Instance)
-	if not (d:IsA("ProximityPrompt") and d.Name == "CatchPrompt") then
-		return
-	end
-	local owner = d:GetAttribute("OwnerId")
-	local want = typeof(owner) ~= "number" or owner == Players.LocalPlayer.UserId
-	if d.Enabled ~= want then
-		d.Enabled = want
+local function personalGrabHold(): number
+	local player = Players.LocalPlayer
+	local mul = player:GetAttribute("StealHoldMul")
+	local quick = player:GetAttribute("Upg_QuickHands")
+	return Config.GetPersonalGrabHold(Config.Space.GrabHold,
+		if typeof(mul) == "number" then mul else 1, if typeof(quick) == "number" then quick else 0)
+end
+
+local function applyHeistHold(d: Instance)
+	if d:IsA("ProximityPrompt") and d.Name == "HeistPrompt" then
+		local hold = personalGrabHold()
+		if math.abs(d.HoldDuration - hold) > 0.005 then
+			d.HoldDuration = hold
+		end
 	end
 end
 
 function PromptFilter.Create(): Filter
-	workspace.DescendantAdded:Connect(filterCatchPrompt)
-	for _, d in workspace:GetDescendants() do
-		filterCatchPrompt(d)
+	workspace.DescendantAdded:Connect(applyHeistHold)
+	local function refreshHeist()
+		local zone = workspace:FindFirstChild("SpaceZone")
+		local crew = zone and zone:FindFirstChild("Crew")
+		if crew then
+			for _, d in crew:GetDescendants() do
+				applyHeistHold(d)
+			end
+		end
 	end
+	Players.LocalPlayer:GetAttributeChangedSignal("StealHoldMul"):Connect(refreshHeist)
+	Players.LocalPlayer:GetAttributeChangedSignal("Upg_QuickHands"):Connect(refreshHeist)
+	refreshHeist()
 
 	local function update(myPlot: Model?)
 		local plots = workspace:FindFirstChild("Plots")
@@ -151,8 +159,6 @@ function PromptFilter.Create(): Filter
 				local want: boolean
 				if OWN_ONLY[d.Name] then
 					want = mine
-				elseif OTHERS_ONLY[d.Name] then
-					want = not mine
 				else
 					-- Tanımadığımız prompt: sunucu ne dediyse o kalsın
 					continue
@@ -171,23 +177,6 @@ function PromptFilter.Create(): Filter
 					d.Enabled = want
 				end
 
-				--[[
-					Kişisel çalma süresi (Fast Steal pass'i / Fast Hands iksiri).
-					Prompt herkese ortak, sunucu tabanı yazıyor; oyuncunun kendi
-					ekranında süreyi çarpanla kısaltıyoruz. Sunucu aynı formülle
-					(Config.GetPersonalStealHold) doğruluyor.
-				]]
-				if d.Name == "StealPrompt" then
-					local base = d:GetAttribute("BaseHold")
-					if typeof(base) == "number" then
-						local mul = Players.LocalPlayer:GetAttribute("StealHoldMul")
-						local hold = Config.GetPersonalStealHold(base, if typeof(mul) == "number" then mul else 1)
-						if math.abs(d.HoldDuration - hold) > 0.005 then
-							d.HoldDuration = hold
-							d.ObjectText = string.format("%.1fs", hold)
-						end
-					end
-				end
 			end
 		end
 	end

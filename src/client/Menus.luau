@@ -101,20 +101,27 @@ local function colorForOrder(order: number, highest: number): Color3
 	return TIER_COLORS[index]
 end
 
---[[ Kilitli unvanın koşulunu okunur yazar. ]]
+--[[
+	Kilitli unvanın koşulu: nasıl kazanılır + ilerleme + ödül.
+	2026-09-28: unvanlar nadirlik kademeli, sunucu ipucu ve ödülü de gönderiyor.
+]]
 local function describeCondition(row: TitleRow): string
-	local labels = {
-		steals = "steals",
-		robbed = "times robbed",
-		caught = "thieves caught",
-		maxStreak = "steal streak",
-		secrets = "secret units",
-		rebirths = "rebirths",
-		maxedUpgrades = "maxed upgrades",
-	}
-	return string.format("%d / %d %s",
-		math.min(row.value, row.threshold), row.threshold,
-		labels[row.stat] or row.stat)
+	local r: any = row
+	local hintText = if typeof(r.hint) == "string" then r.hint else row.stat
+	local reward = if typeof(r.reward) == "number" and r.reward > 0
+		then string.format('  ·  <font color="#7CFF5B">+$%s</font>', Config.FormatCash(r.reward))
+		else ""
+	return string.format('%s  ·  <font color="#FFE13C">%s / %s</font>%s', hintText,
+		Config.FormatCash(math.min(row.value, row.threshold)), Config.FormatCash(row.threshold), reward)
+end
+
+--[[ Unvanın nadirlik rengi (sunucu gönderiyor; eski istemci için sıraya göre). ]]
+local function titleTone(row: TitleRow, highest: number): Color3
+	local r: any = row
+	if typeof(r.rarity) == "string" then
+		return Config.GetTitleColor(r.rarity)
+	end
+	return colorForOrder(row.order, highest)
 end
 
 --[[
@@ -427,7 +434,7 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 	local function drawTitles()
 		applyAccent(ACCENT)
 		heading.Text = "TITLES"
-		hint.Text = "Click an unlocked title to wear it in chat"
+		hint.Text = "Wear a title above your head and in chat. Rarer titles glow!"
 
 		local highest = 1
 		for _, row in titleData do
@@ -472,16 +479,19 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 				belli oluyor.
 			]]
 			local tone = if row.unlocked
-				then colorForOrder(row.order, highest)
+				then titleTone(row, highest)
 				else UiKit.DIM
 
 			clearSlot(widget.slot)
 			UiKit.Crewmate(widget.slot, 34, if row.unlocked then tone:Lerp(Color3.new(1, 1, 1), 0.3) else UiKit.DIM).ZIndex = 16
 
-			widget.name.Text = row.name
+			local rarity = (row :: any).rarity
+			widget.name.Text = if typeof(rarity) == "string"
+				then string.format('%s  <font color="#%s">%s</font>', row.name, titleTone(row, highest):ToHex(), string.upper(rarity))
+				else row.name
 
 			if row.unlocked then
-				widget.detail.Text = "Unlocked"
+				widget.detail.Text = "Unlocked  ·  " .. (if typeof((row :: any).hint) == "string" then (row :: any).hint else "")
 				local wearing = row.id == activeTitle
 				paintRow(widget, tone:Lerp(Color3.new(0, 0, 0), 0.25), if wearing then "IN USE" else "WEAR",
 					if wearing then PILL_YELLOW else PILL_GREEN)

@@ -162,71 +162,15 @@ Config.IncomeInterval = 1
 	bant yerine uzay hızını geliştiren kapsül duruyor (Config.Capsule).
 ]]
 
--- ─── Çalma ──────────────────────────────────────────────────────────────────
-Config.StealHoldTime = 4.0     -- prompt kaç saniye basılı tutulur
-Config.StealCooldown = 18      -- bir çalmadan sonra oyuncunun bekleme süresi
--- Taşırken yavaşlık çalmanın bedeli: hırsız savunmasız ve yakalanabilir
--- olmalı. 11 fazla hızlıydı, kurban fark ettiğinde yetişemiyordu.
-Config.CarryWalkSpeed = 8      -- karakter taşırken hız
+-- ─── Yürüme (gemide) ───────────────────────────────────────────────────────
+--[[
+	2026-09-28: oyuncudan çalma kalktı (kaideden çalma, taşıma, "Stop
+	Thief", kilit, çalma serisi, sabotajlar). Karakterler yalnızca uzaydaki
+	canavarlardan çalınıyor (Config.Space). Gemide kalan tek şey yürüme hızı.
+]]
 Config.NormalWalkSpeed = 16
---[[
-	Shift ile koşma. Karakter TAŞIRKEN çalışmıyor: çalmanın riski taşırken
-	yavaş kalmak, koşmaya izin vermek o riski tamamen siler.
-
-	Hız taşıma tavanının epey üstünde ama abartılı değil; haritayı
-	geçmek hızlansın, kaçış kolaylaşmasın diye.
-]]
+-- Shift ile koşma (mobilde RUN düğmesi)
 Config.SprintWalkSpeed = 24
-Config.SafeSeconds = 8         -- yeni yerleştirilen karakter kaç sn çalınamaz
-
--- Çalınan karakter, çalındığı yerden üsse taşınırken en az bu oranda
--- yürüme süresi geçmiş olmalı. Karakterin konumu istemcinin elinde
--- olduğu için ışınlanan biri yürüyüşü tamamen atlayabiliyordu; çalmanın
--- bütün riski o yürüyüşte. 1.0 = tam yürüme süresi (çok sıkı, eğim ve
--- kestirme yüzünden meşru oyuncu takılır), 0 = kontrol kapalı.
-Config.CarryTravelTolerance = 0.7
-
--- ─── Çalma serisi ───────────────────────────────────────────────────────────
---[[
-	Art arda başarılı çalma bonus veriyor. Risk almayı ödüllendiriyor: her
-	çalma yeni bir yürüyüş, yeni bir yakalanma ihtimali. Seri bozulunca
-	sıfırlanıyor, yani biriktirdiğin bonus da gidiyor — devam etmek cazip
-	ama pahalı.
-
-	Bonus bırakma anında peşin para olarak veriliyor, gelire eklenmiyor:
-	kalıcı çarpan olsaydı seri kırılana kadar biriken avantaj oyunu bozardı.
-]]
-Config.StealStreakStep = 0.05      -- seri başına bonus (%5)
-Config.StealStreakMax = 5          -- bundan sonrası bonus artırmıyor
-Config.StealStreakTimeout = 180    -- bu kadar çalmazsan seri sıfırlanır
-
---[[
-	Aynı kurbandan çalma sınırı. Yoksa iki arkadaş birbirinden sonsuz çalıp
-	sıralamayı sahteliyor; rekabetin anlamı kalmıyor. Sınıra ulaşınca o
-	kurban bir süre kapalı kalıyor, hırsız başka hedef aramak zorunda.
-]]
-Config.StealsPerVictim = 5
-Config.VictimCooldown = 600        -- 10 dakika
-
---[[ Seri seviyesine göre bonus çarpanı. 0. seride bonus yok. ]]
-function Config.GetStreakBonus(streak: number): number
-	return math.min(streak, Config.StealStreakMax) * Config.StealStreakStep
-end
-
--- ─── Hırsızı yakalama ───────────────────────────────────────────────────────
---[[
-	Kurban, karakterini taşıyan hırsızın yanına gidip onu durdurabiliyor.
-	Çalmanın karşı hamlesi bu: eskiden kurban çalındığını görüyor ama
-	yapabileceği bir şey yoktu, sadece kilidi kalıyordu.
-
-	Engel süresini 3 dakika seçtim. Çalma beklemesi 18 saniye, yani
-	yakalanan hırsız senden on tur boyunca çalamıyor — caydırıcı ama
-	oyundan kopartmıyor. Başkalarından çalmaya devam edebiliyor, ceza
-	yalnızca yakalayan kurbana özel.
-]]
-Config.CatchHoldTime = 1.5         -- yakalama promptu kaç sn basılı tutulur
-Config.CatchRange = 14             -- kaç studdan yakalanabilir
-Config.CatchBlockDuration = 180    -- yakalanan hırsız kurbandan kaç sn çalamaz
 
 -- ─── Şans çarkı ─────────────────────────────────────────────────────────────
 --[[
@@ -311,25 +255,68 @@ end
 export type TitleDef = {
 	id: string,
 	name: string,
-	stat: string,          -- profildeki sayaç
+	stat: string,          -- profildeki sayaç (TitleService.statValue)
 	threshold: number,
-	order: number,
+	rarity: string,        -- Config.Rarities anahtarı: renk ve prestij
+	order: number,         -- otomatik takılan en yüksek order
 	incomeSeconds: number, -- ödül: kaç saniyelik gelir
 	minimum: number,       -- ödül tabanı
+	hint: string,          -- menüde "nasıl kazanılır"
 }
 
+--[[
+	2026-09-28 YENİDEN: "kazanması çok kolay, insanlar heves etsin".
+	Eski unvanların çoğu oyuncudan çalmaya bağlıydı ve birkaç çalmada
+	açılıyordu. Artık:
+	  - NADİRLİK KADEMESİ: Common → Secret. Sohbette ve BAŞIN ÜSTÜNDE
+	    (herkes görüyor) nadirlik renginde; Mythic/Secret parlıyor.
+	  - ZORLAŞAN HEDEFLER: ilk unvan 10 soygun, en üstü 10.000.
+	  - FARKLI YOLLAR: soygun, uzay hızı, antrenman, canavar sersemletme,
+	    mutasyon avı, koleksiyon, rebirth, son canavar.
+	  - ÖDÜL: nadirlikle büyüyen gelir (saniyelik gelir × incomeSeconds).
+	Kayıtta kalan eski unvanlar (Sus, Impostor...) Config'te olmadığı için
+	yükleme sırasında düşüyor; Crewmate/Captain/Engineer/Amogus Prime kalıyor.
+]]
 Config.Titles = {
-	{ id = "Crewmate",    name = "Crewmate",     stat = "steals",   threshold =  0, order =  1, incomeSeconds =   0, minimum =      0 },
-	{ id = "Sus",         name = "Sus",          stat = "steals",   threshold =  1, order =  2, incomeSeconds =  60, minimum =   2500 },
-	{ id = "VentCrawler", name = "Vent Crawler", stat = "steals",   threshold = 10, order =  4, incomeSeconds = 180, minimum =  25000 },
-	{ id = "Impostor",    name = "Impostor",     stat = "steals",   threshold = 50, order =  8, incomeSeconds = 600, minimum = 250000 },
-	{ id = "Shapeshifter",name = "Shapeshifter", stat = "maxStreak",threshold =  5, order =  7, incomeSeconds = 420, minimum = 150000 },
-	{ id = "Security",    name = "Security",     stat = "caught",   threshold =  5, order =  5, incomeSeconds = 240, minimum =  50000 },
-	{ id = "Ejected",     name = "Ejected",      stat = "robbed",   threshold = 25, order =  3, incomeSeconds = 120, minimum =  10000 },
-	{ id = "Engineer",    name = "Engineer",     stat = "maxedUpgrades", threshold = 1, order = 6, incomeSeconds = 300, minimum = 100000 },
-	{ id = "Captain",     name = "Captain",      stat = "rebirths", threshold =  1, order =  9, incomeSeconds = 900, minimum = 500000 },
-	{ id = "AmogusPrime", name = "Amogus Prime", stat = "secrets",  threshold =  1, order = 10, incomeSeconds =1800, minimum =1000000 },
+	{ id = "Crewmate",      name = "Crewmate",           rarity = "Common",    stat = "salvaged",      threshold = 0,     order = 1,  incomeSeconds = 0,    minimum = 0,        hint = "Everyone starts here" },
+	{ id = "SpaceRookie",   name = "Space Rookie",       rarity = "Common",    stat = "salvaged",      threshold = 10,    order = 2,  incomeSeconds = 120,  minimum = 5000,     hint = "Steal 10 crewmates from space monsters" },
+	{ id = "SpaceThief",    name = "Space Thief",        rarity = "Uncommon",  stat = "salvaged",      threshold = 50,    order = 3,  incomeSeconds = 300,  minimum = 30000,    hint = "Steal 50 crewmates from space monsters" },
+	{ id = "Rocketeer",     name = "Rocketeer",          rarity = "Uncommon",  stat = "spaceSpeed",    threshold = 44,    order = 4,  incomeSeconds = 300,  minimum = 30000,    hint = "Reach 44 space speed" },
+	{ id = "Yeeted",        name = "Yeeted",             rarity = "Uncommon",  stat = "thrown",        threshold = 40,    order = 5,  incomeSeconds = 300,  minimum = 30000,    hint = "Get thrown back by monsters 40 times" },
+	{ id = "HeistPro",      name = "Heist Pro",          rarity = "Rare",      stat = "salvaged",      threshold = 200,   order = 6,  incomeSeconds = 900,  minimum = 150000,   hint = "Steal 200 crewmates from space monsters" },
+	{ id = "MonsterTamer",  name = "Monster Tamer",      rarity = "Rare",      stat = "stunned",       threshold = 100,   order = 7,  incomeSeconds = 900,  minimum = 150000,   hint = "Stun space monsters 100 times with gear" },
+	{ id = "IronWill",      name = "Iron Will",          rarity = "Rare",      stat = "trainings",     threshold = 150,   order = 8,  incomeSeconds = 900,  minimum = 150000,   hint = "Win the capsule mini game 150 times" },
+	{ id = "Captain",       name = "Captain",            rarity = "Rare",      stat = "rebirths",      threshold = 1,     order = 9,  incomeSeconds = 1200, minimum = 300000,   hint = "Rebirth once" },
+	{ id = "WarpRunner",    name = "Warp Runner",        rarity = "Epic",      stat = "spaceSpeed",    threshold = 90,    order = 10, incomeSeconds = 1800, minimum = 1000000,  hint = "Reach 90 space speed" },
+	{ id = "VoidRaider",    name = "Void Raider",        rarity = "Epic",      stat = "salvaged",      threshold = 750,   order = 11, incomeSeconds = 1800, minimum = 1000000,  hint = "Steal 750 crewmates from space monsters" },
+	{ id = "MutantHunter",  name = "Mutant Hunter",      rarity = "Epic",      stat = "mutatedSteals", threshold = 75,    order = 12, incomeSeconds = 1800, minimum = 1000000,  hint = "Steal 75 mutated crewmates" },
+	{ id = "Engineer",      name = "Engineer",           rarity = "Epic",      stat = "maxedUpgrades", threshold = 5,     order = 13, incomeSeconds = 1800, minimum = 1000000,  hint = "Max out 5 upgrades" },
+	{ id = "Lightspeed",    name = "Lightspeed",         rarity = "Legendary", stat = "spaceSpeed",    threshold = 120,   order = 14, incomeSeconds = 3600, minimum = 5000000,  hint = "Reach 120 space speed" },
+	{ id = "GalaxyBandit",  name = "Galaxy Bandit",      rarity = "Legendary", stat = "salvaged",      threshold = 2500,  order = 15, incomeSeconds = 3600, minimum = 5000000,  hint = "Steal 2,500 crewmates from space monsters" },
+	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 3600, minimum = 5000000,  hint = "Discover all 25 crewmates in the Index" },
+	{ id = "Admiral",       name = "Admiral",            rarity = "Legendary", stat = "rebirths",      threshold = 5,     order = 17, incomeSeconds = 3600, minimum = 5000000,  hint = "Rebirth 5 times" },
+	{ id = "LeviathanRobber", name = "Leviathan Robber", rarity = "Mythic",    stat = "bossSteals",    threshold = 50,    order = 18, incomeSeconds = 7200, minimum = 25000000, hint = "Steal 50 crewmates from the Void Leviathan" },
+	{ id = "AmogusPrime",   name = "Amogus Prime",       rarity = "Mythic",    stat = "secrets",       threshold = 1,     order = 19, incomeSeconds = 7200, minimum = 25000000, hint = "Own a Secret crewmate" },
+	{ id = "MonstersNightmare", name = "Monsters' Nightmare", rarity = "Secret", stat = "salvaged",   threshold = 10000, order = 20, incomeSeconds = 14400, minimum = 100000000, hint = "Steal 10,000 crewmates from space monsters" },
 } :: { TitleDef }
+
+--[[
+	Unvanın yazı rengi (sohbet, baş üstü, menü). Nadirlik renklerinden;
+	Secret'ın nadirlik rengi neredeyse siyah, yazıda açık altın.
+]]
+local TITLE_COLORS: { [string]: Color3 } = {
+	Common = Color3.fromRGB(205, 210, 220),
+	Uncommon = Color3.fromRGB(110, 235, 140),
+	Rare = Color3.fromRGB(90, 175, 255),
+	Epic = Color3.fromRGB(195, 125, 255),
+	Legendary = Color3.fromRGB(255, 185, 50),
+	Mythic = Color3.fromRGB(255, 85, 150),
+	Secret = Color3.fromRGB(255, 240, 160),
+}
+
+function Config.GetTitleColor(rarity: string): Color3
+	return TITLE_COLORS[rarity] or TITLE_COLORS.Common
+end
 
 local titlesById: { [string]: TitleDef } = {}
 for _, def in Config.Titles do
@@ -405,11 +392,12 @@ export type QuestDef = {
 	imkânsız görünüyor.
 ]]
 Config.Quests = {
-	{ id = "Steal",   stat = "stolen",   base = 3, maxGoal = 30, fromTier = 1, text = "Steal %s crewmates" },
-	{ id = "Heist",   stat = "salvaged", base = 2, maxGoal = 20, fromTier = 1, text = "Steal %s crewmates from space monsters" },
+	{ id = "Heist",   stat = "salvaged", base = 3, maxGoal = 30, fromTier = 1, text = "Steal %s crewmates from space monsters" },
+	{ id = "Train",   stat = "trainings", base = 3, maxGoal = 30, fromTier = 1, text = "Win the capsule mini game %s times" },
 	{ id = "Sell",    stat = "sold",     base = 3, maxGoal = 25, fromTier = 1, text = "Sell %s crewmates" },
 	{ id = "Earn",    stat = "earned",   base = 0, maxGoal = 0,  fromTier = 1, text = "Earn $%s", incomeSeconds = 300, minimum = 20000 },
-	{ id = "Catch",   stat = "caught",   base = 1, maxGoal =  3, fromTier = 2, text = "Catch %s thieves red-handed" },
+	{ id = "Stun",    stat = "stunned",  base = 2, maxGoal = 20, fromTier = 2, text = "Stun space monsters %s times with gear" },
+	{ id = "Mutated", stat = "mutatedSteals", base = 1, maxGoal = 5, fromTier = 2, text = "Steal %s mutated crewmates" },
 	{ id = "Upgrade", stat = "upgrades", base = 1, maxGoal =  4, fromTier = 2, text = "Buy %s base upgrades" },
 	{ id = "Spin",    stat = "spins",    base = 1, maxGoal =  1, fromTier = 3, text = "Spin the wheel %s time" },
 	{ id = "Rebirth", stat = "rebirths", base = 1, maxGoal =  1, fromTier = 3, text = "Rebirth %s time" },
@@ -448,9 +436,10 @@ Config.Potions = {
 	{ id = "Income2x",   name = "Double Income", kind = "income", seconds = 600, multiplier = 2, weight = 35,
 	  description = "2x cash from every podium" },
 	{ id = "FastSteal",  name = "Fast Hands",    kind = "steal",  seconds = 900, weight = 25,
-	  description = "Steal 20% faster" },
-	{ id = "StrongLock", name = "Reinforced Lock", kind = "lock", seconds = 900, weight = 25,
-	  description = "Longer lock, shorter cooldown" },
+	  description = "Grab crewmates in space 20% faster" },
+	-- Kimlik eski (kayıtlar ve Robux ürünü bağlı); 2026-09-28'den beri canavar kalkanı
+	{ id = "StrongLock", name = "Monster Shield", kind = "lock", seconds = 900, weight = 25,
+	  description = "Break free once when a monster catches you" },
 	{ id = "Income3x",   name = "Triple Income", kind = "income", seconds = 300, multiplier = 3, weight = 15,
 	  description = "3x cash from every podium" },
 } :: { PotionDef }
@@ -610,71 +599,62 @@ export type TutorialStep = {
 
 Config.Tutorial = {
 	--[[
-		Konveyör yok: ilk karakter uzaydaki ilk canavardan (Glorp) çalınıyor.
-		Taban uzay hızı ilk canavara yetiyor (Config.Space.BaseSpeed).
+		2026-09-28 YENİDEN: oyuncudan çalma kalktı ("rakipten çal", "kilitle"
+		adımları gitti). Akış oyunun asıl döngüsünü sırayla öğretiyor:
+		  soygun → ikinci soygun → kapsül → mini oyun → çark → yükseltme →
+		  daha güçlü canavar (hızın ne işe yaradığı) → pet → gear → görev.
+		Ödüller bir sonraki adımın masrafını karşılıyor (test "her adım
+		karşılanabiliyor"): Supply Egg 50 bin, Slap Glove 250 bin.
 	]]
 	{
-		id = "Heist", title = "Steal from a space monster", hint = "SpaceGate",
-		text = "Go through the Launch Bay gate, fly to the first planet and grab a crewmate. Fly back before the monster catches you!",
+		id = "Heist", title = "Your first heist", hint = "SpaceGate",
+		text = "Walk through the Launch Bay gate, fly to Glorp's planet and grab a crewmate. Fly back before Glorp catches you!",
 		check = "units", goal = 1, reward = 500,
 	},
 	{
-		id = "Fill", title = "Steal another crewmate", hint = "SpaceGate",
-		text = "Every crewmate on a podium prints cash each second. Bring home a second one.",
+		id = "Fill", title = "Bring home another", hint = "SpaceGate",
+		text = "Every crewmate on your podiums prints cash each second. Steal a second one!",
 		check = "units", goal = 2, reward = 1500,
 	},
 	{
-		id = "Train", title = "Train in your capsule", hint = "Capsule",
-		text = "Stand inside the Space Capsule in your base. It raises your Space Speed so you can outrun bigger monsters.",
+		id = "Train", title = "Train your space speed", hint = "Capsule",
+		text = "Step into the Space Capsule behind your base. It raises your Space Speed so you can outrun bigger monsters.",
 		check = "spaceSpeed", goal = 18, reward = 3000,
 	},
 	{
-		id = "Steal", title = "Steal from a rival", hint = "RivalPlot",
-		text = "Walk into another base, hold the prompt on a podium, then carry it home.",
-		check = "steals", goal = 1, reward = 4000,
+		id = "CapsuleGame", title = "Win the capsule game", hint = "Capsule",
+		text = "Inside the capsule, hold SPACE (or tap) to keep the rocket in the green zone until the bar fills.",
+		check = "trainings", goal = 1, reward = 5000,
 	},
-	{
-		id = "Lock", title = "Lock your base", hint = "Sign",
-		text = "Hold the prompt on your base sign. Nobody can steal while the lock holds.",
-		check = "locksUsed", goal = 1, reward = 4000,
-	},
-	--[[
-		Çark yükseltmeden ÖNCE ve ödülü büyük: en ucuz yükseltme 100 bin,
-		önceki adımların toplamı ~10 bindi. Oyuncu "Buy an upgrade"
-		adımında dakikalarca para biriktirmek zorunda kalıp oyundan
-		çıkıyordu. Çarkın ödülüyle yükseltme hemen alınabiliyor (test var).
-	]]
 	{
 		id = "Spin", title = "Take your free spin", hint = "Wheel",
-		text = "The wheel gives one free spin every day. Go claim today's.",
-		check = "spins", goal = 1, reward = 95000,
+		text = "The lucky wheel in the Cafeteria gives one free spin every day. Go claim today's!",
+		check = "spins", goal = 1, reward = 20000,
 	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
-		text = "The upgrade booth sits in your base. Upgrades cost cash, not Robux.",
-		check = "upgrades", goal = 1, reward = 40000,
+		text = "Your upgrade booth sells Jet Boost, Quick Hands and more. Upgrades cost cash, not Robux.",
+		check = "upgrades", goal = 1, reward = 25000,
 	},
-	--[[
-		Haritanın geri kalanı: görev odaları, pet yumurtaları, ekipman
-		dükkânı. Eskiden öğretici bunları hiç göstermiyordu, oyuncu
-		haritada ne olduğunu bilmeden çıkıyordu. Ödüller bir sonraki adımın
-		fiyatını karşılayacak şekilde (Supply Egg 50 bin, Slap Glove 250 bin;
-		test "her adım karşılanabiliyor").
-	]]
 	{
-		id = "Task", title = "Do a ship task", hint = "Task",
-		text = "Task consoles in the side rooms pay cash. Finish one.",
-		check = "tasks", goal = 1, reward = 20000,
+		id = "Tougher", title = "Rob a tougher monster", hint = "Planet2",
+		text = "Chomper guards better crewmates but needs 28 Space Speed. Train up, then steal from Chomper!",
+		check = "bestPlanet", goal = 2, reward = 30000,
 	},
 	{
 		id = "Hatch", title = "Hatch a pet", hint = "Hatchery",
-		text = "Eggs in the Hatchery hold pets that boost your income and carry speed.",
-		check = "pets", goal = 1, reward = 250000,
+		text = "Eggs in the Hatchery hold pets that boost your cash and flight speed.",
+		check = "pets", goal = 1, reward = 220000,
 	},
 	{
-		id = "Gear", title = "Buy a gear", hint = "GearShop",
-		text = "The Gear Shop sells tools to slap thieves and guard your crew.",
+		id = "Gear", title = "Get a gear", hint = "GearShop",
+		text = "Gear from the Weapons room stuns monsters that chase you. Buy one and use it in space!",
 		check = "gear", goal = 1, reward = 50000,
+	},
+	{
+		id = "Task", title = "Do a ship task", hint = "Task",
+		text = "Task consoles in the side rooms pay cash. Finish one to complete your training!",
+		check = "tasks", goal = 1, reward = 20000,
 	},
 } :: { TutorialStep }
 
@@ -687,21 +667,6 @@ Config.Tutorial = {
 ]]
 Config.TutorialFinishBonus = 50000
 
---[[
-	Çalma adımında sunucuda çalınacak kimse yoksa (başka oyuncu yok ya da
-	kaideleri boş) bu kadar saniye sonra adım kendiliğinden geçiyor.
-	Eskiden tek başına oyuncu öğreticide takılı kalıyordu.
-]]
-Config.TutorialAloneSkipSeconds = 15
-
---[[
-	Rakip olsa da çalma adımı en fazla bu kadar sürüyor: üsler kilitli,
-	karakterler korumada ya da oyuncu çalmayı beceremiyor olabilir. Yeni
-	oyuncu tek bir adımda dakikalarca takılıp çıkmasın.
-]]
-Config.TutorialStealGiveUpSeconds = 120
-
---[[ Sıra numarasıyla adım. Aralık dışıysa nil. ]]
 function Config.GetTutorialStep(index: number): TutorialStep?
 	return Config.Tutorial[index]
 end
@@ -823,20 +788,18 @@ Config.Badges = {
 	Millionaire  = { id = 417888352205442, name = "Millionaire" },
 	Billionaire  = { id = 3789475162138106, name = "Billionaire" },
 	ThiefCatcher = { id = 1045910647960350, name = "Caught Red-Handed" },
-	Victim       = { id = 0, name = "Robbed" },
+	-- 2026-09-28: kimlik 0 (Roblox'ta henüz yok); canavar ilk kez fırlatınca
+	Victim       = { id = 0, name = "Yeeted" },
 	FullHouse    = { id = 0, name = "Full House" },
 	SecretFind   = { id = 0, name = "Secret Collector" },
-	StreakMaster = { id = 0, name = "Streak Master" },
+	-- 2026-09-28: kimlik 0; 100 uzay soygununda
+	StreakMaster = { id = 0, name = "Heist Master" },
 	FirstSpin    = { id = 0, name = "Lucky Spinner" },
 } :: { [string]: BadgeDef }
 
 -- Rozet eşikleri
 Config.BadgeMillionaire = 1000000
 Config.BadgeBillionaire = 1000000000
-
--- ─── Kilit (savunma) ────────────────────────────────────────────────────────
-Config.LockDuration = 25
-Config.LockCooldown = 80
 
 -- ─── Rebirth ve katlar ──────────────────────────────────────────────────────
 -- Tavana ulaşan oyuncunun yapacak bir şeyi kalmıyordu. Rebirth her şeyi
@@ -944,7 +907,6 @@ Config.Events = {
 	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 15 * 60, duration = 120 },
 	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
 	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
-	{ id = "Impostor",  name = "Impostor Hunt", every = 3600, offset = 0, duration = 60, random = true, perHour = 2 },
 	-- Uzay soygunu olayı: iki saatte bir, gezegenlerdeki her mürettebat mutasyonlu
 	{ id = "Storm",     name = "Mutation Storm",    every = 2 * 3600, offset = 5 * 60,  duration = 120 },
 } :: { EventDef }
@@ -958,9 +920,7 @@ Config.EventWarning = 30
 
 -- Emergency Meeting: herkese gelir çarpanı
 Config.MeetingIncomeMul = 2
--- Lights Sabotage: çalma basılı tutma süresi bu oranla çarpılıyor
-Config.LightsOutHoldMul = 0.6
--- ...ve uzaydaki canavarlar yarı kör: geç uyanıyor, yavaş kovalıyor
+-- Lights Sabotage: uzaydaki canavarlar yarı kör: geç uyanıyor, yavaş kovalıyor
 Config.LightsOutWakeMul = 2.5
 Config.LightsOutChaseMul = 0.85
 
@@ -978,17 +938,6 @@ Config.MeltdownMinCash = 5000
 Config.MeltdownUnitChance = 0.15
 Config.MeltdownUnitMinutes = 10     -- karakter ödülü: ~10 dk'lık gelirle alınabilecek en iyisi
 
---[[
-	Impostor Among Us: rastgele bir oyuncu 1 dakikalığına herkesin gördüğü
-	impostor oluyor. Çalarken yakalanırsa yakalayan ona parasının bir
-	kısmını ÖDÜYOR; yakalanmazsa çaldığıyla kalıyor. Diğerleri için ikilem:
-	yakalamak para kaybettiriyor, yakalamamak karakter.
-]]
-Config.ImpostorPayMin = 0.03
-Config.ImpostorPayMax = 0.05
-Config.ImpostorPayCap = 200000
-
---[[ Olayın verilen andan sonraki ilk başlangıcı (unix saniye). ]]
 function Config.GetNextEventStart(def: EventDef, now: number): number
 	local into = (now - def.offset) % def.every
 	if into == 0 then
@@ -1175,39 +1124,35 @@ Config.PassExtraPodiumsPerFloor = 2
 -- eşlemesini bozar, o yüzden değişirse DataService sürümü de artmalı.
 Config.PodiumsPerFloorTotal = Config.PodiumsPerPlot + Config.PassExtraPodiumsPerFloor
 --[[
-	Hızlı çalma: basılı tutma süresi bu oranla çarpılıyor.
-	Pass kalıcı ve Robux'la alınıyor, o yüzden belirgin şekilde güçlü
-	(%40); iksir süreli bir tadımlık (%20) — pass'in ne işe yaradığını
-	gösteriyor ama yerini tutmuyor. İkisi üst üste binmiyor, iyisi geçiyor.
-
-	ESKİ HATA: sunucu kısa süreyi kabul ediyordu ama istemcideki prompt
-	yine TAM süre dolunca tetikleniyordu; pass ve iksir pratikte hiçbir şey
-	yapmıyordu. Şimdi oyuncunun çarpanı "StealHoldMul" niteliğiyle istemciye
-	gidiyor ve PromptFilter kendi ekranındaki promptu kısaltıyor.
+	Hızlı kapma (Fast Steal pass'i, Fast Hands iksiri): uzaydaki mürettebatı
+	kapma süresi bu oranla çarpılıyor. Pass kalıcı ve Robux'la alınıyor, o
+	yüzden belirgin güçlü (%40); iksir süreli bir tadımlık (%20). İkisi üst
+	üste binmiyor, iyisi geçiyor. Quick Hands yükseltmesiyle çarpılıyor.
 ]]
 Config.PassFastStealMultiplier = 0.6
 Config.PotionFastStealMultiplier = 0.8
--- Hiçbir çarpan birleşimi (pass + Lights Sabotage) çalmayı bundan kısa yapamaz
-Config.MinStealHold = 1
+-- Hiçbir çarpan birleşimi kapmayı bundan kısa yapamaz
+Config.MinGrabHold = 0.25
 
 --[[
-	Oyuncuya özel çalma süresi: taban (karaktere ve olaya göre) × kişisel
-	çarpan, alt sınırla. Sunucu (PromptGuard) ve istemci (PromptFilter)
-	AYNI fonksiyonu kullanıyor; farklı hesaplasalar basış reddedilirdi.
+	Oyuncuya özel kapma süresi: taban × pass/iksir çarpanı × Quick Hands.
+	Sunucu (PromptGuard) ve istemci (PromptFilter) AYNI fonksiyonu
+	kullanıyor; farklı hesaplasalar basış reddedilirdi.
 ]]
-function Config.GetPersonalStealHold(base: number, multiplier: number): number
-	return math.max(math.min(base, Config.MinStealHold), base * multiplier)
+function Config.GetPersonalGrabHold(base: number, passMul: number, quickHandsLevel: number): number
+	return math.max(Config.MinGrabHold, base * passMul * Config.GetGrabHoldMul(quickHandsLevel))
 end
-Config.PassStrongLockDuration = 40
-Config.PassStrongLockCooldown = 50
 
-export type ProductDef = {
-	id: number,
-	name: string,
-	kind: string,       -- cash | conveyor | lucky | rebirth | spin | potion (conveyor/lucky: karakter doğrudan kaideye, SpaceService)
-	amount: number?,
-	potion: string?,    -- kind = "potion": verilecek iksirin kimliği (Config.Potions)
-}
+--[[
+	Canavar kalkanı (Strong Lock pass'i ve Reinforced Lock iksiri —
+	2026-09-28'de kilit kalkınca yeniden amaçlandı; Roblox panelindeki
+	adları "Monster Shield" yapılmalı). Canavar yakaladığında kalkan hazırsa
+	oyuncu kurtuluyor: canavar sersemleyip geri itiliyor, karakter sırtta
+	kalıyor. Sonra ShieldCooldown sn yeniden dolmuyor.
+]]
+Config.ShieldCooldown = 60
+Config.ShieldStun = 2.5
+Config.ShieldKnock = 30
 
 Config.Products = {
 	-- Roblox'taki adları: Small / Medium / Huge Cash Pack
@@ -1241,41 +1186,71 @@ Config.ReceiptHistoryLimit = 50
 export type UpgradeDef = {
 	id: string,
 	name: string,
+	category: string,      -- "training" | "heist" | "base" (arayüz grupları)
+	blurb: string,         -- tek satır açıklama
 	baseMaxLevel: number,  -- 1. katta ulaşılabilen tavan
 	baseCost: number,
 	costGrowth: number,
 }
 
 --[[
-	Yükseltmeler: pahalı, seviye başına az, ama çok seviyeli.
+	2026-09-28 YENİDEN: oyuncudan çalma kalkınca Unit Guard, Carry Speed ve
+	Lock Power anlamsız kaldı (harcanan para DataService'te iade:
+	Config.RetiredUpgrades). Yükseltmeler artık oyunun asıl döngüsüne göre:
 
-	Üç kural birlikte çalışıyor:
+	  ANTRENMAN  Space Capsule    — kapsülde hız kazancı
+	             Training Console — kapsül mini oyununu kolaylaştırıyor
+	                                (kapsülün öbür yanındaki ayrı istasyon)
+	  SOYGUN     Quick Hands      — mürettebatı daha hızlı kapma
+	             Jet Boost        — uzayda atılma (Q / düğme); seviye 1 açıyor
+	             Stealth Suit     — canavar geç uyanıyor, yakalama menzili kısa
+	             Lucky Scanner    — çalınan mürettebat mutasyonlu olabiliyor
+	  ÜS         Crew Morale      — kaidelerin geliri
 
-	1. TAVAN KAT SAYISIYLA İKİYE KATLANIYOR. 1. katta 6 seviye, 2. katta
-	   12, 3. katta 24. Kat açmak yalnızca kaide değil, harcayacak yer de
-	   açıyor.
-
-	2. SEVİYE BAŞINA ETKİ YARIYA İNDİ. Seviye sayısı ikiye katlandığı
-	   için tavandaki güç eskisiyle aynı kalıyor — oyun bozulmuyor, sadece
-	   yol daha uzun ve daha kademeli.
-
-	3. TABAN FİYAT DÖRT KAT. Erken seviyeler artık bedavaya gelmiyor.
-	   Büyüme 2.0'a indi: 2.6 ile 24 seviye matematiksel olarak
-	   ulaşılamazdı, yani ikiye katlanan tavan hiçbir işe yaramazdı.
-
-	Etkilerin hepsi bir tavana yaklaşıyor (çarpımsal ya da clamp'li),
-	doğrusal değil. Böylece ileride tavan yine artarsa oyun kırılmıyor.
-
-	Rebirth yükseltmeleri SIFIRLIYOR (RebirthService). Kalıcı olsalardı
-	rebirth'ten sonra harcanacak yer yine kalmazdı.
+	Kurallar (eskisi gibi): tavan kat sayısıyla ikiye katlanıyor (1. kat
+	taban, 2. kat ×2, 3. kat ×4); etkiler bir tavana yaklaşıyor (azalan
+	getiri), yani ileride tavan artsa da oyun kırılmıyor. Rebirth
+	yükseltmeleri SIFIRLIYOR (RebirthService).
 ]]
 Config.Upgrades = {
-	-- Kapsül ucuz başlıyor: yeni oyuncunun ilk harcaması (Config.Capsule)
-	{ id = "SpaceCapsule",  name = "Space Capsule",  baseMaxLevel = 6, baseCost = 4000,   costGrowth = 2.3 },
-	{ id = "UnitGuard",     name = "Unit Guard",     baseMaxLevel = 6, baseCost = 240000, costGrowth = 2.0 },
-	{ id = "CarrySpeed",    name = "Carry Speed",    baseMaxLevel = 5, baseCost = 400000, costGrowth = 2.0 },
-	{ id = "LockPower",     name = "Lock Power",     baseMaxLevel = 6, baseCost = 600000, costGrowth = 2.0 },
+	{ id = "SpaceCapsule",    name = "Space Capsule",    category = "training", baseMaxLevel = 6, baseCost = 4000,   costGrowth = 2.3,
+	  blurb = "Train your space speed faster in the capsule" },
+	{ id = "TrainingConsole", name = "Training Console", category = "training", baseMaxLevel = 5, baseCost = 25000,  costGrowth = 2.35,
+	  blurb = "Makes the capsule mini game easier" },
+	{ id = "QuickHands",      name = "Quick Hands",      category = "heist",    baseMaxLevel = 5, baseCost = 60000,  costGrowth = 2.3,
+	  blurb = "Grab lost crewmates faster" },
+	{ id = "JetBoost",        name = "Jet Boost",        category = "heist",    baseMaxLevel = 5, baseCost = 150000, costGrowth = 2.4,
+	  blurb = "Dash in space (Q). More power, less cooldown" },
+	{ id = "StealthSuit",     name = "Stealth Suit",     category = "heist",    baseMaxLevel = 5, baseCost = 400000, costGrowth = 2.4,
+	  blurb = "Monsters wake up later and reach less far" },
+	{ id = "LuckyScanner",    name = "Lucky Scanner",    category = "heist",    baseMaxLevel = 5, baseCost = 800000, costGrowth = 2.5,
+	  blurb = "Stolen crewmates may turn mutated" },
+	{ id = "CrewMorale",      name = "Crew Morale",      category = "base",     baseMaxLevel = 6, baseCost = 250000, costGrowth = 2.3,
+	  blurb = "More cash from every podium" },
 } :: { UpgradeDef }
+
+--[[
+	Kalkan yükseltmeler: kayıtta bulunursa (DataService sanitize) o seviyelere
+	harcanmış para iade ediliyor ve kayıttan siliniyor; bir kez oluyor.
+]]
+Config.RetiredUpgrades = {
+	UnitGuard  = { baseCost = 240000, costGrowth = 2.0 },
+	CarrySpeed = { baseCost = 400000, costGrowth = 2.0 },
+	LockPower  = { baseCost = 600000, costGrowth = 2.0 },
+} :: { [string]: { baseCost: number, costGrowth: number } }
+
+--[[ Kalkan bir yükseltmenin `level` seviyesine kadar harcanan toplam. ]]
+function Config.GetRetiredUpgradeRefund(id: string, level: number): number
+	local def = Config.RetiredUpgrades[id]
+	if not def or level <= 0 then
+		return 0
+	end
+	local total = 0
+	for i = 0, math.floor(level) - 1 do
+		total += math.floor(def.baseCost * def.costGrowth ^ i)
+	end
+	return total
+end
 
 --[[
 	Açık kat sayısına göre tavan. Her kat tavanı ikiye katlıyor.
@@ -1320,40 +1295,56 @@ function Config.GetUpgradeCost(id: string, currentLevel: number, floors: number?
 	return math.floor(def.baseCost * def.costGrowth ^ currentLevel)
 end
 
--- Yükseltme etkileri. Hepsi tek yerde dursun ki denge değiştirmek kolay olsun.
+-- ─── Yükseltme etkileri (tek yerde: sunucu ve arayüz aynısını kullanıyor) ───
 
---[[ Yeni konan karakterin dokunulmazlık süresi. ]]
-function Config.GetSafeSeconds(level: number): number
-	return Config.SafeSeconds + level * 1
+-- 0'dan 1'e yaklaşan azalan getiri: seviye arttıkça her seviye biraz daha az ekliyor
+local function saturate(level: number, rate: number): number
+	return 1 - rate ^ math.max(0, level)
+end
+
+--[[ Quick Hands: kapma süresi çarpanı (1 → ~0.4). ]]
+function Config.GetGrabHoldMul(level: number): number
+	return 0.4 + 0.6 * (1 - saturate(level, 0.86))
 end
 
 --[[
-	Karakter taşırken yürüme hızı. Normal hızı geçmemeli, yoksa taşımak
-	avantaj haline gelir ve çalmanın riski kaybolur.
-
-	2026-09-27 dengesi: eskiden seviye başına düz +0.2 (20 seviyede +4) ve
-	petler sınırsız ekleniyordu; tavan 15'ti, yani hırsız neredeyse normal
-	yürüyüşle (16) kaçıyordu ("carry speed çok artıyor"). Artık:
-	  yükseltme — azalan getiri, en fazla CarryUpgradeBonusMax
-	              (seviye 5: +0.9, 10: +1.4, 20: +1.8)
-	  pet       — en fazla CarryPetBonusMax
-	  toplam    — CarryWalkSpeedMax (normal yürüyüşün ~5/8'i): kovalayan
-	              yürüyerek rahatça yetişiyor.
-	İlk denge (3 / 1.5 / 12) de "hâlâ çok yüksek" bulundu; ikinci tur.
+	Training Console: kapsül mini oyununun kolaylığı (0..1). İstemci
+	(CapsuleFX) buna göre yeşil alanı büyütüyor, çubuğu hızlı dolduruyor,
+	yavaş boşaltıyor, roketi sakinleştiriyor.
 ]]
-Config.CarryUpgradeBonusMax = 2
-Config.CarryPetBonusMax = 1
-Config.CarryWalkSpeedMax = 10
-
-function Config.GetCarryWalkSpeed(level: number, petBonus: number?): number
-	local upgrade = Config.CarryUpgradeBonusMax * (1 - 0.88 ^ math.max(0, level))
-	local pet = math.clamp(petBonus or 0, 0, Config.CarryPetBonusMax)
-	return math.min(Config.CarryWalkSpeedMax, Config.CarryWalkSpeed + upgrade + pet)
+function Config.GetTrainingAssist(level: number): number
+	return saturate(level, 0.84)
 end
 
---[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]
-function Config.GetLockValues(level: number): (number, number)
-	return Config.LockDuration + level * 1.25, math.max(30, Config.LockCooldown - level * 1.75)
+export type JetBoost = { mul: number, duration: number, cooldown: number }
+
+--[[ Jet Boost: seviye 0'da yok; 1'den itibaren atılma çarpanı, süresi, beklemesi. ]]
+function Config.GetJetBoost(level: number): JetBoost?
+	if level <= 0 then
+		return nil
+	end
+	local k = saturate(level - 1, 0.85)
+	return {
+		mul = 1.6 + 0.5 * k,
+		duration = 0.9 + 0.7 * k,
+		cooldown = 12 - 6 * k,
+	}
+end
+
+--[[ Stealth Suit: canavarın uyanma süresi çarpanı ve yakalama menzili çarpanı. ]]
+function Config.GetStealth(level: number): (number, number)
+	local k = saturate(level, 0.86)
+	return 1 + 1.3 * k, 1 - 0.3 * k
+end
+
+--[[ Lucky Scanner: çalınan mutasyonsuz mürettebatın mutasyon kazanma şansı. ]]
+function Config.GetLuckyChance(level: number): number
+	return 0.3 * saturate(level, 0.88)
+end
+
+--[[ Crew Morale: gelir çarpanı (1 → ~1.6). ]]
+function Config.GetMoraleMultiplier(level: number): number
+	return 1 + 0.6 * saturate(level, 0.9)
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
@@ -1590,25 +1581,6 @@ end
 --[[ Karakteri satınca eline geçen para. ]]
 function Config.GetSellPrice(unitId: string, mutationId: string?): number
 	return math.floor(Config.GetPrice(unitId, mutationId) * Config.SellRefundFactor)
-end
-
---[[
-	Karakteri çalmak için promptun kaç saniye basılı tutulacağı.
-	Değerle birlikte artar: ucuz karakter çabuk gider, pahalı karakter
-	hırsızı uzun süre açıkta bırakır. Ölçek logaritmik, çünkü fiyatlar
-	100 ile 9.000.000 arasında; doğrusal olsaydı ilk beş karakter hariç
-	hepsi tavan değere yapışırdı.
-
-	100 -> 2 sn, 9.000.000 -> 8 sn.
-]]
-function Config.GetStealHoldTime(unitId: string, mutationId: string?): number
-	local price = Config.GetPrice(unitId, mutationId)
-	if price <= 0 then
-		return Config.StealHoldTime
-	end
-
-	local t = math.log(price / 100) / math.log(90000)
-	return math.clamp(2 + t * 6, 2, 8)
 end
 
 --[[ Bir sonraki rebirth'ün maliyeti. Seviye 0 -> ilk rebirth'ün fiyatı. ]]
@@ -2210,63 +2182,45 @@ end
 -- ─── Ekipman (lobideki Gear Shop) ───────────────────────────────────────────
 --[[
 	Oyun içi parayla bir kez alınan, kalıcı aletler. Her doğuşta sırt
-	çantasına geliyor. Steal a Brainrot'u sürükleyici yapan şey bu katman:
-	kilit dışında AKTİF bir savunma (tokat, şok) ve hareket araçları.
+	çantasına geliyor.
 
-	Güç sınırları bilinçli:
-	  - Speed Coil yalnızca TAŞIMIYORKEN işe yarıyor: çalınan karakterle
-	    kaçarken hızlanmak çalmanın riskini silerdi. Shift'ten (24) belirgin
-	    hızlı; elde tutup Shift'e basınca daha da hızlı.
-	  - Zıplama aleti YOK (eski Gravity Coil kaldırıldı, sahiplerine parası
-	    iade ediliyor — RetiredGear). Yüksek zıplama duvar ve kapıların
-	    üstünden kestirme demekti.
-	  - Vuran aletlerin hepsinin bekleme süresi var; hırsızı durdurur,
-	    öldürmez. Taşınan ganimeti düşürtüyor (kurbanın üssüne dönüyor).
-	  - Ghost Serum görünmez yapıyor ama bir şey taşımaya başlayınca
-	    bozuluyor: görünmez hırsız olmuyor.
-	  - Stun Gun ve Emergency Button TAŞIRKEN kullanılmıyor: çalınan
-	    karakterle kaçan, kovalayan sahibi dondurup kaçamasın.
-	  - Vurulan oyuncu GearHitImmunity saniye tekrar vurulamıyor: birkaç
-	    kişi aynı oyuncuyu art arda dondurup kilitleyemesin.
+	2026-09-28: oyuncudan çalma kalktı. Aletler artık uzaydaki CANAVARLARA
+	karşı kaçış araçları (gemide üssü soyan impostoru da durduruyor):
+	vurulan canavar `stun` sn yerinde kalıyor, kimseyi yakalayamıyor ve
+	kovalamaya yeniden yavaş başlıyor; `knock` stud geri itiliyor
+	(SpaceService.HitMonsters). Güç bekleme süresiyle sınırlı: en iyi alet
+	bile bir kovalamada bir kez kurtarıyor.
 
-	DENGE (2026-09-26): aletler bir kez alınıp kalıcı olduğu için fiyat
-	gücü değil yalnızca "ne zaman" alındığını belirliyor; geç oyuncu hepsini
-	hemen alıyor. Güç bekleme süresi ve etkiyle ayarlanıyor. Stun Gun
-	45 menzil / 3 sn / 10 sn beklemeden 30 / 2.5 / 20'ye, Emergency Button
-	30'dan 45 sn beklemeye, tokat 2.5'ten 4 sn'ye çekildi.
+	Speed Coil yalnızca gemide (uzayda uçuş hızı kapsülden geliyor).
 ]]
 export type GearDef = {
 	id: string,
 	name: string,
 	price: number,
 	blurb: string,
-	kind: string,          -- "slap" | "speed" | "stun" | "cloak" | "blast"
+	kind: string,          -- "slap" | "speed" | "stun" | "blast"
 	walkSpeed: number?,    -- speed: elde tutarken yürüme hızı
 	sprintSpeed: number?,  -- speed: elde tutup Shift'e basınca
 	cooldown: number?,     -- iki kullanım arası saniye
 	range: number?,        -- menzil / etki yarıçapı (stud)
-	stun: number?,         -- vurulanın sersem kaldığı saniye
-	knock: number?,        -- vurulanın savrulma hızı (stud/sn)
-	duration: number?,     -- cloak: görünmezlik süresi
+	stun: number?,         -- canavarın sersem kaldığı saniye
+	knock: number?,        -- canavarın geri itildiği mesafe (stud)
 }
 
 Config.Gear = {
 	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
-		cooldown = 4, range = 10, stun = 1.4, knock = 60,
-		blurb = "Slap players flying. Thieves drop what they stole." },
+		cooldown = 8, range = 16, stun = 1.5, knock = 18,
+		blurb = "Slap a monster that gets too close: pushed back and dazed." },
 	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
 		walkSpeed = 32, sprintSpeed = 40,
-		blurb = "Run way faster on the ship while holding it. Not while carrying." },
+		blurb = "Run way faster on the ship while holding it." },
 	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
-		cooldown = 20, range = 30, stun = 2.5,
-		blurb = "Zap a player from afar: frozen for 2.5s, thieves drop their loot." },
+		cooldown = 20, range = 45, stun = 3,
+		blurb = "Zap a monster from afar: frozen for 3s while you escape." },
 	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
-		cooldown = 45, range = 20, stun = 2, knock = 85,
-		blurb = "Slam it: everyone around you is blasted away and drops their loot." },
+		cooldown = 40, range = 28, stun = 2.5, knock = 30,
+		blurb = "Slam it: every monster around you is blasted away and dazed." },
 } :: { GearDef }
-
--- Vurulan oyuncu bu kadar saniye tekrar vurulamıyor (sersemleme kilidi olmasın)
-Config.GearHitImmunity = 3
 
 --[[
 	Kaldırılan aletler -> iade. Kayıtta bulunursa (DataService sanitize)
@@ -2337,65 +2291,6 @@ function Config.GetCosmetic(id: string): CosmeticDef?
 		end
 	end
 	return nil
-end
-
--- ─── Sabotajlar ─────────────────────────────────────────────────────────────
---[[
-	Rakibin üssüne uzaktan kullanılan tek kullanımlık eşyalar. Oyun içi
-	parayla alınıyor, envanterde birikiyor (türü başına en fazla
-	`SabotageMaxStack`), kullanılınca gidiyor.
-
-	  Blackout  — üssün ışıkları sönüyor, orada çalmak daha kısa sürüyor
-	  LockJam   — kilit konsolu bozuluyor: kilitlenemiyor, kilitliyse
-	              kilit birkaç saniye içinde açılıyor
-	  CommsJam  — kurbana "üssünden çalıyorlar" uyarısı gitmiyor
-
-	Fiyat alıcının gelirine göre (`seconds` saniyelik gelir, en az
-	`minimum`): 1B kazanan için $5K'lık sabotaj bedava olurdu.
-
-	TACİZE KARŞI: aynı üsse art arda sabotaj yapılamıyor
-	(`SabotageTargetImmunity`) ve bir oyuncu sabotajları arasında
-	`SabotageUserCooldown` (25 dk) bekliyor — sabotaj nadir ve anlamlı bir
-	hamle olsun, sürekli taciz aracı olmasın. Bekleme profilde (unix
-	saati), çıkıp girerek sıfırlanmıyor. Yeni gelen (kaidesi boş) üsse
-	kullanılamıyor — kaybedecek bir şeyi yokken hedef olmasın.
-]]
-export type SabotageDef = {
-	id: string,
-	name: string,
-	desc: string,
-	duration: number,
-	seconds: number,   -- fiyat = saniyelik gelir × bu
-	minimum: number,
-	color: Color3,
-}
-
-Config.Sabotages = {
-	{ id = "Blackout", name = "Blackout", desc = "Lights out in their base. Stealing there is 30% faster.",
-	  duration = 20, seconds = 120, minimum = 15_000, color = Color3.fromRGB(120, 110, 255) },
-	{ id = "LockJam",  name = "Lock Jam", desc = "Their lock breaks. A lock already on drops in 3s.",
-	  duration = 30, seconds = 180, minimum = 25_000, color = Color3.fromRGB(245, 160, 40) },
-	{ id = "CommsJam", name = "Comms Jam", desc = "They get no alert when someone steals from them.",
-	  duration = 45, seconds = 90, minimum = 10_000, color = Color3.fromRGB(80, 210, 200) },
-} :: { SabotageDef }
-
-Config.SabotageMaxStack = 3
-Config.SabotageTargetImmunity = 90   -- aynı üsse iki sabotaj arası (sn)
-Config.SabotageUserCooldown = 25 * 60 -- bir oyuncunun iki sabotajı arası (sn)
-Config.BlackoutHoldMul = 0.7         -- karanlık üste çalma süresi çarpanı
-Config.LockJamDropDelay = 3          -- kilitliyse kaç sn sonra açılıyor
-
-function Config.GetSabotage(id: string): SabotageDef?
-	for _, def in Config.Sabotages do
-		if def.id == id then
-			return def
-		end
-	end
-	return nil
-end
-
-function Config.GetSabotagePrice(def: SabotageDef, incomePerSecond: number): number
-	return math.max(def.minimum, math.floor(incomePerSecond * def.seconds))
 end
 
 -- ─── Gezen impostor (NPC) ───────────────────────────────────────────────────
@@ -2759,19 +2654,19 @@ end
 	yükseltmeler gibi), kazanılmış hızı değil.
 ]]
 Config.Capsule = {
-	-- 2026-09-27 dördüncü: "çok az kolay" — 0.14 → 0.15 (~%7 hızlı, son canavara ~6.5 sa)
-	Rate = 0.15,
 	--[[
-		2026-09-27 üçüncü denge: "44 dk'da son canavara gelmek çok hızlı".
-		Mini oyunsuz kaba süreler (kapsül seviyesi →):
-		  16→28 ~4 dk (sv0), 28→44 ~14 dk (sv3), 44→64 ~42 dk (sv6),
-		  64→90 ~2 sa (sv9), 90→120 ~4 sa (sv12)  — toplam ~7 saat.
-		Mini oyun en fazla ~2 kat hızlandırıyor; sv9+ için 2. kat (rebirth +
-		kat parası) gerekiyor, yani gerçek süre bundan da uzun.
+		2026-09-28 dengesi: "oyun çok hızlı ya da çok yavaş bitmesin". Mini
+		oyun zorlaştı (Training Console kolaylaştırıyor), eğri biraz hızlandı.
+		Kaba süreler (kapsül seviyesi 0/3/6/9/12 hıza göre, ortalama mini oyun
+		×1.3 — oynamayan için parantezde):
+		  28 ~2.5 dk, 44 ~10 dk, 64 ~32 dk, 90 ~1.4 sa, 120 ~3.2 sa (~4.1 sa)
+		Eskiden 120'ye ~4.6-6.5 sa. sv9+ için 2. kat (rebirth + kat parası)
+		gerekiyor; gerçek süre soygun ve para beklemesiyle biraz daha uzun.
 	]]
-	Growth = 1.14,
+	Rate = 0.16,
+	Growth = 1.15,
 	Ref = 20,
-	Pow = 3.4,
+	Pow = 3.2,
 	Tick = 0.5,                 -- sunucunun ölçtüğü aralık
 	--[[
 		Mini oyun (Stardew balık tutma gibi): roketi hareketli yeşil alanda
@@ -2784,6 +2679,18 @@ Config.Capsule = {
 	CatchCooldown = 6,
 	CatchWarmup = 3,
 }
+
+--[[
+	Uçuş hızı = kapsülde kazanılan uzay hızı + petlerin hız bonusu.
+	2026-09-28: petlerin hız bonusu eskiden gemide TAŞIMA hızına ekleniyordu;
+	taşıma kalkınca uzaydaki uçuşa geçti. Canavara erişim eşiği (need) yine
+	kapsül hızına bakıyor; pet yalnızca kaçarken fark yaratıyor.
+]]
+Config.PetFlightMul = 1
+
+function Config.GetFlightSpeed(spaceSpeed: number, petBonus: number?): number
+	return spaceSpeed + math.max(0, petBonus or 0) * Config.PetFlightMul
+end
 
 function Config.GetCapsuleGain(level: number, speed: number): number
 	local c = Config.Capsule

@@ -54,13 +54,11 @@ local FONT = Enum.Font.FredokaOne
 
 -- Prompt adı -> vurgu rengi
 local TONES: { [string]: Color3 } = {
-	StealPrompt = Color3.fromRGB(240, 60, 70),
-	CatchPrompt = Color3.fromRGB(240, 60, 70),
 	RoguePrompt = Color3.fromRGB(240, 60, 70),
 	HeistPrompt = Color3.fromRGB(240, 60, 70),
 	CapsulePrompt = Color3.fromRGB(80, 200, 255),
 	SellPrompt = Color3.fromRGB(255, 196, 40),
-	LockPrompt = Color3.fromRGB(70, 150, 255),
+	TrainingPrompt = Color3.fromRGB(110, 230, 120),
 	UpgradePrompt = Color3.fromRGB(255, 140, 40),
 	RebirthPrompt = Color3.fromRGB(255, 140, 40),
 	VentPrompt = Color3.fromRGB(90, 200, 90),

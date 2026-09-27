@@ -1019,8 +1019,6 @@ local function buildPlot(index: number): Model
 	spawnPad.Material = Enum.Material.Neon
 	spawnPad.Transparency = 0.55
 
-	plot:SetAttribute("Locked", false)
-	plot:SetAttribute("LockUsedAt", 0)
 	plot:SetAttribute("UnlockedFloors", 1)
 
 	--[[
@@ -1526,7 +1524,6 @@ local function releasePlot(player: Player)
 		items:ClearAllChildren()
 	end
 
-	plot:SetAttribute("Locked", false)
 	PlotService.SetUnlockedFloors(plot, 1)
 	setSignText(plot, "EMPTY BASE")
 

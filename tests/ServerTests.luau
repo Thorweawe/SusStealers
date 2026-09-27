@@ -31,7 +31,7 @@ local Server = script.Parent
 local PlotService = require(Server.PlotService)
 local EconomyService = require(Server.EconomyService)
 local SellService = require(Server.SellService)
-local StealService = require(Server.StealService)
+local MovementService = require(Server.MovementService)
 local UpgradeService = require(Server.UpgradeService)
 local RebirthService = require(Server.RebirthService)
 local MonetizationService = require(Server.MonetizationService)
@@ -54,7 +54,6 @@ local CosmeticService = require(Server.CosmeticService)
 local FriendService = require(Server.FriendService)
 local VentService = require(Server.VentService)
 local EventService = require(Server.EventService)
-local SabotageService = require(Server.SabotageService)
 local RogueService = require(Server.RogueService)
 local AdminMapService = require(Server.AdminMapService)
 local SettingsService = require(Server.SettingsService)
@@ -505,106 +504,6 @@ end)
 
 -- ─── E. Çalma kuralları ─────────────────────────────────────────────────────
 
-case("Çalma: ışınlanma kontrolü mesafeyi zaman olarak istiyor", function(ctx)
-	local speed = Config.GetCarryWalkSpeed(UpgradeService.GetLevel(ctx.player, "CarrySpeed"))
-	local distance = 200
-	local minimum = distance / speed * Config.CarryTravelTolerance
-
-	ok("200 stud için asgari süre pozitif", minimum > 0, string.format("%.1f sn", minimum))
-	ok("dürüst yürüme süresi eşiği geçiyor", distance / speed >= minimum)
-	ok("anında varış eşiği geçemiyor", 0.1 < minimum)
-end)
-
-case("Çalma: taşıma hızı normal hızı aşmıyor", function()
-	-- Aşsaydı karakter taşımak avantaj olur, çalmanın riski kaybolurdu
-	for level = 0, 50 do
-		ok("seviye " .. level, Config.GetCarryWalkSpeed(level) < Config.NormalWalkSpeed,
-			string.format("%.1f", Config.GetCarryWalkSpeed(level)))
-	end
-end)
-
-case("Çalma: taşıma hızı yükseltme + petle bile tavanda kalıyor", function()
-	-- "carry speed çok artıyor": en güçlü oyuncu da normal yürüyüşün 3/4'ünü geçmesin
-	local ceiling = Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed"))
-	local fastest = Config.GetCarryWalkSpeed(ceiling, 99)
-	ok("tavan normalin 5/8'i", fastest <= Config.NormalWalkSpeed * 0.625, string.format("%.2f", fastest))
-	ok("yükseltme tek başına tavana yapışmıyor", Config.GetCarryWalkSpeed(ceiling) < Config.CarryWalkSpeedMax,
-		string.format("%.2f", Config.GetCarryWalkSpeed(ceiling)))
-	ok("pet katkısı sınırlı", Config.GetCarryWalkSpeed(0, 99) - Config.GetCarryWalkSpeed(0) <= Config.CarryPetBonusMax + 1e-6)
-	local previous = -1
-	for level = 0, ceiling do
-		local v = Config.GetCarryWalkSpeed(level)
-		ok("seviye " .. level .. " artıyor", v > previous, string.format("%.3f", v))
-		previous = v
-	end
-end)
-
-case("Çalma: durdurulan hırsızın taşıdığı karakter ÇALINDIĞI kaideye dönüyor", function(ctx)
-	-- "gearla ya da elle durdurunca amongus kayboluyor": eskiden ilk boş kaideye
-	-- (başka köşe / üst kat) konuyordu
-	clearPlot(ctx.plot)
-	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
-	local target = podiums[#podiums]
-	ok("en az iki kaide", #podiums >= 2)
-	PlotService.PlaceUnit(target, "Engineer", "Golden")
-	ok("taşıma başladı", StealService._StartCarry(ctx.player, target, ctx.player))
-	eq("kaide boşaldı", PlotService.IsOccupied(target), false)
-
-	local carried = ctx.player.Character and ctx.player.Character:FindFirstChild("CarriedUnit")
-	local prompt = carried and carried:FindFirstChild("CatchPrompt", true)
-	eq("Stop Thief yalnızca kurbana (OwnerId)", prompt and prompt:GetAttribute("OwnerId"), ctx.player.UserId)
-
-	ok("tokat düşürdü", StealService.KnockDrop(ctx.player))
-	eq("taşıma bitti", StealService.IsCarrying(ctx.player), false)
-	eq("aynı kaideye döndü", target:GetAttribute("UnitId"), "Engineer")
-	eq("mutasyonu korundu", target:GetAttribute("MutationId"), "Golden")
-	eq("ilk kaide boş kaldı", PlotService.IsOccupied(podiums[1]), false)
-
-	-- Kaide bu arada dolduysa ilk boş kaideye
-	ok("yeniden taşıma", StealService._StartCarry(ctx.player, target, ctx.player))
-	PlotService.PlaceUnit(target, "RedCrew", nil)
-	StealService.KnockDrop(ctx.player)
-	eq("dolu kaide ezilmedi", target:GetAttribute("UnitId"), "RedCrew")
-	eq("boş kaideye kondu", podiums[1]:GetAttribute("UnitId"), "Engineer")
-	clearPlot(ctx.plot)
-end)
-
-case("Çalma: seri bonusu tavanlı", function()
-	local previous = -1
-	for streak = 0, Config.StealStreakMax + 5 do
-		local bonus = Config.GetStreakBonus(streak)
-		ok("seri " .. streak .. " bonusu azalmıyor", bonus >= previous)
-		previous = bonus
-	end
-
-	eq("tavan aşılmıyor",
-		Config.GetStreakBonus(Config.StealStreakMax + 10),
-		Config.GetStreakBonus(Config.StealStreakMax))
-	eq("sıfırıncı seride bonus yok", Config.GetStreakBonus(0), 0)
-end)
-
-case("Çalma: promptlar kaidelerde kurulu", function(ctx)
-	local podium = PlotService.GetUnlockedPodiums(ctx.plot)[1]
-	ok("StealPrompt var", podium:FindFirstChild("StealPrompt") ~= nil)
-	ok("SellPrompt var", podium:FindFirstChild("SellPrompt") ~= nil)
-
-	local steal = podium:FindFirstChild("StealPrompt")
-	local sell = podium:FindFirstChild("SellPrompt")
-	if steal and sell then
-		ok("tuşlar farklı", steal.KeyboardKeyCode ~= sell.KeyboardKeyCode,
-			tostring(steal.KeyboardKeyCode) .. " / " .. tostring(sell.KeyboardKeyCode))
-	end
-end)
-
-case("Çalma: süre karakterin değerine göre ölçekleniyor", function()
-	local cheap = Config.GetStealHoldTime("RedCrew", nil)
-	local expensive = Config.GetStealHoldTime("AmogusPrime", nil)
-
-	ok("ucuz karakter daha hızlı çalınıyor", cheap < expensive,
-		string.format("%.1f vs %.1f", cheap, expensive))
-	ok("süreler 2-8 sn arasında", cheap >= 2 and expensive <= 8)
-end)
-
 -- ─── F. Yükseltmeler ────────────────────────────────────────────────────────
 
 case("Yükseltme: seviye ve maliyet", function(ctx)
@@ -624,7 +523,7 @@ case("Yükseltme: seviye ve maliyet", function(ctx)
 end)
 
 case("Yükseltme: tavana ulaşınca duruyor", function(ctx)
-	local id = "LockPower"
+	local id = "CrewMorale"
 	local def = Config.GetUpgrade(id)
 
 	-- Tavan artık kat sayısına bağlı
@@ -636,35 +535,70 @@ case("Yükseltme: tavana ulaşınca duruyor", function(ctx)
 	setCash(ctx.player, 1e15)
 	eq("tavanda satın alma reddedildi", UpgradeService.TryUpgrade(ctx.player, id), false)
 	eq("seviye değişmedi", UpgradeService.GetLevel(ctx.player, id), ceiling)
+	ctx.profile.upgrades[id] = nil
 end)
 
 case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
 	-- Etki tabana çarparsa üst seviyeler paranın boşa gitmesi olur
+	local function valueOf(id: string, level: number): string
+		if id == "SpaceCapsule" then
+			return string.format("%.5f", Config.GetCapsuleGain(level, Config.Space.BaseSpeed))
+		elseif id == "TrainingConsole" then
+			return string.format("%.5f", Config.GetTrainingAssist(level))
+		elseif id == "QuickHands" then
+			return string.format("%.5f", Config.GetGrabHoldMul(level))
+		elseif id == "JetBoost" then
+			local jet = Config.GetJetBoost(level)
+			return if jet then string.format("%.4f/%.4f/%.4f", jet.mul, jet.duration, jet.cooldown) else "none"
+		elseif id == "StealthSuit" then
+			local w, r = Config.GetStealth(level)
+			return string.format("%.5f/%.5f", w, r)
+		elseif id == "LuckyScanner" then
+			return string.format("%.5f", Config.GetLuckyChance(level))
+		elseif id == "CrewMorale" then
+			return string.format("%.5f", Config.GetMoraleMultiplier(level))
+		end
+		return "?"
+	end
 	for _, def in Config.Upgrades do
 		local values = {}
 		local distinct = 0
-
 		for level = 0, Config.GetUpgradeCeiling(def) do
-			local value
-			if def.id == "SpaceCapsule" then
-				value = string.format("%.5f", Config.GetCapsuleGain(level, Config.Space.BaseSpeed))
-			elseif def.id == "UnitGuard" then
-				value = tostring(Config.GetSafeSeconds(level))
-			elseif def.id == "CarrySpeed" then
-				value = string.format("%.3f", Config.GetCarryWalkSpeed(level))
-			else
-				local d, c = Config.GetLockValues(level)
-				value = string.format("%.1f/%.1f", d, c)
-			end
-
+			local value = valueOf(def.id, level)
+			ok(def.id .. " etkisi tanımlı", value ~= "?")
 			if not values[value] then
 				values[value] = true
 				distinct += 1
 			end
 		end
-
 		eq(def.name .. " farklı değer sayısı", distinct, Config.GetUpgradeCeiling(def) + 1)
 	end
+end)
+
+case("Yükseltme: etkiler tavanlı ve yönleri doğru", function()
+	local top = 24
+	ok("kapma süresi kısalıyor ama sıfıra inmiyor", Config.GetGrabHoldMul(top) < Config.GetGrabHoldMul(0) and Config.GetGrabHoldMul(top) >= 0.4)
+	ok("mini oyun kolaylığı 0..1", Config.GetTrainingAssist(0) == 0 and Config.GetTrainingAssist(top) <= 1)
+	eq("jet boost 0'da yok", Config.GetJetBoost(0), nil)
+	local jet = Config.GetJetBoost(top) :: Config.JetBoost
+	ok("jet boost çarpanı makul", jet.mul > 1.5 and jet.mul <= 2.1, string.format("%.2f", jet.mul))
+	ok("jet boost beklemesi süresinden uzun", jet.cooldown > jet.duration * 2)
+	local wake, reach = Config.GetStealth(top)
+	ok("gizlilik uyanmayı geciktiriyor", wake > 1 and wake <= 2.3)
+	ok("gizlilik menzili kısaltıyor ama yok etmiyor", reach < 1 and reach >= 0.7)
+	ok("şans tavanlı", Config.GetLuckyChance(top) <= 0.3)
+	ok("moral tavanlı", Config.GetMoraleMultiplier(top) <= 1.6)
+	ok("pass + iksir + tavan bile en kısa sınırın altına inmiyor",
+		Config.GetPersonalGrabHold(Config.Space.GrabHold, Config.PassFastStealMultiplier, top) >= Config.MinGrabHold)
+end)
+
+case("Yükseltme: kalkan yükseltmelerin parası iade ediliyor", function()
+	eq("seviye 0 iade yok", Config.GetRetiredUpgradeRefund("LockPower", 0), 0)
+	eq("tanınmayan iade yok", Config.GetRetiredUpgradeRefund("Nope", 3), 0)
+	local def = Config.RetiredUpgrades.UnitGuard
+	eq("iki seviye iadesi", Config.GetRetiredUpgradeRefund("UnitGuard", 2),
+		math.floor(def.baseCost) + math.floor(def.baseCost * def.costGrowth))
+	eq("kalkanlar yükseltme listesinde yok", Config.GetUpgrade("LockPower"), nil)
 end)
 
 case("Yükseltme: maliyet eğrisi rebirth'ten sonra da iş bırakıyor", function()
@@ -750,8 +684,9 @@ case("Monetization: id=0 olan ürünler devre dışı", function(ctx)
 		if has(ctx.player, "DoubleIncome") then Config.PassDoubleIncomeMultiplier else 1)
 	eq("ekstra kaide", MonetizationService.GetExtraPodiumsPerFloor(ctx.player),
 		if has(ctx.player, "ExtraPodiums") then Config.PassExtraPodiumsPerFloor else 0)
-	eq("çalma süresi çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player),
+	eq("kapma süresi çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player),
 		if has(ctx.player, "FastSteal") then Config.PassFastStealMultiplier else 1)
+	eq("canavar kalkanı", MonetizationService.HasShield(ctx.player), has(ctx.player, "StrongLock"))
 end)
 
 case("Monetization: ürün ve pass kimlikleri girilmiş ve benzersiz", function()
@@ -1145,32 +1080,12 @@ end)
 
 -- ─── M. Hırsızı yakalama ────────────────────────────────────────────────────
 
-case("Yakalama: ayarlar makul", function()
-	ok("basılı tutma süresi pozitif", Config.CatchHoldTime > 0)
-	ok("menzil kaide menzilinden geniş", Config.CatchRange >= 10, tostring(Config.CatchRange))
-
-	-- Engel süresi çalma beklemesinden uzun olmalı, yoksa caydırıcılığı yok
-	ok("engel süresi çalma beklemesinden uzun",
-		Config.CatchBlockDuration > Config.StealCooldown,
-		string.format("%d vs %d", Config.CatchBlockDuration, Config.StealCooldown))
-
-	-- Ama oyundan kopartacak kadar uzun da olmamalı
-	ok("engel süresi 10 dakikayı aşmıyor", Config.CatchBlockDuration <= 600,
-		tostring(Config.CatchBlockDuration))
-end)
-
-case("Yakalama: kurban sınırı ayarları", function()
-	ok("kurban başına çalma sınırı pozitif", Config.StealsPerVictim > 0)
-	ok("kurban beklemesi yakalama engelinden uzun",
-		Config.VictimCooldown >= Config.CatchBlockDuration,
-		string.format("%d vs %d", Config.VictimCooldown, Config.CatchBlockDuration))
-end)
-
 -- ─── N. Unvanlar ────────────────────────────────────────────────────────────
 
 case("Unvan: tanımlar tutarlı", function()
 	local stats = {
-		steals = true, robbed = true, caught = true, maxStreak = true,
+		salvaged = true, spaceSpeed = true, trainings = true, stunned = true, thrown = true,
+		mutatedSteals = true, bossSteals = true, discovered = true,
 		secrets = true, rebirths = true, maxedUpgrades = true,
 	}
 
@@ -1187,11 +1102,33 @@ case("Unvan: tanımlar tutarlı", function()
 		ok(def.id .. " sayacı tanınıyor", stats[def.stat] == true, def.stat)
 		ok(def.id .. " eşiği negatif değil", def.threshold >= 0)
 		ok(def.id .. " sırası pozitif", def.order > 0)
+		ok(def.id .. " nadirliği tanınıyor", Config.Rarities[def.rarity] ~= nil, def.rarity)
+		ok(def.id .. " ipucu var", def.hint ~= "")
 	end
 
 	ok("id'ler benzersiz", uniqueIds)
 	ok("sıralar benzersiz", uniqueOrders)
-	ok("en az 8 unvan", #Config.Titles >= 8, tostring(#Config.Titles))
+	ok("en az 15 unvan", #Config.Titles >= 15, tostring(#Config.Titles))
+end)
+
+case("Unvan: kazanmak zor, kademeler yükseliyor", function()
+	-- "Çok kolay" şikâyeti: ilk unvan bile birkaç soygunla gelmiyor
+	local rookie = Config.GetTitle("SpaceRookie") :: Config.TitleDef
+	ok("ilk unvan en az 10 soygun", rookie.threshold >= 10)
+	local top = Config.GetTitle("MonstersNightmare") :: Config.TitleDef
+	ok("en üst unvan binlerce soygun", top.threshold >= 5000)
+	eq("en üst unvan Secret", top.rarity, "Secret")
+	-- Sıra büyüdükçe nadirlik düşmüyor
+	local sorted = table.clone(Config.Titles)
+	table.sort(sorted, function(a, b) return a.order < b.order end)
+	local prev = 0
+	local okOrder = true
+	for _, def in sorted do
+		local r = Config.Rarities[def.rarity].order
+		if r < prev then okOrder = false end
+		prev = r
+	end
+	ok("nadirlik sırayla artıyor", okOrder)
 end)
 
 case("Unvan: ödüller sırayla büyüyor", function()
@@ -1226,34 +1163,36 @@ case("Unvan: profil alanları var", function(ctx)
 	ok("titles tablo", typeof(p.titles) == "table")
 	ok("activeTitle metin", typeof(p.activeTitle) == "string")
 
-	for _, field in { "robbed", "caught", "maxStreak" } do
+	for _, field in { "trainings", "stunned", "thrown", "mutatedSteals", "bossSteals", "bestPlanet" } do
 		ok(field .. " sayı", typeof((p :: any)[field]) == "number")
 	end
 end)
 
 case("Unvan: koşul sağlanınca açılıyor ve ödül veriyor", function(ctx)
 	ctx.profile.titles = {}
-	ctx.profile.caught = 0
+	ctx.profile.salvaged = 0
 	setCash(ctx.player, 0)
 
 	TitleService.Check(ctx.player)
 	ok("eşiksiz unvan hemen açıldı", ctx.profile.titles.Crewmate == true)
 
-	-- Security unvanı 5 yakalama istiyor
-	local def = Config.GetTitle("Security")
-	ok("Security tanımlı", def ~= nil)
+	local def = Config.GetTitle("SpaceRookie")
+	ok("SpaceRookie tanımlı", def ~= nil)
 	if not def then return end
 
-	ok("eşik altında açılmadı", ctx.profile.titles.Security ~= true)
+	ctx.profile.salvaged = def.threshold - 1
+	TitleService.Check(ctx.player)
+	ok("eşik altında açılmadı", ctx.profile.titles.SpaceRookie ~= true)
 
 	local before = EconomyService.GetCash(ctx.player)
-	for _ = 1, def.threshold do
-		TitleService.AddCaught(ctx.player)
-	end
+	ctx.profile.salvaged = def.threshold
+	TitleService.Check(ctx.player)
 
-	ok("eşiğe ulaşınca açıldı", ctx.profile.titles.Security == true)
+	ok("eşiğe ulaşınca açıldı", ctx.profile.titles.SpaceRookie == true)
 	ok("ödül verildi", EconomyService.GetCash(ctx.player) > before,
 		Config.FormatCash(EconomyService.GetCash(ctx.player) - before))
+	-- Test hesabı başka unvanları da açmış olabilir: takılı olanın nadirliği yazılı olmalı
+	ok("nadirlik niteliği var", typeof(ctx.player:GetAttribute("TitleRarity")) == "string")
 
 	-- İkinci kez ödül vermemeli
 	local after = EconomyService.GetCash(ctx.player)
@@ -1262,8 +1201,7 @@ case("Unvan: koşul sağlanınca açılıyor ve ödül veriyor", function(ctx)
 end)
 
 case("Unvan: en yüksek olan takılıyor", function(ctx)
-	ctx.profile.titles = { Crewmate = true, Security = true }
-	ctx.profile.caught = 999
+	ctx.profile.titles = { Crewmate = true, SpaceRookie = true }
 	TitleService.Check(ctx.player)
 
 	local shown = TitleService.GetTitle(ctx.player)
@@ -1281,26 +1219,12 @@ case("Unvan: en yüksek olan takılıyor", function(ctx)
 	end
 end)
 
-case("Unvan: seri rekoru sadece yükselince yazılıyor", function(ctx)
-	ctx.profile.maxStreak = 0
-
-	TitleService.ReportStreak(ctx.player, 3)
-	eq("ilk rapor yazıldı", ctx.profile.maxStreak, 3)
-
-	TitleService.ReportStreak(ctx.player, 1)
-	eq("düşük rapor yok sayıldı", ctx.profile.maxStreak, 3)
-
-	TitleService.ReportStreak(ctx.player, 7)
-	eq("yüksek rapor yazıldı", ctx.profile.maxStreak, 7)
-end)
-
 -- ─── O. Öğretici ────────────────────────────────────────────────────────────
 
 case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
-		units = true, steals = true, upgrades = true,
-		spins = true, locksUsed = true, tasks = true, pets = true, gear = true, salvaged = true,
-		spaceSpeed = true,
+		units = true, upgrades = true, spins = true, tasks = true, pets = true, gear = true,
+		salvaged = true, spaceSpeed = true, trainings = true, bestPlanet = true,
 	}
 
 	local ids = {}
@@ -1466,9 +1390,8 @@ case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
 	]]
 	clearPlot(ctx.plot)
 	ctx.profile.tutorialStep = 0
-	-- Çalma sayacı sıfırlanmazsa 3. adım (birinden çal) da aynı turda
-	-- tamamlanıyor ve beklenen ödül tutmuyor
-	ctx.profile.stolen = 0
+	ctx.profile.trainings = 0
+	ctx.profile.bestPlanet = 0
 	-- Uzay hızı tabanda olmalı: yoksa 3. adım (kapsülde antrenman) da aynı turda geçer
 	ctx.profile.spaceSpeed = Config.Space.BaseSpeed
 	setCash(ctx.player, 0)
@@ -1496,12 +1419,13 @@ case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
 
 	-- Son adımın koşulunu sağla
 	local last = Config.Tutorial[#Config.Tutorial]
-	eq("son adım ekipman", last.check, "gear")
-	local hadGlove = ctx.profile.gear.SlapGlove
-	ctx.profile.gear.SlapGlove = true
+	eq("son adım gemi görevi", last.check, "tasks")
+	local key = "TaskReady_" .. Config.Tasks[1].id
+	local had = ctx.player:GetAttribute(key)
+	ctx.player:SetAttribute(key, os.time() + 60)
 
 	TutorialService.Check(ctx.player)
-	ctx.profile.gear.SlapGlove = hadGlove
+	ctx.player:SetAttribute(key, had)
 	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
 	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
 		last.reward + Config.TutorialFinishBonus)
@@ -1544,7 +1468,7 @@ case("Öğretici: eski kayıt öğreticiye sokulmuyor", function(ctx)
 	]]
 	clearPlot(ctx.plot)
 	ctx.profile.tutorialStep = 0
-	ctx.profile.stolen = 12
+	ctx.profile.salvaged = 12
 	setCash(ctx.player, 0)
 
 	local before = EconomyService.GetCash(ctx.player)
@@ -1556,7 +1480,7 @@ case("Öğretici: eski kayıt öğreticiye sokulmuyor", function(ctx)
 
 	-- Gerçekten yeni oyuncu elenmemeli
 	ctx.profile.tutorialStep = 0
-	ctx.profile.stolen = 0
+	ctx.profile.salvaged = 0
 	ctx.profile.rebirths = 0
 	ctx.profile.lastSpinAt = 0
 	ctx.profile.upgrades = {}
@@ -1581,9 +1505,6 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 			local t = TutorialService._TargetFor(ctx.player, "Capsule")
 			return if t and t.Name == "Pad" then t else nil
 		end,
-		Sign = function()
-			return ctx.plot:FindFirstChild("Sign")
-		end,
 		Upgrades = function()
 			return ctx.plot:FindFirstChild("UpgradeBooth")
 		end,
@@ -1591,13 +1512,8 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 			local decor = workspace:FindFirstChild("Decor")
 			return decor and decor:FindFirstChild("Wheel")
 		end,
-		RivalPlot = function()
-			for _, other in PlotService.GetAllPlots() do
-				if other ~= ctx.plot then
-					return other
-				end
-			end
-			return nil
+		Planet2 = function()
+			return TutorialService._TargetFor(ctx.player, "Planet2")
 		end,
 		Task = function()
 			local t = TutorialService._TargetFor(ctx.player, "Task")
@@ -1635,13 +1551,13 @@ end)
 -- ─── P. Unvan kuşanma ───────────────────────────────────────────────────────
 
 case("Unvan: açık olanı kuşanabiliyoruz", function(ctx)
-	ctx.profile.titles = { Crewmate = true, Security = true }
+	ctx.profile.titles = { Crewmate = true, SpaceRookie = true }
 	ctx.profile.titleManual = false
 	ctx.profile.activeTitle = ""
 
-	ok("açık unvan takıldı", TitleService.Equip(ctx.player, "Security"))
-	eq("profile yazıldı", ctx.profile.activeTitle, "Security")
-	eq("nitelik yazıldı", ctx.player:GetAttribute("Title"), "Security")
+	ok("açık unvan takıldı", TitleService.Equip(ctx.player, "SpaceRookie"))
+	eq("profile yazıldı", ctx.profile.activeTitle, "SpaceRookie")
+	eq("nitelik yazıldı", ctx.player:GetAttribute("Title"), "Space Rookie")
 	ok("elle seçim işaretlendi", ctx.profile.titleManual)
 end)
 
@@ -1663,39 +1579,36 @@ case("Unvan: elle seçim yeni açılanla ezilmiyor", function(ctx)
 		açılınca üstüne yazmamalı. Otomatik seçimin tek işi menüyü hiç
 		açmayan oyuncuyu ilerletmek.
 	]]
-	ctx.profile.titles = { Crewmate = true, Sus = true }
-	ctx.profile.caught = 0
-	TitleService.Equip(ctx.player, "Sus")
-	eq("seçim yapıldı", ctx.profile.activeTitle, "Sus")
+	ctx.profile.titles = { Crewmate = true, SpaceRookie = true }
+	ctx.profile.salvaged = 10
+	TitleService.Equip(ctx.player, "Crewmate")
+	eq("seçim yapıldı", ctx.profile.activeTitle, "Crewmate")
 
 	-- Daha yüksek sıralı bir unvan aç
-	for _ = 1, 5 do
-		TitleService.AddCaught(ctx.player)
-	end
+	ctx.profile.salvaged = 50
+	TitleService.Check(ctx.player)
 
-	ok("yeni unvan gerçekten açıldı", ctx.profile.titles.Security == true)
-	eq("seçim korundu", ctx.profile.activeTitle, "Sus")
-	eq("nitelik de korundu", ctx.player:GetAttribute("Title"), "Sus")
+	ok("yeni unvan gerçekten açıldı", ctx.profile.titles.SpaceThief == true)
+	eq("seçim korundu", ctx.profile.activeTitle, "Crewmate")
+	eq("nitelik de korundu", ctx.player:GetAttribute("Title"), "Crewmate")
 end)
 
 case("Unvan: otomatiğe dönülebiliyor", function(ctx)
-	ctx.profile.titles = { Crewmate = true, Security = true }
-	ctx.profile.caught = 999
+	ctx.profile.titles = { Crewmate = true, SpaceRookie = true }
 	TitleService.Equip(ctx.player, "Crewmate")
 	eq("düşük unvan takılı", ctx.profile.activeTitle, "Crewmate")
 
 	ok("boş kimlik kabul edildi", TitleService.Equip(ctx.player, ""))
 	ok("elle seçim kalktı", not ctx.profile.titleManual)
-	eq("en yükseğe döndü", ctx.profile.activeTitle, "Security")
+	eq("en yükseğe döndü", ctx.profile.activeTitle, "SpaceRookie")
 end)
 
 -- ─── R. Görevler ────────────────────────────────────────────────────────────
 
 case("Görev: tanımlar tutarlı", function()
 	local stats = {
-		stolen = true, bought = true, sold = true, earned = true,
-		caught = true, spins = true, rebirths = true, upgrades = true,
-		salvaged = true,
+		bought = true, sold = true, earned = true, spins = true, rebirths = true, upgrades = true,
+		salvaged = true, trainings = true, stunned = true, mutatedSteals = true,
 	}
 
 	local ids = {}
@@ -1780,8 +1693,8 @@ case("Görev: çekim aynı görevi iki kez vermiyor", function()
 end)
 
 case("Görev: hedefler vadeye göre ölçekleniyor", function()
-	local steal = Config.GetQuest("Steal")
-	ok("Steal tanımlı", steal ~= nil)
+	local steal = Config.GetQuest("Heist")
+	ok("Heist tanımlı", steal ~= nil)
 	if not steal then return end
 
 	local short = Config.GetQuestTier("short")
@@ -1838,7 +1751,7 @@ end)
 
 case("Görev: çekiliyor ve ilerliyor", function(ctx)
 	ctx.profile.quests = {}
-	ctx.profile.stolen = 0
+	ctx.profile.salvaged = 0
 	QuestService.Check(ctx.player)
 
 	local slot = ctx.profile.quests.short
@@ -1849,13 +1762,13 @@ case("Görev: çekiliyor ve ilerliyor", function(ctx)
 	ok("pencere ileride", slot.expiresAt > os.time())
 
 	-- Steal görevini zorla yerleştir ki ilerlemeyi ölçebilelim
-	slot.entries = { { id = "Steal", goal = 2, baseline = ctx.profile.stolen, done = false } }
+	slot.entries = { { id = "Heist", goal = 2, baseline = ctx.profile.salvaged, done = false } }
 
 	QuestService.Check(ctx.player)
 	ok("eşik altında tamamlanmadı", not slot.entries[1].done)
 
 	local before = EconomyService.GetCash(ctx.player)
-	ctx.profile.stolen += 2
+	ctx.profile.salvaged += 2
 	QuestService.Check(ctx.player)
 
 	ok("eşiğe ulaşınca tamamlandı", slot.entries[1].done)
@@ -1873,18 +1786,18 @@ case("Görev: ilerleme tabana göre, mutlak değere göre değil", function(ctx)
 		anında tamamlanmamalı. Taban kaydı tam olarak bunun için var.
 	]]
 	ctx.profile.quests = {}
-	ctx.profile.stolen = 500
+	ctx.profile.salvaged = 500
 
 	QuestService.RollTier(ctx.player, "short")
 	local slot = ctx.profile.quests.short
 	ok("vade çekildi", slot ~= nil)
 	if not slot then return end
 
-	slot.entries = { { id = "Steal", goal = 3, baseline = ctx.profile.stolen, done = false } }
+	slot.entries = { { id = "Heist", goal = 3, baseline = ctx.profile.salvaged, done = false } }
 	QuestService.Check(ctx.player)
-	ok("geçmiş sayılmadı", not slot.entries[1].done, tostring(ctx.profile.stolen))
+	ok("geçmiş sayılmadı", not slot.entries[1].done, tostring(ctx.profile.salvaged))
 
-	ctx.profile.stolen += 3
+	ctx.profile.salvaged += 3
 	QuestService.Check(ctx.player)
 	ok("yeni ilerleme sayıldı", slot.entries[1].done)
 end)
@@ -1919,35 +1832,35 @@ end)
 
 case("Görev: ödül elle toplanıyor", function(ctx)
 	ctx.profile.quests = {}
-	ctx.profile.stolen = 0
+	ctx.profile.salvaged = 0
 	QuestService.Check(ctx.player)
 
 	local slot = ctx.profile.quests.short
 	ok("vade var", slot ~= nil)
 	if not slot then return end
 
-	slot.entries = { { id = "Steal", goal = 1, baseline = ctx.profile.stolen, done = false, claimed = false } }
+	slot.entries = { { id = "Heist", goal = 1, baseline = ctx.profile.salvaged, done = false, claimed = false } }
 	setCash(ctx.player, 0)
 
 	-- Bitmemiş görev toplanamaz
-	ok("bitmemiş görev toplanamıyor", not QuestService.Claim(ctx.player, "short", "Steal"))
+	ok("bitmemiş görev toplanamıyor", not QuestService.Claim(ctx.player, "short", "Heist"))
 	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
 
 	-- Koşulu sağla
-	ctx.profile.stolen += 1
+	ctx.profile.salvaged += 1
 	QuestService.Check(ctx.player)
 	ok("görev tamamlandı", slot.entries[1].done)
 	eq("ama ödül hâlâ verilmedi", EconomyService.GetCash(ctx.player), 0)
 
 	-- Topla
-	ok("toplama başarılı", QuestService.Claim(ctx.player, "short", "Steal"))
+	ok("toplama başarılı", QuestService.Claim(ctx.player, "short", "Heist"))
 	ok("ödül geldi", EconomyService.GetCash(ctx.player) > 0,
 		Config.FormatCash(EconomyService.GetCash(ctx.player)))
 	ok("teslim alındı işaretlendi", slot.entries[1].claimed)
 
 	-- İkinci kez toplanamaz
 	local after = EconomyService.GetCash(ctx.player)
-	ok("ikinci toplama reddedildi", not QuestService.Claim(ctx.player, "short", "Steal"))
+	ok("ikinci toplama reddedildi", not QuestService.Claim(ctx.player, "short", "Heist"))
 	eq("para değişmedi", EconomyService.GetCash(ctx.player), after)
 end)
 
@@ -1958,7 +1871,7 @@ case("Görev: uydurma toplama isteği reddediliyor", function(ctx)
 	]]
 	setCash(ctx.player, 0)
 
-	ok("olmayan vade reddedildi", not QuestService.Claim(ctx.player, "yok", "Steal"))
+	ok("olmayan vade reddedildi", not QuestService.Claim(ctx.player, "yok", "Heist"))
 	ok("olmayan görev reddedildi", not QuestService.Claim(ctx.player, "short", "YokBoyleBirGorev"))
 	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
 end)
@@ -1977,10 +1890,10 @@ case("Görev: eski kayıtta biten görev tekrar toplanamıyor", function(ctx)
 	if not slot then return end
 
 	-- Göçün ürettiği hâl: done ve claimed birlikte
-	slot.entries = { { id = "Steal", goal = 1, baseline = 0, done = true, claimed = true } }
+	slot.entries = { { id = "Heist", goal = 1, baseline = 0, done = true, claimed = true } }
 	setCash(ctx.player, 0)
 
-	ok("toplanamıyor", not QuestService.Claim(ctx.player, "short", "Steal"))
+	ok("toplanamıyor", not QuestService.Claim(ctx.player, "short", "Heist"))
 	eq("para gelmedi", EconomyService.GetCash(ctx.player), 0)
 end)
 
@@ -2200,7 +2113,7 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		Şu an on dört remote var: TutorialSkip, TitleEquip, PotionUse,
 		QuestClaim, UpgradeBuy, Sprint, FloorBuy, RebirthBuy, PetHatch,
 		PetEquip, PetFuse, RewardClaim, GearBuy, AsteroidsDone, TaskDone,
-		CosmeticAction, SabotageAction. Hiçbiri
+		CosmeticAction. Hiçbiri
 		oyuncuya bedava bir şey VERMİYOR — ya oyuncunun kendi parasını
 		harcıyor, ya zaten kazanılmış bir şeyi kullanıyor, ya da hakkı
 		sunucudaki sayaçlardan hesaplanan bir ödülü topluyor. AsteroidsDone
@@ -2209,7 +2122,7 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
 		Sınır on dokuzda (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
-		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları için
+		SettingsSave oyuncu ayarları için
 		eklendi; SpaceHit uzay soygununa geçilince kalktı;
 		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
 		kazara büyümesin.
@@ -2593,7 +2506,7 @@ case("Yükseltme: rebirth sıfırlıyor", function(ctx)
 	clearPlot(ctx.plot)
 	ctx.profile.rebirths = 0
 	ctx.profile.floorsBought = 1
-	ctx.profile.upgrades = { SpaceCapsule = 3, LockPower = 2 }
+	ctx.profile.upgrades = { SpaceCapsule = 3, JetBoost = 2 }
 	PlotService.SetUnlockedFloors(ctx.plot, Config.GetUnlockedFloors(1))
 
 	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
@@ -2603,7 +2516,7 @@ case("Yükseltme: rebirth sıfırlıyor", function(ctx)
 	ok("rebirth başarılı", RebirthService.TryRebirth(ctx.player))
 
 	eq("SpaceCapsule sıfırlandı", UpgradeService.GetLevel(ctx.player, "SpaceCapsule"), 0)
-	eq("LockPower sıfırlandı", UpgradeService.GetLevel(ctx.player, "LockPower"), 0)
+	eq("JetBoost sıfırlandı", UpgradeService.GetLevel(ctx.player, "JetBoost"), 0)
 	eq("satın alınan kat korundu", ctx.profile.floorsBought, 1)
 end)
 
@@ -2620,13 +2533,8 @@ case("Yükseltme: seviye başına etki yarıya indi ama tavan aynı kaldı", fun
 	local top = Config.GetCapsuleGain(ceiling, Config.SpaceMonsters[#Config.SpaceMonsters].need)
 	ok("kapsül tavanı makul", top > 0.003 and top < 20, string.format("%.4f", top))
 
-	local carry = Config.GetCarryWalkSpeed(Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
-	ok("taşıma hızı normali geçmiyor", carry < Config.NormalWalkSpeed,
-		string.format("%.2f", carry))
-
-	local duration, cooldown = Config.GetLockValues(Config.GetUpgradeCeiling(Config.GetUpgrade("LockPower")))
-	ok("kilit süresi bekleme süresini aşmıyor", duration < cooldown + 60,
-		string.format("%.1f / %.1f", duration, cooldown))
+	local morale = Config.GetMoraleMultiplier(Config.GetUpgradeCeiling(Config.GetUpgrade("CrewMorale")))
+	ok("moral tavanı makul", morale > 1.2 and morale <= 1.6, string.format("%.2f", morale))
 end)
 
 case("Koşma: ayarlar makul", function()
@@ -2634,30 +2542,6 @@ case("Koşma: ayarlar makul", function()
 		tostring(Config.SprintWalkSpeed))
 	ok("koşu abartılı değil", Config.SprintWalkSpeed <= Config.NormalWalkSpeed * 2,
 		tostring(Config.SprintWalkSpeed))
-
-	-- Taşıma hızı koşunun çok altında kalmalı: çalmanın riski bu
-	local fastestCarry = Config.GetCarryWalkSpeed(
-		Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
-	ok("en hızlı taşıma bile koşudan yavaş", fastestCarry < Config.SprintWalkSpeed,
-		string.format("%.1f vs %d", fastestCarry, Config.SprintWalkSpeed))
-end)
-
-case("Koşma: taşırken hız artmıyor", function(ctx)
-	--[[
-		Koşmaya taşırken izin vermek çalmanın tek riskini siler. Sunucu
-		bayrağı kabul ediyor ama hıza yansıtmıyor.
-	]]
-	local character = ctx.player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	ok("karakter var", humanoid ~= nil)
-	if not humanoid then return end
-
-	StealService.SetSprinting(ctx.player, true)
-	local sprintSpeed = humanoid.WalkSpeed
-	eq("koşarken koşu hızı", sprintSpeed, Config.SprintWalkSpeed)
-
-	StealService.SetSprinting(ctx.player, false)
-	eq("bırakınca normal hız", humanoid.WalkSpeed, Config.NormalWalkSpeed)
 end)
 
 -- ─── U. Petler, ödüller, ekipman ────────────────────────────────────────────
@@ -3030,25 +2914,25 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	if humanoid then
 		ctx.player:SetAttribute("GearSpeed", coil.walkSpeed)
 		ctx.player:SetAttribute("GearSprint", coil.sprintSpeed)
-		StealService.SetSprinting(ctx.player, false)
+		MovementService.SetSprinting(ctx.player, false)
 		eq("bobinle yürüme", humanoid.WalkSpeed, coil.walkSpeed)
-		StealService.SetSprinting(ctx.player, true)
+		MovementService.SetSprinting(ctx.player, true)
 		eq("bobinle koşu", humanoid.WalkSpeed, coil.sprintSpeed)
 		-- Uzay soygununda bobin işlemiyor
 		ctx.player:SetAttribute("InSpace", true)
-		StealService.RefreshSpeed(ctx.player)
+		MovementService.RefreshSpeed(ctx.player)
 		eq("uzayda bobin koşusu yok", humanoid.WalkSpeed, Config.SprintWalkSpeed)
 		ctx.player:SetAttribute("InSpace", nil)
 		ctx.player:SetAttribute("SpaceCarry", true)
-		StealService.SetSprinting(ctx.player, false)
+		MovementService.SetSprinting(ctx.player, false)
 		eq("uzaydan taşırken bobin yok", humanoid.WalkSpeed, Config.NormalWalkSpeed)
 		ctx.player:SetAttribute("SpaceCarry", nil)
-		StealService.SetSprinting(ctx.player, true)
+		MovementService.SetSprinting(ctx.player, true)
 		ctx.player:SetAttribute("GearSpeed", nil)
 		ctx.player:SetAttribute("GearSprint", nil)
-		StealService.RefreshSpeed(ctx.player)
+		MovementService.RefreshSpeed(ctx.player)
 		eq("bobinsiz koşu", humanoid.WalkSpeed, Config.SprintWalkSpeed)
-		StealService.SetSprinting(ctx.player, false)
+		MovementService.SetSprinting(ctx.player, false)
 		eq("normal", humanoid.WalkSpeed, Config.NormalWalkSpeed)
 	end
 
@@ -3061,22 +2945,29 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	eq("Ghost Serum iade edildi", p2.cash, Config.RetiredGear.GhostSerum)
 end)
 
-case("Ekipman: denge - uzaktan ve alan aletleri sınırlı, sersemleme kilidi yok", function(ctx)
+case("Ekipman: canavarlara karşı - sersemletiyor, bekleme süresi var", function(ctx)
 	local stun = Config.GetGear("StunGun") :: Config.GearDef
 	local blast = Config.GetGear("EmergencyButton") :: Config.GearDef
 	local slap = Config.GetGear("SlapGlove") :: Config.GearDef
-	ok("stun menzili 30'u geçmiyor", (stun.range or 0) <= 30)
-	ok("stun beklemesi en az 20", (stun.cooldown or 0) >= 20)
 	ok("stun donması bekleme süresinden çok kısa", (stun.stun or 0) * 4 <= (stun.cooldown or 0))
-	ok("buton beklemesi en az 45", (blast.cooldown or 0) >= 45)
+	ok("buton beklemesi en az 30", (blast.cooldown or 0) >= 30)
 	ok("tokat beklemesi en az 4", (slap.cooldown or 0) >= 4)
-	ok("koruma donmadan uzun", Config.GearHitImmunity > (stun.stun or 0))
 
-	-- Vurulan oyuncu kısa süre korunuyor
-	GearService._MarkHit(ctx.player, os.clock())
-	ok("vurulunca korunuyor", GearService.IsImmune(ctx.player))
-	ok("koruma bitiyor", not GearService.IsImmune(ctx.player, os.clock() + Config.GearHitImmunity + 0.1))
-	GearService._MarkHit(ctx.player, -math.huge)
+	-- Canavarın yanında Stun Gun: canavar sersemliyor, sayaç artıyor
+	local root = ctx.player.Character.HumanoidRootPart :: BasePart
+	local home = root.CFrame
+	SpaceService._ResetMonster(1)
+	local body = SpaceService._MonsterPosition(1)
+	root.CFrame = CFrame.lookAt(body + Vector3.new(0, 8, 20), body + Vector3.new(0, 8, 0))
+	task.wait()
+	GearService._ResetCooldowns(ctx.player)
+	local before = ctx.profile.stunned
+	ok("kullanıldı", GearService.Use(ctx.player, "StunGun"))
+	ok("canavar sersemledi", workspace.SpaceZone.Monsters.Monster1:GetAttribute("Stunned") == true or ctx.profile.stunned > before)
+	ok("sayaç arttı", ctx.profile.stunned > before, tostring(ctx.profile.stunned))
+	GearService._ResetCooldowns(ctx.player)
+	SpaceService._ResetMonster(1)
+	root.CFrame = home
 end)
 
 case("Ekipman: bekleme süresi sunucuda, Ghost Serum kaldırıldı", function(ctx)
@@ -3211,12 +3102,10 @@ case("Vent: taşırken yok, bekleme var, eşine ışınlıyor", function(ctx)
 	local home = root.CFrame
 	VentService._Reset(ctx.player)
 
-	-- Taşıyormuş gibi: StealService sırttaki modele bu adı veriyor
-	local fake = Instance.new("Model")
-	fake.Name = "CarriedUnit"
-	fake.Parent = ctx.player.Character
+	-- Canavardan çalınanı taşıyormuş gibi (SpaceService yazıyor)
+	ctx.player:SetAttribute("SpaceCarry", true)
 	eq("taşırken reddedildi", VentService.TryVent(ctx.player, a, b, 1000), "carrying")
-	fake:Destroy()
+	ctx.player:SetAttribute("SpaceCarry", nil)
 
 	eq("boş elle geçti", VentService.TryVent(ctx.player, a, b, 1000), "ok")
 	ok("eşine vardı", (root.Position - b.Position).Magnitude < 6,
@@ -3241,7 +3130,7 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 		ok(def.id .. " offset periyot içinde", def.offset >= 0 and def.offset < def.every)
 		ids[def.id] = true
 	end
-	for _, id in { "Meeting", "LightsOut", "Meltdown", "Impostor", "Storm" } do
+	for _, id in { "Meeting", "LightsOut", "Meltdown", "Storm" } do
 		ok(id .. " tanımlı", ids[id] == true)
 	end
 
@@ -3276,42 +3165,6 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 	eq("slottan sonra", Config.GetNextEventStart(meeting, slot + 1), slot + meeting.every)
 end)
 
-case("Olay: rastgele impostor saatte iki kez, sabit olaylara denk gelmiyor", function()
-	local def = Config.GetEvent("Impostor") :: Config.EventDef
-	ok("rastgele", def.random == true)
-	local rng = Random.new(7)
-	local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
-	local allGood, countsOk, spacingOk = true, true, true
-	for h = 0, 23 do
-		local hour = day0 + h * 3600
-		local starts = Config.PlanRandomEvent(def, hour, rng)
-		if #starts ~= (def.perHour or 1) then
-			countsOk = false
-		end
-		local windows = Config.GetFixedEventWindows(hour - 3600, hour + 7200)
-		for i, t in starts do
-			if t < hour or t + def.duration > hour + 3600 then
-				allGood = false
-			end
-			for _, w in windows do
-				if t < w[2] and w[1] < t + def.duration then
-					allGood = false
-				end
-			end
-			if i > 1 and t - starts[i - 1] < Config.RandomEventSpacing then
-				spacingOk = false
-			end
-		end
-	end
-	ok("her saat perHour kadar", countsOk)
-	ok("sabit olaylarla çakışmıyor", allGood)
-	ok("birbirinden uzak", spacingOk)
-	-- Farklı zarlar farklı zamanlar (her sunucu kendi planını yapıyor)
-	local a = Config.PlanRandomEvent(def, day0, Random.new(1))
-	local b = Config.PlanRandomEvent(def, day0, Random.new(2))
-	ok("tahmin edilemez", a[1] ~= b[1] or a[2] ~= b[2])
-end)
-
 case("Olay: Emergency Meeting geliri katlıyor, bitince dönüyor", function(ctx)
 	clearPlot(ctx.plot)
 	local podium = PlotService.FindEmptyPodium(ctx.plot)
@@ -3329,22 +3182,13 @@ case("Olay: Emergency Meeting geliri katlıyor, bitince dönüyor", function(ctx
 	clearPlot(ctx.plot)
 end)
 
-case("Olay: Lights Sabotage çalma süresini kısaltıyor", function(ctx)
-	clearPlot(ctx.plot)
-	local podium = PlotService.FindEmptyPodium(ctx.plot)
-	assert(podium, "boş kaide yok")
-	PlotService.PlaceUnit(podium, Config.Units[10].id)
-	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
-	assert(prompt, "çalma promptu yok")
-	-- Prompt karaktere göre süresini nitelik sinyaliyle güncelliyor (ertelenmiş)
-	task.wait()
-	local normal = prompt.HoldDuration
-
+case("Olay: Lights Sabotage canavarları yarı kör yapıyor", function(ctx)
+	ok("uyanma yavaşlıyor", Config.LightsOutWakeMul > 1)
+	ok("kovalama yavaşlıyor", Config.LightsOutChaseMul < 1)
 	ok("başladı", EventService.Begin("LightsOut"))
-	near("kısaldı", prompt.HoldDuration, normal * Config.LightsOutHoldMul, 0.01)
+	eq("etkin olay", EventService.GetActiveId(), "LightsOut")
 	EventService.End()
-	near("geri döndü", prompt.HoldDuration, normal, 0.01)
-	clearPlot(ctx.plot)
+	eq("bitti", EventService.GetActiveId(), nil)
 end)
 
 case("Olay: Reactor Meltdown çekirdekleri üslerin dışında, ödül veriyor", function(ctx)
@@ -3381,49 +3225,41 @@ case("Olay: Reactor Meltdown çekirdekleri üslerin dışında, ödül veriyor",
 	clearPlot(ctx.plot)
 end)
 
-case("Olay: Impostor ödemesi %3-5 ve tavanlı", function(ctx)
-	eq("alt sınır", EventService.ImpostorPayment(1_000_000, 0), 30_000)
-	eq("üst sınır", EventService.ImpostorPayment(1_000_000, 1), 50_000)
-	eq("tavan", EventService.ImpostorPayment(1e12, 1), Config.ImpostorPayCap)
-	eq("parasız", EventService.ImpostorPayment(0, 0.5), 0)
-	-- Tek oyunculu sunucuda impostor seçilmiyor
-	eq("tek oyuncuyla başlamıyor", EventService.Begin("Impostor"), false)
-	-- Impostor olmayan hırsız yakalanınca kimse ödemiyor
-	eq("impostor değilse ödeme yok", EventService.OnCaught(ctx.player, ctx.player, 0.5), 0)
-end)
-
 -- ─── Hızlı çalma ────────────────────────────────────────────────────────────
 
-case("Hızlı çalma: pass iksirden güçlü, alt sınır var, istemciye yayınlanıyor", function(ctx)
+case("Hızlı kapma: pass iksirden güçlü, alt sınır var, istemciye yayınlanıyor", function(ctx)
 	ok("pass iksirden güçlü", Config.PassFastStealMultiplier < Config.PotionFastStealMultiplier)
 	ok("ikisi de gerçekten hızlandırıyor", Config.PotionFastStealMultiplier < 1)
 
-	near("normal", Config.GetPersonalStealHold(4, 0.6), 2.4, 0.001)
-	eq("alt sınır", Config.GetPersonalStealHold(2 * Config.LightsOutHoldMul, Config.PassFastStealMultiplier), Config.MinStealHold)
-	near("taban zaten kısaysa dokunma", Config.GetPersonalStealHold(0.8, 0.5), 0.8, 0.001)
+	near("çarpansız", Config.GetPersonalGrabHold(1, 1, 0), 1, 0.001)
+	ok("pass kısaltıyor", Config.GetPersonalGrabHold(1, 0.6, 0) < 1)
+	eq("alt sınır", Config.GetPersonalGrabHold(0.2, 0.1, 50), Config.MinGrabHold)
 
 	MonetizationService.ClearBoosts(ctx.player)
 	MonetizationService.PublishStealHold(ctx.player)
-	eq("iksirsiz nitelik 1", ctx.player:GetAttribute("StealHoldMul"), 1)
+	local passMul = if MonetizationService.HasPass(ctx.player, "FastSteal") then Config.PassFastStealMultiplier else 1
+	eq("iksirsiz nitelik", ctx.player:GetAttribute("StealHoldMul"), passMul)
 
-	MonetizationService.GrantBoost(ctx.player, "steal", 60)
-	eq("iksir çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player), Config.PotionFastStealMultiplier)
-	MonetizationService.PublishStealHold(ctx.player)
-	eq("iksir niteliği", ctx.player:GetAttribute("StealHoldMul"), Config.PotionFastStealMultiplier)
+	if passMul == 1 then
+		MonetizationService.GrantBoost(ctx.player, "steal", 60)
+		eq("iksir çarpanı", MonetizationService.GetStealHoldMultiplier(ctx.player), Config.PotionFastStealMultiplier)
+		MonetizationService.PublishStealHold(ctx.player)
+		eq("iksir niteliği", ctx.player:GetAttribute("StealHoldMul"), Config.PotionFastStealMultiplier)
+		MonetizationService.ClearBoosts(ctx.player)
+		MonetizationService.PublishStealHold(ctx.player)
+		eq("iksir bitince 1", ctx.player:GetAttribute("StealHoldMul"), 1)
+	end
+end)
 
+case("Canavar kalkanı: iksirle açılıyor, bitince kapanıyor", function(ctx)
 	MonetizationService.ClearBoosts(ctx.player)
-	MonetizationService.PublishStealHold(ctx.player)
-	eq("iksir bitince 1", ctx.player:GetAttribute("StealHoldMul"), 1)
-
-	-- Sunucu çalma promptuna tabanı nitelik olarak yazıyor
-	clearPlot(ctx.plot)
-	local podium = PlotService.FindEmptyPodium(ctx.plot)
-	assert(podium, "boş kaide yok")
-	PlotService.PlaceUnit(podium, Config.Units[10].id)
-	task.wait()
-	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
-	near("taban niteliği", prompt:GetAttribute("BaseHold") or -1, prompt.HoldDuration, 0.001)
-	clearPlot(ctx.plot)
+	local fromPass = MonetizationService.HasPass(ctx.player, "StrongLock")
+	eq("iksirsiz", MonetizationService.HasShield(ctx.player), fromPass)
+	MonetizationService.GrantBoost(ctx.player, "lock", 60)
+	ok("iksirle kalkan var", MonetizationService.HasShield(ctx.player))
+	MonetizationService.ClearBoosts(ctx.player)
+	eq("iksir bitince", MonetizationService.HasShield(ctx.player), fromPass)
+	ok("kalkan beklemesi makul", Config.ShieldCooldown >= 30 and Config.ShieldStun > 0)
 end)
 
 -- ─── Ek oda görevleri ──────────────────────────────────────────────────────
@@ -3540,106 +3376,6 @@ end)
 
 -- ─── Sabotajlar ─────────────────────────────────────────────────────────────
 
-case("Sabotaj: tanımlar tutarlı, fiyat gelire göre", function()
-	for _, def in Config.Sabotages do
-		ok(def.id .. " süre", def.duration > 0 and def.duration <= 45)
-		ok(def.id .. " dokunulmazlık süreden uzun", Config.SabotageTargetImmunity > def.duration)
-		eq(def.id .. " taban fiyat", Config.GetSabotagePrice(def, 0), def.minimum)
-		eq(def.id .. " gelirle", Config.GetSabotagePrice(def, 1e6), def.seconds * 1e6)
-	end
-	ok("ses tanımlı", Config.HasNotifyCue(SabotageService.NotifyKind))
-	ok("remote dinleniyor", Net.IsClientToServer("SabotageAction"))
-end)
-
-case("Sabotaj: satın alma parayla, yığın sınırlı, kendine kullanılmıyor", function(ctx)
-	local p = ctx.profile
-	p.sabotages = {}
-	local def = Config.Sabotages[1]
-	clearPlot(ctx.plot)
-	setCash(ctx.player, 0)
-	ok("parasız alınmıyor", not SabotageService.TryBuy(ctx.player, def.id))
-	ok("bilinmeyen alınmıyor", not SabotageService.TryBuy(ctx.player, "NoSuchThing"))
-
-	local price = Config.GetSabotagePrice(def, EconomyService.GetIncome(ctx.player))
-	setCash(ctx.player, price * (Config.SabotageMaxStack + 1))
-	for _ = 1, Config.SabotageMaxStack do
-		SabotageService.TryBuy(ctx.player, def.id)
-	end
-	eq("yığın dolu", SabotageService.GetCount(ctx.player, def.id), Config.SabotageMaxStack)
-	ok("sınırın üstü alınmıyor", not SabotageService.TryBuy(ctx.player, def.id))
-	eq("fazla para düşmedi", EconomyService.GetCash(ctx.player), price)
-	ok("nitelik yayınlandı", string.find(tostring(ctx.player:GetAttribute("Sabotages")),
-		def.id .. "=" .. Config.SabotageMaxStack, 1, true) ~= nil)
-
-	eq("kendine olmaz", SabotageService.TryUse(ctx.player, def.id, ctx.player), "self")
-	p.lastSabotageAt = 0
-	eq("hedefsiz olmaz", SabotageService.TryUse(ctx.player, def.id, nil), "target")
-	-- Kullanan 25 dk bekliyor; bekleme profilde (unix saati)
-	p.lastSabotageAt = os.time()
-	eq("beklemede", SabotageService.TryUse(ctx.player, def.id, nil), "cooldown")
-	eq("bekleme bitince geçiyor", SabotageService.TryUse(ctx.player, def.id, nil, nil,
-		os.time() + Config.SabotageUserCooldown + 1), "target")
-	ok("bekleme 20-30 dk", Config.SabotageUserCooldown >= 1200 and Config.SabotageUserCooldown <= 1800)
-	eq("adet düşmedi", SabotageService.GetCount(ctx.player, def.id), Config.SabotageMaxStack)
-	p.sabotages = {}
-	eq("olmayan kullanılmıyor", SabotageService.TryUse(ctx.player, def.id, nil), "none")
-end)
-
-case("Sabotaj: etkiler üsse uygulanıp süre sonunda kalkıyor", function(ctx)
-	clearPlot(ctx.plot)
-	local podium = PlotService.FindEmptyPodium(ctx.plot)
-	assert(podium, "boş kaide yok")
-	PlotService.PlaceUnit(podium, Config.Units[10].id)
-	task.wait()
-	local prompt = podium:FindFirstChild("StealPrompt") :: ProximityPrompt
-	local normal = prompt.HoldDuration
-
-	-- Blackout: ışıklar sönüyor, çalma kısalıyor
-	SabotageService._Apply("Blackout", ctx.player)
-	task.wait()
-	ok("karanlık niteliği", ctx.plot:GetAttribute("Blackout") == true)
-	near("çalma kısaldı", prompt.HoldDuration, normal * Config.BlackoutHoldMul, 0.001)
-	local lit = 0
-	for _, d in ctx.plot:GetDescendants() do
-		if d:IsA("Light") and d.Enabled and d.Parent and d.Parent.Name ~= "LockButton"
-			and not d:IsDescendantOf(ctx.plot.Podiums)
-		then
-			lit += 1
-		end
-	end
-	eq("ışıklar söndü", lit, 0)
-
-	SabotageService._Reset(ctx.player)
-	task.wait()
-	near("çalma geri geldi", prompt.HoldDuration, normal, 0.001)
-	local off = 0
-	for _, d in ctx.plot:GetDescendants() do
-		if d:GetAttribute("SabotageOff") then
-			off += 1
-		end
-	end
-	eq("ışıklar geri yandı", off, 0)
-
-	-- Lock Jam: kilitliyse kısa süre sonra düşüyor
-	ctx.plot:SetAttribute("Locked", true)
-	ctx.plot:SetAttribute("LockUsedAt", os.clock())
-	SabotageService._Apply("LockJam", ctx.player)
-	ok("bozuk niteliği", ctx.plot:GetAttribute("LockJam") == true)
-	ok("kilit hemen düşmüyor", ctx.plot:GetAttribute("Locked") == true)
-	task.wait(Config.LockJamDropDelay + 0.3)
-	ok("kilit düştü", ctx.plot:GetAttribute("Locked") == false)
-
-	-- Comms Jam: kurbanın niteliği
-	SabotageService._Apply("CommsJam", ctx.player)
-	ok("iletişim kesik", ctx.player:GetAttribute("CommsJam") == true)
-
-	SabotageService._Reset(ctx.player)
-	eq("bozukluk kalktı", ctx.plot:GetAttribute("LockJam"), nil)
-	eq("iletişim geri", ctx.player:GetAttribute("CommsJam"), nil)
-	ctx.plot:SetAttribute("LockUsedAt", 0)
-	clearPlot(ctx.plot)
-end)
-
 -- ─── Gezen impostor ─────────────────────────────────────────────────────────
 
 case("Impostor NPC: ayarlar yakalanabilir, ödül gelire göre", function()
@@ -3671,16 +3407,13 @@ case("Impostor NPC: sahibi durdurunca ödül alıyor, kilit korumuyor", function
 	assert(podium, "boş kaide yok")
 	PlotService.PlaceUnit(podium, Config.Units[10].id)
 
-	-- Kilitli üs de hedef olabiliyor
-	ctx.plot:SetAttribute("Locked", true)
 	local found = false
 	for _, c in RogueService.GetCandidates() do
 		if c.podium == podium then
 			found = true
 		end
 	end
-	ok("kilitli üs hedef", found)
-	ctx.plot:SetAttribute("Locked", false)
+	ok("üs hedef olabiliyor", found)
 
 	eq("yokken yakalanmaz", (RogueService.TryCatch(ctx.player)), "none")
 	ok("çıktı", RogueService.Spawn(ctx.plot, podium, true))
@@ -3714,13 +3447,11 @@ case("Impostor NPC: sahibi durdurunca ödül alıyor, kilit korumuyor", function
 	ok("sırtında kopya", r ~= nil and r.carried ~= nil)
 
 	setCash(ctx.player, 0)
-	local caught0 = ctx.profile.caught
 	local reason, reward = RogueService.TryCatch(ctx.player)
 	eq("durdurdu", reason, "ok")
 	-- En az ödül kadar: yakalama sayacı bir unvan açarsa onun ödülü de ekleniyor
 	ok("ödül geldi", EconomyService.GetCash(ctx.player) >= reward, tostring(EconomyService.GetCash(ctx.player)))
 	ok("ödül tabandan az değil", reward >= Config.RogueRewardMin)
-	eq("yakalama sayıldı", ctx.profile.caught, caught0 + 1)
 	eq("sahneden gitti", RogueService.GetCurrent(), nil)
 	eq("gelir kesilmedi", podium:GetAttribute("OfflineUntil"), nil)
 	local still = false
@@ -4125,10 +3856,10 @@ case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
 	eq("mutasyonsuz mürettebat yok", plain, 0)
 	EventService.End()
 
-	-- Aletler uzayda çalışmıyor (canavarlara karşı kullanılmıyor)
+	-- 2026-09-28: aletler uzayda canavarlara karşı ÇALIŞIYOR (kullanım reddedilmiyor)
 	ctx.player:SetAttribute("InSpace", true)
 	GearService._ResetCooldowns(ctx.player)
-	ok("uzayda alet yok", not GearService.Use(ctx.player, "EmergencyButton"))
+	ok("uzayda alet kullanılabiliyor", GearService.Use(ctx.player, "EmergencyButton"))
 	ctx.player:SetAttribute("InSpace", nil)
 	GearService._ResetCooldowns(ctx.player)
 end)
@@ -4299,9 +4030,12 @@ function ServerTests.Run(player: Player?): number
 		spaceSpeed = profile.spaceSpeed,
 		lastSpinAt = profile.lastSpinAt,
 		titles = table.clone(profile.titles),
-		robbed = profile.robbed,
-		caught = profile.caught,
-		maxStreak = profile.maxStreak,
+		trainings = profile.trainings,
+		stunned = profile.stunned,
+		thrown = profile.thrown,
+		mutatedSteals = profile.mutatedSteals,
+		bossSteals = profile.bossSteals,
+		bestPlanet = profile.bestPlanet,
 		tutorialStep = profile.tutorialStep,
 		stolen = profile.stolen,
 		salvaged = profile.salvaged,
@@ -4326,8 +4060,6 @@ function ServerTests.Run(player: Player?): number
 		indexClaimed = table.clone(profile.indexClaimed),
 		gear = table.clone(profile.gear),
 		cosmetics = table.clone(profile.cosmetics),
-		sabotages = table.clone(profile.sabotages),
-		lastSabotageAt = profile.lastSabotageAt,
 		hat = profile.hat,
 		trail = profile.trail,
 	}
@@ -4421,9 +4153,12 @@ function ServerTests.Run(player: Player?): number
 	CapsuleService.SetSpeed(player, backup.spaceSpeed)
 	profile.lastSpinAt = backup.lastSpinAt
 	profile.titles = backup.titles
-	profile.robbed = backup.robbed
-	profile.caught = backup.caught
-	profile.maxStreak = backup.maxStreak
+	profile.trainings = backup.trainings
+	profile.stunned = backup.stunned
+	profile.thrown = backup.thrown
+	profile.mutatedSteals = backup.mutatedSteals
+	profile.bossSteals = backup.bossSteals
+	profile.bestPlanet = backup.bestPlanet
 	profile.tutorialStep = backup.tutorialStep
 	profile.stolen = backup.stolen
 	profile.salvaged = backup.salvaged
@@ -4447,9 +4182,6 @@ function ServerTests.Run(player: Player?): number
 	profile.indexClaimed = backup.indexClaimed
 	profile.gear = backup.gear
 	profile.cosmetics = backup.cosmetics
-	profile.sabotages = backup.sabotages
-	profile.lastSabotageAt = backup.lastSabotageAt
-	SabotageService.Publish(player)
 	profile.hat = backup.hat
 	profile.trail = backup.trail
 	CosmeticService.Apply(player)

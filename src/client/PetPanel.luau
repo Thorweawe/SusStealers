@@ -359,7 +359,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		stat.TextSize = 12
 		-- Soluk gri koyu kartta okunmuyordu: açık ton
 		stat.TextColor3 = if key then UiKit.INK:Lerp(UiKit.MUTED, 0.35) else UiKit.DIM
-		stat.Text = string.format("+%d%% cash\n+%.2f speed", math.floor(income * 100 + 0.5), speed)
+		stat.Text = string.format("+%d%% cash\n+%.2f flight", math.floor(income * 100 + 0.5), speed)
 		stat.ZIndex = 44
 		stat.Parent = card
 
@@ -487,7 +487,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			-- Kısa: sağda EQUIP BEST / UNEQUIP ALL var; "+" aynı petin bir kopyasını daha takar
 			hint.Text = string.format("%d / %d equipped", slotsUsed, Config.PetEquipSlots)
 			if slotsUsed > 0 then
-				hint.Text ..= string.format("  ·  +%d%% cash, +%.2f speed", math.floor(income * 100 + 0.5), speed)
+				hint.Text ..= string.format("  ·  +%d%% cash, +%.2f flight speed", math.floor(income * 100 + 0.5), speed)
 			else
 				hint.Text ..= "  ·  click a pet to equip"
 			end

@@ -51,6 +51,19 @@ local function notify(player: Player, text: string, isError: boolean, kind: stri
 	end
 end
 
+--[[ Efsanevi ve üstü unvan herkese duyuruluyor: statü, başkaları da heveslensin. ]]
+local function titlesAnnounce(player: Player, def: Config.TitleDef)
+	if not notifyRemote then
+		return
+	end
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			notifyRemote:FireClient(other, string.format("%s unlocked the %s title \"%s\"!",
+				player.DisplayName, string.upper(def.rarity), def.name), false, NOTIFY_KIND)
+		end
+	end
+end
+
 -- ─── Sayaçlar ───────────────────────────────────────────────────────────────
 
 --[[
@@ -64,14 +77,29 @@ local function statValue(player: Player, stat: string): number
 		return 0
 	end
 
-	if stat == "steals" then
-		return profile.stolen
-	elseif stat == "robbed" then
-		return profile.robbed
-	elseif stat == "caught" then
-		return profile.caught
-	elseif stat == "maxStreak" then
-		return profile.maxStreak
+	if stat == "salvaged" then
+		return profile.salvaged
+	elseif stat == "spaceSpeed" then
+		return math.floor(profile.spaceSpeed)
+	elseif stat == "trainings" then
+		return profile.trainings
+	elseif stat == "stunned" then
+		return profile.stunned
+	elseif stat == "thrown" then
+		return profile.thrown
+	elseif stat == "mutatedSteals" then
+		return profile.mutatedSteals
+	elseif stat == "bossSteals" then
+		return profile.bossSteals
+	elseif stat == "discovered" then
+		-- İndekste keşfedilmiş karakter sayısı
+		local count = 0
+		for id in profile.discovered do
+			if Config.GetUnit(id) then
+				count += 1
+			end
+		end
+		return count
 	elseif stat == "secrets" then
 		--[[
 			Sahip olunan Secret karakter sayısı, kaydedilen listeden
@@ -149,6 +177,8 @@ local function refreshEquipped(player: Player)
 		elseif def then def.name
 		else ""
 	player:SetAttribute("Title", shown)
+	-- Renk için nadirlik (sohbet ve başın üstündeki etiket; TitleTags / ChatTitles)
+	player:SetAttribute("TitleRarity", if shown == Config.DeveloperTitle then "Developer" elseif def then def.rarity else nil)
 
 	TitleService.Publish(player)
 end
@@ -180,6 +210,9 @@ function TitleService.Publish(player: Player)
 			order = def.order,
 			stat = def.stat,
 			threshold = def.threshold,
+			rarity = def.rarity,
+			hint = def.hint,
+			reward = Config.GetTitleReward(def, EconomyService.GetIncome(player)),
 			unlocked = profile.titles[def.id] == true,
 			value = statValue(player, def.stat),
 		})
@@ -247,9 +280,13 @@ function TitleService.Check(player: Player)
 			if reward > 0 then
 				EconomyService.AddCash(player, reward)
 				notify(player, string.format(
-					"Title unlocked: %s  ·  +$%s",
-					def.name, Config.FormatCash(reward)
+					"%s TITLE UNLOCKED: %s  ·  +$%s",
+					string.upper(def.rarity), def.name, Config.FormatCash(reward)
 				), false)
+				-- Yüksek nadirlik herkese duyuruluyor (statü)
+				if (Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0) >= 5 and titlesAnnounce then
+					titlesAnnounce(player, def)
+				end
 			else
 				notify(player, string.format("Title unlocked: %s", def.name), false)
 			end
@@ -259,35 +296,6 @@ function TitleService.Check(player: Player)
 	if unlockedAny then
 		refreshEquipped(player)
 		DataService.RequestSave(player)
-	end
-end
-
--- ─── Sayaç güncelleyiciler ──────────────────────────────────────────────────
--- Servisler kendi olaylarında bunları çağırıyor; TitleService onları
--- require etmiyor, bağımlılık tek yönlü kalıyor.
-
-function TitleService.AddRobbed(player: Player)
-	local profile = DataService.Get(player)
-	if profile then
-		profile.robbed += 1
-		TitleService.Check(player)
-	end
-end
-
-function TitleService.AddCaught(player: Player)
-	local profile = DataService.Get(player)
-	if profile then
-		profile.caught += 1
-		TitleService.Check(player)
-	end
-end
-
---[[ Seri rekoru yalnızca yükseldiğinde yazılıyor. ]]
-function TitleService.ReportStreak(player: Player, streak: number)
-	local profile = DataService.Get(player)
-	if profile and streak > profile.maxStreak then
-		profile.maxStreak = streak
-		TitleService.Check(player)
 	end
 end
 

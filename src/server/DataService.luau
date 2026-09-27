@@ -52,10 +52,22 @@ export type Profile = {
 	-- Unvanlar: açılanların kümesi ve takılı olanın id'si
 	titles: { [string]: boolean },
 	activeTitle: string,
-	-- Unvan koşullarının baktığı sayaçlar
-	robbed: number,
-	caught: number,
-	maxStreak: number,
+	--[[
+		Unvan ve görev sayaçları (2026-09-28; hepsi yalnızca ARTIYOR):
+		  trainings     — kapsül mini oyununu kazanma
+		  stunned       — ekipmanla sersemletilen canavar
+		  thrown        — canavarın gemiye fırlatması
+		  mutatedSteals — uzaydan getirilen mutasyonlu mürettebat
+		  bossSteals    — son canavardan (Void Leviathan) getirilen
+		Eski robbed / caught / maxStreak oyuncudan çalmaya bağlıydı, kalktı.
+	]]
+	trainings: number,
+	stunned: number,
+	thrown: number,
+	mutatedSteals: number,
+	bossSteals: number,
+	-- Soyulan en güçlü canavarın sırası (Config.SpaceMonsters); öğretici bakıyor
+	bestPlanet: number,
 	-- Öğreticide tamamlanan adım sayısı. #Config.Tutorial ise bitmiş,
 	-- -1 ise oyuncu atlamış. Sayı olarak tutuluyor çünkü adımlar sıralı.
 	tutorialStep: number,
@@ -119,11 +131,6 @@ export type Profile = {
 	cosmetics: { [string]: boolean },
 	hat: string,
 	trail: string,
-	-- Sabotaj eşyaları: kimlik -> adet (en fazla Config.SabotageMaxStack).
-	-- Tek kullanımlık; rebirth'te sıfırlanmıyor (parayla alındı).
-	sabotages: { [string]: number },
-	-- Son sabotaj kullanımı (unix saati); bekleme çıkıp girince sıfırlanmasın
-	lastSabotageAt: number,
 	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor.
 	-- autoDelete: yumurtadan çıkınca envantere girmeden silinecek kademeler
 	settings: { music: number, sfx: number, shake: boolean, autoDelete: { [string]: boolean } },
@@ -183,9 +190,12 @@ local function newProfile(): Profile
 		lastSpinAt = 0,
 		titles = {},
 		activeTitle = "",
-		robbed = 0,
-		caught = 0,
-		maxStreak = 0,
+		trainings = 0,
+		stunned = 0,
+		thrown = 0,
+		mutatedSteals = 0,
+		bossSteals = 0,
+		bestPlanet = 0,
 		tutorialStep = 0,
 		titleManual = false,
 		bought = 0,
@@ -209,8 +219,6 @@ local function newProfile(): Profile
 		cosmetics = {},
 		hat = "",
 		trail = "",
-		sabotages = {},
-		lastSabotageAt = 0,
 		settings = {
 			music = Config.DefaultSettings.music,
 			sfx = Config.DefaultSettings.sfx,
@@ -264,7 +272,7 @@ local function sanitize(raw: any): Profile
 		profile.lastSpinAt = math.floor(raw.lastSpinAt)
 	end
 
-	for _, field in { "robbed", "caught", "maxStreak", "bought", "sold", "spins", "earned", "salvaged" } do
+	for _, field in { "trainings", "stunned", "thrown", "mutatedSteals", "bossSteals", "bestPlanet", "bought", "sold", "spins", "earned", "salvaged" } do
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)
@@ -416,6 +424,14 @@ local function sanitize(raw: any): Profile
 			(raw.upgrades :: any).SpaceCapsule = legacy
 		end
 		for id, level in raw.upgrades do
+			--[[
+				Kalkan yükseltmeler (Unit Guard, Carry Speed, Lock Power —
+				2026-09-28): o seviyelere harcanan para iade, kayıttan düşüyor.
+			]]
+			if typeof(id) == "string" and Config.RetiredUpgrades[id] and typeof(level) == "number" and level > 0 then
+				profile.cash += Config.GetRetiredUpgradeRefund(id, level)
+				continue
+			end
 			local def = typeof(id) == "string" and Config.GetUpgrade(id)
 			if def and typeof(level) == "number" and level > 0 then
 				-- Tavan kat sayısına bağlı; kayıtta oyunun mutlak tavanına
@@ -529,18 +545,7 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
-	if typeof(raw.sabotages) == "table" then
-		for id, count in raw.sabotages do
-			if typeof(id) == "string" and Config.GetSabotage(id)
-				and typeof(count) == "number" and count > 0
-			then
-				profile.sabotages[id] = math.clamp(math.floor(count), 0, Config.SabotageMaxStack)
-			end
-		end
-	end
-	if typeof(raw.lastSabotageAt) == "number" then
-		profile.lastSabotageAt = raw.lastSabotageAt
-	end
+	-- Sabotajlar 2026-09-28'de kalktı (oyuncudan çalmayla birlikte); kayıttaki alan yok sayılıyor
 
 	if typeof(raw.settings) == "table" then
 		local s = raw.settings
@@ -695,7 +700,6 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.codes = table.clone(profile.codes)
 	snapshot.gear = table.clone(profile.gear)
 	snapshot.cosmetics = table.clone(profile.cosmetics)
-	snapshot.sabotages = table.clone(profile.sabotages)
 	snapshot.settings = table.clone(profile.settings)
 	snapshot.settings.autoDelete = table.clone(profile.settings.autoDelete)
 	snapshot.petsFound = table.clone(profile.petsFound)

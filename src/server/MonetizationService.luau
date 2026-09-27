@@ -211,9 +211,9 @@ function MonetizationService.GetStealHoldMultiplier(player: Player): number
 end
 
 --[[
-	Çalma çarpanını istemciye nitelik olarak yayınlar. İstemci kendi
-	ekranındaki çalma promptunu buna göre kısaltıyor (PromptFilter);
-	yoksa sunucu kısa basışı kabul etse de prompt tam süreyi bekliyordu.
+	Kapma çarpanını (Fast Steal pass'i / Fast Hands iksiri) istemciye nitelik
+	olarak yayınlar. İstemci uzaydaki mürettebatın promptunu buna (ve Quick
+	Hands'e) göre kısaltıyor (PromptFilter); sunucu aynı formülle doğruluyor.
 ]]
 function MonetizationService.PublishStealHold(player: Player)
 	local mul = MonetizationService.GetStealHoldMultiplier(player)
@@ -222,14 +222,13 @@ function MonetizationService.PublishStealHold(player: Player)
 	end
 end
 
---[[ Kilit süresi ve bekleme süresi. ]]
-function MonetizationService.GetLockValues(player: Player): (number, number)
-	if MonetizationService.HasPass(player, "StrongLock")
-		or boostOf(player, "lock")
-	then
-		return Config.PassStrongLockDuration, Config.PassStrongLockCooldown
-	end
-	return Config.LockDuration, Config.LockCooldown
+--[[
+	Canavar kalkanı var mı: Strong Lock pass'i ya da Reinforced Lock
+	iksiri ("lock" takviyesi). 2026-09-28'de kilit kalkınca kalkana döndü;
+	bekleme süresini SpaceService tutuyor.
+]]
+function MonetizationService.HasShield(player: Player): boolean
+	return MonetizationService.HasPass(player, "StrongLock") or boostOf(player, "lock") ~= nil
 end
 
 -- ─── Developer product ──────────────────────────────────────────────────────

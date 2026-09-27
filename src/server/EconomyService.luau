@@ -101,6 +101,9 @@ function EconomyService.GetIncome(player: Player): number
 	local rebirths = if profile then profile.rebirths else 0
 	local multiplier = Config.GetIncomeMultiplier(rebirths)
 		* MonetizationService.GetIncomeMultiplier(player)
+	-- Crew Morale yükseltmesi. Seviye kayıttan: UpgradeService bu servisi
+	-- require ediyor (TrySpend), tersi döngü olurdu.
+	multiplier *= Config.GetMoraleMultiplier(if profile then (profile.upgrades.CrewMorale or 0) else 0)
 
 	--[[
 		Pet bonusu. PetService'i require ETMİYORUZ: yumurta açmak bu

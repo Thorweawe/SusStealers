@@ -770,7 +770,7 @@ function Index.Create(screen: ScreenGui): Catalog
 			{ "Rarity", string.upper(def.rarity), tone },
 			{ "Chance", if pct >= 1 then string.format("%.1f%%", pct) else string.format("%.2f%%", pct), UiKit.INK },
 			{ "Cash bonus", if isKnown then string.format("+%.1f%%", def.incomeBonus * 100) else "???", UiKit.CREW.LIME },
-			{ "Steal speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
+			{ "Flight speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
 		}
 		for i, row in statRows do
 			local v = values[i]

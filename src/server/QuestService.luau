@@ -77,9 +77,7 @@ local function statValue(player: Player, stat: string): number
 		return 0
 	end
 
-	if stat == "stolen" then
-		return profile.stolen
-	elseif stat == "bought" then
+	if stat == "bought" then
 		return profile.bought
 	elseif stat == "salvaged" then
 		return profile.salvaged
@@ -87,8 +85,12 @@ local function statValue(player: Player, stat: string): number
 		return profile.sold
 	elseif stat == "earned" then
 		return profile.earned
-	elseif stat == "caught" then
-		return profile.caught
+	elseif stat == "trainings" then
+		return profile.trainings
+	elseif stat == "stunned" then
+		return profile.stunned
+	elseif stat == "mutatedSteals" then
+		return profile.mutatedSteals
 	elseif stat == "spins" then
 		return profile.spins
 	elseif stat == "rebirths" then

@@ -41,21 +41,43 @@ export type Handle = {
 local player = Players.LocalPlayer
 local Z = 28
 
--- Mini oyun ayarları (hat yüksekliğinin kesri olarak)
--- 2026-09-27: "çok zor" — alan büyüdü, roket ve alan yavaşladı, çubuk
--- daha hızlı doluyor ve yavaş boşalıyor
--- 2026-09-27 ikinci tur: "biraz daha kolay" — alan %38'den %40'a
-local ZONE_H = 0.40
-local RISE = 1.9           -- basılıyken yukarı ivme
-local FALL = 1.6           -- bırakınca aşağı ivme
-local MAX_V = 0.9
-local FILL = 0.18          -- alandayken çubuk dolma hızı (sn başına)
-local DRAIN = 0.06
+--[[
+	Mini oyun ayarları (hat yüksekliğinin kesri olarak).
+
+	2026-09-28: "mini oyunu zorlaştır, yeni bir yükseltme yeri de onu
+	kolaylaştırsın". Taban artık ZOR: dar alan (%26), sık ve hızlı kayıyor,
+	çubuk yavaş doluyor ve hızlı boşalıyor. Kapsülün solundaki Training
+	Console istasyonu (TrainingConsole yükseltmesi, Config.GetTrainingAssist
+	0..1) kolaylaştırıyor: tavanda alan %42, alan yavaş, çubuk hızlı dolup
+	yavaş boşalıyor — eski kolay ayarın biraz üstü.
+]]
+local ZONE_H_MIN, ZONE_H_ASSIST = 0.26, 0.16
+local FILL_MIN, FILL_ASSIST = 0.13, 0.09     -- alandayken çubuk dolma hızı (sn başına)
+local DRAIN_MIN, DRAIN_ASSIST = 0.11, -0.06  -- alan dışında boşalma
+local ZONE_SPEED_ASSIST = -0.45              -- alanın kayma hızı çarpanına katkı
+local RISE = 2.1           -- basılıyken yukarı ivme
+local FALL = 1.8           -- bırakınca aşağı ivme
+local MAX_V = 1.0
 local START = 0.25
 -- Kapsülün içinde uçarken yatay hız (stud/sn)
 local FLOAT_SPEED = 9
--- Tur arası: sunucunun beklemesi (CatchCooldown) dolmadan çubuk dolamasın
-local INTRO = math.max(1.5, Config.Capsule.CatchCooldown - (1 - START) / FILL + 0.1)
+
+type Tuning = { zoneH: number, fill: number, drain: number, zoneMul: number, intro: number }
+
+--[[ Training Console seviyesine göre o anki ayarlar. ]]
+local function tuning(): Tuning
+	local level = Players.LocalPlayer:GetAttribute("Upg_TrainingConsole")
+	local a = Config.GetTrainingAssist(if typeof(level) == "number" then level else 0)
+	local fill = FILL_MIN + FILL_ASSIST * a
+	return {
+		zoneH = ZONE_H_MIN + ZONE_H_ASSIST * a,
+		fill = fill,
+		drain = DRAIN_MIN + DRAIN_ASSIST * a,
+		zoneMul = 1 + ZONE_SPEED_ASSIST * a,
+		-- Tur arası: sunucunun beklemesi (CatchCooldown) dolmadan çubuk dolamasın
+		intro = math.max(1.5, Config.Capsule.CatchCooldown - (1 - START) / fill + 0.1),
+	}
+end
 
 local function speed(): number
 	local v = player:GetAttribute("SpaceSpeed")
@@ -216,7 +238,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local zone = Instance.new("Frame")
 	zone.Name = "Zone"
 	zone.AnchorPoint = Vector2.new(0, 0.5)
-	zone.Size = UDim2.new(1, 0, ZONE_H, 0)
+	zone.Size = UDim2.new(1, 0, ZONE_H_MIN, 0)
 	zone.BackgroundColor3 = Color3.fromRGB(80, 230, 90)
 	zone.BackgroundTransparency = 0.25
 	zone.BorderSizePixel = 0
@@ -546,17 +568,19 @@ function CapsuleFX.Start(screen: Instance): Handle
 				rocketY = 1
 				rocketV = 0
 			end
-			-- Alan rastgele hedeflere kayıyor; seviye yükseldikçe biraz hızlı
+			-- Alan rastgele hedeflere kayıyor (sık ve hızlı); Training Console yavaşlatıyor
+			local t = tuning()
+			zone.Size = UDim2.new(1, 0, t.zoneH, 0)
 			if now >= nextTarget then
-				nextTarget = now + 0.9 + math.random() * 1.3
-				zoneTarget = ZONE_H / 2 + math.random() * (1 - ZONE_H)
-				zoneSpeed = 0.15 + math.random() * 0.2 + math.min(0.1, capsuleLevel() * 0.005)
+				nextTarget = now + 0.6 + math.random() * 1.1
+				zoneTarget = t.zoneH / 2 + math.random() * (1 - t.zoneH)
+				zoneSpeed = (0.26 + math.random() * 0.28 + math.min(0.12, capsuleLevel() * 0.006)) * t.zoneMul
 			end
 			local d = zoneTarget - zoneC
 			zoneC += math.sign(d) * math.min(math.abs(d), zoneSpeed * dt)
 
-			local inZone = math.abs(rocketY - zoneC) <= ZONE_H / 2
-			progress = math.clamp(progress + (if inZone then FILL else -DRAIN) * dt, 0, 1)
+			local inZone = math.abs(rocketY - zoneC) <= t.zoneH / 2
+			progress = math.clamp(progress + (if inZone then t.fill else -t.drain) * dt, 0, 1)
 			zone.BackgroundTransparency = if inZone then 0.05 else 0.35
 			if progress >= 1 then
 				-- Sunucu da aynı bonusu hesaplıyor; burada gösterim
@@ -564,7 +588,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 				catchRemote:FireServer()
 				SoundFX.Success()
 				popup(gameFrame, string.format("+%.2f SPEED!", bonus), CardKit.YELLOW, 26, UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2))
-				newRound(INTRO)
+				newRound(tuning().intro)
 			elseif progress <= 0 then
 				SoundFX.Deny()
 				popup(gameFrame, "MISSED!", Color3.fromRGB(255, 110, 110), 24, UDim2.new(0.5, 0, 0, TRACK_Y + 30))

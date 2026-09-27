@@ -127,11 +127,12 @@ local PASSES: { Entry } = {
 	{ key = "TripleHatch", kind = "pass", title = "Triple Hatch", art = "TripleHatch", icon = "egg",
 		tint = Color3.fromRGB(160, 80, 235), blurb = "Hatch " .. hi("3 eggs", "#FFE13C") .. " at once, same wait!" },
 	{ key = "FastSteal", kind = "pass", title = "Fast Steal", art = "FastSteal", icon = "bolt",
-		tint = Color3.fromRGB(240, 110, 40), blurb = "Steal " .. hi("40% faster", "#FFE13C") .. " from every base!" },
+		tint = Color3.fromRGB(240, 110, 40), blurb = "Grab crewmates in space " .. hi("40% faster", "#FFE13C") .. "!" },
 	{ key = "ExtraPodiums", kind = "pass", title = "+2 Podiums", art = "ExtraPodiums", icon = "podium",
 		tint = Color3.fromRGB(50, 130, 235), blurb = hi("2 extra", "#7CFF5B") .. " podiums on every floor!" },
-	{ key = "StrongLock", kind = "pass", title = "Strong Lock", art = "StrongLock", icon = "lock",
-		tint = Color3.fromRGB(30, 170, 190), blurb = "Your lock holds " .. hi("longer", "#FFE13C") .. " and recharges faster!" },
+	-- Kimlik eski (Roblox'taki pass "Strong Lock"); 2026-09-28'den beri canavar kalkanı
+	{ key = "StrongLock", kind = "pass", title = "Monster Shield", art = "StrongLock", icon = "lock",
+		tint = Color3.fromRGB(30, 170, 190), blurb = "Break free when a monster " .. hi("catches you", "#FFE13C") .. " (every 60s)!" },
 }
 
 local MONEY: { Entry } = {
@@ -150,7 +151,7 @@ local POTIONS: { Entry } = {
 		tint = Color3.fromRGB(214, 150, 20), blurb = "" },
 	{ key = "PotionFastSteal", kind = "product", title = "Fast Hands", art = "Potion_FastSteal", icon = "vial",
 		tint = Color3.fromRGB(226, 84, 60), blurb = "" },
-	{ key = "PotionStrongLock", kind = "product", title = "Strong Lock", art = "Potion_StrongLock", icon = "vial",
+	{ key = "PotionStrongLock", kind = "product", title = "Monster Shield", art = "Potion_StrongLock", icon = "vial",
 		tint = Color3.fromRGB(40, 140, 220), blurb = "" },
 }
 
