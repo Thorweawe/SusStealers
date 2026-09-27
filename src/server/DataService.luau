@@ -33,6 +33,8 @@ export type Profile = {
 	version: number,
 	cash: number,
 	stolen: number,
+	-- Uzay yürüyüşünden kurtarılıp üsse getirilen mürettebat (SpaceService)
+	salvaged: number,
 	rebirths: number,
 	units: { StoredUnit },
 	-- Çevrimdışı gelir hesabı için: son görülme ve o andaki kazanç hızı
@@ -168,6 +170,7 @@ local function newProfile(): Profile
 		version = 1,
 		cash = Config.StartingCash,
 		stolen = 0,
+		salvaged = 0,
 		rebirths = 0,
 		units = {},
 		lastSeen = 0,
@@ -258,7 +261,7 @@ local function sanitize(raw: any): Profile
 		profile.lastSpinAt = math.floor(raw.lastSpinAt)
 	end
 
-	for _, field in { "robbed", "caught", "maxStreak", "bought", "sold", "spins", "earned" } do
+	for _, field in { "robbed", "caught", "maxStreak", "bought", "sold", "spins", "earned", "salvaged" } do
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)

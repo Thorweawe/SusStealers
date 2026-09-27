@@ -652,6 +652,16 @@ Config.Tutorial = {
 		text = "Walk into another base, hold the prompt on a podium, then carry it home.",
 		check = "steals", goal = 1, reward = 4000,
 	},
+	--[[
+		Sunucuda kimse yokken çalma döngüsü kayboluyordu: uzay yürüyüşü
+		(SpaceService) tek başına da oynanıyor. Çalma adımının hemen
+		arkasında ki yalnız oyuncu "çalamadım" deyip kalmasın.
+	]]
+	{
+		id = "Space", title = "Rescue a lost crewmate", hint = "Airlock",
+		text = "Go through the airlock, grab a crewmate floating in space and outrun the Void Beasts back!",
+		check = "salvaged", goal = 1, reward = 6000,
+	},
 	{
 		id = "Lock", title = "Lock your base", hint = "Sign",
 		text = "Hold the prompt on your base sign. Nobody can steal while the lock holds.",
@@ -2669,5 +2679,97 @@ function Config.FormatCash(amount: number): string
 	end
 	return string.format("%.2f%s", value, suffixes[index])
 end
+
+-- ─── Uzay yürüyüşü ──────────────────────────────────────────────────────────
+--[[
+	Kafeteryadaki hava kilidinden geminin dışına çıkılıyor: asteroit yağan
+	bir kaya yolundan Void Beast yuvasına yürünüp balonlarda süzülen kayıp
+	mürettebatlar kapılıyor, canavarlar kovalarken rıhtıma kaçılıyor.
+	Rıhtıma varan karakter doğrudan üssün boş kaidesine gidiyor.
+
+	NEDEN: sunucuda kimse yokken oyunun asıl olayı (çalma) kayboluyordu.
+	Uzay yürüyüşü tek başına da çalma heyecanını veriyor; oyuncular varken
+	de ikinci bir yol.
+
+	HIZLAR BİLEREK GEMİDEKİNDEN FARKLI: gemide taşırken yavaş olmak çalmanın
+	riskiydi; uzayda yavaşlık eğlenceyi öldürür. Burada risk asteroitler
+	ve canavarlar. Canavarın tavan hızı taşırken koşmanın altında: iyi
+	kaçan kurtulur, asteroide çarpan (savrulup duran) yakalanır.
+
+	Geometri ve asteroit hesabı: shared/SpaceField (sunucu + istemci aynı).
+]]
+export type SpaceLane = {
+	z: number,       -- yol boyunca yeri (Origin'e göre, negatif)
+	speed: number,   -- stud/sn
+	period: number,  -- iki geçiş arası sn (speed × period > LaneSpan olmalı)
+	radius: number,
+	height: number,  -- zeminden merkez yüksekliği
+	dir: number,     -- 1 soldan sağa, -1 sağdan sola
+	phase: number,
+}
+export type SpaceSegment = { z0: number, z1: number }
+
+Config.Space = {
+	-- Geminin çok uzağında, yukarıda (pencerelerden uzak bir kaya yolu gibi görünüyor)
+	Origin = Vector3.new(180, 520, -1150),
+	DockHalf = Vector2.new(22, 20),     -- rıhtım yarı genişliği (x) ve yarı derinliği (z)
+	PathHalfWidth = 16,
+	-- Yol parçaları (z0 > z1). Aralar 12 stud: düşük yerçekiminde rahat atlanıyor
+	Segments = {
+		{ z0 = -20, z1 = -84 },
+		{ z0 = -96, z1 = -158 },
+		{ z0 = -170, z1 = -232 },
+		{ z0 = -244, z1 = -300 },
+	} :: { SpaceSegment },
+	NestZ = -362,
+	NestRadius = 62,
+	NestSpots = 6,
+	SpotRing = 36,
+	SpotHeight = 4.5,
+	MonsterCount = 3,
+	MonsterHover = 9,
+	LaneSpan = 200,
+	Lanes = {
+		{ z = -45,  speed = 30, period = 6.8, radius = 4.5, height = 3.5, dir = 1,  phase = 0.0 },
+		{ z = -68,  speed = 36, period = 6.2, radius = 5.0, height = 4.0, dir = -1, phase = 1.7 },
+		{ z = -115, speed = 34, period = 6.6, radius = 5.5, height = 4.0, dir = 1,  phase = 0.9 },
+		{ z = -140, speed = 40, period = 5.8, radius = 4.0, height = 3.0, dir = -1, phase = 3.1 },
+		{ z = -190, speed = 38, period = 6.0, radius = 6.0, height = 4.5, dir = 1,  phase = 2.2 },
+		{ z = -214, speed = 32, period = 7.0, radius = 4.5, height = 3.5, dir = -1, phase = 0.4 },
+		{ z = -262, speed = 42, period = 5.4, radius = 5.0, height = 4.0, dir = 1,  phase = 1.1 },
+		{ z = -285, speed = 36, period = 6.4, radius = 6.5, height = 5.0, dir = -1, phase = 2.8 },
+	} :: { SpaceLane },
+	FallDepth = 60,             -- yolun bu kadar altına düşen rıhtıma döner (taşıdığını düşürür)
+
+	-- Hareket (gemide: yürüme 16, koşma 24, taşıma en fazla 10)
+	Gravity = 55,               -- istemcide, yalnızca uzaydayken (normali 196.2)
+	JumpHeight = 14,
+	WalkSpeed = 24,
+	SprintSpeed = 32,
+	CarrySpeed = 22,
+	CarrySprintSpeed = 27,
+
+	GrabHold = 1.0,             -- balondaki mürettebatı kapma (gemide çalma ~4 sn)
+	SpotRespawn = 10,           -- boşalan balona yeni mürettebat
+	RollLevel = 4,              -- balondakilerin çekildiği havuz (konveyör seviyesi gibi)
+
+	-- Void Beast
+	MonsterWakeDelay = 1.2,     -- kapınca kükreyip bu kadar sonra kovalamaya başlıyor
+	MonsterSpeed = 16,
+	MonsterMaxSpeed = 24.5,     -- taşırken koşmanın (27) altında
+	MonsterAccel = 1.6,         -- sn başına hız artışı
+	MonsterReturnSpeed = 30,
+	MonsterCatchRadius = 8.5,
+	MonsterSwipeRadius = 11,    -- yuvada boş elle yaklaşanı savuruyor
+	MonsterSwipeCooldown = 2.5,
+
+	-- Çarpmalar
+	HitImmunity = 2.2,
+	AsteroidKnock = 75,
+	AsteroidStun = 1.1,
+	MonsterKnock = 95,
+	MonsterStun = 1.6,
+	HitTolerance = 9,           -- sunucu doğrulamasında ağ gecikmesi payı (stud)
+}
 
 return Config

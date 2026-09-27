@@ -13,6 +13,24 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (30) — Batur (Yusuf'un şeridine de yazıldı)
+
+- **Uzay yürüyüşü (yeni):** kimse yokken de çalma heyecanı olsun diye.
+  - Kafeteryanın kuzeydoğu pah duvarında **hava kilidi** (`workspace.SpaceAirlock`, "Space Walk" promptu).
+  - Gemiden uzakta **uzay alanı** (`workspace.SpaceZone`, kalıcı, çalışma anında kuruluyor):
+    rıhtım → asteroitli kaya yolu (12 studluk boşluklar) → Void Beast yuvası (6 balon, 3 canavar).
+  - Balondan mürettebat kap (1 sn) → canavarlar kükreyip kovalıyor (16 → 24.5 hız) → rıhtıma
+    varınca üssün boş kaidesine. Yakalanırsa / asteroit çarparsa / düşerse karakter balonuna döner.
+  - Uzayda hızlar ayrı (`Config.Space`): yürüme 24, koşma 32, taşıma 22, taşırken koşma 27;
+    `StealService.applyWalkSpeed` "InSpace"/"SpaceCarry" niteliklerine bakıyor. Yerçekimi 55 istemcide.
+  - Asteroitler deterministik (`shared/SpaceField`): istemci çiziyor ve çarpmayı bildiriyor
+    (`SpaceHit`, yalnızca oyuncunun aleyhine), sunucu aynı formülle doğruluyor.
+  - İstemci: `SpaceFX` (asteroitler, şerit uyarıları, görev kartı + ok, tehlike kenarı, savrulma).
+    Taşınan model adı `SpaceCarry` (gemideki `CarriedUnit` sistemleri karışmasın).
+- **Öğretici:** çalma adımından sonra "Rescue a lost crewmate" (sayaç `profile.salvaged`, hint `Airlock`).
+  Yalnızken çalma adımı atlanınca uzay yürüyüşünü öneriyor. `TutorialUI` uzaydayken ok/ışın çizmiyor.
+- Studio'ya aktarıldı, 176 test temiz; kovalama ve yakalama oyunda ölçülerek denendi.
+
 ## 2026-09-27 (29) — Batur
 
 - **Taşıma hızı ikinci tur:** yükseltme en fazla +2, pet en fazla +1, tavan 10 (normal 16).

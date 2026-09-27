@@ -459,6 +459,9 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 			local decor = workspace:FindFirstChild("Decor")
 			local hatchery = decor and decor:FindFirstChild("Hatchery", true)
 			return hatchery and hatchery:FindFirstChild("Egg1")
+		elseif hint == "Airlock" then
+			local airlock = workspace:FindFirstChild("SpaceAirlock")
+			return airlock and airlock:FindFirstChild("AirlockPad")
 		elseif hint == "GearShop" then
 			local decor = workspace:FindFirstChild("Decor")
 			local shop = decor and decor:FindFirstChild("GearShop", true)
@@ -502,7 +505,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 				setTarget(found)
 			end
 		end
-		if not (currentTarget and currentTarget.Parent and frame.Visible) then
+		-- Uzay yürüyüşünde hedef gemide kalıyor; ok ve ışın yerine SpaceFX'in kartı yol gösteriyor
+		if not (currentTarget and currentTarget.Parent and frame.Visible) or player:GetAttribute("InSpace") then
 			compass.Visible = false
 			beam.Enabled = false
 			return

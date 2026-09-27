@@ -38,6 +38,7 @@ local SabotageService = require(script.SabotageService)
 local RogueService = require(script.RogueService)
 local AdminMapService = require(script.AdminMapService)
 local SettingsService = require(script.SettingsService)
+local SpaceService = require(script.SpaceService)
 
 local started = os.clock()
 
@@ -80,5 +81,7 @@ EventService.Start()
 RogueService.Start()
 AdminMapService.Start()
 SettingsService.Start()
+-- Uzay yürüyüşü: kafeteryadaki hava kilidini ve uzay alanını kuruyor (harita yüklendikten sonra)
+SpaceService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

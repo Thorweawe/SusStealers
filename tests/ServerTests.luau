@@ -57,6 +57,8 @@ local SabotageService = require(Server.SabotageService)
 local RogueService = require(Server.RogueService)
 local AdminMapService = require(Server.AdminMapService)
 local SettingsService = require(Server.SettingsService)
+local SpaceService = require(Server.SpaceService)
+local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
 local ServerTests = {}
 
@@ -1391,7 +1393,7 @@ end)
 case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
 		units = true, steals = true, upgrades = true,
-		spins = true, locksUsed = true, tasks = true, pets = true, gear = true,
+		spins = true, locksUsed = true, tasks = true, pets = true, gear = true, salvaged = true,
 	}
 
 	local ids = {}
@@ -1689,6 +1691,9 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 		Hatchery = function()
 			local t = TutorialService._TargetFor(ctx.player, "Hatchery")
 			return if t and t.Name == "Egg1" then t else nil
+		end,
+		Airlock = function()
+			return TutorialService._TargetFor(ctx.player, "Airlock")
 		end,
 		GearShop = function()
 			local t = TutorialService._TargetFor(ctx.player, "GearShop")
@@ -2290,12 +2295,13 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		süresi sunucuda (MinigameService.TryComplete, testi aşağıda).
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
-		Sınır on sekizde (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
-		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları için
-		eklendi; gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar
-		olsun, kazara büyümesin.
+		Sınır on dokuzda (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
+		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları, SpaceHit
+		uzayda asteroit çarpması — yalnızca oyuncunun aleyhine — için eklendi;
+		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
+		kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 18, tostring(#listened))
+	ok("liste bilinçli", #listened <= 19, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -3974,6 +3980,129 @@ case("Admin masası: bölgeler ölçülüyor, konum doğru odaya düşüyor", fu
 	ok("kendi üssü kırmızı değil", frame ~= nil and frame.BackgroundColor3 ~= Color3.fromRGB(200, 50, 60))
 end)
 
+-- ─── Uzay yürüyüşü ──────────────────────────────────────────────────────────
+
+case("Uzay: yol oynanabilir, asteroitler yalnızca yolun üstünden geçiyor", function()
+	local sp = Config.Space
+	local previous = -sp.DockHalf.Y
+	for i, seg in sp.Segments do
+		ok("parça " .. i .. " sıralı", seg.z0 > seg.z1)
+		local gap = previous - seg.z0
+		ok("parça " .. i .. " önündeki boşluk atlanabilir", gap >= 0 and gap <= 14, tostring(gap))
+		previous = seg.z1
+	end
+	local nestEdge = sp.NestZ + sp.NestRadius
+	ok("son parça yuvaya bağlı", math.abs(previous - nestEdge) <= 2, string.format("%d / %d", previous, nestEdge))
+
+	for i, lane in sp.Lanes do
+		ok(i .. ". şerit dönüyor (hız × periyot > açıklık)", lane.speed * lane.period > sp.LaneSpan)
+		local onPath = false
+		for _, seg in sp.Segments do
+			if lane.z < seg.z0 - lane.radius and lane.z > seg.z1 + lane.radius then
+				onPath = true
+			end
+		end
+		ok(i .. ". şerit bir yol parçasının üstünde", onPath, tostring(lane.z))
+		-- Yolun üstünde geçirdiği süre periyodun yarısından kısa: geçiş penceresi var
+		local busy = (sp.PathHalfWidth * 2 + lane.radius * 2) / lane.speed
+		ok(i .. ". şeridin arasından geçilebiliyor", busy < lane.period / 2, string.format("%.1f / %.1f", busy, lane.period))
+	end
+	eq("balon sayısı", #SpaceField.SpotPositions(), sp.NestSpots)
+	eq("canavar sayısı", #SpaceField.MonsterHomes(), sp.MonsterCount)
+end)
+
+case("Uzay: asteroit hesabı sunucu ile istemcide aynı", function()
+	local lane = Config.Space.Lanes[1]
+	-- Periyodun başı: açıklığın bir ucunda görünür
+	local t0 = -lane.phase + lane.period * 100
+	local p = SpaceField.AsteroidAt(lane, t0)
+	ok("başta görünür", p ~= nil)
+	-- Açıklığı geçtikten sonra gizli
+	local hidden = SpaceField.AsteroidAt(lane, t0 + Config.Space.LaneSpan / lane.speed + 0.05)
+	ok("açıklıktan sonra yok", hidden == nil)
+	-- Yolun ortasındayken
+	local mid = t0 + (Config.Space.LaneSpan / 2) / lane.speed
+	local midPos = SpaceField.AsteroidAt(lane, mid) :: Vector3
+	near("ortada x", midPos.X, Config.Space.Origin.X, 0.01)
+	eq("çarpma algılanıyor", SpaceField.HitAt(mid, midPos, 1), 1)
+	ok("uzaktaki nokta çarpmıyor", SpaceField.HitAt(mid, midPos + Vector3.new(0, 40, 0), 1) == nil)
+	ok("sunucu doğrulaması tutuyor", SpaceField.CameNear(1, mid - 0.2, mid + 0.2, midPos, 1))
+	ok("başka anda tutmuyor", not SpaceField.CameNear(1, mid + 2.5, mid + 2.8, midPos, 1))
+	eq("ortadayken geçiş şimdi", SpaceField.SecondsUntilCrossing(lane, mid), 0)
+	ok("başta geçişe süre var", SpaceField.SecondsUntilCrossing(lane, t0) > 0)
+end)
+
+case("Uzay: hızlar gemidekinden yüksek, canavar kaçılabilir", function()
+	local sp = Config.Space
+	ok("yürüme gemidekinden hızlı", sp.WalkSpeed > Config.NormalWalkSpeed)
+	ok("koşma gemidekinden hızlı", sp.SprintSpeed > Config.SprintWalkSpeed)
+	ok("taşıma gemidekinin çok üstünde", sp.CarrySpeed > Config.CarryWalkSpeedMax * 1.5)
+	ok("taşırken koşmak canavarın tavanından hızlı", sp.CarrySprintSpeed > sp.MonsterMaxSpeed)
+	ok("canavar yürüyerek taşıyanı zamanla yakalayabiliyor", sp.MonsterMaxSpeed > sp.CarrySpeed)
+	ok("canavar yavaş başlıyor", sp.MonsterSpeed < sp.CarrySpeed)
+	ok("kapmak gemide çalmaktan hızlı", sp.GrabHold < Config.StealHoldTime)
+end)
+
+case("Uzay: gir, kap, düşür, teslim et, çık", function(ctx)
+	local character = ctx.player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	ok("karakter var", humanoid ~= nil)
+	if not (character and humanoid) then
+		return
+	end
+	local startCf = character:GetPivot()
+	clearPlot(ctx.plot)
+	ok("hava kilidi kurulu", workspace:FindFirstChild("SpaceAirlock") ~= nil and SpaceService.GetAirlock() ~= nil)
+	ok("uzay alanı kurulu", workspace:FindFirstChild("SpaceZone") ~= nil)
+
+	SpaceService._Enter(ctx.player)
+	ok("uzayda", ctx.player:GetAttribute("InSpace") == true)
+	eq("uzay yürüyüş hızı", humanoid.WalkSpeed, Config.Space.WalkSpeed)
+	eq("uzay zıplaması", humanoid.JumpHeight, Config.Space.JumpHeight)
+	ok("rıhtımda", SpaceField.InDock(character:GetPivot().Position))
+
+	local unitId, mutationId = SpaceService._Spot(1)
+	ok("balonda mürettebat var", unitId ~= nil)
+	SpaceService._Grab(ctx.player, 1)
+	ok("taşıyor", SpaceService.IsCarrying(ctx.player))
+	ok("sırtında (CarriedUnit değil)", character:FindFirstChild("SpaceCarry") ~= nil and character:FindFirstChild("CarriedUnit") == nil)
+	eq("balon boşaldı", (SpaceService._Spot(1)), nil)
+	eq("taşıma hızı", humanoid.WalkSpeed, Config.Space.CarrySpeed)
+	local awake = 0
+	for _, m in SpaceService._Monsters() do
+		if m.state == "wake" or m.state == "chase" then
+			awake += 1
+		end
+	end
+	eq("canavarlar uyandı", awake, Config.Space.MonsterCount)
+
+	SpaceService._Drop(ctx.player)
+	ok("düşürdü", not SpaceService.IsCarrying(ctx.player))
+	local back, backMutation = SpaceService._Spot(1)
+	eq("aynı mürettebat balona döndü", back, unitId)
+	eq("mutasyonu da", backMutation, mutationId)
+
+	local before = ctx.profile.salvaged or 0
+	SpaceService._Grab(ctx.player, 1)
+	SpaceService._Deliver(ctx.player)
+	ok("teslim edildi", not SpaceService.IsCarrying(ctx.player))
+	local placed = false
+	for _, podium in PlotService.GetUnlockedPodiums(ctx.plot) do
+		if podium:GetAttribute("UnitId") == unitId then
+			placed = true
+		end
+	end
+	ok("üssün kaidesinde", placed)
+	eq("sayaç arttı", ctx.profile.salvaged, before + 1)
+
+	SpaceService._Exit(ctx.player)
+	ok("gemide", ctx.player:GetAttribute("InSpace") == nil)
+	eq("normal hız", humanoid.WalkSpeed, Config.NormalWalkSpeed)
+	ok("zıplama geri geldi", humanoid.JumpHeight < Config.Space.JumpHeight)
+	character:PivotTo(startCf)
+	clearPlot(ctx.plot)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -4026,6 +4155,7 @@ function ServerTests.Run(player: Player?): number
 		maxStreak = profile.maxStreak,
 		tutorialStep = profile.tutorialStep,
 		stolen = profile.stolen,
+		salvaged = profile.salvaged,
 		titleManual = profile.titleManual,
 		activeTitle = profile.activeTitle,
 		quests = profile.quests,
@@ -4141,6 +4271,7 @@ function ServerTests.Run(player: Player?): number
 	profile.maxStreak = backup.maxStreak
 	profile.tutorialStep = backup.tutorialStep
 	profile.stolen = backup.stolen
+	profile.salvaged = backup.salvaged
 	profile.titleManual = backup.titleManual
 	profile.activeTitle = backup.activeTitle
 	profile.quests = backup.quests

@@ -44,6 +44,8 @@ local EVENTS = {
 	"SettingsSave", -- client -> server (settings: { music: number, sfx: number, shake: boolean })
 	"GearFX",       -- server -> client (kind: "use"|"hit"|"cloak", ...) — ekipman animasyon/etkileri
 	"CodeResult",   -- server -> client (ok: boolean, message: string) — mağazadaki kod kutusu
+	"SpaceFX",      -- server -> client (kind: "enter"|"exit"|"roar"|"knock"|"delivered", ...) — uzay yürüyüşü
+	"SpaceHit",     -- client -> server (laneIndex: number, serverTime: number) — asteroit çarptı
 }
 
 --[[
@@ -159,6 +161,15 @@ local CLIENT_TO_SERVER = {
 		sayılıyor, sıklık sınırlı.
 	]]
 	SettingsSave = true,
+	--[[
+		SpaceHit hiçbir şey VERMİYOR, yalnızca oyuncunun KENDİ aleyhine:
+		"bana asteroit çarptı" → taşıdığı kayıp mürettebatı düşürüyor.
+		Sunucu asteroidin o anda gerçekten o noktadan geçtiğini aynı
+		formülle doğruluyor (SpaceField.CameNear), sıklık çarpma
+		dokunulmazlığıyla sınırlı. Hile ile hiç göndermemek yalnızca
+		oyunu kolaylaştırıyor.
+	]]
+	SpaceHit = true,
 }
 
 local Net = {}

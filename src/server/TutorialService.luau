@@ -143,6 +143,9 @@ local function checkValue(player: Player, check: string): number
 		end
 		return found
 
+	elseif check == "salvaged" then
+		return profile.salvaged or 0
+
 	elseif check == "gear" then
 		local owned = 0
 		for _, has in profile.gear do
@@ -211,6 +214,11 @@ local function targetFor(player: Player, hint: string): Instance?
 		local decor = workspace:FindFirstChild("Decor")
 		local hatchery = decor and decor:FindFirstChild("Hatchery", true)
 		return hatchery and (hatchery:FindFirstChild("Egg1") or hatchery)
+
+	elseif hint == "Airlock" then
+		-- Kafeteryadaki hava kilidi (SpaceService kuruyor)
+		local airlock = workspace:FindFirstChild("SpaceAirlock")
+		return airlock and (airlock:FindFirstChild("AirlockPad") or airlock:FindFirstChild("Hatch"))
 
 	elseif hint == "GearShop" then
 		-- Klasörün kendisi vurgulanamıyor; dükkân tezgâhındaki ilk promptun parçası
@@ -378,7 +386,7 @@ function TutorialService.Check(player: Player)
 			end
 			if aloneLongEnough(player) then
 				done = true
-				notify(player, "No rival crew aboard right now - you'll steal once someone joins!", false)
+				notify(player, "No rivals aboard - space walk to steal from the Void Beasts instead!", false)
 			elseif os.clock() - since >= Config.TutorialStealGiveUpSeconds then
 				done = true
 				notify(player, "Stealing takes practice - keep trying later!", false)
