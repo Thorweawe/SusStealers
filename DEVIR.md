@@ -13,6 +13,13 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (40) — Batur (harita)
+
+- **Koridor kemerleri KALKTI** ("gereksiz"). `tools/map/arches.luau` artık **iç gövde kavisi**: kuzey, güney ve batı duvarının tavanla birleştiği köşede büyük içbükey kavis (R 13, CSG kutu − silindir), 36 stud'da bir kaburga, alt kenarında camgöbeği neon; tavan cam şeridi kenarında neon hat. Lombozların üstünde başlıyor.
+- Etkilenenler denetlendi: kavis eski tavan ışık bandını (Cove/CoveLip), kornişi örtüyor (ışığı neon veriyor). Zemin kavisi denendi ve kaldırıldı: duvar dibindeki vent kapaklarını ve oda eşyalarını örtüyordu. Harita 0/0.
+
+---
+
 ## 2026-09-28 (39) — Batur (harita)
 
 Harita tam kuruldu (0/0), **173/173 test temiz**. Kod değişmedi, yalnızca `tools/`.

@@ -1,83 +1,100 @@
 --!strict
 --[[
-	Omurga koridorunun kemerleri (2026-09-28, "içeriden bakınca dümdüz
-	dikdörtgen; kavisli hissiyat olsun" — referans: bilim kurgu koridoru,
-	lacivert yay çerçeveler, içlerinde camgöbeği neon).
+	İç gövde kavisleri (2026-09-28, "duvarlar hâlâ dümdüz, kavisli olsun,
+	geminin içindeymiş hissi versin"; önceki koridor kemerleri kalktı).
 
-	Omurga (SPINE_Z0..SPINE_Z1, 60 stud geniş) boyunca, odaların ARASINDAKİ
-	boşluk hizalarında (ve iki uçta) yarım daire kemer: iki ayak koridor
-	kenarında, yay tavanın hemen altında; tavandaki cam şerit kemerlerin
-	arasından görünüyor. Yay CSG (silindir − iç silindir − alt yarı),
-	K.carved ile boyut başına bir kez kesiliyor.
+	Uzun duvarlar (kuzey, güney) ve batı duvarı:
+	  - ÜST KAVİS: duvarın tavanla birleştiği köşede büyük içbükey kavis
+	    (kutu − silindir, CSG): duvar tavana eğrilerek dönüyor, gövdenin
+	    içi gibi. Lombozların (y ~24..37) üstünde başlıyor, onları kapatmıyor.
+	  - Kavis boyunca aralıklı kaburgalar (biraz daha içeri taşan dilim).
+	  - Kavisin alt kenarında camgöbeği neon hat.
+	  (Zemin kavisi denendi, KALDIRILDI: duvar dibindeki vent kapaklarını ve
+	  oda eşyalarını örtüyordu. Üst kavis yalnızca eski tavan ışık bandını,
+	  kornişi örtüyor; ışığı neon hat veriyor.)
+	Tavan cam şeridinin kenarında neon hat duruyor.
 
-	Kemerler çarpışmasız (hayalet): odaların önü koridora tamamen açık
-	kalmalı (OYUNU ENGELLEMEME KURALI), ayaklar kimseyi takmıyor.
+	Hepsi hayalet (çarpışmasız); oynanan alan değişmiyor.
 ]]
 
 return {
-	folders = { "Arches" },
+	folders = { "Arches", "InteriorCurves" },
 
 	build = function(K: any)
 		local M, C = K.M, K.C
 		local rgb = K.rgb
 		local FLOOR = M.TILE_TOP
-		local f = K.folder("Arches")
+		local f = K.folder("InteriorCurves")
 
-		local frame = rgb(34, 62, 138)
-		local frameDark = rgb(20, 36, 84)
+		local shell = rgb(206, 214, 224)
+		local rib = rgb(160, 172, 188)
 		local neon = rgb(70, 220, 255)
 
-		local z0, z1 = M.SPINE_Z0, M.SPINE_Z1
-		local cz = (z0 + z1) / 2
-		local R = (z1 - z0) / 2          -- dış yarıçap: koridor kenarından kenarına
-		local band = 2.8                 -- çerçeve kalınlığı (radyal)
-		local depth = 3.2                -- koridor boyunca kalınlık
-		local springY = FLOOR + 20       -- yayın başladığı yükseklik (tavan ~51)
-		local turned = CFrame.identity   -- silindir ekseni X = koridor boyu
+		local ceilY = M.WALL_H          -- tavanın alt yüzü (duvar tepesi)
+		local R = 13                    -- üst kavis yarıçapı
 
-		local function halfRing(name: string, outer: number, inner: number, d: number, color: Color3, at: CFrame, emit: boolean?)
-			local key = string.format("arch %.2f %.2f %.2f", outer, inner, d)
-			local p = K.carved(f, name, at, color, key, function()
-				local body = K.boxAt(workspace, "Body", turned, Vector3.new(d, outer * 2, outer * 2), color, { shape = Enum.PartType.Cylinder })
-				local hole = K.boxAt(workspace, "Hole", turned, Vector3.new(d + 2, inner * 2, inner * 2), color, { shape = Enum.PartType.Cylinder })
-				local lower = K.boxAt(workspace, "Lower", CFrame.new(0, -(outer + 1) / 2, 0), Vector3.new(d + 2, outer + 1, outer * 2 + 2), color)
-				return body, { hole, lower }
+		--[[
+			Köşe kavisi: yerel çerçevede köşe (0,0,0), duvar yüzü z=0 (içerisi
+			+z), `up` true ise tavan y=0 (kavis aşağıda), değilse zemin y=0
+			(kavis yukarıda). Uzunluk X boyunca.
+		]]
+		local function fillet(name: string, len: number, radius: number, up: boolean, at: CFrame, color: Color3, grow: number?)
+			local g = grow or 0
+			local sy = if up then -1 else 1
+			local key = string.format("fillet %.2f %.2f %s %.2f", len, radius, tostring(up), g)
+			return K.carved(f, name, at, color, key, function()
+				local body = K.boxAt(workspace, "Body", CFrame.new(0, sy * radius / 2, radius / 2), Vector3.new(len, radius, radius), color)
+				local cut = K.boxAt(workspace, "Cut", CFrame.new(0, sy * radius, radius), Vector3.new(len + 2, (radius - g) * 2, (radius - g) * 2), color,
+					{ shape = Enum.PartType.Cylinder })
+				return body, { cut }
 			end, false)
-			if emit then
-				p.Material = Enum.Material.Neon
-				p.CastShadow = false
-			end
-			return p
 		end
 
-		-- Kemer hizaları: odalar arası boşluklar + iki uç (reaktör ve kokpit önü)
-		local xs = { M.IX0 + 36 }
-		for i = 1, M.COLUMNS - 1 do
-			table.insert(xs, K.plotOrigin(i).X + M.PLOT_SPACING / 2)
+		-- Duvarlar: iç yüz çizgisi, içeri yön, uzunluk
+		type Side = { name: string, cf: CFrame, len: number, doors: { { number } } }
+		local space = K.Config.Space or {}
+		local gateX = space.GateX or M.centerX
+		local gateW = space.GateWidth or M.GATE_W
+		local southDoors = { { M.centerX - M.GATE_W / 2, M.centerX + M.GATE_W / 2 } }
+		for _, x in M.ANNEX_X do
+			table.insert(southDoors, { x - M.ANNEX_DOOR_W / 2, x + M.ANNEX_DOOR_W / 2 })
 		end
-		table.insert(xs, M.IX1 - 36)
+		local lenX = M.IX1 - M.IX0
+		local midX = (M.IX0 + M.IX1) / 2
+		local sides: { Side } = {
+			-- Kuzey: iç yüz z = IZ0, içerisi +z
+			{ name = "North", cf = CFrame.new(midX, 0, M.IZ0), len = lenX, doors = { { gateX - gateW / 2, gateX + gateW / 2 } } },
+			-- Güney: iç yüz z = IZ1, içerisi -z (Y çevresinde 180°; X de ters döner)
+			{ name = "South", cf = CFrame.new(midX, 0, M.IZ1) * CFrame.Angles(0, math.pi, 0), len = lenX, doors = southDoors },
+		}
 
-		for _, x in xs do
-			local center = CFrame.new(x, springY, cz)
-			halfRing("ArchFrame", R, R - band, depth, frame, center)
-			-- İçteki neon şerit (çerçevenin iç yüzünde, daha ince)
-			halfRing("ArchNeon", R - band + 0.35, R - band - 0.25, depth * 0.45, neon, center, true)
-			-- Dış kenar kuşağı (koyu)
-			halfRing("ArchLip", R + 0.4, R - 0.6, depth + 0.6, frameDark, center)
-			for _, s in { -1, 1 } do
-				local lz = cz + s * (R - band / 2)
-				local legH = springY - FLOOR
-				K.box(f, "ArchLeg", x, FLOOR + legH / 2, lz, depth, legH, band, frame, { ghost = true })
-				K.box(f, "ArchLegLip", x, FLOOR + 0.3 + (legH - 0.6) / 2, cz + s * (R - 0.1), depth + 0.6, legH - 0.6, 1, frameDark, { ghost = true })
-				local strip = K.box(f, "ArchLegNeon", x, FLOOR + 1.2 + (legH - 1.6) / 2, cz + s * (R - band - 0.05), depth * 0.45, legH - 1.6, 0.5, neon,
-					{ ghost = true, emit = "Fixture" })
-				strip.CastShadow = false
-				K.box(f, "ArchFoot", x, FLOOR + 0.6, lz, depth + 1.4, 1.2, band + 1.4, frameDark, { ghost = true })
+		for _, side in sides do
+			-- Üst kavis ve kaburgalar
+			fillet(side.name .. "HullCurve", side.len, R, true, side.cf * CFrame.new(0, ceilY, 0), shell)
+			local ribs = math.floor(side.len / 36)
+			for k = 1, ribs - 1 do
+				local x = -side.len / 2 + k * side.len / ribs
+				fillet(side.name .. "HullRib", 1.6, R, true, side.cf * CFrame.new(x, ceilY, 0), rib, 0.7)
 			end
+			-- Neon: kavisin alt kenarı
+			local strip = K.boxAt(f, side.name .. "CurveNeon", side.cf * CFrame.new(0, ceilY - R + 0.25, 0.35), Vector3.new(side.len - 2, 0.5, 0.7), neon,
+				{ ghost = true, emit = "Fixture" })
+			strip.CastShadow = false
+
+		end
+
+		-- Batı duvarı (reaktörün arkası): yalnızca üst kavis
+		do
+			local lenZ = M.IZ1 - M.IZ0
+			local cf = CFrame.new(M.IX0, 0, (M.IZ0 + M.IZ1) / 2) * CFrame.Angles(0, math.rad(90), 0)
+			fillet("WestHullCurve", lenZ, R, true, cf * CFrame.new(0, ceilY, 0), shell)
+			local strip = K.boxAt(f, "WestCurveNeon", cf * CFrame.new(0, ceilY - R + 0.25, 0.35), Vector3.new(lenZ - 2, 0.5, 0.7), neon,
+				{ ghost = true, emit = "Fixture" })
+			strip.CastShadow = false
 		end
 
 		-- Tavan: cam şeridin iki kenarı boyunca camgöbeği neon hat
-		for _, z in { z0 + 8 - 1.2, z1 - 8 + 1.2 } do
+		for _, z in { M.SPINE_Z0 + 8 - 1.2, M.SPINE_Z1 - 8 + 1.2 } do
 			local strip = K.box(f, "CeilingNeon", (M.X0 + M.X1) / 2, M.WALL_H - 0.9, z, (M.X1 - M.X0) - 96, 0.35, 0.6, neon,
 				{ ghost = true, emit = "Fixture" })
 			strip.CastShadow = false
