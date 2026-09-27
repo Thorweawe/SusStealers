@@ -1358,14 +1358,15 @@ end
 	petler sınırsız ekleniyordu; tavan 15'ti, yani hırsız neredeyse normal
 	yürüyüşle (16) kaçıyordu ("carry speed çok artıyor"). Artık:
 	  yükseltme — azalan getiri, en fazla CarryUpgradeBonusMax
-	              (seviye 5: +1.4, 10: +2.2, 20: +2.8)
+	              (seviye 5: +0.9, 10: +1.4, 20: +1.8)
 	  pet       — en fazla CarryPetBonusMax
-	  toplam    — CarryWalkSpeedMax (normal yürüyüşün 3/4'ü): kovalayan
-	              yürüyerek de yetişebiliyor.
+	  toplam    — CarryWalkSpeedMax (normal yürüyüşün ~5/8'i): kovalayan
+	              yürüyerek rahatça yetişiyor.
+	İlk denge (3 / 1.5 / 12) de "hâlâ çok yüksek" bulundu; ikinci tur.
 ]]
-Config.CarryUpgradeBonusMax = 3
-Config.CarryPetBonusMax = 1.5
-Config.CarryWalkSpeedMax = 12
+Config.CarryUpgradeBonusMax = 2
+Config.CarryPetBonusMax = 1
+Config.CarryWalkSpeedMax = 10
 
 function Config.GetCarryWalkSpeed(level: number, petBonus: number?): number
 	local upgrade = Config.CarryUpgradeBonusMax * (1 - 0.88 ^ math.max(0, level))

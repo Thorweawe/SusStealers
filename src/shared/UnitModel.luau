@@ -561,60 +561,81 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	return model
 end
 
---[[ Karakterin üstünde duran isim/gelir etiketi. ]]
-function UnitModel.BuildLabel(unitId: string, mutationId: string?): BillboardGui
+--[[
+	Karakterin üstündeki etiket: nadirlik (ve mutasyon) etiketi, ad, gelir.
+
+	2026-09-27: mağaza diline geçti (FredokaOne, kalın koyu kontur, üstte
+	renkli nadirlik yazısı). `moving` = konveyördeki karakter: eskiden
+	etiket dünya ölçüsündeydi ve TextScaled'dı; karakter kaydıkça ekrandaki
+	boyu her karede biraz değişiyor, yazı boyu bir büyüyüp bir küçülüyordu
+	("yazılar titriyor"). Bantta etiket SABİT piksel boyutunda ve sabit
+	yazı boyunda. Kaidedekiler duruyor; orada dünya ölçüsü kalıyor ki
+	uzaktan komşu etiketler üst üste binmesin.
+]]
+local LABEL_OUTLINE = Color3.fromRGB(22, 20, 34)
+
+local function labelText(parent: Instance, name: string, text: string, color: Color3, y: number, h: number, moving: boolean, size: number, stroke: number)
+	local t = Instance.new("TextLabel")
+	t.Name = name
+	t.Position = UDim2.fromScale(0, y)
+	t.Size = UDim2.fromScale(1, h)
+	t.BackgroundTransparency = 1
+	t.Font = Enum.Font.FredokaOne
+	t.Text = text
+	t.TextColor3 = color
+	t.TextWrapped = false
+	if moving then
+		t.TextSize = size
+	else
+		t.TextScaled = true
+		local limit = Instance.new("UITextSizeConstraint")
+		limit.MaxTextSize = size
+		limit.Parent = t
+	end
+	local s = Instance.new("UIStroke")
+	s.Color = LABEL_OUTLINE
+	s.Thickness = stroke
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	s.LineJoinMode = Enum.LineJoinMode.Round
+	s.Parent = t
+	t.Parent = parent
+	return t
+end
+
+function UnitModel.BuildLabel(unitId: string, mutationId: string?, moving: boolean?): BillboardGui
 	local def = Config.GetUnit(unitId)
 	assert(def, string.format("UnitModel: bilinmeyen karakter '%s'", unitId))
 
 	local mutation = Config.GetMutation(mutationId)
 	local rarity = Config.Rarities[def.rarity]
 	local income = def.income * (if mutation then mutation.incomeMul else 1)
+	local isMoving = moving == true
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "UnitLabel"
-	gui.Size = UDim2.fromScale(7, 2.2)
 	--[[
-		Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında.
-		Nadirlik kozmetikleri gelince karakterin boyu 4.10'dan 6.05'e çıktı
-		(Mythic tacı + halkası); etiket 5.0'da kalınca tacın içinden geçiyordu.
-		En uzun figürün üstünde kalacak kadar yukarı alındı.
+		Etiket PrimaryPart'a (Root) bağlanıyor, o da ayak hizasında; en uzun
+		figürün (Mythic tacı + halkası, ~6 stud) üstünde kalacak kadar yukarıda.
+		AlwaysOnTop kapalı: açıkken duvarların ve HUD'un üstüne çiziliyordu.
+		Kaideler 6.5 stud arayla; dünya ölçüsünde 4.6 stud genişlik komşuya binmiyor.
 	]]
 	gui.StudsOffsetWorldSpace = Vector3.new(0, 6.8, 0)
-
-	--[[
-		Boyut küçültüldü. Kaideler 6.5 stud arayla dizili; 7 stud genişliğinde
-		etiket komşusununkiyle üst üste biniyor ve yaklaşınca ikisi de
-		okunmaz hale geliyordu. MaxDistance da düştü: uzaktan onlarca etiket
-		birbirine girmesin, yaklaşınca okunsun.
-	]]
-	gui.Size = UDim2.fromScale(4.6, 1.5)
-	-- AlwaysOnTop kapali: acikken etiketler duvarlarin ve 2B HUD'un uzerine
-	-- ciziliyor, kaide sirasina yaklasinca ekran okunmaz hale geliyordu.
+	gui.Size = if isMoving then UDim2.fromOffset(180, 66) else UDim2.fromScale(4.6, 1.75)
 	gui.AlwaysOnTop = false
-	gui.MaxDistance = 70
+	gui.LightInfluence = 0
+	gui.MaxDistance = if isMoving then 60 else 70
 
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.fromScale(1, 0.55)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
-	title.TextScaled = true
-	title.TextColor3 = rarity.color
-	title.TextStrokeTransparency = 0.2
-	title.Text = if mutation then string.format("[%s] %s", mutation.name, def.name) else def.name
-	title.Parent = gui
+	-- Secret'ın rengi neredeyse siyah: yazıda açık tonu
+	local tagColor = if def.rarity == "Secret" then Color3.fromRGB(235, 225, 255) else rarity.color
+	local tag = string.upper(def.rarity)
+	if mutation then
+		tag = string.format('<font color="#%s">%s</font>  %s', mutation.tint and mutation.tint:ToHex() or "FFFFFF", string.upper(mutation.name), tag)
+	end
 
-	local subtitle = Instance.new("TextLabel")
-	subtitle.Name = "Income"
-	subtitle.Position = UDim2.fromScale(0, 0.55)
-	subtitle.Size = UDim2.fromScale(1, 0.45)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.GothamMedium
-	subtitle.TextScaled = true
-	subtitle.TextColor3 = Color3.fromRGB(120, 255, 150)
-	subtitle.TextStrokeTransparency = 0.4
-	subtitle.Text = "$" .. Config.FormatCash(income) .. "/s"
-	subtitle.Parent = gui
+	local rarityLabel = labelText(gui, "Rarity", tag, tagColor, 0, 0.28, isMoving, if isMoving then 14 else 16, if isMoving then 2 else 1.5)
+	rarityLabel.RichText = true
+	labelText(gui, "Title", def.name, Color3.new(1, 1, 1), 0.26, 0.42, isMoving, if isMoving then 22 else 30, if isMoving then 2.5 else 2)
+	labelText(gui, "Income", "$" .. Config.FormatCash(income) .. "/s", Color3.fromRGB(110, 255, 90), 0.68, 0.32, isMoving, if isMoving then 17 else 22, if isMoving then 2 else 1.5)
 
 	return gui
 end

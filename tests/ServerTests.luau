@@ -524,7 +524,7 @@ case("Çalma: taşıma hızı yükseltme + petle bile tavanda kalıyor", functio
 	-- "carry speed çok artıyor": en güçlü oyuncu da normal yürüyüşün 3/4'ünü geçmesin
 	local ceiling = Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed"))
 	local fastest = Config.GetCarryWalkSpeed(ceiling, 99)
-	ok("tavan normalin 3/4'ü", fastest <= Config.NormalWalkSpeed * 0.75, string.format("%.2f", fastest))
+	ok("tavan normalin 5/8'i", fastest <= Config.NormalWalkSpeed * 0.625, string.format("%.2f", fastest))
 	ok("yükseltme tek başına tavana yapışmıyor", Config.GetCarryWalkSpeed(ceiling) < Config.CarryWalkSpeedMax,
 		string.format("%.2f", Config.GetCarryWalkSpeed(ceiling)))
 	ok("pet katkısı sınırlı", Config.GetCarryWalkSpeed(0, 99) - Config.GetCarryWalkSpeed(0) <= Config.CarryPetBonusMax + 1e-6)

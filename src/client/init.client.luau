@@ -338,7 +338,8 @@ local function refreshSpeed()
 		table.insert(parts, string.format("Lv %d", level or 0))
 	end
 	if (petBonus or 0) > 0 then
-		table.insert(parts, string.format("pets +%.2f", petBonus or 0))
+		-- Pet katkısı tavanlı (Config.CarryPetBonusMax); gerçekte eklenen yazılsın
+		table.insert(parts, string.format("pets +%.2f", math.min(petBonus or 0, Config.CarryPetBonusMax)))
 	end
 
 	speedSub.Text = if #parts > 0

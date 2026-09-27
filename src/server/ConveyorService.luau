@@ -204,7 +204,8 @@ local function spawnItem(plot: Model): Config.UnitDef?
 		end
 	end
 
-	local label = UnitModel.BuildLabel(def.id, mutationId)
+	-- Bantta kayıyor: sabit piksel boyutlu etiket (dünya ölçüsü titriyordu)
+	local label = UnitModel.BuildLabel(def.id, mutationId, true)
 	-- Kapağın içindeyken etiket görünmesin; ağızdan çıkınca açılıyor
 	label.Enabled = false
 	label.Parent = model.PrimaryPart

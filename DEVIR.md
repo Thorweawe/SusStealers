@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (29) — Batur
+
+- **Taşıma hızı ikinci tur:** yükseltme en fazla +2, pet en fazla +1, tavan 10 (normal 16).
+  HUD'daki "pets +x" tavanlı değeri yazıyor.
+- **Karakter etiketi (`UnitModel.BuildLabel`) yeni tarz:** üstte renkli nadirlik (+ mutasyon),
+  beyaz ad, yeşil gelir; FredokaOne + koyu kontur. `moving` (üçüncü argüman, `ConveyorService`)
+  sabit piksel boyutlu: dünya ölçüsünde TextScaled kayan karakterde titriyordu.
+- Studio'ya aktarıldı, 172 test temiz.
+
 ## 2026-09-27 (28) — Batur (Yusuf'un şeridine yazıldı)
 
 - **Ekonomi (`Config.UnitPriceScale` 1.5, `Config.UnitIncomeScale` nadirliğe göre 0.75–0.55):**
