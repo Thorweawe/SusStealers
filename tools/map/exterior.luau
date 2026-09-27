@@ -29,6 +29,71 @@ return {
 		local hull = C.hullOut
 		local cobalt = rgb(52, 92, 196)
 
+		--[[
+			Kavisli parça: birim küre ya da silindirden (yarıçap 1) `keepDirs`
+			yarı-uzaylarının DIŞI kesiliyor (her yön için o yöne bakan yarı
+			tutuluyor), kalan kesit `size`e ölçeklenip `cf`ye konuyor (union
+			ölçeklenebiliyor: çeyrek elipsoit, eliptik çeyrek silindir).
+			Kesilen şekil önbellekte; aynı kesim bir kez yapılıyor.
+		]]
+		local GeometryService = game:GetService("GeometryService")
+		local shapeCache: { [string]: BasePart } = {}
+		local function curved(parent: Instance, name: string, prim: string, keepDirs: { Vector3 }, size: Vector3, cf: CFrame, color: Color3): BasePart?
+			local key = prim
+			for _, d in keepDirs do
+				key ..= string.format("|%d,%d,%d", d.X, d.Y, d.Z)
+			end
+			local template = shapeCache[key]
+			if not template then
+				local base = Instance.new("Part")
+				base.Anchored = true
+				base.Shape = if prim == "ball" then Enum.PartType.Ball else Enum.PartType.Cylinder
+				base.Size = Vector3.new(2, 2, 2)
+				base.CFrame = CFrame.new(0, 5000, 0)
+				base.Parent = workspace
+				local cutters = {}
+				for _, d in keepDirs do
+					local c = Instance.new("Part")
+					c.Anchored = true
+					c.Size = Vector3.new(4, 4, 4)
+					-- d yönündeki yarıyı tut: tersindeki yarıyı kes
+					c.CFrame = CFrame.new(Vector3.new(0, 5000, 0) - d * 2)
+					c.Parent = workspace
+					table.insert(cutters, c)
+				end
+				local ok, result = pcall(function()
+					return GeometryService:SubtractAsync(base, cutters, {
+						CollisionFidelity = Enum.CollisionFidelity.Box,
+						RenderFidelity = Enum.RenderFidelity.Precise,
+						SplitApart = false,
+					})
+				end)
+				base:Destroy()
+				for _, c in cutters do
+					c:Destroy()
+				end
+				if not ok or not result or not result[1] then
+					warn("[exterior] kavisli parca kesilemedi: " .. tostring(result))
+					return nil
+				end
+				template = result[1]
+				shapeCache[key] = template
+			end
+			local p = template:Clone()
+			p.Name = name
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.UsePartColor = true
+			p.Color = color
+			p.Material = Enum.Material.SmoothPlastic
+			p.Size = size
+			p.CFrame = cf
+			p.Parent = parent
+			return p
+		end
+
 		-- ─── Motorlar ───────────────────────────────────────────────────────
 		for _, z in { 0, M.ROW_SPACING } do
 			local f = K.folder("Engine", ex)
@@ -69,19 +134,41 @@ return {
 				içinden, üslerin zemininden çıkıyordu. Üstü kokpit camının
 				altında (y 8): pilot camdan bakınca geminin burnunu görüyor.
 			]]
+			--[[
+				2026-09-28: "gemi hâlâ dikdörtgen, kavisli olsun". Pruva artık
+				KAVİSLİ: kürenin doğu-alt çeyreği (CSG) doğu duvarının dışına
+				yerleşip boyuna uzatılmış (çeyrek elipsoit). Üstü düz (y 8,
+				kokpit camının altı), altı ve ucu yuvarlak. Üstünde ince güverte
+				ve ucunda seyir lambası.
+			]]
 			local f = K.folder("Nose", ex)
 			local xw = M.X1 + T / 2
-			local L = 130
-			local half = (M.Z1 - M.Z0) / 2 + T / 2
+			local L = 170
 			local czn = M.centerZ
-			local apex = Vector2.new(xw + L, czn)
-			local foot = Vector2.new(xw, czn)
-			for _, s in { -1, 1 } do
-				K.flatTriangle(f, "Prow", Vector2.new(xw, czn + s * half), apex, foot, -5.6, 27, hull)
-				K.flatTriangle(f, "ProwDeck", Vector2.new(xw, czn + s * (half - 4)), Vector2.new(xw + L - 10, czn), foot, 8.2, 0.6, rgb(120, 138, 152))
+			local width = (M.Z1 - M.Z0) + T + 1
+			local depth = 27
+			curved(f, "Prow", "ball", { Vector3.new(-1, 0, 0), Vector3.new(0, 1, 0) },
+				Vector3.new(L, depth, width), CFrame.new(xw + L / 2 - 0.05, 8 - depth / 2, czn), rgb(132, 142, 158))
+			curved(f, "ProwDeck", "ball", { Vector3.new(-1, 0, 0), Vector3.new(0, -1, 0) },
+				Vector3.new(L - 14, 1.2, width - 20), CFrame.new(xw + (L - 14) / 2 - 0.05, 8 + 0.55, czn), rgb(96, 106, 122))
+			K.box(f, "ProwStripe", xw + 50, 9.3, czn, 80, 0.2, 3, C.hazard, { ghost = true })
+			-- Burun topları: pruvanın üstünden ileri uzanan üç uzun namlu
+			for i, dz in { -34, 0, 34 } do
+				local len = if dz == 0 then 150 else 110
+				local y = 12 + (if dz == 0 then 3 else 0)
+				K.boxAt(f, "NoseCannonMount", CFrame.new(xw + 40, y, czn + dz), Vector3.new(24, 7, 7), rgb(150, 160, 174),
+					{ ghost = true, shape = Enum.PartType.Cylinder })
+				K.boxAt(f, "NoseCannon", CFrame.new(xw + 40 + len / 2, y, czn + dz), Vector3.new(len, 2.2, 2.2), rgb(176, 184, 196),
+					{ ghost = true, shape = Enum.PartType.Cylinder })
+				for _, t in { 0.45, 0.8 } do
+					K.boxAt(f, "NoseCannonRing", CFrame.new(xw + 40 + len * t, y, czn + dz), Vector3.new(2, 3.4, 3.4), rgb(96, 106, 122),
+						{ ghost = true, shape = Enum.PartType.Cylinder })
+				end
+				local tip = K.ball(f, "NoseCannonTip", xw + 40 + len + 1, y, czn + dz, 2.4, rgb(110, 210, 255), { ghost = true, emit = "Fixture" })
+				tip.CastShadow = false
+				local _ = i
 			end
-			K.box(f, "ProwStripe", xw + 40, 8.6, czn, 60, 0.2, 3, C.hazard, { ghost = true })
-			local nav = K.ball(f, "NoseLight", xw + L - 8, 9.5, czn, 3, C.red, { emit = "Fixture" })
+			local nav = K.ball(f, "NoseLight", xw + L - 14, 9.6, czn, 3, C.red, { emit = "Fixture" })
 			nav:SetAttribute("PulsePeriod", 1.8)
 		end
 
@@ -301,6 +388,112 @@ return {
 			local dish = K.boxAt(sup, "RadarDish", CFrame.new(bridgeX - 12, bridgeY + 7, tz) * CFrame.Angles(0, 0, math.rad(-60)),
 				Vector3.new(1, 10, 10), C.frame, { ghost = true, shape = Enum.PartType.Cylinder })
 			dish:SetAttribute("SpinSpeed", 25)
+
+			-- ── Kavisler: köşeler, kuzey karın, çatı kenarı ────────────────────
+			--[[
+				Kutuyu yumuşatan dış kaplama. Hiçbiri duvarların iç yüzünü
+				geçmiyor (lombozlar ve iç mekân olduğu gibi):
+				  - dört dikey köşe kolonu: silindirin iç çeyreği kesik
+				  - kuzey duvarının altında kavisli karın (eliptik çeyrek
+				    silindir), Launch Bay güvertesinin önü boş
+				  - çatı-duvar kenarında yatay yuvarlak boru (saçak)
+			]]
+			local hullTop, hullBottom = M.WALL_H + 1, -19
+			local ox0, ox1 = M.X0 - T / 2, M.X1 + T / 2
+			local oz0, oz1 = M.Z0 - T / 2, M.Z1 + T / 2
+			local cornerR = 7
+			for _, c in { { ox0, oz0, 1, 1 }, { ox1, oz0, -1, 1 }, { ox0, oz1, 1, -1 }, { ox1, oz1, -1, -1 } } do
+				-- Tutulan yön: dışarı bakan üç çeyrek = içe bakan çeyreği kes.
+				-- Silindir tek kesimle: iç çeyreği iki yarı-uzayın kesişimi yapamıyoruz;
+				-- bunun yerine iki dışa bakan yarı silindir üst üste.
+				local h = hullTop - hullBottom
+				local center = Vector3.new(c[1] + c[3] * 1.2, (hullTop + hullBottom) / 2, c[2] + c[4] * 1.2)
+				local axisUp = CFrame.Angles(0, 0, math.rad(90))
+				curved(sup, "CornerRound", "cyl", { Vector3.new(0, 0, -c[4]) }, Vector3.new(h, cornerR * 2, cornerR * 2),
+					CFrame.new(center - Vector3.new(0, 0, c[4] * cornerR / 2)) * axisUp, armorDark)
+				curved(sup, "CornerRound", "cyl", { Vector3.new(0, 0, -c[3]) }, Vector3.new(h, cornerR * 2, cornerR * 2),
+					CFrame.new(center - Vector3.new(c[3] * cornerR / 2, 0, 0)) * axisUp * CFrame.Angles(math.rad(90), 0, 0), armorDark)
+			end
+			-- Kuzey karın kavisi: duvarın altından dışarı-yukarı kıvrılan çeyrek (güverte önü hariç)
+			local gate = K.Config.Space and K.Config.Space.GateX or M.centerX
+			local deckHalf = (K.Config.Space and K.Config.Space.DeckHalfWidth or 64) + 8
+			local bellyH, bellyOut = 26, 20
+			for _, span in { { ox0 + cornerR, gate - deckHalf }, { gate + deckHalf, ox1 - cornerR } } do
+				local len = span[2] - span[1]
+				if len > 4 then
+					curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, 1) },
+						Vector3.new(len, bellyH, bellyOut),
+						CFrame.new((span[1] + span[2]) / 2, hullBottom + bellyH / 2, oz0 - bellyOut / 2 + 0.05), armorDark)
+				end
+			end
+			-- Güney duvarında aynı kavis (ek bina ve köprünün olmadığı uçlarda)
+			for _, span in { { ox0 + cornerR, M.X0 + 90 }, { M.X1 - 90, ox1 - cornerR } } do
+				local len = span[2] - span[1]
+				curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, -1) },
+					Vector3.new(len, bellyH, bellyOut),
+					CFrame.new((span[1] + span[2]) / 2, hullBottom + bellyH / 2, oz1 + bellyOut / 2 - 0.05), armorDark)
+			end
+			-- Çatı kenarı saçak boruları
+			for _, z in { oz0, oz1 } do
+				K.boxAt(sup, "EaveRoll", CFrame.new((ox0 + ox1) / 2, M.WALL_H - 0.5, z), Vector3.new(ox1 - ox0 - cornerR * 2, 4, 4), armor,
+					{ ghost = true, shape = Enum.PartType.Cylinder })
+			end
+			for _, x in { ox0, ox1 } do
+				K.boxAt(sup, "EaveRoll", CFrame.new(x, M.WALL_H - 0.5, (oz0 + oz1) / 2) * CFrame.Angles(0, math.rad(90), 0),
+					Vector3.new(oz1 - oz0 - cornerR * 2, 4, 4), armor, { ghost = true, shape = Enum.PartType.Cylinder })
+			end
+
+			-- ── Yan motor bölmeleri: gövdenin altında, kavisli karının dışında ──
+			--[[
+				Referans gemilerdeki gibi silindir motor kümeleri: kuzey ve güney
+				altta, fırlatma güvertesinin önü boş. Arkada (batı) parlayan meme,
+				önde yarım küre burun, ortada kuşaklar ve ince borular.
+			]]
+			local function pod(x0: number, x1: number, y: number, z: number, r: number)
+				local len = x1 - x0
+				local mid = (x0 + x1) / 2
+				K.boxAt(sup, "PodBody", CFrame.new(mid, y, z), Vector3.new(len, r * 2, r * 2), rgb(176, 184, 196),
+					{ ghost = true, shape = Enum.PartType.Cylinder })
+				for k = 1, 3 do
+					K.boxAt(sup, "PodBand", CFrame.new(x0 + len * k / 4, y, z), Vector3.new(2.4, r * 2 + 0.8, r * 2 + 0.8), armorDark,
+						{ ghost = true, shape = Enum.PartType.Cylinder })
+				end
+				K.ball(sup, "PodNose", x1, y, z, r * 2 - 0.2, rgb(190, 198, 210), { ghost = true })
+				K.boxAt(sup, "PodNozzle", CFrame.new(x0 - 3, y, z), Vector3.new(6, r * 1.7, r * 1.7), rgb(70, 82, 94),
+					{ ghost = true, shape = Enum.PartType.Cylinder })
+				local glowPart = K.boxAt(sup, "PodFlame", CFrame.new(x0 - 9, y, z), Vector3.new(7, r * 1.4, r * 1.4), rgb(110, 210, 255),
+					glow({ shape = Enum.PartType.Cylinder, transparency = 0.2 }))
+				glowPart.CastShadow = false
+				glowPart:SetAttribute("PulsePeriod", 0.6)
+				for _, dy in { r + 0.9, -(r + 0.9) } do
+					K.boxAt(sup, "PodPipe", CFrame.new(mid, y + dy, z), Vector3.new(len * 0.8, 1.2, 1.2), panel,
+						{ ghost = true, shape = Enum.PartType.Cylinder })
+				end
+				-- Gövdeye bağlayan kol
+				local armZ = if z < M.centerZ then z + r * 0.7 else z - r * 0.7
+				K.box(sup, "PodPylon", mid, y + r * 0.9, armZ, len * 0.4, 5, 5, armorDark, { ghost = true })
+			end
+			local gx = K.Config.Space and K.Config.Space.GateX or M.centerX
+			local gHalf = (K.Config.Space and K.Config.Space.DeckHalfWidth or 64) + 10
+			local podR = 11
+			local podY = -27
+			pod(ox0 + 10, gx - gHalf, podY, oz0 - podR - 1, podR)
+			pod(gx + gHalf, ox1 - 30, podY, oz0 - podR - 1, podR)
+			pod(ox0 + 10, M.centerX - 20, podY, oz1 + podR + 1, podR)
+			pod(M.centerX + 20, ox1 - 30, podY, oz1 + podR + 1, podR)
+
+			-- ── Boru demetleri: portların üstünde, saçağın altında ───────────
+			for _, side in { { oz0, -1 }, { oz1, 1 } } do
+				for k, spec in { { 44.5, 1.2 }, { 47.2, 0.9 }, { 49.4, 0.7 } } do
+					K.boxAt(sup, "HullPipe", CFrame.new((ox0 + ox1) / 2, spec[1], side[1] + side[2] * (spec[2] + 0.15)),
+						Vector3.new(ox1 - ox0 - cornerR * 2 - 4, spec[2] * 2, spec[2] * 2), if k == 1 then armorDark else panel,
+						{ ghost = true, shape = Enum.PartType.Cylinder })
+				end
+				-- Boru kelepçeleri
+				for x = ox0 + 30, ox1 - 30, 48 do
+					K.box(sup, "PipeClamp", x, 47, side[1] + side[2] * 1.4, 1.4, 7.4, 2.2, armorDark, { ghost = true })
+				end
+			end
 
 			-- ── Hançer gövde: istasyonun ALTINDA, burna doğru sivrilen üçgen ──
 			--[[

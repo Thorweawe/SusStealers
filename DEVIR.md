@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (39) — Batur (harita)
+
+Harita tam kuruldu (0/0), **173/173 test temiz**. Kod değişmedi, yalnızca `tools/`.
+
+- **Yeni bölüm `tools/map/arches.luau`** (build_decor SECTIONS'ta, `security` ile `finish` arası): omurga koridorunda lacivert yarım daire kemerler + camgöbeği neon (CSG, K.carved), tavan cam şeridi kenarında neon hat. Kemerler hayalet; odalar arası boşluk hizalarında ve iki uçta.
+- **Dış gövde kavisli** (`exterior.luau`): pruva artık çeyrek elipsoit (CSG ölçeklenmiş union, `curved` yardımcısı) + üç burun topu; köşelerde yuvarlak kolonlar, kuzey/güney altta kavisli karın, çatı saçağı boruları, duvar boyunca boru demetleri, altta dört yan motor bölmesi.
+
+---
+
 ## 2026-09-28 (38) — Batur (Yusuf'un şeridine de yazıldı)
 
 Studio'ya aktarıldı, dış harita (`exterior`) yeniden kuruldu (0/0), **173/173 test temiz**.
