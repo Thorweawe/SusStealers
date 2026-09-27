@@ -364,8 +364,12 @@ function PetService._ResetBusy(player: Player)
 end
 
 --[[ Üçlü açma gamepass'e bağlı; Studio'da deneme için açık. ]]
+--[[
+	2026-09-28: "3'lü açma yalnızca Robux'la alana". Eskiden Studio'da
+	herkese açıktı (test kolaylığı); canlıyla aynı davransın diye kalktı.
+]]
 function PetService.CanTripleHatch(player: Player): boolean
-	return RunService:IsStudio() or MonetizationService.HasPass(player, "TripleHatch")
+	return MonetizationService.HasPass(player, "TripleHatch")
 end
 
 --[[

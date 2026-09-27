@@ -25,13 +25,14 @@ local SettingsService = {}
 local MIN_INTERVAL = 0.25
 local lastAt: { [Player]: number } = {}
 
-type Settings = { music: number, sfx: number, shake: boolean, pets: boolean?, lowGfx: boolean?, autoDelete: { [string]: boolean }? }
+type Settings = { music: number, sfx: number, shake: boolean, pets: boolean?, myPets: boolean?, lowGfx: boolean?, autoDelete: { [string]: boolean }? }
 
 local function publish(player: Player, settings: Settings)
 	player:SetAttribute("SettingMusic", settings.music)
 	player:SetAttribute("SettingSfx", settings.sfx)
 	player:SetAttribute("SettingShake", settings.shake)
 	player:SetAttribute("SettingPets", settings.pets ~= false)
+	player:SetAttribute("SettingMyPets", settings.myPets ~= false)
 	player:SetAttribute("SettingLowGfx", settings.lowGfx == true)
 	-- Otomatik silinen kademeler virgüllü liste (nitelik tablo tutamıyor), kademe sırasıyla
 	local list = {}
@@ -70,7 +71,7 @@ function SettingsService.Apply(player: Player, payload: any, now: number?): Sett
 			(settings :: any)[key] = math.clamp(v, 0, 1)
 		end
 	end
-	for _, key in { "shake", "pets", "lowGfx" } do
+	for _, key in { "shake", "pets", "myPets", "lowGfx" } do
 		if typeof(payload[key]) == "boolean" then
 			(settings :: any)[key] = payload[key]
 		end

@@ -13,6 +13,23 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (37) — Batur (Yusuf'un şeridine de yazıldı)
+
+Studio'ya aktarıldı, lobi yeniden kuruldu (0/0), **173/173 test temiz**.
+
+- **Kimlikler:** rozet Yeeted / Heist Master, jetpack pass Plasma (1999683184) / Galaxy (1999461068). Roblox'taki adlar Config'te: Fast Grab, Monster Shield, Monster Shield Potion.
+- **Nakit paketleri** (`Config.GetCashPackAmount`): taban, `seconds` saniyelik gelir ya da bakiyenin `cashFrac` katı — büyüğü. Sunucu (EconomyService) satın almada, mağaza kartı (ShopPanel) Cash/Income niteliğinden aynısını hesaplıyor.
+- **Yükseltmeler 4 kat seviye** (`Config.UpgradeLevelScale`): etkiler seviye/4 ile (tavanda güç aynı), maliyet büyümesi kökü alındı, fiyatlar 2 anlamlı basamak. Eski kayıtlar `profile.upgradeScale` yoksa ×4 çarpılıyor (DataService).
+- **Üçlü yumurta yalnızca Triple Hatch pass'iyle** (Studio'da da). Pass sahipliği `Pass_<anahtar>` niteliğiyle istemcide; EggPanel'de x3 kilitli (🔒, basınca satın alma), R promptu kapalı.
+- **Kapsül mini oyunu:** tur ~12 sn ve içinde zorlaşıyor (hız, sıklık, dar boşluk, yarıdan sonra kayan taşlar); çarpmadan biten tur PERFECT ×1.3 (`CapsuleCatch(perfect)`). CatchCooldown 9, CatchBonusSeconds 7.
+- **Gezegen "pervane" lekeleri düzeldi:** kraterler düz disk yerine basık kubbe (SpaceService `ellipsoid`).
+- **Kafeteryadaki otomat** (init.client): tıklayınca / E ile mağaza İKSİRLER bölümünde açılıyor; tabelası POTIONS (lobby.luau).
+- **Pano:** "MOST STOLEN" → "MOST HEISTS" (aynı veri, uzay soygunları).
+- **Ayarlar:** "My Pets" (kendi petlerini gizle, bonus sürüyor) — `settings.myPets`, nitelik `SettingMyPets`.
+- "Return to Station" düğmesi sağ alttaki menü sütunun soluna alındı.
+
+---
+
 ## 2026-09-28 (36) — Yusuf (iki şeridi de ilgilendirir)
 
 **Büyük tur: denge, jetpack'ler, yeni pencereler, temizlik.** Studio'ya aktarıldı (önce Studio ile disk karşılaştırıldı, çakışma yoktu), dış harita (`exterior`) yeniden kuruldu, **172/172 test temiz**.

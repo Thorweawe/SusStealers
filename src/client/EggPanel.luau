@@ -18,6 +18,7 @@
 	açık; boyutu ekrana göre ölçekli.
 ]]
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -162,6 +163,27 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	local content: Frame? = nil
 	local autoButton: TextButton? = nil
 	local autoLabel: TextLabel? = nil
+	local tripleButton: TextButton? = nil
+	local tripleLabel: TextLabel? = nil
+
+	--[[
+		2026-09-28: "3'lü açma yalnızca Robux'la alana". Pass'i yoksa x3
+		kilitli: basınca Triple Hatch satın alma penceresi açılıyor, R tuşu
+		(yumurtanın "TriplePrompt"u) kapalı. Sahiplik sunucudan
+		"Pass_TripleHatch" niteliğiyle geliyor (MonetizationService).
+	]]
+	local function hasTriple(): boolean
+		return player:GetAttribute("Pass_TripleHatch") == true
+	end
+	local function refreshTriple()
+		if tripleButton and tripleLabel then
+			local owned = hasTriple()
+			tripleButton.Text = if owned then "R" else "🔒"
+			tripleButton.TextSize = if owned then 34 else 28
+			tripleButton.BackgroundColor3 = if owned then Color3.fromRGB(150, 70, 230) else Color3.fromRGB(96, 84, 120)
+			tripleLabel.Text = if owned then "x3" else "x3 R$"
+		end
+	end
 
 	local saveToken = 0
 	local function saveAutoDelete(set: { [string]: boolean })
@@ -467,10 +489,19 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		one.Activated:Connect(function()
 			hatchRemote:FireServer(eggId, 1, false)
 		end)
-		local three = roundButton("R", "x3", Color3.fromRGB(150, 70, 230), 2)
+		local three, threeLabel = roundButton("R", "x3", Color3.fromRGB(150, 70, 230), 2)
+		tripleButton, tripleLabel = three, threeLabel
 		three.Activated:Connect(function()
-			hatchRemote:FireServer(eggId, Config.TripleHatchCount, false)
+			if hasTriple() then
+				hatchRemote:FireServer(eggId, Config.TripleHatchCount, false)
+			else
+				local pass = Config.GamePasses.TripleHatch
+				if pass and pass.id ~= 0 then
+					MarketplaceService:PromptGamePassPurchase(player, pass.id)
+				end
+			end
 		end)
+		refreshTriple()
 		local autoB, autoS = roundButton("T", "Auto", Color3.fromRGB(230, 60, 70), 3)
 		autoButton, autoLabel = autoB, autoS
 		autoB.Activated:Connect(function()
@@ -502,10 +533,19 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 					if p:IsA("ProximityPrompt") and p.Style ~= Enum.ProximityPromptStyle.Custom then
 						p.Style = Enum.ProximityPromptStyle.Custom
 					end
+					-- R tuşu (x3) yalnızca pass sahibinde
+					if p:IsA("ProximityPrompt") and p.Name == "TriplePrompt" and p.Enabled ~= hasTriple() then
+						p.Enabled = hasTriple()
+					end
 				end
 			end
 		end
 	end
+
+	player:GetAttributeChangedSignal("Pass_TripleHatch"):Connect(function()
+		refreshTriple()
+		collect()
+	end)
 
 	Net.Get("Pets").OnClientEvent:Connect(function(payload)
 		if typeof(payload) ~= "table" or typeof(payload.found) ~= "table" then

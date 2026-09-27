@@ -180,6 +180,10 @@ local function step(dt: number)
 		if owner ~= Players.LocalPlayer and Players.LocalPlayer:GetAttribute("SettingPets") == false then
 			hide = 1
 		end
+		-- Ayar: kendi petlerini gizle ("SettingMyPets"; bonuslar sürüyor)
+		if owner == Players.LocalPlayer and Players.LocalPlayer:GetAttribute("SettingMyPets") == false then
+			hide = 1
+		end
 		if hide ~= s.hidden then
 			s.hidden = hide
 			for _, d in model:GetDescendants() do

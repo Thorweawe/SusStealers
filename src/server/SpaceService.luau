@@ -196,6 +196,18 @@ local function cyl(parent: Instance, name: string, center: Vector3, normal: Vect
 	return p
 end
 
+--[[ Basık kubbe: ekseni `normal`, kalınlığı `thick`, çapı `diameter` (küre mesh'li). ]]
+local function ellipsoid(parent: Instance, name: string, center: Vector3, normal: Vector3, thick: number, diameter: number, color: Color3): BasePart
+	local n = normal.Unit
+	local up = if math.abs(n.Y) > 0.95 then Vector3.xAxis else Vector3.yAxis
+	local cf = CFrame.lookAt(center, center + n, up) * CFrame.Angles(0, math.rad(90), 0)
+	local p = part(parent, name, Vector3.new(thick, diameter, diameter), cf, color, { CanCollide = false, CanQuery = false, CastShadow = false })
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	return p
+end
+
 --[[ Kalın yazılı tabela (FredokaOne + kontur). ]]
 local function sign(parent: BasePart, face: Enum.NormalId, lines: { { text: string, color: Color3, size: number } }, pixelsPerStud: number?)
 	local gui = Instance.new("SurfaceGui")
@@ -365,11 +377,18 @@ local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMon
 		local flat = math.sqrt(1 - y * y)
 		local dir = Vector3.new(math.cos(a) * flat, y, math.sin(a) * flat)
 		local size = detail:NextNumber(0.12, 0.3) * r
-		local p = surfacePoint(center, r - 0.25, dir)
-		cyl(model, "Crater", p, dir, 0.8, size, def.planetColor2, { CanCollide = false, CastShadow = false })
+		--[[
+			2026-09-28: kraterler düz diskti; diskin yüzü kürenin çokgen
+			yüzeyiyle aynı düzlemde kalıp titriyordu (gezegenlerde "pervane"
+			gibi dilimli lekeler). Artık yüzeyden belirgin taşan basık kubbe
+			(küre mesh'li elipsoit): yüzeyi eğik kesiyor, çakışma yok.
+		]]
+		local thick = size * 0.22
 		if k % 3 == 0 then
-			cyl(model, "CraterRim", p + dir * 0.1, dir, 0.6, size * 1.18, def.planetColor:Lerp(WHITE, 0.15), { CanCollide = false, CastShadow = false })
+			ellipsoid(model, "CraterRim", surfacePoint(center, r - thick * 0.15, dir), dir, thick * 0.9, size * 1.25,
+				def.planetColor:Lerp(WHITE, 0.15))
 		end
+		ellipsoid(model, "Crater", surfacePoint(center, r - thick * 0.05, dir), dir, thick, size, def.planetColor2)
 	end
 	-- Parlayan kristaller platonun kenarında
 	for k = 1, 10 do

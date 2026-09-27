@@ -7,7 +7,7 @@
 	temaya uyarlandı (UiKit penceresi, uzay mavisi vurgu, tıknaz yazı).
 
 	  AUDIO     Music ve Sound Effects — kaydırıcı (0..100)
-	  GAMEPLAY  Camera Shake, Other Players' Pets
+	  GAMEPLAY  Camera Shake, Other Players' Pets, My Pets
 	  GRAPHICS  Low Graphics — gölgeler, parçacıklar, ışık efektleri kapalı
 
 	Kaydetme sunucuda (SettingsService, "SettingsSave"): oyuncu değiştirmeyi
@@ -119,7 +119,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 	local root = UiKit.Window(screen, "SettingsPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(420, 470)
+	root.Size = UDim2.fromOffset(420, 530)
 	root.Visible = false
 	root.ZIndex = Z
 
@@ -166,7 +166,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 	saved.Size = UDim2.new(1, -20, 0, 16)
 
 	-- Mevcut değerler (nitelikler)
-	local current = { music = 1, sfx = 1, shake = true, pets = true, lowGfx = false }
+	local current = { music = 1, sfx = 1, shake = true, pets = true, myPets = true, lowGfx = false }
 	local function read()
 		for key, attr in { music = "SettingMusic", sfx = "SettingSfx" } do
 			local v = player:GetAttribute(attr)
@@ -174,7 +174,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 				(current :: any)[key] = math.clamp(v, 0, 1)
 			end
 		end
-		for key, attr in { shake = "SettingShake", pets = "SettingPets", lowGfx = "SettingLowGfx" } do
+		for key, attr in { shake = "SettingShake", pets = "SettingPets", myPets = "SettingMyPets", lowGfx = "SettingLowGfx" } do
 			local v = player:GetAttribute(attr)
 			if typeof(v) == "boolean" then
 				(current :: any)[key] = v
@@ -196,7 +196,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 	end
 	-- Ses modülleri niteliği dinliyor: sürüklerken anında duyulsun diye yerelde de yaz
 	local function preview(key: string)
-		local attr = ({ music = "SettingMusic", sfx = "SettingSfx", shake = "SettingShake", pets = "SettingPets", lowGfx = "SettingLowGfx" } :: any)[key]
+		local attr = ({ music = "SettingMusic", sfx = "SettingSfx", shake = "SettingShake", pets = "SettingPets", myPets = "SettingMyPets", lowGfx = "SettingLowGfx" } :: any)[key]
 		player:SetAttribute(attr, (current :: any)[key])
 		if key == "lowGfx" then
 			setLowGraphics(current.lowGfx)
@@ -353,6 +353,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 	section("GAMEPLAY")
 	toggle("≈", Color3.fromRGB(255, 150, 40), "Camera Shake", "shake")
 	toggle("🐾", Color3.fromRGB(255, 100, 170), "Other Players' Pets", "pets")
+	toggle("🐶", Color3.fromRGB(255, 170, 90), "My Pets", "myPets")
 	section("GRAPHICS")
 	toggle("⚡", Color3.fromRGB(80, 200, 120), "Low Graphics", "lowGfx")
 
@@ -387,7 +388,7 @@ function SettingsPanel.Create(screen: ScreenGui): Panel
 		end
 		setLowGraphics(current.lowGfx)
 	end
-	for _, attr in { "SettingMusic", "SettingSfx", "SettingShake", "SettingPets", "SettingLowGfx" } do
+	for _, attr in { "SettingMusic", "SettingSfx", "SettingShake", "SettingPets", "SettingMyPets", "SettingLowGfx" } do
 		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(syncFromAttributes))
 	end
 	setLowGraphics(current.lowGfx)

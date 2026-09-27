@@ -469,7 +469,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	local returnButton = Instance.new("TextButton")
 	returnButton.Name = "ReturnToStation"
 	returnButton.AnchorPoint = Vector2.new(1, 1)
-	returnButton.Position = UDim2.new(1, -24, 1, -250)
+	-- Sağ alttaki menü sütununun (MenuDock, 64 px + 22 kenar) soluna: üst üste binmesin
+	returnButton.Position = UDim2.new(1, -104, 1, -250)
 	returnButton.Size = UDim2.fromOffset(210, 50)
 	returnButton.BackgroundColor3 = Color3.fromRGB(46, 96, 210)
 	returnButton.AutoButtonColor = false

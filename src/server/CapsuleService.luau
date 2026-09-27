@@ -232,9 +232,11 @@ end
 --[[
 	Mini oyun bonusu (istemci CapsuleCatch gönderiyor). Kendi kapsülünde
 	antrenmanda, ısınma ve bekleme süreleri geçmiş olmalı. Verilen bonusu
-	döner (reddedilirse nil).
+	döner (reddedilirse nil). `perfect`: tur hiç çarpmadan bitti
+	(PerfectCatchMul; bekleme süresi sınırı yine geçerli, hile en fazla
+	bu kadar kazandırır).
 ]]
-function CapsuleService.TryCatch(player: Player): number?
+function CapsuleService.TryCatch(player: Player, perfect: boolean?): number?
 	local c = Config.Capsule
 	local now = os.clock()
 	local since = trainingSince[player]
@@ -251,6 +253,9 @@ function CapsuleService.TryCatch(player: Player): number?
 	lastCatch[player] = now
 	local level = UpgradeService.GetLevel(player, UPGRADE_ID)
 	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * c.CatchBonusSeconds
+	if perfect == true then
+		bonus *= c.PerfectCatchMul
+	end
 	profile.spaceSpeed = math.min(Config.Space.MaxSpeed, profile.spaceSpeed + bonus)
 	profile.trainings += 1
 	publish(player, profile.spaceSpeed)
@@ -293,8 +298,8 @@ function CapsuleService.Start()
 		lastCatch[player] = nil
 	end)
 
-	Net.Get("CapsuleCatch").OnServerEvent:Connect(function(player)
-		CapsuleService.TryCatch(player)
+	Net.Get("CapsuleCatch").OnServerEvent:Connect(function(player, perfect)
+		CapsuleService.TryCatch(player, perfect == true)
 	end)
 
 	task.spawn(function()

@@ -151,6 +151,7 @@ Config.DefaultSettings = {
 	sfx = 1,
 	shake = true,
 	pets = true,     -- başka oyuncuların petleri görünsün
+	myPets = true,   -- kendi petlerin görünsün (kapalıyken bonus sürüyor, yalnızca görünmüyor)
 	lowGfx = false,  -- düşük grafik: gölge, parçacık ve ışık efektleri kapalı
 }
 
@@ -812,11 +813,11 @@ Config.Badges = {
 	Billionaire  = { id = 3789475162138106, name = "Billionaire" },
 	ThiefCatcher = { id = 1045910647960350, name = "Caught Red-Handed" },
 	-- 2026-09-28: kimlik 0 (Roblox'ta henüz yok); canavar ilk kez fırlatınca
-	Victim       = { id = 0, name = "Yeeted" },
+	Victim       = { id = 4265089406351174, name = "Yeeted" },
 	FullHouse    = { id = 0, name = "Full House" },
 	SecretFind   = { id = 0, name = "Secret Collector" },
 	-- 2026-09-28: kimlik 0; 100 uzay soygununda
-	StreakMaster = { id = 0, name = "Heist Master" },
+	StreakMaster = { id = 4304894818520792, name = "Heist Master" },
 	FirstSpin    = { id = 0, name = "Lucky Spinner" },
 } :: { [string]: BadgeDef }
 
@@ -1084,8 +1085,9 @@ export type GamePassDef = {
 Config.GamePasses = {
 	DoubleIncome = { id = 1997912710, name = "2x Income" },
 	ExtraPodiums = { id = 1999070658, name = "+2 Podiums Per Floor" },
-	FastSteal    = { id = 1998410695, name = "Fast Steal" },
-	StrongLock   = { id = 1998878635, name = "Strong Lock" },
+	-- 2026-09-28: Roblox'ta "Fast Grab" ve "Monster Shield" olarak yeniden adlandırıldı
+	FastSteal    = { id = 1998410695, name = "Fast Grab" },
+	StrongLock   = { id = 1998878635, name = "Monster Shield" },
 	-- Yumurtayı tek seferde üç kez açar (üç kat fiyat, tek bekleme)
 	TripleHatch  = { id = 1999526736, name = "Triple Hatch" },
 } :: { [string]: GamePassDef }
@@ -1181,9 +1183,16 @@ Config.ShieldKnock = 30
 
 Config.Products = {
 	-- Roblox'taki adları: Small / Medium / Huge Cash Pack
-	Cash100K       = { id = 3714873855, name = "$100K",           kind = "cash", amount =   100000 },
-	Cash1M         = { id = 3714873899, name = "$1M",             kind = "cash", amount =  1000000 },
-	Cash10M        = { id = 3714873959, name = "$10M",            kind = "cash", amount = 10000000 },
+	--[[
+		2026-09-28: "sonraki oyun için çok az veriyor, kimse Robux'la almaz".
+		Miktar artık oyuncunun anlık gelirine ve bakiyesine göre
+		(Config.GetCashPackAmount): amount taban, seconds kaç saniyelik gelir,
+		cashFrac bakiyenin ne kadarı. Hangisi büyükse o. Adlar Roblox'taki
+		ürün adları; mağaza kartı gerçek miktarı gösteriyor.
+	]]
+	Cash100K       = { id = 3714873855, name = "Small Cash Pack",  kind = "cash", amount =   100000, seconds =  900, cashFrac = 0.15 },
+	Cash1M         = { id = 3714873899, name = "Medium Cash Pack", kind = "cash", amount =  1000000, seconds = 3600, cashFrac = 0.5 },
+	Cash10M        = { id = 3714873959, name = "Huge Cash Pack",   kind = "cash", amount = 10000000, seconds = 14400, cashFrac = 1.5 },
 	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı. Konveyör de
 	-- kalktı; "conveyor" ödülü artık SpaceService'te (kaideye bir karakter).
 	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },
@@ -1197,8 +1206,27 @@ Config.Products = {
 	PotionIncome2x   = { id = 3714932156, name = "Double Income Potion",   kind = "potion", potion = "Income2x" },
 	PotionIncome3x   = { id = 3714932218, name = "Triple Income Potion",   kind = "potion", potion = "Income3x" },
 	PotionFastSteal  = { id = 3714932280, name = "Fast Hands Potion",      kind = "potion", potion = "FastSteal" },
-	PotionStrongLock = { id = 3714932378, name = "Reinforced Lock Potion", kind = "potion", potion = "StrongLock" },
+	PotionStrongLock = { id = 3714932378, name = "Monster Shield Potion",  kind = "potion", potion = "StrongLock" },
 } :: { [string]: ProductDef }
+
+--[[
+	Nakit paketinin bu oyuncuya vereceği miktar: taban, `seconds` saniyelik
+	gelir ya da bakiyenin `cashFrac` katı — hangisi büyükse. İki anlamlı
+	basamağa yuvarlanıyor (kartta okunaklı dursun). Sunucu satın alma anında
+	aynı hesabı yapıyor; kart da oyuncunun Cash/Income niteliklerinden.
+]]
+function Config.GetCashPackAmount(product: any, incomePerSecond: number, cash: number): number
+	local base = product.amount or 0
+	local byIncome = math.max(0, incomePerSecond) * (product.seconds or 0)
+	local byCash = math.max(0, cash) * (product.cashFrac or 0)
+	local amount = math.max(base, byIncome, byCash)
+	if amount >= 100 then
+		local digits = math.floor(math.log10(amount)) - 1
+		local unit = 10 ^ digits
+		amount = math.floor(amount / unit + 0.5) * unit
+	end
+	return math.floor(amount)
+end
 
 -- Profilde saklanan makbuz kimliği sayısı. Aynı satın almanın iki kez
 -- işlenmesini engellemek için tutuluyor; sınırsız büyümesin diye kırpılıyor.
@@ -1254,6 +1282,29 @@ Config.Upgrades = {
 	{ id = "CrewMorale",      name = "Crew Morale",      category = "base",     baseMaxLevel = 6, baseCost = 800000, costGrowth = 2.9,
 	  blurb = "More cash from every podium" },
 } :: { UpgradeDef }
+
+--[[
+	2026-09-28: "upgrade sayıları çok daha fazla olmalı, hemen makslanıyor".
+	Her yükseltmenin seviyesi UpgradeLevelScale katına çıktı; etkiler
+	seviye / UpgradeLevelScale ile hesaplanıyor (tavanda güç aynı), maliyet
+	büyümesi kökü alınıp tabanı küçüldü (tavana kadar toplam harcama benzer,
+	adımlar küçük). Eski kayıtların seviyesi bu katla çarpılıyor
+	(DataService, profile.upgradeScale).
+]]
+Config.UpgradeLevelScale = 4
+for _, def in Config.Upgrades do
+	local k = Config.UpgradeLevelScale
+	local g = def.costGrowth
+	local g2 = g ^ (1 / k)
+	def.baseMaxLevel = def.baseMaxLevel * k
+	def.baseCost = def.baseCost * (g2 - 1) / (g - 1)
+	def.costGrowth = g2
+end
+
+--[[ Etki fonksiyonlarının kullandığı "eski ölçekli" seviye (kesirli). ]]
+local function upgradeStep(level: number): number
+	return math.max(0, level) / Config.UpgradeLevelScale
+end
 
 --[[
 	Kalkan yükseltmeler: kayıtta bulunursa (DataService sanitize) o seviyelere
@@ -1318,7 +1369,13 @@ function Config.GetUpgradeCost(id: string, currentLevel: number, floors: number?
 		return nil
 	end
 
-	return math.floor(def.baseCost * def.costGrowth ^ currentLevel)
+	-- İki anlamlı basamak: 1234 -> 1200 (fiyatlar okunaklı)
+	local cost = def.baseCost * def.costGrowth ^ currentLevel
+	if cost >= 100 then
+		local unit = 10 ^ (math.floor(math.log10(cost)) - 1)
+		cost = math.floor(cost / unit + 0.5) * unit
+	end
+	return math.floor(cost)
 end
 
 -- ─── Yükseltme etkileri (tek yerde: sunucu ve arayüz aynısını kullanıyor) ───
@@ -1330,7 +1387,7 @@ end
 
 --[[ Quick Hands: kapma süresi çarpanı (1 → ~0.4). ]]
 function Config.GetGrabHoldMul(level: number): number
-	return 0.4 + 0.6 * (1 - saturate(level, 0.86))
+	return 0.4 + 0.6 * (1 - saturate(upgradeStep(level), 0.86))
 end
 
 --[[
@@ -1339,7 +1396,7 @@ end
 	yavaş boşaltıyor, roketi sakinleştiriyor.
 ]]
 function Config.GetTrainingAssist(level: number): number
-	return saturate(level, 0.84)
+	return saturate(upgradeStep(level), 0.84)
 end
 
 export type JetBoost = { mul: number, duration: number, cooldown: number }
@@ -1349,7 +1406,7 @@ function Config.GetJetBoost(level: number): JetBoost?
 	if level <= 0 then
 		return nil
 	end
-	local k = saturate(level - 1, 0.85)
+	local k = saturate(upgradeStep(level - 1), 0.85)
 	return {
 		mul = 1.6 + 0.5 * k,
 		duration = 0.9 + 0.7 * k,
@@ -1359,18 +1416,18 @@ end
 
 --[[ Stealth Suit: canavarın uyanma süresi çarpanı ve yakalama menzili çarpanı. ]]
 function Config.GetStealth(level: number): (number, number)
-	local k = saturate(level, 0.86)
+	local k = saturate(upgradeStep(level), 0.86)
 	return 1 + 1.3 * k, 1 - 0.3 * k
 end
 
 --[[ Lucky Scanner: çalınan mutasyonsuz mürettebatın mutasyon kazanma şansı. ]]
 function Config.GetLuckyChance(level: number): number
-	return 0.3 * saturate(level, 0.88)
+	return 0.3 * saturate(upgradeStep(level), 0.88)
 end
 
 --[[ Crew Morale: gelir çarpanı (1 → ~1.6). ]]
 function Config.GetMoraleMultiplier(level: number): number
-	return 1 + 0.6 * saturate(level, 0.9)
+	return 1 + 0.6 * saturate(upgradeStep(level), 0.9)
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
@@ -2693,7 +2750,7 @@ Config.Jetpacks = {
 	  tanks = 2, tank = Color3.fromRGB(226, 70, 70), trim = Color3.fromRGB(220, 224, 232), flame = Color3.fromRGB(255, 200, 90), flame2 = Color3.fromRGB(255, 80, 40) },
 	{ id = "Comet",   name = "Comet Jet",    boost = 1.5,  price = 750000,
 	  tanks = 2, tank = Color3.fromRGB(60, 140, 240), trim = Color3.fromRGB(230, 236, 246), flame = Color3.fromRGB(140, 220, 255), flame2 = Color3.fromRGB(60, 120, 255), wings = true },
-	{ id = "Plasma",  name = "Plasma Jet",   boost = 1.75, price = 0, pass = 0, robux = 99,
+	{ id = "Plasma",  name = "Plasma Jet",   boost = 1.75, price = 0, pass = 1999683184, robux = 99,
 	  tanks = 2, tank = Color3.fromRGB(70, 230, 120), trim = Color3.fromRGB(30, 40, 50), flame = Color3.fromRGB(160, 255, 150), flame2 = Color3.fromRGB(40, 220, 90), wings = true },
 	{ id = "Nova",    name = "Nova Jet",     boost = 1.85, price = 40000000,
 	  tanks = 2, tank = Color3.fromRGB(255, 190, 50), trim = Color3.fromRGB(250, 246, 230), flame = Color3.fromRGB(255, 240, 150), flame2 = Color3.fromRGB(255, 150, 40), wings = true },
@@ -2701,7 +2758,7 @@ Config.Jetpacks = {
 	  tanks = 2, tank = Color3.fromRGB(180, 90, 255), trim = Color3.fromRGB(40, 30, 60), flame = Color3.fromRGB(230, 170, 255), flame2 = Color3.fromRGB(160, 70, 255), wings = true, ring = true },
 	{ id = "Quasar",  name = "Quasar Jet",   boost = 2.55, price = 150000000000,
 	  tanks = 2, tank = Color3.fromRGB(30, 30, 44), trim = Color3.fromRGB(255, 70, 110), flame = Color3.fromRGB(255, 150, 190), flame2 = Color3.fromRGB(255, 50, 110), wings = true, ring = true },
-	{ id = "Galaxy",  name = "Galaxy Jet",   boost = 2.9,  price = 0, pass = 0, robux = 499,
+	{ id = "Galaxy",  name = "Galaxy Jet",   boost = 2.9,  price = 0, pass = 1999461068, robux = 499,
 	  tanks = 2, tank = Color3.fromRGB(50, 30, 110), trim = Color3.fromRGB(120, 230, 255), flame = Color3.fromRGB(255, 255, 255), flame2 = Color3.fromRGB(120, 200, 255), wings = true, ring = true },
 } :: { JetpackDef }
 
@@ -2824,9 +2881,17 @@ Config.Capsule = {
 		girdikten en az CatchWarmup sn sonra. Hile en fazla ~2.2x verir;
 		iyi oynayan zaten oraya yaklaşıyor.
 	]]
-	CatchBonusSeconds = 7.5,
-	CatchCooldown = 6,
+	--[[
+		2026-09-28: "mini oyun geliştirilsin, çok hızlı kazanılıyorsa ayar
+		çek". Tur ~12 sn (Training Console ~9.5), eskiden ~8.5; sunucu iki
+		bonus arasını CatchCooldown ile sınırlıyor. Çarpmadan biten tur
+		("PERFECT") PerfectCatchMul kat. İyi oynayan pasif kazancın ~1.6-1.8
+		katını alıyor (eskiden ~1.9-2.2).
+	]]
+	CatchBonusSeconds = 7,
+	CatchCooldown = 9,
 	CatchWarmup = 3,
+	PerfectCatchMul = 1.3,
 }
 
 --[[
@@ -2844,7 +2909,7 @@ end
 function Config.GetCapsuleGain(level: number, speed: number): number
 	local c = Config.Capsule
 	local falloff = (c.Ref / (math.max(speed, Config.Space.BaseSpeed) + c.Ref - Config.Space.BaseSpeed)) ^ c.Pow
-	return c.Rate * c.Growth ^ math.max(0, level) * falloff
+	return c.Rate * c.Growth ^ upgradeStep(level) * falloff
 end
 
 return Config

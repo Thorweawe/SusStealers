@@ -90,6 +90,7 @@ function MonetizationService.HasPass(player: Player, key: string): boolean
 	end
 
 	cache[key] = owns
+	player:SetAttribute("Pass_" .. key, owns)
 	return owns
 end
 
@@ -376,6 +377,7 @@ function MonetizationService.Start()
 					passCache[player] = cache
 				end
 				cache[key] = true
+				player:SetAttribute("Pass_" .. key, true)
 				notify(player, string.format("%s unlocked!", def.name), false)
 				break
 			end
@@ -385,6 +387,20 @@ function MonetizationService.Start()
 	Players.PlayerRemoving:Connect(function(player)
 		passCache[player] = nil
 	end)
+
+	--[[
+		Girişte bütün pass'ler sorgulanıp "Pass_<anahtar>" niteliği yazılıyor:
+		istemci kilitli düğmeleri (ör. yumurtada x3) buna göre gösteriyor.
+	]]
+	local function publishPasses(player: Player)
+		for key in Config.GamePasses do
+			task.spawn(MonetizationService.HasPass, player, key)
+		end
+	end
+	for _, player in Players:GetPlayers() do
+		publishPasses(player)
+	end
+	Players.PlayerAdded:Connect(publishPasses)
 
 	-- İksir süresi dolunca da nitelik düşmeli; saniyede bir bakmak yeter
 	task.spawn(function()

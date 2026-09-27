@@ -356,7 +356,7 @@ return {
 		do
 			local bf = K.folder("Boards")
 			local zb = z1 - T / 2
-			local titles = { "TOP EARNERS", "MOST STOLEN", "TOP INCOME" }
+			local titles = { "TOP EARNERS", "MOST HEISTS", "TOP INCOME" }
 			for i, title in titles do
 				-- Odadan bakınca soldan sağa 1-2-3 (bakış yönü +z, sol = +x)
 				local x = cx - (i - 2) * 46
@@ -540,7 +540,8 @@ return {
 			end
 			K.boxAt(nf, "VendPad", base * CFrame.new(3.2, 9, -2.55), Vector3.new(1.6, 4, 0.1), C.shadow)
 			local vl = K.boxAt(nf, "VendLogo", base * CFrame.new(0, 13.2, -2.56), Vector3.new(7, 1.2, 0.05), C.white, { transparency = 1 })
-			K.text(vl, Enum.NormalId.Front, "SNACKS", C.white, { h = 1, y = 0 })
+			-- 2026-09-28: otomat mağazanın iksir bölümünü açıyor (init.client)
+			K.text(vl, Enum.NormalId.Front, "POTIONS", C.white, { h = 1, y = 0 })
 			-- Saksı bitkileri: kapıların iki yanında
 			for _, p in { { cx - 26, z0 + 5 }, { cx + 26, z0 + 5 } } do
 				K.vcyl(nf, "Pot", p[1], FLOOR + 1.5, p[2], 3, 4, C.frame)

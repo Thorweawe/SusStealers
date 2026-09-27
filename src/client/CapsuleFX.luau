@@ -275,23 +275,31 @@ function CapsuleFX.Start(screen: Instance): Handle
 		0..1) taşları yavaşlatıyor, boşluğu genişletiyor, çarpma cezasını
 		azaltıyor. Kapsül seviyesi taşları biraz hızlandırıyor.
 	]]
+	--[[
+		2026-09-28: "mini oyun bir tık geliştirilsin, çok hızlı kazanılıyorsa
+		ayar çek". Tur uzadı (~12 sn, Training Console ile ~9.5) ve içinde
+		zorlaşıyor: çubuk doldukça taşlar hızlanıyor, sıralar sıklaşıyor,
+		boşluk daralıyor, yarıdan sonra bazı taşlar yana kayıyor. Çarpmadan
+		biten tur "PERFECT" (sunucuda PerfectCatchMul).
+	]]
 	type Tuning = { fall: number, rowEvery: number, gap: number, penalty: number, fill: number }
-	local function tuning(): Tuning
+	local function tuning(progress: number): Tuning
 		local level = player:GetAttribute("Upg_TrainingConsole")
 		local a = Config.GetTrainingAssist(if typeof(level) == "number" then level else 0)
+		local ramp = math.clamp(progress, 0, 1)
 		return {
-			fall = (150 + math.min(45, capsuleLevel() * 2.5)) * (1 - 0.3 * a),
-			rowEvery = 1.0 + 0.35 * a,
-			gap = 76 + 38 * a,
-			penalty = 0.24 - 0.12 * a,
-			fill = 1 / (8.5 - 1.5 * a),
+			fall = (145 + math.min(45, capsuleLevel() * 0.6)) * (1 - 0.3 * a) * (1 + 0.45 * ramp),
+			rowEvery = (1.05 + 0.35 * a) * (1 - 0.25 * ramp),
+			gap = (78 + 38 * a) * (1 - 0.18 * ramp),
+			penalty = 0.22 - 0.1 * a,
+			fill = 1 / (12 - 2.5 * a),
 		}
 	end
 
-	type Rock = { x: number, y: number, r: number, spin: number, frame: GuiObject, star: boolean }
+	type Rock = { x: number, y: number, r: number, spin: number, frame: GuiObject, star: boolean, dx: number }
 	local rocks: { Rock } = {}
 
-	local function addRock(x: number, y: number, r: number)
+	local function addRock(x: number, y: number, r: number, dx: number?)
 		local f = Instance.new("Frame")
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.Size = UDim2.fromOffset(r * 2, r * 2)
@@ -316,14 +324,14 @@ function CapsuleFX.Start(screen: Instance): Handle
 			crater.Parent = f
 			CardKit.corner(crater, 20)
 		end
-		table.insert(rocks, { x = x, y = y, r = r, spin = (math.random() - 0.5) * 160, frame = f, star = false })
+		table.insert(rocks, { x = x, y = y, r = r, spin = (math.random() - 0.5) * 160, frame = f, star = false, dx = dx or 0 })
 	end
 
 	local function addStar(x: number, y: number)
 		local s = CardKit.bold(track, "⭐", 22, CardKit.WHITE, Z + 6, 0)
 		s.AnchorPoint = Vector2.new(0.5, 0.5)
 		s.Size = UDim2.fromOffset(26, 26)
-		table.insert(rocks, { x = x, y = y, r = 11, spin = 90, frame = s, star = true })
+		table.insert(rocks, { x = x, y = y, r = 11, spin = 90, frame = s, star = true, dx = 0 })
 	end
 
 	local function clearRocks()
@@ -336,7 +344,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	-- Zig-zag: boşluk her sırada bir yöne kayıyor, kenara varınca dönüyor
 	local gapX = TRACK_W / 2
 	local gapDir = 1
-	local function spawnRow(t: Tuning)
+	local function spawnRow(t: Tuning, progress: number)
 		local half = t.gap / 2
 		local step = 36 + math.random() * 56
 		if math.random() < 0.2 then
@@ -352,7 +360,9 @@ function CapsuleFX.Start(screen: Instance): Handle
 		while x < TRACK_W - 8 do
 			local r = 11 + math.random() * 5
 			if math.abs(x - gapX) > half + r and math.random() > 0.12 then
-				addRock(x, -24 - math.random() * 10, r)
+				-- Yarıdan sonra bazı taşlar boşluğa doğru kayıyor
+				local drift = if progress > 0.45 and math.random() < 0.3 then (if x < gapX then 1 else -1) * (14 + progress * 26) else 0
+				addRock(x, -24 - math.random() * 10, r, drift)
 			end
 			x += r * 2 + 8 + math.random() * 8
 		end
@@ -459,6 +469,8 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local nextRowAt = 0
 	local invulnUntil = 0
 	local lastCatchAt = -math.huge
+	local crashedThisRound = false
+	local perfectStreak = 0
 	local clock = 0
 
 	local camera = workspace.CurrentCamera
@@ -466,6 +478,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 
 	local function newRound(delay: number)
 		progress = 0
+		crashedThisRound = false
 		roundAt = os.clock() + delay
 		nextRowAt = roundAt
 		clearRocks()
@@ -589,7 +602,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 			return
 		end
 		local now = os.clock()
-		local t = tuning()
+		local t = tuning(progress)
 
 		-- Roket: yumuşak ivmeyle yön; alt yarıda serbest
 		local steer = steerInput()
@@ -604,7 +617,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 			banner.Text = ""
 			if now >= nextRowAt then
 				nextRowAt = now + t.rowEvery * (0.85 + math.random() * 0.3)
-				spawnRow(t)
+				spawnRow(t, progress)
 			end
 			progress = math.min(1, progress + t.fill * dt)
 		else
@@ -617,16 +630,21 @@ function CapsuleFX.Start(screen: Instance): Handle
 		for i = #rocks, 1, -1 do
 			local rock = rocks[i]
 			rock.y += scroll * dt
+			if rock.dx ~= 0 then
+				rock.x = math.clamp(rock.x + rock.dx * dt, rock.r, TRACK_W - rock.r)
+			end
 			rock.frame.Position = UDim2.fromOffset(rock.x, rock.y)
 			rock.frame.Rotation += rock.spin * dt
 			local hit = (Vector2.new(rock.x, rock.y) - Vector2.new(rx, ry)).Magnitude < rock.r + 10
 			if hit and rock.star then
-				progress = math.min(1, progress + 0.07)
+				progress = math.min(1, progress + 0.05)
 				popup(gameFrame, "+BOOST", CardKit.YELLOW, 18, UDim2.fromOffset(14 + rx, TRACK_Y + ry - 20))
 				rock.frame:Destroy()
 				table.remove(rocks, i)
 			elseif hit and not hurt and live then
 				hurt = true
+				crashedThisRound = true
+				perfectStreak = 0
 				invulnUntil = now + 1.1
 				progress = math.max(0, progress - t.penalty)
 				SoundFX.RockBreak()
@@ -644,9 +662,16 @@ function CapsuleFX.Start(screen: Instance): Handle
 		if live and progress >= 1 then
 			if now - lastCatchAt >= Config.Capsule.CatchCooldown + 0.15 then
 				lastCatchAt = now
+				local perfect = not crashedThisRound
 				local bonus = Config.GetCapsuleGain(capsuleLevel(), speed()) * Config.Capsule.CatchBonusSeconds
-				catchRemote:FireServer()
+					* (if perfect then Config.Capsule.PerfectCatchMul else 1)
+				catchRemote:FireServer(perfect)
 				SoundFX.Success()
+				if perfect then
+					perfectStreak += 1
+					popup(gameFrame, if perfectStreak > 1 then string.format("PERFECT x%d!", perfectStreak) else "PERFECT!",
+						Color3.fromRGB(120, 255, 170), 24, UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2 - 36))
+				end
 				popup(gameFrame, string.format("+%.2f SPEED!", bonus), CardKit.YELLOW, 26, UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2))
 				newRound(1.6)
 			else

@@ -47,6 +47,8 @@ export type Profile = {
 	receipts: { string },
 	-- Üs yükseltmeleri: id -> seviye
 	upgrades: { [string]: number },
+	-- Seviyelerin kaydedildiği ölçek (Config.UpgradeLevelScale); eskiler 1
+	upgradeScale: number,
 	-- Son bedava çark çevirme anı (os.time)
 	lastSpinAt: number,
 	-- Unvanlar: açılanların kümesi ve takılı olanın id'si
@@ -136,7 +138,7 @@ export type Profile = {
 	trail: string,
 	-- Başlangıç ekranındaki ayarlar (SettingsService); oyuna güç vermiyor.
 	-- autoDelete: yumurtadan çıkınca envantere girmeden silinecek kademeler
-	settings: { music: number, sfx: number, shake: boolean, pets: boolean, lowGfx: boolean, autoDelete: { [string]: boolean } },
+	settings: { music: number, sfx: number, shake: boolean, pets: boolean, myPets: boolean, lowGfx: boolean, autoDelete: { [string]: boolean } },
 	-- Pet indeksi: bir kez bile elde edilmiş (ya da otomatik silinmiş) pet kimlikleri
 	petsFound: { [string]: boolean },
 }
@@ -190,6 +192,7 @@ local function newProfile(): Profile
 		incomePerSecond = 0,
 		receipts = {},
 		upgrades = {},
+		upgradeScale = Config.UpgradeLevelScale,
 		lastSpinAt = 0,
 		titles = {},
 		activeTitle = "",
@@ -229,6 +232,7 @@ local function newProfile(): Profile
 			sfx = Config.DefaultSettings.sfx,
 			shake = Config.DefaultSettings.shake,
 			pets = Config.DefaultSettings.pets,
+			myPets = Config.DefaultSettings.myPets,
 			lowGfx = Config.DefaultSettings.lowGfx,
 			autoDelete = {},
 		},
@@ -430,6 +434,13 @@ local function sanitize(raw: any): Profile
 		if typeof(legacy) == "number" and legacy > 0 and (raw.upgrades :: any).SpaceCapsule == nil then
 			(raw.upgrades :: any).SpaceCapsule = legacy
 		end
+		--[[
+			2026-09-28: seviyeler UpgradeLevelScale katına çıktı; eski ölçekle
+			kaydedilen seviye (upgradeScale yok = 1) aynı güce denk gelsin
+			diye çarpılıyor. Bir kez oluyor: profil yeni ölçekle kaydediliyor.
+		]]
+		local savedScale = if typeof(raw.upgradeScale) == "number" and raw.upgradeScale > 0 then raw.upgradeScale else 1
+		local levelMul = Config.UpgradeLevelScale / savedScale
 		for id, level in raw.upgrades do
 			--[[
 				Kalkan yükseltmeler (Unit Guard, Carry Speed, Lock Power —
@@ -444,7 +455,7 @@ local function sanitize(raw: any): Profile
 				-- Tavan kat sayısına bağlı; kayıtta oyunun mutlak tavanına
 				-- kırpıyoruz, kat kontrolü satın alma anında yapılıyor
 				profile.upgrades[id] = math.clamp(
-					math.floor(level), 0, Config.GetUpgradeCeiling(def))
+					math.floor(level * levelMul + 0.5), 0, Config.GetUpgradeCeiling(def))
 			end
 		end
 	end
@@ -574,7 +585,7 @@ local function sanitize(raw: any): Profile
 				(profile.settings :: any)[key] = math.clamp(v, 0, 1)
 			end
 		end
-		for _, key in { "shake", "pets", "lowGfx" } do
+		for _, key in { "shake", "pets", "myPets", "lowGfx" } do
 			if typeof(s[key]) == "boolean" then
 				(profile.settings :: any)[key] = s[key]
 			end

@@ -126,7 +126,7 @@ local PASSES: { Entry } = {
 		tint = Color3.fromRGB(242, 178, 30), blurb = "Every podium earns " .. hi("x2", "#7CFF5B") .. " cash, forever!" },
 	{ key = "TripleHatch", kind = "pass", title = "Triple Hatch", art = "TripleHatch", icon = "egg",
 		tint = Color3.fromRGB(160, 80, 235), blurb = "Hatch " .. hi("3 eggs", "#FFE13C") .. " at once, same wait!" },
-	{ key = "FastSteal", kind = "pass", title = "Fast Steal", art = "FastSteal", icon = "bolt",
+	{ key = "FastSteal", kind = "pass", title = "Fast Grab", art = "FastSteal", icon = "bolt",
 		tint = Color3.fromRGB(240, 110, 40), blurb = "Grab crewmates in space " .. hi("40% faster", "#FFE13C") .. "!" },
 	{ key = "ExtraPodiums", kind = "pass", title = "+2 Podiums", art = "ExtraPodiums", icon = "podium",
 		tint = Color3.fromRGB(50, 130, 235), blurb = hi("2 extra", "#7CFF5B") .. " podiums on every floor!" },
@@ -696,6 +696,32 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			amount.AnchorPoint = Vector2.new(0.5, 0)
 			amount.Position = UDim2.new(0.5, 0, 0, 142)
 			amount.Size = UDim2.new(1, -20, 0, 44)
+			--[[
+				2026-09-28: paket miktarı oyuncunun gelirine ve bakiyesine göre
+				(Config.GetCashPackAmount — sunucu satın almada aynısını veriyor).
+				Kart Cash/Income niteliklerinden canlı güncelleniyor.
+			]]
+			local product = Config.Products[entry.key]
+			if product then
+				local function paintAmount()
+					local income = player:GetAttribute("Income")
+					local cash = player:GetAttribute("Cash")
+					local value = Config.GetCashPackAmount(product,
+						if typeof(income) == "number" then income else 0,
+						if typeof(cash) == "number" then cash else 0)
+					amount.Text = "$" .. Config.FormatCash(value)
+				end
+				paintAmount()
+				player:GetAttributeChangedSignal("Income"):Connect(paintAmount)
+				local lastCashPaint = 0
+				player:GetAttributeChangedSignal("Cash"):Connect(function()
+					-- Nakit her saniye değişiyor: kartı en fazla saniyede bir boya
+					if os.clock() - lastCashPaint > 1 then
+						lastCashPaint = os.clock()
+						paintAmount()
+					end
+				end)
+			end
 			local buy = buyButton(card, UDim2.new(1, -36, 0, 54), Z + 5, 30)
 			buy.holder.AnchorPoint = Vector2.new(0.5, 1)
 			buy.holder.Position = UDim2.new(0.5, 0, 1, -10)

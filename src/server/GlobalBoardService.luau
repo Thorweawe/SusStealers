@@ -10,7 +10,8 @@
 
 	    TOP EARNERS  — hayat boyu kazanılan para (profile.earned). Nakit
 	                   harcandıkça düştüğü için "en zengin" yerine bu.
-	    MOST STOLEN  — hayat boyu çalma sayısı (profile.stolen)
+	    MOST HEISTS  — hayat boyu uzay soygunu (profile.stolen; 2026-09-28'den
+	                   beri yalnızca canavarlardan çalınanlar sayılıyor)
 	    TOP INCOME   — saniyelik gelir (profile.incomePerSecond)
 
 	Panolar Decor'daki SurfaceGui'ler; sunucu yazınca herkese replike
@@ -59,7 +60,7 @@ local BOARDS: { Board } = {
 	{ index = 1, title = "TOP EARNERS", store = "Global_Earned_v1",
 		value = function(p) return p.earned or 0 end,
 		format = function(v) return "$" .. Config.FormatCash(v) end },
-	{ index = 2, title = "MOST STOLEN", store = "Global_Stolen_v1",
+	{ index = 2, title = "MOST HEISTS", store = "Global_Stolen_v1",
 		value = function(p) return p.stolen or 0 end,
 		format = function(v) return tostring(math.floor(v)) end },
 	{ index = 3, title = "TOP INCOME", store = "Global_Income_v1",

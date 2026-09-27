@@ -190,9 +190,9 @@ end
 function EconomyService.Start()
 	notifyRemote = Net.Get("Notify")
 
-	-- Nakit paketleri: satın alınca doğrudan bakiyeye ekleniyor
+	-- Nakit paketleri: satın alma anındaki gelire ve bakiyeye göre (Config.GetCashPackAmount)
 	MonetizationService.RegisterGranter("cash", function(player, product)
-		local amount = product.amount
+		local amount = Config.GetCashPackAmount(product, EconomyService.GetIncome(player), EconomyService.GetCash(player))
 		if not amount or amount <= 0 then
 			return false
 		end

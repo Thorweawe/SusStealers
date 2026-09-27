@@ -4000,13 +4000,32 @@ case("Kapsül: kazanç seviyeyle artıyor, hızla azalıyor; eski kayıt taşın
 	ok("hız yavaşlatıyor", Config.GetCapsuleGain(3, 90) < Config.GetCapsuleGain(3, 30))
 	ok("taban hızda pozitif", Config.GetCapsuleGain(0, Config.Space.BaseSpeed) > 0)
 	local p = DataService._Sanitize({ cash = 10, upgrades = { ConveyorSpeed = 4 } })
-	eq("eski Conveyor Speed kapsüle taşındı", p.upgrades.SpaceCapsule, 4)
+	-- Eski kayıt eski ölçekte (upgradeScale yok = 1): seviye yeni ölçeğe çarpılıyor
+	eq("eski Conveyor Speed kapsüle taşındı", p.upgrades.SpaceCapsule, 4 * Config.UpgradeLevelScale)
+	local scaled = DataService._Sanitize({ upgradeScale = Config.UpgradeLevelScale, upgrades = { SpaceCapsule = 7 } })
+	eq("yeni ölçekli kayıt olduğu gibi", scaled.upgrades.SpaceCapsule, 7)
+	local old = DataService._Sanitize({ upgrades = { CrewMorale = 3 } })
+	ok("ölçek geçişi gücü koruyor", math.abs(Config.GetMoraleMultiplier(old.upgrades.CrewMorale) - (1 + 0.6 * (1 - 0.9 ^ 3))) < 1e-6)
 	eq("eski kimlik atıldı", p.upgrades.ConveyorSpeed, nil)
 	eq("uzay hızı varsayılanı", p.spaceSpeed, Config.Space.BaseSpeed)
 	local low = DataService._Sanitize({ spaceSpeed = 3 })
 	eq("taban altı kırpılıyor", low.spaceSpeed, Config.Space.BaseSpeed)
 	local high = DataService._Sanitize({ spaceSpeed = 57.5 })
 	eq("kazanılmış hız korunuyor", high.spaceSpeed, 57.5)
+end)
+
+case("Mağaza: nakit paketi gelire ve bakiyeye göre, yükseltme adımları küçük", function()
+	local small = Config.Products.Cash100K
+	eq("yeni oyuncuya taban", Config.GetCashPackAmount(small, 0, 0), small.amount)
+	ok("gelirle büyüyor", Config.GetCashPackAmount(small, 1e6, 0) >= 1e6 * small.seconds * 0.95)
+	ok("bakiyeyle büyüyor", Config.GetCashPackAmount(small, 0, 1e12) >= 1e12 * small.cashFrac * 0.95)
+	ok("büyük paket küçükten çok", Config.GetCashPackAmount(Config.Products.Cash10M, 5000, 1e7) > Config.GetCashPackAmount(small, 5000, 1e7))
+	for _, def in Config.Upgrades do
+		ok(def.id .. " tavanı yüksek", def.baseMaxLevel >= 20)
+		local c1, c2 = Config.GetUpgradeCost(def.id, 0), Config.GetUpgradeCost(def.id, 1)
+		ok(def.id .. " fiyat artıyor", c1 ~= nil and c2 ~= nil and c2 > c1)
+	end
+	ok("pass'siz üçlü açma yok", not PetService.CanTripleHatch(Players:GetPlayers()[1]) or MonetizationService.HasPass(Players:GetPlayers()[1], "TripleHatch"))
 end)
 
 -- ─── Uzay yolu: halkalar, yıldız tozu, sandıklar, kuyruklu yıldız ──────────
@@ -4095,7 +4114,10 @@ case("Jetpack: parayla alınıyor, gidişte hızlandırıyor, taşırken değil"
 	ok("sahiplik yayında", string.find(tostring(ctx.player:GetAttribute("JetpacksOwned")), "Scout", 1, true) ~= nil)
 	ok("başlangıca dönülebiliyor", JetpackService.Equip(ctx.player, "Starter"))
 	ok("sahip olunmayan kuşanılamıyor", not JetpackService.Equip(ctx.player, "Quasar"))
-	ok("Robux'lu parayla alınamıyor", not JetpackService.Buy(ctx.player, "Plasma"))
+	-- Test hesabı (oyunun sahibi) pass'e sahip olabilir: o zaman kuşanıyor ama para gitmiyor
+	setCash(ctx.player, 5)
+	JetpackService.Buy(ctx.player, "Plasma")
+	eq("Robux'lu parayla alınamıyor", EconomyService.GetCash(ctx.player), 5)
 
 	ctx.profile.jetpacks = {}
 	ctx.profile.jetpack = "Starter"

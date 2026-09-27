@@ -716,6 +716,52 @@ mountPanel("SideRail", function()
 
 	previews.Shop = shop.Toggle
 	previews.Index = catalog.Toggle
+
+	--[[
+		Kafeteryadaki otomat (Decor, "Vending"): tıklayınca ya da E'ye
+		basınca mağaza İKSİRLER bölümünde açılıyor (Robux iksirleri).
+		Prompt ve tıklama algılayıcı istemcide kuruluyor: yalnızca bu
+		oyuncunun penceresini açıyorlar, sunucuya bir şey gitmiyor.
+	]]
+	task.spawn(function()
+		local decor = workspace:WaitForChild("Decor", 60)
+		if not decor then
+			return
+		end
+		local wired: { [Instance]: boolean } = {}
+		local function openPotions()
+			shop.Open("potions")
+		end
+		local function wire(part: Instance)
+			if wired[part] or not part:IsA("BasePart") then
+				return
+			end
+			local name = part.Name
+			if not (name == "Vending" or name == "VendGlass" or name == "Snack" or name == "VendPad") then
+				return
+			end
+			wired[part] = true
+			local click = Instance.new("ClickDetector")
+			click.MaxActivationDistance = 40
+			click.Parent = part
+			click.MouseClick:Connect(openPotions)
+			if name == "Vending" then
+				local prompt = Instance.new("ProximityPrompt")
+				prompt.Name = "VendingPrompt"
+				prompt.ActionText = "Potions"
+				prompt.ObjectText = "Vending Machine"
+				prompt.KeyboardKeyCode = Enum.KeyCode.E
+				prompt.MaxActivationDistance = 12
+				prompt.RequiresLineOfSight = false
+				prompt.Parent = part
+				prompt.Triggered:Connect(openPotions)
+			end
+		end
+		for _, d in decor:GetDescendants() do
+			wire(d)
+		end
+		decor.DescendantAdded:Connect(wire)
+	end)
 	previews.PetIndex = function()
 		catalog.ShowPets()
 	end
