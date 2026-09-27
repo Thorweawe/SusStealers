@@ -211,6 +211,8 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 	root.BackgroundTransparency = 1
 	root.Size = UDim2.fromScale(1, 1)
 	root.Parent = gui
+	-- HUD yazıları mağaza dilinde (eski Gotham etiketler kalmasın)
+	UiKit.ModernizeText(root)
 
 	local scaler = Instance.new("UIScale")
 	scaler.Name = "DeviceScale"

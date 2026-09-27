@@ -195,6 +195,8 @@ function RebirthPanel.Create(screen: ScreenGui): Panel
 	corner(root, 16)
 	-- Diğer pencerelerle aynı kalın çerçeve (UiKit.Shell ile aynı değerler)
 	stroke(root, EMBER:Lerp(Color3.new(1, 1, 1), 0.15), 2.6, 0.08)
+	-- Mağaza dili: lacivert gradyan gövde, kalın koyu kenar, FredokaOne yazılar
+	UiKit.Modernize(root, EMBER, true)
 
 	local title = Instance.new("TextLabel")
 	title.Position = UDim2.fromOffset(22, 16)

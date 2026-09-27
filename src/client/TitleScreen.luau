@@ -305,6 +305,7 @@ function TitleScreen.Show(options: Options?): Handle
 	gui.DisplayOrder = 200
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = playerGui
+	UiKit.ModernizeText(gui)
 
 	local open = true
 	local connections: { RBXScriptConnection } = {}

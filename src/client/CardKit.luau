@@ -285,7 +285,8 @@ export type Skin = { header: Frame, close: TextButton, title: TextLabel, body: F
 ]]
 function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: number, z: number): Skin
 	for _, child in root:GetChildren() do
-		if child:IsA("UIGradient") or child:IsA("UIStroke") then
+		-- UiKit.Modernize'ın iç kenarı da: başlık şeridinin üstüne binmesin
+		if child:IsA("UIGradient") or child:IsA("UIStroke") or child.Name == "ModernRim" then
 			child:Destroy()
 		end
 	end

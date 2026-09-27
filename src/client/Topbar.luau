@@ -83,6 +83,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> ()): Bar
 	-- `screen` ölçek katmanı (DeviceLayout); şerit ölçeklenmiyor, Roblox'un
 	-- kendi düğmeleriyle aynı boyda kalmalı. O yüzden doğrudan PlayerGui.
 	layer.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	UiKit.ModernizeText(layer)
 
 	local row = Instance.new("Frame")
 	row.Name = "Buttons"

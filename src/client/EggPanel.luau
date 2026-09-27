@@ -400,7 +400,7 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			knob.Parent = pill
 			corner(knob, 10)
 			local state = text(pill, "", 10, WHITE, 7)
-			state.Font = Enum.Font.GothamBlack
+			state.Font = Enum.Font.FredokaOne
 			state.Size = UDim2.fromScale(1, 1)
 
 			local function draw()

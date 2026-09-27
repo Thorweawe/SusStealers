@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local OwnPlot = require(script.Parent.OwnPlot)
+local UiKit = require(script.Parent.UiKit)
 
 local Lobby = {}
 
@@ -93,6 +94,8 @@ function Lobby.Create(screen: ScreenGui): Hub
 	note.TextColor3 = MUTED
 	note.Text = ""
 	note.Parent = panel
+	-- Mağaza dili (eski düz koyu kutu yerine)
+	UiKit.Modernize(panel, NEON, true)
 
 
 	local function carrying(): boolean

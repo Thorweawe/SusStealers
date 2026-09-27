@@ -13,6 +13,25 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (34) — Batur (Yusuf'un şeridine de yazıldı)
+
+**Gezegen yolu doldu + eski UI'lar yeni dilde.** Studio'ya aktarıldı, **169/169 test temiz**.
+
+- **Gezegen yolu** (c34740d, `SpaceBonusService` yeni, `shared/SpaceField` Routes/Rings/StardustSpots/CrateSpots/RockClusters):
+  hız halkaları (içinden geçince kısa hız patlaması, `SpaceFX` stepRings), yıldız tozu kümeleri (+$),
+  tedarik sandıkları (büyük para, bazen iksir), asteroit kuşakları, Launch Bay'de gezegen panosu.
+  Toplama sunucuda (yakınlık, 10 Hz); istemci efekti `SpaceFX` "bonus". Değerler `Config.SpaceBonus`.
+- **Golden Comet olayı** (`EventService` "Comet", rastgele saatte 1): uzaydan altın kuyruklu yıldız geçiyor,
+  ilk dokunan para + mutasyonlu mürettebat alıyor. `EventFX`'e ikon/alt yazı eklendi; eski Impostor satırları silindi.
+- **UI yenileme** (`UiKit.Modernize` / `UiKit.ModernizeText`): `UiKit.Window` ile açılan bütün pencereler
+  (Gear, Index, TaskGame, AsteroidGame, Admin...) ve `UiKit.Page` sayfaları (Pet, Style...) otomatik mağaza dilinde:
+  lacivert gövde, kalın koyu kenar, FredokaOne + kontur yazılar, ROW satırlar kart. Rebirth, Transit (Lobby),
+  AlertBanner, AutoHatch elle bağlandı; HUD (DeviceRoot), üst şerit, açılış ekranı yalnızca yazı.
+  **Yeni panel yazarken:** Gotham kullanırsan otomatik FredokaOne'a dönüyor; koyu yazıya kontur eklenmiyor.
+  `CardKit.skin` kullanan pencereler eskisi gibi (skin, Modernize'ın iç kenarını siliyor).
+
+---
+
 ## 2026-09-28 (33) — Batur (Yusuf'un şeridine de yazıldı)
 
 **Oyuncudan çalma KALKTI.** Karakterler yalnızca uzaydaki canavarlardan çalınıyor.

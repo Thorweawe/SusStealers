@@ -184,14 +184,161 @@ function UiKit.Shell(parent: Instance, name: string, accent: Color3): Frame
 	return root
 end
 
+-- ─── Mağaza diline çevirme (2026-09-28: "bazı UI'lar eskide kaldı") ─────────
+
+local MODERN_BODY = Color3.fromRGB(34, 38, 56)
+local MODERN_DEEP = Color3.fromRGB(22, 25, 38)
+local MODERN_OUTLINE = Color3.fromRGB(22, 20, 34)
+local MODERN_ROW = Color3.fromRGB(48, 54, 78)
+local GOTHAM: { [Enum.Font]: boolean } = {
+	[Enum.Font.Gotham] = true,
+	[Enum.Font.GothamMedium] = true,
+	[Enum.Font.GothamBold] = true,
+	[Enum.Font.GothamBlack] = true,
+	[Enum.Font.GothamSemibold] = true,
+}
+
+local function hasChild(inst: Instance, className: string): boolean
+	return inst:FindFirstChildOfClass(className) ~= nil
+end
+
+--[[
+	Tek öğeyi mağaza diline çevirir (CardKit ile aynı görünüş):
+	  - Gotham yazılar → FredokaOne + koyu kontur (UIStroke, Contextual)
+	  - UiKit.ROW renkli düz satırlar → kart: açık gradyan + koyu kenar
+	  - düz düğmeler → koyu kenar
+	Zaten konturlu/gradyanlı öğelere dokunmuyor (CardKit parçaları).
+]]
+local function modernizeText(d: Instance)
+	if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and GOTHAM[d.Font] then
+		d.Font = Enum.Font.FredokaOne
+		-- Koyu yazı (açık düğme üstünde) konturla okunmaz hale geliyor: yalnız açık yazılar
+		local c = d.TextColor3
+		local light = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B > 0.4
+		if light and not d:IsA("TextBox") and not hasChild(d, "UIStroke") and d.TextTransparency < 1 then
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = MODERN_OUTLINE
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+			stroke.LineJoinMode = Enum.LineJoinMode.Round
+			stroke.Thickness = if d.TextScaled then 1.8 else math.clamp(d.TextSize / 9, 1.2, 3.2)
+			stroke.Parent = d
+			d.TextStrokeTransparency = 1
+		end
+	end
+end
+
+local function modernizeOne(d: Instance)
+	if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+		modernizeText(d)
+		if d:IsA("TextButton") and d.BackgroundTransparency < 0.5 and not hasChild(d, "UIStroke") and not hasChild(d, "UIGradient") then
+			local border = Instance.new("UIStroke")
+			border.Color = MODERN_OUTLINE
+			border.Thickness = 2.5
+			border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			border.Parent = d
+			local g = Instance.new("UIGradient")
+			g.Rotation = 90
+			g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 205))
+			g.Parent = d
+		end
+	elseif d:IsA("Frame") and d.BackgroundTransparency < 0.6 then
+		local c = d.BackgroundColor3
+		local isRow = math.abs(c.R - UiKit.ROW.R) < 0.02 and math.abs(c.G - UiKit.ROW.G) < 0.02 and math.abs(c.B - UiKit.ROW.B) < 0.02
+		if isRow and not hasChild(d, "UIGradient") then
+			-- Gradyan zemin rengiyle çarpılıyor: zemin beyaz, renkler gradyanda
+			d.BackgroundColor3 = Color3.new(1, 1, 1)
+			local g = Instance.new("UIGradient")
+			g.Rotation = 90
+			g.Color = ColorSequence.new(MODERN_ROW:Lerp(Color3.new(1, 1, 1), 0.12), MODERN_ROW:Lerp(Color3.new(0, 0, 0), 0.2))
+			g.Parent = d
+			if not hasChild(d, "UIStroke") then
+				local border = Instance.new("UIStroke")
+				border.Color = MODERN_OUTLINE
+				border.Thickness = 2.5
+				border.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				border.Parent = d
+			end
+		end
+	end
+end
+
+--[[
+	Pencereyi (ya da sayfayı) mağaza diline çevirir; sonradan eklenen
+	satırlar da (DescendantAdded) çevriliyor. `shell` true ise kökün
+	kendisi de: koyu lacivert gradyan gövde, kalın koyu kenar, içte ince
+	renkli kenar (CardKit kartları gibi).
+]]
+function UiKit.Modernize(root: GuiObject, accent: Color3?, shell: boolean?)
+	if shell then
+		root.BackgroundColor3 = MODERN_BODY
+		root.BackgroundTransparency = 0
+		if not hasChild(root, "UIGradient") then
+			local g = Instance.new("UIGradient")
+			g.Rotation = 90
+			g.Parent = root
+		end
+		if not hasChild(root, "UIStroke") then
+			Instance.new("UIStroke").Parent = root
+		end
+		for _, child in root:GetChildren() do
+			if child:IsA("UIGradient") then
+				child.Color = ColorSequence.new(MODERN_BODY, MODERN_DEEP)
+			elseif child:IsA("UIStroke") then
+				child.Color = MODERN_OUTLINE
+				child.Thickness = 4
+				child.Transparency = 0
+			end
+		end
+		if accent and not root:FindFirstChild("ModernRim") then
+			local rim = Instance.new("Frame")
+			rim.Name = "ModernRim"
+			rim.Position = UDim2.fromOffset(4, 4)
+			rim.Size = UDim2.new(1, -8, 1, -8)
+			rim.BackgroundTransparency = 1
+			rim.ZIndex = root.ZIndex
+			rim.Active = false
+			rim.Parent = root
+			UiKit.Corner(rim, 11)
+			local s = Instance.new("UIStroke")
+			s.Color = accent:Lerp(Color3.new(1, 1, 1), 0.35)
+			s.Thickness = 2
+			s.Transparency = 0.35
+			s.Parent = rim
+		end
+	end
+	for _, d in root:GetDescendants() do
+		modernizeOne(d)
+	end
+	root.DescendantAdded:Connect(function(d)
+		-- Özellikler (Font, renk) bu karede atanıyor: bir kare sonra bak
+		task.defer(modernizeOne, d)
+	end)
+end
+
+--[[
+	Yalnızca yazılar (HUD, üst şerit, açılış ekranı): kutulara ve düğme
+	zeminlerine dokunmadan Gotham → FredokaOne + koyu kontur.
+]]
+function UiKit.ModernizeText(root: Instance)
+	for _, d in root:GetDescendants() do
+		modernizeText(d)
+	end
+	root.DescendantAdded:Connect(function(d)
+		task.defer(modernizeText, d)
+	end)
+end
+
 --[[
 	Ortada açılan pencere: Shell + tek pencere kuralı. Pencere panelleri
 	bunu kullanıyor; HUD'da sürekli duran kutular (sıralama tablosu gibi)
-	düz Shell kullanıyor.
+	düz Shell kullanıyor. 2026-09-28'den beri mağaza diline çevriliyor
+	(Modernize); CardKit.skin kullanan pencereler kabuğu zaten yeniden
+	boyuyor, onlarda yalnızca eski yazılar değişiyor.
 ]]
 function UiKit.Window(parent: Instance, name: string, accent: Color3): Frame
 	local root = UiKit.Shell(parent, name, accent)
 	UiKit.Exclusive(root)
+	UiKit.Modernize(root, accent, true)
 	return root
 end
 
@@ -209,6 +356,8 @@ function UiKit.Page(host: Instance, name: string): Frame
 	root.BorderSizePixel = 0
 	root.Visible = false
 	root.Parent = host
+	-- Sayfanın yazıları ve satırları da mağaza dilinde (kabuğu sahibi pencerede)
+	UiKit.Modernize(root, nil, false)
 	return root
 end
 

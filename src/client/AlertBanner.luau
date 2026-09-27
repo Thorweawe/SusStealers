@@ -42,6 +42,8 @@ function AlertBanner.Create(screen: Instance): Handle
 	local stroke = UiKit.Stroke(root, DEFAULT_COLOR, 3, 0)
 	local scale = Instance.new("UIScale")
 	scale.Parent = root
+	-- Yazılar mağaza dilinde (kenar rengi olaya göre değiştiği için kabuk aynı)
+	UiKit.Modernize(root, nil, false)
 
 	-- Sol: kırmızı disk içinde bıçaklı mürettebat
 	local disc = Instance.new("Frame")

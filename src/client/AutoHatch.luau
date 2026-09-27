@@ -69,6 +69,7 @@ function AutoHatch.Create(screen: ScreenGui, isPlaying: () -> boolean): Handle
 	bar.Parent = screen
 	UiKit.Corner(bar, 22)
 	UiKit.Stroke(bar, UiKit.CREW.PINK, 1.6, 0.2)
+	UiKit.Modernize(bar, nil, true)
 
 	local slot = Instance.new("Frame")
 	slot.Position = UDim2.fromOffset(8, 6)
