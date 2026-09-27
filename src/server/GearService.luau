@@ -15,6 +15,11 @@
 	  Emergency Button — çevredeki herkes savruluyor, sersemliyor, taşıdığını
 	                     düşürüyor.
 
+	UZAYDA (InSpace): oyuncu değil canavar hedef. Tokat, Stun Gun ve
+	Emergency Button önündeki/çevresindeki canavarı birkaç saniye donduruyor
+	(SpaceService.StunMonsters); Ghost Serum'da canavar seni göremiyor,
+	kovalamayı bırakıyor. Speed Coil yalnızca gemide (uçuş hızı uzay hızı).
+
 	═══ GÜVENLİK ══════════════════════════════════════════════════════════
 
 	GearBuy oyuncunun KENDİ parasını harcıyor; fiyat, sahiplik ve kimlik
@@ -49,6 +54,7 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local StealService = require(script.Parent.StealService)
 local RogueService = require(script.Parent.RogueService)
+local SpaceService = require(script.Parent.SpaceService)
 
 local GearService = {}
 
@@ -293,6 +299,28 @@ function GearService.Use(player: Player, id: string): boolean
 	end
 	local character = player.Character :: Model
 	local range = def.range or 10
+
+	-- Uzayda: hedef canavarlar
+	if player:GetAttribute("InSpace") and def.kind ~= "cloak" then
+		local look = root.CFrame.LookVector
+		local count, first
+		if def.kind == "slap" then
+			fx("use", character, id)
+			count = SpaceService.StunMonsters(root.Position, range + 6, 1.5, look, 0.2)
+		elseif def.kind == "stun" then
+			count, first = SpaceService.StunMonsters(root.Position, range * 2, 3, look, 0.8)
+			fx("use", character, id, first)
+		else
+			fx("use", character, id)
+			count = SpaceService.StunMonsters(root.Position, range * 1.8, 2.5)
+		end
+		if count > 0 then
+			notify(player, string.format("%s stunned the monster!", def.name), false)
+		else
+			notify(player, "No monster close enough", false)
+		end
+		return true
+	end
 
 	-- Görünmezken saldıran görünür oluyor
 	if def.kind ~= "cloak" then

@@ -32,6 +32,7 @@ local Net = require(Shared.Net)
 local SpaceField = require(Shared.SpaceField)
 
 local CardKit = require(script.Parent.CardKit)
+local FlyPose = require(script.Parent.FlyPose)
 local SoundFX = require(script.Parent.SoundFX)
 
 local SpaceFX = {}
@@ -398,6 +399,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		return nil, nil
 	end
 
+	local flyPose: FlyPose.Handle? = nil
+
 	local function setFlying(on: boolean)
 		if on == flying then
 			return
@@ -427,6 +430,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			align.Parent = root
 			flyAtt, flyVel, flyAlign = att, lv, align
 			humanoid.PlatformStand = true
+			-- Heykel gibi durmasın: uçuş animasyonu (süzülme / süper kahraman)
+			if flyPose then
+				flyPose:Destroy()
+			end
+			flyPose = FlyPose.Start(humanoid.Parent :: Model)
 			if not grade then
 				local g = Instance.new("ColorCorrectionEffect")
 				g.Name = "SpaceGrade"
@@ -447,6 +455,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 				flyAtt:Destroy()
 			end
 			flyAtt, flyVel, flyAlign = nil, nil, nil
+			if flyPose then
+				flyPose:Destroy()
+				flyPose = nil
+			end
 			if humanoid then
 				humanoid.PlatformStand = false
 				humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
@@ -559,7 +571,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 				look = look.Unit
 			end
 			local lean = math.clamp(v.Magnitude / math.max(1, speed), 0, 1)
-			local pitch = -math.rad(55) * lean + math.clamp(v.Y / math.max(1, speed), -1, 1) * math.rad(25)
+			-- Dururken dik süzülür, hızlanınca ~45° öne yatar (kol ileride, klip FlyPose)
+			local pitch = -math.rad(45) * lean + math.clamp(v.Y / math.max(1, speed), -1, 1) * math.rad(20)
+			if flyPose then
+				flyPose:SetBlend(lean)
+			end
 			local bob = math.sin(os.clock() * 2.4) * math.rad(3)
 			flyAlign.CFrame = CFrame.lookAt(Vector3.zero, look :: Vector3) * CFrame.Angles(pitch + bob, 0, 0)
 		end
@@ -622,6 +638,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		end
 		local since = now - v.stateAt
 		local gGoal, rGoal, swayGoal, rateGoal = 0, 0, 1, 1
+		if v.holder:GetAttribute("Stunned") then
+			-- Sersem: gevşek ve yavaş sallanıyor
+			local k0 = 1 - math.exp(-6 * dt)
+			v.grab += (0 - v.grab) * k0
+			v.roar += (0.2 - v.roar) * k0
+			v.sway += (0.5 - v.sway) * k0
+			v.rate += (0.4 - v.rate) * k0
+			return "stunned"
+		end
 		if state == "wake" then
 			rGoal, swayGoal, rateGoal = 1, 0.5, 3
 		elseif state == "chase" then
@@ -683,7 +708,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			if v.needLabel.TextColor3 ~= color then
 				v.needLabel.TextColor3 = color
 			end
-			local tag = if state == "idle" then "zzz" elseif state == "return" then "..." else "!!"
+			local tag = if state == "stunned" then "STUNNED" elseif state == "idle" then "zzz" elseif state == "return" then "..." else "!!"
 			if v.tag.Text ~= tag then
 				v.tag.Text = tag
 				v.tag.TextColor3 = if tag == "!!" then Color3.fromRGB(255, 80, 90) else Color3.fromRGB(200, 200, 255)
@@ -714,45 +739,48 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 		-- Gösterge: uzayda ya da güvertede
 		local onDeck = SpaceField.InDeck(root.Position)
-		local show = inSpace or onDeck
+		-- Görev kartı yalnızca öğretici sürerken (oyuncu yolu öğrendikten sonra kalabalık yapıyordu)
+		local step = player:GetAttribute("TutorialStep")
+		local learning = typeof(step) == "number" and step < #Config.Tutorial
+		local show = (inSpace or onDeck) and learning
 		if show ~= shownHud then
 			shownHud = show
 			hud.Visible = show
-			if not show then
-				dangerStroke.Transparency = 1
-			end
 		end
-		if not show then
-			return
-		end
-		local carrying = player:GetAttribute("SpaceCarry") == true
-		local speed = mySpeed()
-		local best = Config.BestSpaceMonster(speed)
-		local goal: Vector3
-		if carrying then
-			goal = SpaceField.DeckCenter()
-		else
-			goal = best.position
-		end
-		arrow.Rotation = bearingTo(goal, root.Position)
-		speedText.Text = string.format("SPACE SPEED %.1f  ·  %d studs", speed, math.floor((goal - root.Position).Magnitude))
-		if carrying ~= lastCarrying then
-			lastCarrying = carrying
+		if show then
+			local carrying = player:GetAttribute("SpaceCarry") == true
+			local speed = mySpeed()
+			local best = Config.BestSpaceMonster(speed)
+			local goal: Vector3
 			if carrying then
-				objective.Text = "FLY BACK TO THE LAUNCH BAY!"
-				CardKit.tintCard(card, Color3.fromRGB(210, 60, 80))
+				goal = SpaceField.DeckCenter()
 			else
-				objective.Text = string.format("Fly to %s and steal a crewmate", best.name)
-				CardKit.tintCard(card, Color3.fromRGB(46, 96, 210))
+				goal = best.position
 			end
-		elseif not carrying then
-			local text = string.format("Fly to %s and steal a crewmate", best.name)
-			if objective.Text ~= text then
-				objective.Text = text
+			arrow.Rotation = bearingTo(goal, root.Position)
+			speedText.Text = string.format("SPACE SPEED %.1f", speed)
+			if carrying ~= lastCarrying then
+				lastCarrying = carrying
+				if carrying then
+					objective.Text = "FLY BACK TO THE LAUNCH BAY!"
+					CardKit.tintCard(card, Color3.fromRGB(210, 60, 80))
+				else
+					objective.Text = string.format("Fly to %s and steal a crewmate", best.name)
+					CardKit.tintCard(card, Color3.fromRGB(46, 96, 210))
+				end
+			elseif not carrying then
+				local text = string.format("Fly to %s and steal a crewmate", best.name)
+				if objective.Text ~= text then
+					objective.Text = text
+				end
 			end
 		end
 
-		-- Tehlike kenarı: beni kovalayan canavar yakınsa
+		-- Tehlike kenarı: beni kovalayan canavar yakınsa (kart gizliyken de)
+		if not (inSpace or onDeck) then
+			dangerStroke.Transparency = 1
+			return
+		end
 		local nearest = math.huge
 		for _, v in visuals do
 			if v.state == "chase" and v.holder:GetAttribute("Target") == player.UserId then
@@ -771,6 +799,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		grab = nil
 		flying = false
 		flyAtt, flyVel, flyAlign = nil, nil, nil
+		flyPose = nil
 		if grade then
 			grade:Destroy()
 			grade = nil
@@ -807,6 +836,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			SoundFX.Deny()
 			local def = Config.GetSpaceMonster(a)
 			yell(string.format("%s GOT YOU!", string.upper(if def then def.name else "IT")), Color3.fromRGB(255, 70, 90), b + 0.4)
+		elseif kind == "lunge" and typeof(a) == "string" then
+			local def = Config.GetSpaceMonster(a)
+			effects.Shake(1.2, 0.5)
+			yell(string.format("%s LUNGES!", string.upper(if def then def.name else "IT")), Color3.fromRGB(255, 90, 90), 1.2)
 		elseif kind == "delivered" then
 			effects.Flash(Color3.fromRGB(90, 255, 120), 0.45, 0.6)
 			SoundFX.Success()

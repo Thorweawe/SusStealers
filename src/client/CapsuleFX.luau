@@ -28,6 +28,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CardKit = require(script.Parent.CardKit)
+local FlyPose = require(script.Parent.FlyPose)
 local SoundFX = require(script.Parent.SoundFX)
 
 local CapsuleFX = {}
@@ -40,13 +41,15 @@ local player = Players.LocalPlayer
 local Z = 28
 
 -- Mini oyun ayarları (hat yüksekliğinin kesri olarak)
-local ZONE_H = 0.28
-local RISE = 2.8           -- basılıyken yukarı ivme
-local FALL = 2.3           -- bırakınca aşağı ivme
-local MAX_V = 1.25
-local FILL = 0.13          -- alandayken çubuk dolma hızı (sn başına)
-local DRAIN = 0.1
-local START = 0.2
+-- 2026-09-27: "çok zor" — alan büyüdü, roket ve alan yavaşladı, çubuk
+-- daha hızlı doluyor ve yavaş boşalıyor
+local ZONE_H = 0.38
+local RISE = 1.9           -- basılıyken yukarı ivme
+local FALL = 1.6           -- bırakınca aşağı ivme
+local MAX_V = 0.9
+local FILL = 0.18          -- alandayken çubuk dolma hızı (sn başına)
+local DRAIN = 0.06
+local START = 0.25
 -- Tur arası: sunucunun beklemesi (CatchCooldown) dolmadan çubuk dolamasın
 local INTRO = math.max(1.5, Config.Capsule.CatchCooldown - (1 - START) / FILL + 0.1)
 
@@ -342,6 +345,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local floatPos: AlignPosition? = nil
 	local floatRot: AlignOrientation? = nil
 	local floating = false
+	local floatPose: FlyPose.Handle? = nil
 
 	local function setFloating(on: boolean)
 		if on == floating then
@@ -373,6 +377,11 @@ function CapsuleFX.Start(screen: Instance): Handle
 			ao.Parent = root
 			floatAtt, floatPos, floatRot = att, ap, ao
 			humanoid.PlatformStand = true
+			if floatPose then
+				floatPose:Destroy()
+			end
+			floatPose = FlyPose.Start(character :: Model)
+			floatPose:SetBlend(1)
 		else
 			if floatPos then
 				floatPos:Destroy()
@@ -384,6 +393,10 @@ function CapsuleFX.Start(screen: Instance): Handle
 				floatAtt:Destroy()
 			end
 			floatAtt, floatPos, floatRot = nil, nil, nil
+			if floatPose then
+				floatPose:Destroy()
+				floatPose = nil
+			end
 			if humanoid then
 				humanoid.PlatformStand = false
 				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
@@ -501,9 +514,9 @@ function CapsuleFX.Start(screen: Instance): Handle
 			end
 			-- Alan rastgele hedeflere kayıyor; seviye yükseldikçe biraz hızlı
 			if now >= nextTarget then
-				nextTarget = now + 0.5 + math.random() * 1.1
+				nextTarget = now + 0.9 + math.random() * 1.3
 				zoneTarget = ZONE_H / 2 + math.random() * (1 - ZONE_H)
-				zoneSpeed = 0.25 + math.random() * 0.35 + math.min(0.2, capsuleLevel() * 0.01)
+				zoneSpeed = 0.15 + math.random() * 0.2 + math.min(0.1, capsuleLevel() * 0.005)
 			end
 			local d = zoneTarget - zoneC
 			zoneC += math.sign(d) * math.min(math.abs(d), zoneSpeed * dt)
@@ -520,7 +533,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 				newRound(INTRO)
 			elseif progress <= 0 then
 				SoundFX.Deny()
-				popup(gameFrame, "MISSED!", Color3.fromRGB(255, 110, 110), 24, UDim2.new(0.5, 0, 0, TRACK_Y + TRACK_H / 2))
+				popup(gameFrame, "MISSED!", Color3.fromRGB(255, 110, 110), 24, UDim2.new(0.5, 0, 0, TRACK_Y + 30))
 				newRound(1.5)
 			end
 		else
@@ -566,7 +579,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 						look = toDoor.Unit
 					end
 				end
-				local pitch = math.rad(-72) + math.clamp(rocketV, -1, 1) * math.rad(18)
+				local pitch = math.rad(-42) + math.clamp(rocketV, -1, 1) * math.rad(15)
 				local roll = math.sin(clock * 1.6) * math.rad(10)
 				floatRot.CFrame = CFrame.lookAt(Vector3.zero, look) * CFrame.Angles(pitch, 0, roll)
 			end

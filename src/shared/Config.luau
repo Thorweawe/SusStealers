@@ -939,6 +939,8 @@ Config.Events = {
 	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
 	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
 	{ id = "Impostor",  name = "Impostor Hunt", every = 3600, offset = 0, duration = 60, random = true, perHour = 2 },
+	-- Uzay soygunu olayı: iki saatte bir, gezegenlerdeki her mürettebat mutasyonlu
+	{ id = "Storm",     name = "Mutation Storm",    every = 2 * 3600, offset = 5 * 60,  duration = 120 },
 } :: { EventDef }
 
 -- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
@@ -952,10 +954,14 @@ Config.EventWarning = 30
 Config.MeetingIncomeMul = 2
 -- Lights Sabotage: çalma basılı tutma süresi bu oranla çarpılıyor
 Config.LightsOutHoldMul = 0.6
+-- ...ve uzaydaki canavarlar yarı kör: geç uyanıyor, yavaş kovalıyor
+Config.LightsOutWakeMul = 2.5
+Config.LightsOutChaseMul = 0.85
 
 --[[
-	Reactor Meltdown: istasyonun rastgele noktalarına enerji çekirdekleri
-	düşüyor, ilk dokunan alıyor. Rastgele çünkü üsler farklı yerlerde; sabit
+	Reactor Meltdown: reaktör enerji çekirdeklerini UZAYA savuruyor (güverte
+	ile gezegenler arasına, SpaceService.RandomSpacePoint), ilk dokunan
+	alıyor; uzay yoksa istasyonun rastgele noktalarına. Rastgele çünkü üsler farklı yerlerde; sabit
 	nokta bazı üslere hep yakın olurdu.
 	Ödül gelirle ölçekli (yeni oyuncu için de anlamlı, zengin için de):
 	nakit ya da düşük ihtimalle bir karakter.
@@ -2241,19 +2247,19 @@ export type GearDef = {
 Config.Gear = {
 	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
 		cooldown = 4, range = 10, stun = 1.4, knock = 60,
-		blurb = "Slap players flying. Thieves drop what they stole." },
+		blurb = "Slap players flying: thieves drop their loot. In space it stuns a monster." },
 	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
 		walkSpeed = 32, sprintSpeed = 40,
-		blurb = "Run way faster than sprinting while holding it. Not while carrying." },
+		blurb = "Run way faster on the ship while holding it. Not while carrying." },
 	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
 		cooldown = 20, range = 30, stun = 2.5,
-		blurb = "Zap a player from afar: frozen for 2.5s, thieves drop their loot." },
+		blurb = "Zap a player or a space monster from afar: frozen, thieves drop their loot." },
 	{ id = "GhostSerum",      name = "Ghost Serum",      price =    75000000, kind = "cloak",
 		cooldown = 40, duration = 8,
-		blurb = "Drink to turn invisible for 8s. Wears off if you grab something." },
+		blurb = "Invisible for 8s: players can't see you and space monsters lose track of you." },
 	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
 		cooldown = 45, range = 20, stun = 2, knock = 85,
-		blurb = "Slam it: everyone around you is blasted away and drops their loot." },
+		blurb = "Slam it: players around you are blasted away, nearby monsters get stunned." },
 } :: { GearDef }
 
 -- Vurulan oyuncu bu kadar saniye tekrar vurulamıyor (sersemleme kilidi olmasın)
@@ -2571,6 +2577,8 @@ export type SpaceMonsterDef = {
 	position: Vector3,      -- gezegenin tepesindeki düzlüğün (plato) merkezi, üst yüz
 	radius: number,         -- gezegen yarıçapı
 	scale: number,          -- canavar modelinin ölçeği (MonsterModel)
+	wake: number,           -- kükreme süresi: bu kadar sn sonra kovalamaya başlıyor
+	lunge: number,          -- yakına gelince ani atak hız çarpanı (1 = atak yok)
 	odds: { [string]: number },   -- nadirlik -> ağırlık
 	planetColor: Color3,
 	planetColor2: Color3,
@@ -2580,37 +2588,37 @@ export type SpaceMonsterDef = {
 Config.SpaceMonsters = {
 	{
 		id = "Glorp", name = "Glorp", planet = "Gloopus", need = 16,
-		position = Vector3.new(40, 2, -330), radius = 44, scale = 1,
+		position = Vector3.new(40, 2, -330), radius = 44, scale = 1, wake = 1.0, lunge = 1,
 		odds = { Common = 88, Uncommon = 12 },
 		planetColor = Color3.fromRGB(96, 178, 88), planetColor2 = Color3.fromRGB(62, 128, 70), glow = Color3.fromRGB(150, 255, 90),
 	},
 	{
 		id = "Chomper", name = "Chomper", planet = "Candorra", need = 28,
-		position = Vector3.new(320, 16, -610), radius = 48, scale = 1.15,
+		position = Vector3.new(320, 16, -640), radius = 48, scale = 1.15, wake = 0.9, lunge = 1,
 		odds = { Common = 30, Uncommon = 55, Rare = 15 },
 		planetColor = Color3.fromRGB(214, 96, 170), planetColor2 = Color3.fromRGB(150, 58, 130), glow = Color3.fromRGB(255, 120, 200),
 	},
 	{
 		id = "Kraken", name = "Nebula Kraken", planet = "Abyssia", need = 44,
-		position = Vector3.new(40, -6, -890), radius = 52, scale = 1.3,
+		position = Vector3.new(20, -6, -1000), radius = 52, scale = 1.3, wake = 0.7, lunge = 1.15,
 		odds = { Uncommon = 30, Rare = 50, Epic = 20 },
 		planetColor = Color3.fromRGB(46, 96, 184), planetColor2 = Color3.fromRGB(30, 60, 132), glow = Color3.fromRGB(80, 230, 255),
 	},
 	{
 		id = "SandMaw", name = "Sand Maw", planet = "Duneveil", need = 64,
-		position = Vector3.new(320, 22, -1170), radius = 56, scale = 1.45,
+		position = Vector3.new(340, 22, -1420), radius = 56, scale = 1.45, wake = 0.6, lunge = 1.2,
 		odds = { Rare = 30, Epic = 50, Legendary = 18, Mythic = 2 },
 		planetColor = Color3.fromRGB(214, 146, 84), planetColor2 = Color3.fromRGB(170, 104, 58), glow = Color3.fromRGB(90, 200, 255),
 	},
 	{
 		id = "RiftStalker", name = "Rift Stalker", planet = "Cinderhold", need = 90,
-		position = Vector3.new(40, 4, -1450), radius = 58, scale = 1.6,
+		position = Vector3.new(0, 4, -1900), radius = 58, scale = 1.6, wake = 0.5, lunge = 1.25,
 		odds = { Epic = 30, Legendary = 50, Mythic = 18, Secret = 2 },
 		planetColor = Color3.fromRGB(64, 58, 66), planetColor2 = Color3.fromRGB(40, 36, 44), glow = Color3.fromRGB(255, 90, 40),
 	},
 	{
 		id = "VoidLeviathan", name = "Void Leviathan", planet = "Umbra Prime", need = 120,
-		position = Vector3.new(320, 30, -1730), radius = 64, scale = 1.8,
+		position = Vector3.new(360, 30, -2450), radius = 64, scale = 1.8, wake = 0.4, lunge = 1.3,
 		odds = { Legendary = 45, Mythic = 43, Secret = 12 },
 		planetColor = Color3.fromRGB(38, 26, 64), planetColor2 = Color3.fromRGB(22, 14, 40), glow = Color3.fromRGB(200, 80, 255),
 	},
@@ -2632,7 +2640,7 @@ Config.Space = {
 	SafeHeight = 44,
 
 	-- Uçulabilen alan (dışına çıkan içeri itiliyor)
-	BoundsMin = Vector3.new(-220, -200, -1900),
+	BoundsMin = Vector3.new(-220, -200, -2650),
 	BoundsMax = Vector3.new(580, 280, -68),
 
 	-- Fırlatılan oyuncunun indiği yer: gemide, kapının içinde
@@ -2644,8 +2652,17 @@ Config.Space = {
 	GrabHold = 1.2,
 	GrabDistance = 12,
 
-	-- Canavar
-	WakeDelay = 0.9,            -- kükreme; sonra kovalıyor
+	--[[
+		Canavar. Kükreme süresi (wake) ve ani atak (lunge) canavar başına
+		(Config.SpaceMonsters): ilk ikisi yeni oyuncuya affedici, sonrakiler
+		daha çabuk uyanıyor ve yakına gelince LungeTime sn boyunca need ×
+		lunge hızla atılıyor. need hızında kaçan biri atakta yakalanabilir;
+		ileri gezegenlerde biraz fazla hız ya da iyi manevra gerekiyor.
+	]]
+	WakeDelay = 0.9,            -- (varsayılan; canavarın wake'i öncelikli)
+	LungeRange = 28,
+	LungeTime = 0.8,
+	LungeCooldown = 3.5,
 	ChaseStartMul = 0.8,        -- kovalamaya need × bu hızla başlıyor...
 	ChaseRamp = 2.5,            -- ...bu kadar sn'de need'e çıkıyor
 	CatchRadius = 7,            -- + ölçek × 2
@@ -2736,9 +2753,13 @@ end
 ]]
 Config.Capsule = {
 	Rate = 0.12,
-	Growth = 1.2,
+	-- 2026-09-27 ikinci denge: ileri kademeler çok kolaydı. Pow 2 → 2.8,
+	-- Growth 1.2 → 1.18. Mini oyunsuz kaba süreler (kapsül seviyesi →):
+	-- 16→28 ~3 dk (sv0), 28→44 ~8 dk (sv3), 44→64 ~15 dk (sv6),
+	-- 64→90 ~29 dk (sv9), 90→120 ~44 dk (sv12). Mini oyun bunu kısaltıyor.
+	Growth = 1.18,
 	Ref = 24,
-	Pow = 2,
+	Pow = 2.8,
 	Tick = 0.5,                 -- sunucunun ölçtüğü aralık
 	--[[
 		Mini oyun (Stardew balık tutma gibi): roketi hareketli yeşil alanda
@@ -2747,8 +2768,8 @@ Config.Capsule = {
 		girdikten en az CatchWarmup sn sonra. Hile en fazla ~2.2x verir;
 		iyi oynayan zaten oraya yaklaşıyor.
 	]]
-	CatchBonusSeconds = 10,
-	CatchCooldown = 8,
+	CatchBonusSeconds = 7.5,
+	CatchCooldown = 6,
 	CatchWarmup = 3,
 }
 

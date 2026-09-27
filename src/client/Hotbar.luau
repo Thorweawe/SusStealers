@@ -114,8 +114,15 @@ function Hotbar.Create(screen: ScreenGui): Bar
 	end
 
 	local function refreshHint()
+		--[[
+			2026-09-27: kullanıcı "elime alınca altta yazmasın" dedi. Adı ve
+			"CLICK TO USE" artık yok; yalnızca bekleme sürerken basılırsa
+			"READY IN" görünüyor (yuvadaki perde zaten gösteriyor ama basınca
+			neden olmadığı anlaşılsın).
+		]]
 		local def = gearOf(equippedTool())
-		hint.Visible = def ~= nil and bar.Visible
+		local left = if def then (cooldownUntil[def.id] or 0) - os.clock() else 0
+		hint.Visible = def ~= nil and bar.Visible and left > 0 and def.kind ~= "speed"
 		if not def then
 			return
 		end

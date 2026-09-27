@@ -1469,6 +1469,8 @@ case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
 	-- Çalma sayacı sıfırlanmazsa 3. adım (birinden çal) da aynı turda
 	-- tamamlanıyor ve beklenen ödül tutmuyor
 	ctx.profile.stolen = 0
+	-- Uzay hızı tabanda olmalı: yoksa 3. adım (kapsülde antrenman) da aynı turda geçer
+	ctx.profile.spaceSpeed = Config.Space.BaseSpeed
 	setCash(ctx.player, 0)
 
 	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
@@ -3235,7 +3237,7 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 		ok(def.id .. " offset periyot içinde", def.offset >= 0 and def.offset < def.every)
 		ids[def.id] = true
 	end
-	for _, id in { "Meeting", "LightsOut", "Meltdown", "Impostor" } do
+	for _, id in { "Meeting", "LightsOut", "Meltdown", "Impostor", "Storm" } do
 		ok(id .. " tanımlı", ids[id] == true)
 	end
 
@@ -3917,6 +3919,11 @@ case("Uzay: gezegen düzeni oynanabilir", function()
 		ok(def.id .. " sınır içinde", SpaceField.ClampToBounds(center) == center)
 		ok(def.id .. " güverteden uzak", center.Z + def.radius < deckLo.Z - 40, string.format("%.0f", center.Z + def.radius))
 		-- Komşu gezegenle çakışmıyor
+		ok(def.id .. " kükreme ve atak tanımlı", def.wake > 0 and def.lunge >= 1)
+		if i > 1 then
+			local prev = list[i - 1]
+			ok(def.id .. " öncekinden zor (atak, kükreme)", def.lunge >= prev.lunge and def.wake <= prev.wake)
+		end
 		local nextDef = list[i + 1]
 		if nextDef then
 			local d = (SpaceField.PlanetCenter(nextDef) - center).Magnitude
@@ -4099,6 +4106,46 @@ case("Uzay: bedava karakter (çark / ürün) doğrudan kaideye", function(ctx)
 	end
 	eq("bir kaide doldu", count, 1)
 	clearPlot(ctx.plot)
+end)
+
+case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
+	-- Mutation Storm: gezegenlerdeki herkes mutasyonlu
+	ok("Storm başladı", EventService.Begin("Storm"))
+	local plain = 0
+	for k = 1, Config.Space.CrewPerPlanet do
+		local unitId, mutationId = SpaceService._Spot(1, k)
+		if unitId and not mutationId then
+			plain += 1
+		end
+	end
+	eq("mutasyonsuz mürettebat yok", plain, 0)
+	EventService.End()
+
+	-- Doğrudan sersemletme
+	local def = Config.SpaceMonsters[1]
+	local home = SpaceField.MonsterHome(def).Position + Vector3.new(0, 7 * def.scale, 0)
+	local count = SpaceService.StunMonsters(home, 10, 2)
+	ok("canavar sersemledi", count >= 1, tostring(count))
+	SpaceService._Step(1 / 30)
+	local holder = (workspace.SpaceZone :: any).Monsters.Monster1
+	eq("Stunned niteliği", holder:GetAttribute("Stunned"), true)
+
+	-- Uzayda Emergency Button yakındaki canavarı sersemletiyor
+	local character = ctx.player.Character
+	if character then
+		local startCf = character:GetPivot()
+		local def2 = Config.SpaceMonsters[2]
+		local near = SpaceField.MonsterHome(def2).Position + Vector3.new(0, 6, 10)
+		character:PivotTo(CFrame.new(near))
+		ctx.player:SetAttribute("InSpace", true)
+		GearService._ResetCooldowns(ctx.player)
+		ok("alet kullanıldı", GearService.Use(ctx.player, "EmergencyButton"))
+		SpaceService._Step(1 / 30)
+		local holder2 = (workspace.SpaceZone :: any).Monsters.Monster2
+		eq("ikinci canavar sersemledi", holder2:GetAttribute("Stunned"), true)
+		ctx.player:SetAttribute("InSpace", nil)
+		character:PivotTo(startCf)
+	end
 end)
 
 case("Kapsül: içinde durunca uzay hızı artıyor, başkasınınkinde artmıyor", function(ctx)

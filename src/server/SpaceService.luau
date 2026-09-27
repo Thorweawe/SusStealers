@@ -71,6 +71,9 @@ type Monster = {
 	stateAt: number,
 	chaseAt: number,
 	target: Player?,
+	lungeUntil: number,     -- ani atak bu ana kadar sürüyor
+	nextLunge: number,      -- bir sonraki atak en erken
+	stunnedUntil: number,   -- ekipmanla sersemletildi: bu ana kadar donuk
 }
 
 type Carry = {
@@ -94,6 +97,14 @@ local immuneUntil: { [Player]: number } = {}
 local grabbedBy: { [Player]: Monster } = {}
 -- Testler döngüyü durduruyor (canavar test oyuncusunu yakalamasın)
 local paused = false
+
+--[[
+	Olayların uzaya etkisi (EventService):
+	  wakeMul   — kükreme süresi çarpanı (Lights Sabotage: canavar geç fark ediyor)
+	  chaseMul  — kovalama hızı çarpanı (Lights Sabotage: yarı kör, yavaş)
+	  mutated   — Mutation Storm: gezegenlerdeki her mürettebat mutasyonlu
+]]
+local eventMods = { wakeMul = 1, chaseMul = 1, mutated = false }
 
 -- Gemi çıkışı nadir karakterleri herkese duyurulsun (eski konveyör kuralı)
 local ANNOUNCE_RARITIES = { Mythic = true, Secret = true }
@@ -315,8 +326,9 @@ local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMon
 	local plateauR = SpaceField.PlateauRadius(def)
 
 	local sphere = part(model, "Planet", Vector3.one * r * 2, CFrame.new(center), def.planetColor, { Shape = Enum.PartType.Ball })
-	-- Plato: düz tepe, kenarında parlak halka
-	cyl(model, "Plateau", def.position - Vector3.new(0, 1.5, 0), Vector3.yAxis, 3, plateauR * 2 + 1.5, def.planetColor2)
+	-- Plato: kürenin üstünde düz tepeli bir mesa (kenarı küreye gömülü), üstünde parlak halka
+	local depth = SpaceField.PlateauDepth(def)
+	cyl(model, "Plateau", def.position - Vector3.new(0, depth / 2, 0), Vector3.yAxis, depth, plateauR * 2 + 1.5, def.planetColor2)
 	cyl(model, "PlateauRim", def.position - Vector3.new(0, 0.4, 0), Vector3.yAxis, 0.6, plateauR * 2 + 2.2, def.glow,
 		{ Material = Enum.Material.Neon, CanCollide = false })
 	cyl(model, "PlateauTop", def.position - Vector3.new(0, 0.05, 0), Vector3.yAxis, 0.1, plateauR * 2 - 2, def.planetColor2:Lerp(WHITE, 0.08), { CanCollide = false })
@@ -337,9 +349,9 @@ local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMon
 	-- Parlayan kristaller platonun kenarında
 	for k = 1, 10 do
 		local a = (k / 10) * math.pi * 2 + detail:NextNumber(-0.2, 0.2)
-		local rr = plateauR + detail:NextNumber(0.5, 3)
+		local rr = plateauR - detail:NextNumber(0.5, 2.5)
 		local h = detail:NextNumber(3, 7) * (0.8 + def.scale * 0.2)
-		local base = Vector3.new(def.position.X + math.cos(a) * rr, def.position.Y - 1, def.position.Z + math.sin(a) * rr)
+		local base = Vector3.new(def.position.X + math.cos(a) * rr, def.position.Y - 0.5, def.position.Z + math.sin(a) * rr)
 		local crystal = part(model, "Crystal", Vector3.new(1.6, h, 1.6), CFrame.new(base + Vector3.new(0, h / 2, 0))
 			* CFrame.Angles(detail:NextNumber(-0.35, 0.35), a, detail:NextNumber(-0.35, 0.35)), def.glow,
 			{ Material = Enum.Material.Neon, Transparency = 0.15, CanCollide = false, CastShadow = false })
@@ -367,7 +379,8 @@ local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMon
 		end
 	end
 	-- Atmosfer parıltısı: biraz büyük yarı saydam küre
-	part(model, "Atmosphere", Vector3.one * r * 2.12, CFrame.new(center), def.glow,
+	-- Parıltı küresi biraz aşağıda: tepesi platonun üstüne taşmasın
+	part(model, "Atmosphere", Vector3.one * r * 2.12, CFrame.new(center - Vector3.new(0, r * 0.08, 0)), def.glow,
 		{ Shape = Enum.PartType.Ball, Material = Enum.Material.ForceField, Transparency = 0.6, CanCollide = false, CanQuery = false, CastShadow = false })
 
 	model.PrimaryPart = sphere :: BasePart
@@ -429,6 +442,11 @@ local function rollSpot(spot: Spot)
 	local def = Config.SpaceMonsters[spot.planet]
 	local unit = Config.RollSpaceUnit(rng, def)
 	local mutation = Config.RollMutation(rng)
+	if eventMods.mutated then
+		while not mutation do
+			mutation = Config.RollMutation(rng)
+		end
+	end
 	placeSpot(spot, unit.id, if mutation then mutation.id else nil, crewFolder :: Folder)
 end
 
@@ -678,6 +696,9 @@ local function buildMonsterRoot(folder: Instance, index: number, def: Config.Spa
 		stateAt = 0,
 		chaseAt = 0,
 		target = nil,
+		lungeUntil = 0,
+		nextLunge = 0,
+		stunnedUntil = 0,
 	}
 end
 
@@ -698,7 +719,7 @@ local function nearestCarrier(m: Monster): (Player?, BasePart?)
 	local bestRoot: BasePart? = nil
 	local bestD = math.huge
 	for player, carry in carrying do
-		if carry.planet == m.planet then
+		if carry.planet == m.planet and not player:GetAttribute("Cloaked") then
 			local root = rootOf(player)
 			if root then
 				local d = (root.Position - m.position).Magnitude
@@ -729,6 +750,15 @@ local function stepMonsters(dt: number)
 	local s = Config.Space
 	local now = os.clock()
 	for _, m in monsters do
+		-- Ekipmanla sersemletilen canavar yerinde donuk (durumu korunuyor)
+		local stunned = now < m.stunnedUntil
+		local holderInst = m.root.Parent :: Instance
+		if (holderInst:GetAttribute("Stunned") == true) ~= stunned then
+			holderInst:SetAttribute("Stunned", if stunned then true else nil)
+		end
+		if stunned then
+			continue
+		end
 		local need = m.def.need
 		local moveTo: Vector3? = nil
 		local speed = need * s.ReturnSpeedMul
@@ -743,13 +773,14 @@ local function stepMonsters(dt: number)
 				-- Kükrerken taşıyan teslim etti / bıraktı: eve dön
 				m.target = nil
 				setState(m, "return")
-			elseif now - m.stateAt >= s.WakeDelay then
+			elseif now - m.stateAt >= (m.def.wake or s.WakeDelay) * eventMods.wakeMul then
 				setState(m, "chase")
 				m.chaseAt = now
 			end
 		elseif m.state == "chase" then
 			local target = m.target
-			local root = if target and carrying[target] and carrying[target].planet == m.planet then rootOf(target) else nil
+			local visible = target and not target:GetAttribute("Cloaked")
+			local root = if target and visible and carrying[target] and carrying[target].planet == m.planet then rootOf(target) else nil
 			if not root then
 				local other, otherRoot = nearestCarrier(m)
 				m.target = other
@@ -765,6 +796,17 @@ local function stepMonsters(dt: number)
 				look = root.Position - m.position
 				local reach = SpaceField.CatchRadius(m.def)
 				local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
+				-- Ani atak (ileri canavarlar): yakına gelince kısa süre need × lunge
+				local lunge = m.def.lunge or 1
+				if lunge > 1 and now >= m.nextLunge and (body - root.Position).Magnitude <= s.LungeRange then
+					m.lungeUntil = now + s.LungeTime
+					m.nextLunge = now + s.LungeCooldown
+					fx(m.target :: Player, "lunge", m.def.id)
+				end
+				if now < m.lungeUntil then
+					speed = need * lunge
+				end
+				speed *= eventMods.chaseMul
 				if (body - root.Position).Magnitude <= reach and not SpaceField.InSafe(root.Position) then
 					catch(m, m.target :: Player)
 				end
@@ -912,7 +954,7 @@ function SpaceService.PoolFor(player: Player, bonusTier: number?): Config.SpaceM
 	return Config.SpaceMonsters[math.min(#Config.SpaceMonsters, index + (bonusTier or 0))]
 end
 
-function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?): string?
+function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?): (string?, string?)
 	local def = SpaceService.PoolFor(player, bonusTier)
 	local unit = Config.RollSpaceUnit(rng, def)
 	local mutation = Config.RollMutation(rng)
@@ -923,9 +965,78 @@ function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTie
 	end
 	local mutationId = if mutation then mutation.id else nil
 	if not placeOnPodium(player, unit.id, mutationId, "got") then
-		return nil
+		return nil, nil
 	end
-	return unitName(unit.id, mutationId)
+	return unitName(unit.id, mutationId), unit.id
+end
+
+--[[ Olayların uzaya etkisi (bkz. eventMods). Verilmeyen alan varsayılana döner. ]]
+function SpaceService.SetEventMods(mods: { wakeMul: number?, chaseMul: number?, mutated: boolean? })
+	local wasMutated = eventMods.mutated
+	eventMods.wakeMul = mods.wakeMul or 1
+	eventMods.chaseMul = mods.chaseMul or 1
+	eventMods.mutated = mods.mutated == true
+	-- Mutation Storm başlayınca gezegenlerdeki (taşınmayan) herkes yeniden çekiliyor
+	if eventMods.mutated and not wasMutated and crewFolder then
+		for _, list in spots do
+			for _, spot in list do
+				if spot.unitId and not spot.held then
+					rollSpot(spot)
+				end
+			end
+		end
+	end
+end
+
+--[[
+	Uzayda rastgele bir nokta: güverte ile bir gezegen arasındaki yolda,
+	yanlara saçılmış, gezegenlerin içinde değil (Reactor Meltdown çekirdekleri).
+]]
+function SpaceService.RandomSpacePoint(random: Random?): Vector3?
+	local r = random or rng
+	local start = SpaceField.DeckCenter() + Vector3.new(0, 10, -20)
+	for _ = 1, 30 do
+		local def = Config.SpaceMonsters[r:NextInteger(1, #Config.SpaceMonsters)]
+		local p = start:Lerp(def.position + Vector3.new(0, 12, 0), r:NextNumber(0.25, 0.85))
+			+ Vector3.new(r:NextNumber(-45, 45), r:NextNumber(-12, 22), r:NextNumber(-20, 20))
+		p = SpaceField.ClampToBounds(p)
+		local clear = SpaceField.InSpace(p)
+		for _, other in Config.SpaceMonsters do
+			if (p - SpaceField.PlanetCenter(other)).Magnitude < other.radius + 8 then
+				clear = false
+			end
+		end
+		if clear then
+			return p
+		end
+	end
+	return nil
+end
+
+--[[
+	Ekipmanın uzaydaki etkisi (GearService): `origin`'den `range` içindeki
+	canavarları `seconds` sn sersemletir. `look` verilirse yalnızca önündekiler
+	(bakışla açının kosinüsü > minDot). Sersemletilen sayısını ve ilkini döner.
+]]
+function SpaceService.StunMonsters(origin: Vector3, range: number, seconds: number, look: Vector3?, minDot: number?): (number, Model?)
+	local now = os.clock()
+	local count = 0
+	local first: Model? = nil
+	for _, m in monsters do
+		local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
+		local offset = body - origin
+		local reach = range + m.def.scale * 4
+		local facing = not look or offset.Magnitude < 0.01 or look:Dot(offset.Unit) > (minDot or 0)
+		if offset.Magnitude <= reach and facing then
+			m.stunnedUntil = math.max(m.stunnedUntil, now + seconds)
+			m.lungeUntil = 0
+			count += 1
+			if not first then
+				first = m.root.Parent :: Model
+			end
+		end
+	end
+	return count, first
 end
 
 -- ─── Testler için ───────────────────────────────────────────────────────────

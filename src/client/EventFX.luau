@@ -43,6 +43,7 @@ local ACCENT: { [string]: Color3 } = {
 	LightsOut = Color3.fromRGB(255, 214, 60),
 	Meltdown = Color3.fromRGB(90, 255, 170),
 	Impostor = Color3.fromRGB(255, 60, 60),
+	Storm = Color3.fromRGB(200, 110, 255),
 }
 
 --[[
@@ -80,6 +81,14 @@ local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 		end
 		S(h, 0.5, 0.5, 0.2, 0.2, Color3.fromRGB(34, 32, 38), 3, 0.5)
 		S(h, 0.5, 0.5, 0.12, 0.12, Color3.fromRGB(90, 255, 170), 4, 0.5)
+	elseif id == "Storm" then
+		-- Mor mürettebat ve etrafında sarı ışıltılar (mutasyon)
+		local host = S(h, 0.5, 0.54, 0.8, 0.8, WHITE, 1)
+		host.BackgroundTransparency = 1
+		UiKit.Crewmate(host, size * 0.7, Color3.fromRGB(170, 80, 240))
+		S(h, 0.18, 0.2, 0.16, 0.16, Color3.fromRGB(255, 230, 90), 6, 0.5, 45)
+		S(h, 0.84, 0.3, 0.12, 0.12, Color3.fromRGB(255, 230, 90), 6, 0.5, 45)
+		S(h, 0.8, 0.82, 0.1, 0.1, Color3.fromRGB(255, 255, 255), 6, 0.5, 45)
 	elseif id == "Impostor" then
 		local host = S(h, 0.44, 0.52, 0.8, 0.8, WHITE, 1)
 		host.BackgroundTransparency = 1
@@ -139,8 +148,9 @@ function EventFX.Create(screen: ScreenGui): Handle
 
 	local SUBTEXT: { [string]: string } = {
 		Meeting = "2x income for everyone",
-		LightsOut = "Stealing is faster in the dark",
-		Meltdown = "Grab the glowing reactor cores!",
+		LightsOut = "Faster stealing, space monsters half blind",
+		Meltdown = "Reactor cores are floating in space!",
+		Storm = "Every crewmate in space is mutated!",
 		Impostor = "Catching the impostor costs YOU money",
 	}
 

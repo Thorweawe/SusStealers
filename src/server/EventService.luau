@@ -35,6 +35,7 @@ local PlotService = require(script.Parent.PlotService)
 local EconomyService = require(script.Parent.EconomyService)
 local StealService = require(script.Parent.StealService)
 local AnnounceService = require(script.Parent.AnnounceService)
+local SpaceService = require(script.Parent.SpaceService)
 
 local EventService = {}
 
@@ -116,9 +117,22 @@ end
 
 local function beginLights(): () -> ()
 	StealService.SetEventHoldMultiplier(Config.LightsOutHoldMul)
-	notifyAll("LIGHTS SABOTAGED! Stealing is faster in the dark!")
+	-- Uzay soygunu da etkileniyor: canavarlar karanlıkta geç fark edip yavaş kovalıyor
+	SpaceService.SetEventMods({ wakeMul = Config.LightsOutWakeMul, chaseMul = Config.LightsOutChaseMul })
+	notifyAll("LIGHTS SABOTAGED! Stealing is faster and space monsters are half blind!")
 	return function()
 		StealService.SetEventHoldMultiplier(1)
+		SpaceService.SetEventMods({})
+	end
+end
+
+-- ─── Mutation Storm ─────────────────────────────────────────────────────────
+
+local function beginStorm(): () -> ()
+	SpaceService.SetEventMods({ mutated = true })
+	notifyAll("MUTATION STORM! Every crewmate in space is mutated - fly out and steal!")
+	return function()
+		SpaceService.SetEventMods({})
 	end
 end
 
@@ -152,6 +166,11 @@ end
 	olurdu) ve bir engelin içinde değil.
 ]]
 function EventService.RandomCorePosition(): Vector3?
+	-- Uzay soygunu döneminde çekirdekler uzaya savruluyor (oyuncular uçup topluyor)
+	local inSpace = SpaceService.RandomSpacePoint(rng)
+	if inSpace then
+		return inSpace
+	end
 	local mn, mx = stationBounds()
 	if not (mn and mx) then
 		return nil
@@ -190,18 +209,10 @@ function EventService.GrantCore(player: Player, roll: number?): (string, any)
 	local income = EconomyService.GetIncome(player)
 	local r = roll or rng:NextNumber()
 	if r < Config.MeltdownUnitChance then
-		local budget = math.max(income * 60 * Config.MeltdownUnitMinutes, Config.Units[1].price)
-		local pick: string? = nil
-		local bestPrice = -1
-		for _, def in Config.Units do
-			if def.price <= budget and def.price > bestPrice then
-				pick, bestPrice = def.id, def.price
-			end
-		end
-		local plot = PlotService.GetPlotOf(player)
-		local podium = plot and PlotService.FindEmptyPodium(plot)
-		if pick and podium and PlotService.PlaceUnit(podium, pick) then
-			return "unit", pick
+		-- Karakter: bir üst canavarın havuzundan, doğrudan kaideye (boş kaide varsa)
+		local _, unitId = SpaceService.GrantUnit(player, false, 1)
+		if unitId then
+			return "unit", unitId
 		end
 	end
 	local amount = math.max(Config.MeltdownMinCash, math.floor(income * Config.MeltdownRewardSeconds))
@@ -213,7 +224,8 @@ local function spawnCore(folder: Folder, position: Vector3)
 	local core = Instance.new("Part")
 	core.Name = "ReactorCore"
 	core.Shape = Enum.PartType.Ball
-	core.Size = Vector3.new(2.6, 2.6, 2.6)
+	-- Uzayda uçarken kolay görülüp çarpılsın diye büyük
+	core.Size = Vector3.new(4.5, 4.5, 4.5)
 	core.Material = Enum.Material.Neon
 	core.Color = Color3.fromRGB(90, 255, 170)
 	core.Anchored = true
@@ -223,7 +235,7 @@ local function spawnCore(folder: Folder, position: Vector3)
 	core.Position = position
 	local light = Instance.new("PointLight")
 	light.Color = core.Color
-	light.Range = 14
+	light.Range = 26
 	light.Brightness = 2
 	light.Parent = core
 	core.Parent = folder
@@ -266,7 +278,7 @@ local function beginMeltdown(): () -> ()
 			placed += 1
 		end
 	end
-	notifyAll(string.format("REACTOR MELTDOWN! %d energy cores dropped around the station!", placed))
+	notifyAll(string.format("REACTOR MELTDOWN! %d glowing cores were vented into space - fly out and grab them!", placed))
 	return function()
 		folder:Destroy()
 		cores = nil
@@ -366,6 +378,7 @@ local BEGIN: { [string]: () -> (() -> ())? } = {
 	LightsOut = beginLights,
 	Meltdown = beginMeltdown,
 	Impostor = beginImpostor,
+	Storm = beginStorm,
 }
 
 --[[

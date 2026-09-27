@@ -74,8 +74,20 @@ end
 
 -- ─── Gezegenler ─────────────────────────────────────────────────────────────
 
+--[[
+	Küre platonun ALTINDA: merkez tepe yüzeyinin radius + 0.3 altında.
+	ESKİ HATA: merkez 0.8 × radius aşağıdaydı, kürenin tepesi platodan
+	0.2 × radius taşıyor, canavar ve mürettebat kürenin içinde kalıyordu.
+]]
 function SpaceField.PlanetCenter(def: Config.SpaceMonsterDef): Vector3
-	return def.position - Vector3.new(0, def.radius * SpaceField.PLATEAU_DROP, 0)
+	return def.position - Vector3.new(0, def.radius + 0.3, 0)
+end
+
+--[[ Platonun kalınlığı: kenarı kürenin yüzeyine gömülecek kadar (mesa gibi). ]]
+function SpaceField.PlateauDepth(def: Config.SpaceMonsterDef): number
+	local r = def.radius
+	local edge = SpaceField.PlateauRadius(def)
+	return r + 0.3 - math.sqrt(r * r - edge * edge) + 2
 end
 
 function SpaceField.PlateauRadius(def: Config.SpaceMonsterDef): number

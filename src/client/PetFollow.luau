@@ -202,14 +202,30 @@ local function step(dt: number)
 		if flatLook.Magnitude < 1e-3 then
 			flatLook = Vector3.new(0, 0, -1)
 		end
-		local base = CFrame.lookAt(Vector3.new(rootCf.Position.X, feetY, rootCf.Position.Z),
-			Vector3.new(rootCf.Position.X, feetY, rootCf.Position.Z) + flatLook.Unit)
+		--[[
+			Uzayda (sahibi uçuyor, "InSpace" / "SpaceGrabbed") petler yürümüyor:
+			sahibinin gövde hizasında, arkasında ve biraz yukarısında süzülüyor,
+			üç boyutta takip ediyor; gölge yok. Eskiden uzayda da ayak hizasında
+			"yürüyordu", havada yürüyen pet garip duruyordu.
+		]]
+		local inSpace = owner ~= nil and (owner:GetAttribute("InSpace") == true or owner:GetAttribute("SpaceGrabbed") ~= nil)
+		local base: CFrame
+		if inSpace then
+			base = CFrame.lookAt(rootCf.Position, rootCf.Position + flatLook.Unit)
+			offset += Vector3.new(0, 1.2 + math.abs(spread) * 1.5 - lift, 1)
+		else
+			base = CFrame.lookAt(Vector3.new(rootCf.Position.X, feetY, rootCf.Position.Z),
+				Vector3.new(rootCf.Position.X, feetY, rootCf.Position.Z) + flatLook.Unit)
+		end
 		local target = (base * CFrame.new(offset)).Position
 
 		-- Uzaksa ışınla; değilse yatayda yumuşat, dikeyde (merdiven) biraz daha sıkı
 		local delta = target - s.pos
-		if delta.Magnitude > SNAP_DISTANCE then
+		if delta.Magnitude > SNAP_DISTANCE * (if inSpace then 2 else 1) then
 			s.pos = target
+		elseif inSpace then
+			-- Uçan sahip hızlı: üç boyutta, daha sıkı takip
+			s.pos = s.pos:Lerp(target, math.min(1, follow * 2.2))
 		else
 			local horizontal = Vector3.new(s.pos.X, 0, s.pos.Z):Lerp(Vector3.new(target.X, 0, target.Z), follow)
 			local y = s.pos.Y + (target.Y - s.pos.Y) * math.min(1, follow * 1.6)
@@ -233,7 +249,14 @@ local function step(dt: number)
 		local height: number
 		local pitch, roll = 0, 0
 		local shadowK = 1
-		if s.flying then
+		if inSpace then
+			-- Uzayda herkes süzülüyor; hareket ederken öne eğik, dururken salınım
+			s.phase += dt * (if moving then 3.4 else 1.8)
+			height = math.sin(s.phase + s.seed) * 0.45 * scale
+			pitch = if moving then math.rad(-22) else 0
+			roll = math.sin(s.phase * 0.6 + s.seed) * math.rad(12)
+			shadowK = 0
+		elseif s.flying then
 			s.phase += dt * (if moving then 4.2 else 2.2)
 			height = FLY_HEIGHT * scale + math.sin(s.phase + s.seed) * (if moving then 0.28 else 0.18) * scale
 			pitch = if moving then math.rad(-10) else 0
@@ -266,7 +289,9 @@ local function step(dt: number)
 		end
 
 		local shadow = s.shadow
-		if shadow then
+		if shadow and shadowK <= 0 then
+			shadow.Transparency = 1
+		elseif shadow then
 			local d = radius * 1.5 * shadowK
 			shadow.Size = Vector3.new(0.05, d, d)
 			shadow.CFrame = CFrame.new(s.pos + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, 0, math.rad(90))

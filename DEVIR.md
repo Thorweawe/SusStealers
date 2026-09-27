@@ -82,7 +82,23 @@ oyunda denendi.
   - **Mağaza:** "Mutation" ürününün açıklaması "A mutated crewmate on your podium" oldu.
   - **PromptStyle:** konveyör için yapılan "yapışkan kart" (BuyPrompt) artık gezegendeki `HeistPrompt`'ta. Beş mürettebat yan yanayken kart titremiyor.
   - Config'ten `RarityUnlock`, `GetUnitWeight`, `RollUnit` ve `RollAffordableUnit` silindi. `LOOK.belt`, DecorFX'teki BeltSlat istisnası, yorumlar ve README güncellendi.
-- **Testler:** `SpaceService.SetPaused` ve `CapsuleService.SetPaused` Run'da duraklatılıyor. 176/176 temiz.
+- **Dördüncü tur (oyun testinden gelen geri bildirim):**
+  - **Gezegen geometrisi:** kürenin tepesi platodan taşıyordu, canavar ve mürettebat kürenin içinde görünmüyordu. Küre artık platonun altında; plato kalın bir mesa (`SpaceField.PlanetCenter` / `PlateauDepth`).
+  - **Uçuş animasyonu** (`src/client/FlyPose.luau`, yeni): KeyframeSequence ile süzülme ve süper kahraman klipleri, hıza göre karışıyor. SpaceFX'te öne yatış en fazla 45°, CapsuleFX'te 42°.
+  - **Denge:** gezegen araları giderek açılıyor (310 → 550; 6. gezegen z -2450, sınır -2650). Arka plan gezegeni de uzağa alındı.
+  - **Canavar başına `wake` ve `lunge`:** ileri canavarlar daha çabuk uyanıyor; yakına gelince 0.8 sn boyunca need × lunge hızla atılıyor (`LungeRange` / `LungeTime` / `LungeCooldown`). İstemcide "X LUNGES!" çıkıyor.
+  - **Kapsül eğrisi:** Pow 2.8, Growth 1.18; mini oyun bonusu 7.5 sn, bekleme 6 sn.
+  - **Mini oyun kolaylaştı:** alan %38, roket ve alan yavaş, çubuk daha hızlı doluyor.
+  - **Uzay kartı** yalnızca öğretici sürerken görünüyor ("studs" yazısı yok). Tehlike kenarı her zaman çalışıyor.
+  - **Hotbar:** eldeki aletin adı ve "CLICK TO USE" yazısı kalktı; yalnızca beklemede basınca "READY IN".
+  - **Gear'lar uzayda** (`GearService`, uzaydaysa hedef canavar): `SpaceService.StunMonsters` ile Slap 1.5 sn, Stun Gun 3 sn (önündeki), Emergency Button 2.5 sn (çevredeki). Ghost Serum'da canavar seni göremiyor (`Cloaked` görmezden geliniyor). Speed Coil yalnızca gemide. Blurb'ler güncellendi.
+  - **Petler uzayda** sahibinin arkasında süzülüyor, gölgesiz (`PetFollow`).
+  - **Olaylar:**
+    - Lights Sabotage canavarları yarı kör yapıyor (`LightsOutWakeMul` 2.5, `LightsOutChaseMul` 0.85, `SpaceService.SetEventMods`).
+    - Reactor Meltdown çekirdekleri uzaya savruluyor (`SpaceService.RandomSpacePoint`); karakter ödülü `GrantUnit(bonusTier 1)`.
+    - Yeni **Mutation Storm** (`Storm`, 2 saatte bir :05, 2 dk): gezegendeki herkes mutasyonlu. EventFX'te ikonu ve yazısı var.
+  - `SpaceService.GrantUnit` artık (ad, kimlik) dönüyor.
+- **Testler:** `SpaceService.SetPaused` ve `CapsuleService.SetPaused` Run'da duraklatılıyor. 177 testin 176'sı geçiyor. Kalan "Top Crew" hatası canlı global sıralama verisiyle ilgili, bu işle bağlantısı yok.
 - **Batur'a:** denge sayıları ilk tahmin; oynayınca ayarlanmalı:
   - `need`, `odds`, `Config.Capsule`, kapsül fiyatı (4000 × 2.3^sv).
   - 1. kat tavanıyla (sv 6) 120'ye ~1 saat.
