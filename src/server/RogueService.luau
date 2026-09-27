@@ -668,12 +668,9 @@ function RogueService.Spawn(plot: Model?, podium: Part?, static: boolean?): bool
 	place(r, spawnPad.Position + Vector3.new(0, spawnPad.Size.Y / 2, 0), Vector3.zAxis)
 	current = r
 
+	-- Yalnızca hedefteki üssün sahibine; başkalarına giden "X'in üssüne
+	-- geliyor" bildirimi onlar için gürültüydü (durduramıyorlar da)
 	notify(owner, "It's coming for your base - stop it (hold E)!", true)
-	for _, other in Players:GetPlayers() do
-		if other ~= owner then
-			notify(other, string.format("A rogue impostor is after %s's base!", owner.DisplayName), false)
-		end
-	end
 
 	if static or not path then
 		return true

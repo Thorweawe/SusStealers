@@ -41,7 +41,7 @@ function Toasts.Create(screen: Instance): Handle
 	holder.Name = "Toasts"
 	holder.AnchorPoint = Vector2.new(0.5, 1)
 	holder.Position = UDim2.new(0.5, 0, 1, -BOTTOM)
-	holder.Size = UDim2.fromOffset(600, (HEIGHT + 8) * MAX)
+	holder.Size = UDim2.fromOffset(600, (HEIGHT + 30) * MAX)
 	holder.BackgroundTransparency = 1
 	holder.Parent = screen
 
@@ -70,12 +70,15 @@ function Toasts.Create(screen: Instance): Handle
 		-- Genişlik yazıya göre (kalın yazı Gotham'dan geniş; pay bırakıyoruz)
 		local plain = text:gsub("<[^>]->", "")
 		local measured = TextService:GetTextSize(plain, TEXT_SIZE, CardKit.FONT, Vector2.new(2000, HEIGHT))
+		-- Uzun metin iki satıra iniyor (tek satırda küçülüp okunmaz oluyordu)
+		local twoLines = measured.X + 48 > 580
 		local width = math.clamp(measured.X + 48, 180, 580)
+		local height = if twoLines then HEIGHT + 22 else HEIGHT
 
 		-- Yuva düzende yer tutuyor; kart içinde ölçeklenip zıplıyor
 		local slot = Instance.new("Frame")
 		slot.Name = "Toast"
-		slot.Size = UDim2.fromOffset(width, HEIGHT)
+		slot.Size = UDim2.fromOffset(width, height)
 		slot.BackgroundTransparency = 1
 		slot.LayoutOrder = order
 		slot.Parent = holder
@@ -88,7 +91,12 @@ function Toasts.Create(screen: Instance): Handle
 		local label = CardKit.bold(card, text, TEXT_SIZE, CardKit.WHITE, Z + 3, 2.5)
 		label.Position = UDim2.fromOffset(12, 0)
 		label.Size = UDim2.new(1, -24, 1, 0)
-		CardKit.fit(label, TEXT_SIZE, 12)
+		if twoLines then
+			label.TextSize = TEXT_SIZE - 3
+			label.TextWrapped = true
+		else
+			CardKit.fit(label, TEXT_SIZE, 12)
+		end
 
 		table.insert(live, slot)
 		while #live > MAX do

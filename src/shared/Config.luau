@@ -657,15 +657,21 @@ Config.Tutorial = {
 		text = "Hold the prompt on your base sign. Nobody can steal while the lock holds.",
 		check = "locksUsed", goal = 1, reward = 4000,
 	},
+	--[[
+		Çark yükseltmeden ÖNCE ve ödülü büyük: en ucuz yükseltme 100 bin,
+		önceki adımların toplamı ~10 bindi. Oyuncu "Buy an upgrade"
+		adımında dakikalarca para biriktirmek zorunda kalıp oyundan
+		çıkıyordu. Çarkın ödülüyle yükseltme hemen alınabiliyor (test var).
+	]]
+	{
+		id = "Spin", title = "Take your free spin", hint = "Wheel",
+		text = "The wheel gives one free spin every day. Go claim today's.",
+		check = "spins", goal = 1, reward = 95000,
+	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
 		text = "The upgrade booth sits in your base. Upgrades cost cash, not Robux.",
 		check = "upgrades", goal = 1, reward = 40000,
-	},
-	{
-		id = "Spin", title = "Take your free spin", hint = "Wheel",
-		text = "The wheel gives one free spin every day. Go claim today's.",
-		check = "spins", goal = 1, reward = 40000,
 	},
 } :: { TutorialStep }
 
@@ -684,6 +690,13 @@ Config.TutorialFinishBonus = 50000
 	Eskiden tek başına oyuncu öğreticide takılı kalıyordu.
 ]]
 Config.TutorialAloneSkipSeconds = 15
+
+--[[
+	Rakip olsa da çalma adımı en fazla bu kadar sürüyor: üsler kilitli,
+	karakterler korumada ya da oyuncu çalmayı beceremiyor olabilir. Yeni
+	oyuncu tek bir adımda dakikalarca takılıp çıkmasın.
+]]
+Config.TutorialStealGiveUpSeconds = 120
 
 --[[ Sıra numarasıyla adım. Aralık dışıysa nil. ]]
 function Config.GetTutorialStep(index: number): TutorialStep?

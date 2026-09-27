@@ -46,6 +46,8 @@ local lockBaseline: { [Player]: { plot: Model, at: number } } = {}
 local lastSkipAt: { [Player]: number } = {}
 -- Çalma adımında çalınacak rakip yokken geçen süre (tek başına oyuncu takılmasın)
 local aloneSince: { [Player]: number } = {}
+-- Çalma adımına ne zaman gelindi (Config.TutorialStealGiveUpSeconds)
+local stealStepSince: { [Player]: number } = {}
 local paused = false
 
 --[[
@@ -243,12 +245,13 @@ local function publish(player: Player, force: boolean?)
 		}, targetFor(player, step.hint))
 	end
 
-	-- Arayüz henüz bağlı değilse öğretici yine de anlaşılsın diye adım
-	-- değiştiğinde metni bildirim olarak da gönderiyoruz. Adım başına bir
-	-- kez, yani toplamda altı mesaj.
-	if isNewStep then
-		notify(player, string.format("[%d/%d] %s - %s",
-			index, stepCount(), step.title, step.text), false)
+	--[[
+		Eskiden yeni adımın uzun metni ayrıca bildirim olarak da gidiyordu.
+		Öğretici kartı (TutorialUI) aynı metni zaten gösteriyor; alttaki
+		ikinci kopya ekranı dolduruyordu. Yalnızca kısa bir başlık.
+	]]
+	if isNewStep and index > 1 then
+		notify(player, string.format("Next: %s", step.title), false)
 	end
 end
 
@@ -309,10 +312,23 @@ function TutorialService.Check(player: Player)
 			break
 		end
 		local done = checkValue(player, step.check) >= step.goal
-		if not done and step.check == "steals" and aloneLongEnough(player) then
-			done = true
-			aloneSince[player] = nil
-			notify(player, "No rival crew aboard right now - you'll steal once someone joins!", false)
+		if not done and step.check == "steals" then
+			local since = stealStepSince[player]
+			if not since then
+				since = os.clock()
+				stealStepSince[player] = since
+			end
+			if aloneLongEnough(player) then
+				done = true
+				notify(player, "No rival crew aboard right now - you'll steal once someone joins!", false)
+			elseif os.clock() - since >= Config.TutorialStealGiveUpSeconds then
+				done = true
+				notify(player, "Stealing takes practice - keep trying later!", false)
+			end
+			if done then
+				aloneSince[player] = nil
+				stealStepSince[player] = nil
+			end
 		end
 		if not done then
 			break
@@ -458,6 +474,7 @@ function TutorialService.Start()
 		lockBaseline[player] = nil
 		lastSkipAt[player] = nil
 		aloneSince[player] = nil
+		stealStepSince[player] = nil
 	end)
 
 	--[[

@@ -1441,6 +1441,27 @@ case("Öğretici: adımlar oynanabilir sırada", function()
 		string.format("%d < %d", Config.StartingCash, Config.GetCheapestUnitPrice()))
 end)
 
+case("Öğretici: yükseltme adımına gelen oyuncu yükseltmeyi hemen alabiliyor", function()
+	-- En ucuz yükseltme 100 bin, önceki ödüller ~10 bindi: yeni oyuncu
+	-- "Buy an upgrade"da dakikalarca takılıp çıkıyordu
+	local cheapest = math.huge
+	for _, def in Config.Upgrades do
+		cheapest = math.min(cheapest, def.baseCost)
+	end
+	local before = Config.StartingCash
+	local found = false
+	for _, step in Config.Tutorial do
+		if step.check == "upgrades" then
+			found = true
+			break
+		end
+		before += step.reward
+	end
+	ok("yükseltme adımı var", found)
+	ok("önceki ödüller en ucuz yükseltmeye yetiyor", before >= cheapest,
+		string.format("%s < %s", Config.FormatCash(before), Config.FormatCash(cheapest)))
+end)
+
 case("Öğretici: ödül toplamı dengeyi bozmuyor", function()
 	local total = Config.GetTutorialTotalReward()
 
@@ -1539,10 +1560,12 @@ case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
 
 	-- Son adımın koşulunu sağla
 	local last = Config.Tutorial[#Config.Tutorial]
-	eq("son adım çark", last.check, "spins")
-	ctx.profile.lastSpinAt = os.time()
+	eq("son adım yükseltme", last.check, "upgrades")
+	local previousLevel = ctx.profile.upgrades.CarrySpeed
+	ctx.profile.upgrades.CarrySpeed = math.max(1, previousLevel or 0)
 
 	TutorialService.Check(ctx.player)
+	ctx.profile.upgrades.CarrySpeed = previousLevel
 	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
 	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
 		last.reward + Config.TutorialFinishBonus)

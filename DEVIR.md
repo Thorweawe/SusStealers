@@ -28,6 +28,11 @@ Kayıt kalıbı:
   "kayboluyor" sanılıyordu). Test: `StealService._StartCarry`.
 - **Taşıma hızı dengesi (`Config.GetCarryWalkSpeed`):** yükseltme azalan getirili (en fazla +3),
   pet en fazla +1.5, toplam tavan 12 (eskiden 15). Upgrade paneli 2 ondalık.
+- **Öğretici:** çark adımı yükseltmeden önce ve ödülü 95 bin (en ucuz yükseltme 100 bin, önceki
+  ödüller ~10 bindi, yeni oyuncu "Buy an upgrade"da takılıyordu). Çalma adımı rakip olsa da en
+  fazla `Config.TutorialStealGiveUpSeconds` (120). Yeni adımın uzun metni ayrıca bildirim olarak
+  gitmiyor (kart zaten gösteriyor), yalnızca "Next: ...". Uzun bildirimler iki satır.
+- **Rogue impostor** bildirimi yalnızca hedef üssün sahibine (başkalarına "X'in üssüne geliyor" gitmiyor).
 
 ## 2026-09-27 (26) — Batur (Yusuf'un şeridine yazıldı)
 
