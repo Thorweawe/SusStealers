@@ -1391,7 +1391,7 @@ end)
 case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
 		units = true, steals = true, upgrades = true,
-		spins = true, locksUsed = true,
+		spins = true, locksUsed = true, tasks = true, pets = true, gear = true,
 	}
 
 	local ids = {}
@@ -1460,6 +1460,30 @@ case("Öğretici: yükseltme adımına gelen oyuncu yükseltmeyi hemen alabiliyo
 	ok("yükseltme adımı var", found)
 	ok("önceki ödüller en ucuz yükseltmeye yetiyor", before >= cheapest,
 		string.format("%s < %s", Config.FormatCash(before), Config.FormatCash(cheapest)))
+end)
+
+case("Öğretici: her adım önceki ödüllerle karşılanabiliyor", function()
+	-- Parası yetmeyen adımda takılan yeni oyuncu çıkıyor. Gelir yok sayılıyor
+	-- (en kötü durum): yalnızca başlangıç parası ve adım ödülleri.
+	local function cheapest(list: { any }, field: string): number
+		local best = math.huge
+		for _, def in list do
+			best = math.min(best, def[field])
+		end
+		return best
+	end
+	local cost = {
+		units = Config.GetCheapestUnitPrice(),
+		upgrades = cheapest(Config.Upgrades, "baseCost"),
+		pets = cheapest(Config.Eggs, "price"),
+		gear = cheapest(Config.Gear, "price"),
+	}
+	local cash = Config.StartingCash
+	for _, step in Config.Tutorial do
+		cash -= cost[step.check] or 0
+		ok(step.id .. " karşılanıyor", cash >= 0, Config.FormatCash(cash))
+		cash += step.reward
+	end
 end)
 
 case("Öğretici: ödül toplamı dengeyi bozmuyor", function()
@@ -1560,12 +1584,12 @@ case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
 
 	-- Son adımın koşulunu sağla
 	local last = Config.Tutorial[#Config.Tutorial]
-	eq("son adım yükseltme", last.check, "upgrades")
-	local previousLevel = ctx.profile.upgrades.CarrySpeed
-	ctx.profile.upgrades.CarrySpeed = math.max(1, previousLevel or 0)
+	eq("son adım ekipman", last.check, "gear")
+	local hadGlove = ctx.profile.gear.SlapGlove
+	ctx.profile.gear.SlapGlove = true
 
 	TutorialService.Check(ctx.player)
-	ctx.profile.upgrades.CarrySpeed = previousLevel
+	ctx.profile.gear.SlapGlove = hadGlove
 	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
 	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
 		last.reward + Config.TutorialFinishBonus)
@@ -1657,6 +1681,18 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 				end
 			end
 			return nil
+		end,
+		Task = function()
+			local t = TutorialService._TargetFor(ctx.player, "Task")
+			return if t and t:IsA("BasePart") then t else nil
+		end,
+		Hatchery = function()
+			local t = TutorialService._TargetFor(ctx.player, "Hatchery")
+			return if t and t.Name == "Egg1" then t else nil
+		end,
+		GearShop = function()
+			local t = TutorialService._TargetFor(ctx.player, "GearShop")
+			return if t and t:FindFirstChild("GearPrompt") then t else nil
 		end,
 	}
 

@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (28) — Batur (Yusuf'un şeridine yazıldı)
+
+- **Ekonomi (`Config.UnitPriceScale` 1.5, `Config.UnitIncomeScale` nadirliğe göre 0.75–0.55):**
+  Units tablosu elle yazılmış haliyle duruyor, hemen altında ölçekleniyor ve yuvarlanıyor.
+  Amorti ~2–3 kat uzadı (Common ~100s, Epic ~350s, Secret ~890s).
+- **Öğretici 9 adım:** sonuna Task (görev konsolu), Hatch (Hatchery Egg1), Gear (dükkân tezgâhı).
+  Sayaçlar: `TaskReady_*` nitelikleri, `profile.petsFound`, `profile.gear`. Ödüller bir sonraki
+  adımın fiyatını karşılıyor (test "her adım karşılanabiliyor"). **Eskiden bitiren oyuncular
+  (adım 6) yeni üç adımı görüyor.** `TutorialUI.resolveHint` yeni hint'leri de buluyor.
+- **Hotbar** öğretici kartı açıkken kartın sağına kayıyor; **bildirimler** kartın üstüne çıkıyor.
+- Studio'ya aktarıldı, 172 test temiz.
+
 ## 2026-09-27 (27) — Batur (Yusuf'un şeridine yazıldı)
 
 - **Bildirimler (`Toasts.luau`, yeni):** alttaki gri kutular ekipman çubuğunun üstüne biniyordu.

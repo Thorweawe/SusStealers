@@ -446,6 +446,24 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		elseif hint == "Wheel" then
 			local decor = workspace:FindFirstChild("Decor")
 			return decor and decor:FindFirstChild("Wheel")
+		elseif hint == "Task" then
+			local decor = workspace:FindFirstChild("Decor")
+			if decor then
+				for _, part in decor:GetDescendants() do
+					if part:IsA("BasePart") and typeof(part:GetAttribute("TaskId")) == "string" then
+						return part
+					end
+				end
+			end
+		elseif hint == "Hatchery" then
+			local decor = workspace:FindFirstChild("Decor")
+			local hatchery = decor and decor:FindFirstChild("Hatchery", true)
+			return hatchery and hatchery:FindFirstChild("Egg1")
+		elseif hint == "GearShop" then
+			local decor = workspace:FindFirstChild("Decor")
+			local shop = decor and decor:FindFirstChild("GearShop", true)
+			local prompt = shop and shop:FindFirstChild("GearPrompt", true)
+			return prompt and prompt.Parent
 		end
 		return nil
 	end

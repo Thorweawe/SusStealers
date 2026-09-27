@@ -55,6 +55,22 @@ function Toasts.Create(screen: Instance): Handle
 	local order = 0
 	local live: { Frame } = {}
 
+	--[[
+		Öğretici kartı (sol altta, 172 yüksek, alttan 22) açıkken bildirimler
+		onun arkasında kalıyordu: kartın üstüne çıkıyorlar.
+	]]
+	local TUTORIAL_TOP = 22 + 172 + 10
+	task.spawn(function()
+		while holder.Parent do
+			local tut = screen:FindFirstChild("Tutorial")
+			local bottom = if tut and tut:IsA("GuiObject") and tut.Visible then math.max(BOTTOM, TUTORIAL_TOP) else BOTTOM
+			if holder.Position.Y.Offset ~= -bottom then
+				holder.Position = UDim2.new(0.5, 0, 1, -bottom)
+			end
+			task.wait(0.5)
+		end
+	end)
+
 	local function remove(slot: Frame)
 		local i = table.find(live, slot)
 		if i then

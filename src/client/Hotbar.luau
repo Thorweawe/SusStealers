@@ -184,8 +184,32 @@ function Hotbar.Create(screen: ScreenGui): Bar
 		end)
 	end
 
+	--[[
+		Öğretici kartı (TutorialUI, sol altta nakdin sağında) açıkken çubuğun
+		ilk yuvaları kartın altında kalıyordu: çubuk kartın sağına kayıyor.
+	]]
+	local shift = 0
+	local function avoidTutorial()
+		local tut = screen:FindFirstChild("Tutorial")
+		local want = 0
+		if tut and tut:IsA("GuiObject") and tut.Visible and bar.Size.X.Offset > 0 then
+			local k = bar.AbsoluteSize.X / bar.Size.X.Offset
+			if k > 0 then
+				local tutRight = tut.AbsolutePosition.X + tut.AbsoluteSize.X
+				local leftUnshifted = bar.AbsolutePosition.X - shift * k
+				want = math.max(0, (tutRight + 12 * k - leftUnshifted) / k)
+			end
+		end
+		if math.abs(want - shift) > 0.5 then
+			shift = want
+			bar.Position = UDim2.new(0.5, shift, 1, -14)
+			hint.Position = UDim2.new(0.5, shift, 1, -(14 + SLOT + 4 + 8))
+		end
+	end
+
 	-- Perde ve sayaç her karede; bitince yuva "hazır" diye bir kez zıplıyor
 	table.insert(connections, RunService.RenderStepped:Connect(function()
+		avoidTutorial()
 		local now = os.clock()
 		for id, view in slots do
 			local left = (cooldownUntil[id] or 0) - now

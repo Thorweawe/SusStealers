@@ -124,6 +124,33 @@ local function checkValue(player: Player, check: string): number
 		end
 
 		return if usedAt > baseline.at then 1 else 0
+
+	elseif check == "tasks" then
+		-- Oturumda biten görevler (TaskService bekleme bitişini nitelik olarak yazıyor)
+		local done = 0
+		for _, def in Config.Tasks do
+			if player:GetAttribute("TaskReady_" .. def.id) ~= nil then
+				done += 1
+			end
+		end
+		return done
+
+	elseif check == "pets" then
+		-- Bir kez bile çıkmış petler (otomatik silinen de sayılıyor)
+		local found = 0
+		for _ in profile.petsFound do
+			found += 1
+		end
+		return found
+
+	elseif check == "gear" then
+		local owned = 0
+		for _, has in profile.gear do
+			if has then
+				owned += 1
+			end
+		end
+		return owned
 	end
 
 	return 0
@@ -165,9 +192,40 @@ local function targetFor(player: Player, hint: string): Instance?
 			end
 		end
 		return fallback
+
+	elseif hint == "Task" then
+		-- Config.Tasks sırasındaki ilk konsol (haritada TaskId niteliği)
+		local decor = workspace:FindFirstChild("Decor")
+		if decor then
+			for _, def in Config.Tasks do
+				for _, part in decor:GetDescendants() do
+					if part:IsA("BasePart") and part:GetAttribute("TaskId") == def.id then
+						return part
+					end
+				end
+			end
+		end
+		return nil
+
+	elseif hint == "Hatchery" then
+		local decor = workspace:FindFirstChild("Decor")
+		local hatchery = decor and decor:FindFirstChild("Hatchery", true)
+		return hatchery and (hatchery:FindFirstChild("Egg1") or hatchery)
+
+	elseif hint == "GearShop" then
+		-- Klasörün kendisi vurgulanamıyor; dükkân tezgâhındaki ilk promptun parçası
+		local decor = workspace:FindFirstChild("Decor")
+		local shop = decor and decor:FindFirstChild("GearShop", true)
+		local prompt = shop and shop:FindFirstChild("GearPrompt", true)
+		return if prompt then prompt.Parent else shop
 	end
 
 	return nil
+end
+
+--[[ Testler için: hint -> dünyadaki hedef. ]]
+function TutorialService._TargetFor(player: Player, hint: string): Instance?
+	return targetFor(player, hint)
 end
 
 -- ─── Durum yayını ───────────────────────────────────────────────────────────

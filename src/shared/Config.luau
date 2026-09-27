@@ -673,6 +673,28 @@ Config.Tutorial = {
 		text = "The upgrade booth sits in your base. Upgrades cost cash, not Robux.",
 		check = "upgrades", goal = 1, reward = 40000,
 	},
+	--[[
+		Haritanın geri kalanı: görev odaları, pet yumurtaları, ekipman
+		dükkânı. Eskiden öğretici bunları hiç göstermiyordu, oyuncu
+		haritada ne olduğunu bilmeden çıkıyordu. Ödüller bir sonraki adımın
+		fiyatını karşılayacak şekilde (Supply Egg 50 bin, Slap Glove 250 bin;
+		test "her adım karşılanabiliyor").
+	]]
+	{
+		id = "Task", title = "Do a ship task", hint = "Task",
+		text = "Task consoles in the side rooms pay cash. Finish one.",
+		check = "tasks", goal = 1, reward = 20000,
+	},
+	{
+		id = "Hatch", title = "Hatch a pet", hint = "Hatchery",
+		text = "Eggs in the Hatchery hold pets that boost your income and carry speed.",
+		check = "pets", goal = 1, reward = 250000,
+	},
+	{
+		id = "Gear", title = "Buy a gear", hint = "GearShop",
+		text = "The Gear Shop sells tools to slap thieves and guard your crew.",
+		check = "gear", goal = 1, reward = 50000,
+	},
 } :: { TutorialStep }
 
 -- Bitirince verilen ek ödül. Adım ödüllerinden büyük ki son adım yarıda
@@ -1454,6 +1476,42 @@ Config.Units = {
 	{ id = "AmogusPrime", name = "Amogus Prime",       rarity = "Secret",    price = 5800000000, income =    18100000, weight =    1, color = Color3.fromRGB( 12,  12,  18) },
 	{ id = "TheCrewmate", name = "The Crewmate",       rarity = "Secret",    price =13000000000, income =    40600000, weight =    1, color = Color3.fromRGB(215, 224, 240) },
 } :: { UnitDef }
+
+--[[
+	═══ 2026-09-27 DENGESİ: PARA ÇOK HIZLI ═════════════════════════════════
+
+	Yayından sonra "para çok hızlı kazanılıyor, fiyatlar artmalı, daha az
+	vermeliler". Yukarıdaki tablo elle yazılmış merdiven olarak kalıyor;
+	burada iki düğmeyle ölçekleniyor ve okunaklı sayıya yuvarlanıyor
+	(iki anlamlı basamak; 100'ün altında tam sayı).
+
+	  UnitPriceScale  — bütün fiyatlar (1.5x)
+	  UnitIncomeScale — nadirliğe göre gelir (yüksek nadirlik daha çok düşüyor)
+
+	Amorti süresi (fiyat / gelir) yaklaşık:
+	    Common 55s → ~100s   Uncommon 75s → ~160s   Rare 100s → ~240s
+	    Epic 135s → ~350s    Legendary 175s → ~480s
+	    Mythic 230s → ~620s  Secret 320s → ~890s
+	Common hızlı kalıyor ki yeni oyuncunun ilk dakikaları sıkıcı olmasın.
+]]
+Config.UnitPriceScale = 1.5
+Config.UnitIncomeScale = {
+	Common = 0.75, Uncommon = 0.7, Rare = 0.62, Epic = 0.58,
+	Legendary = 0.55, Mythic = 0.55, Secret = 0.55,
+} :: { [string]: number }
+
+local function niceNumber(x: number): number
+	if x < 100 then
+		return math.max(1, math.floor(x + 0.5))
+	end
+	local step = 10 ^ (math.floor(math.log10(x)) - 1)
+	return math.floor(x / step + 0.5) * step
+end
+
+for _, unit in Config.Units do
+	unit.price = niceNumber(unit.price * Config.UnitPriceScale)
+	unit.income = niceNumber(unit.income * (Config.UnitIncomeScale[unit.rarity] or 1))
+end
 
 -- ─── Mutasyonlar ────────────────────────────────────────────────────────────
 -- Konveyörde çıkan her karaktere sırayla bakılır, ilk tutan uygulanır.
