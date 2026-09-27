@@ -11,12 +11,27 @@
 	Davranış hazır çubukla aynı: tıkla ya da 1-9'a bas → kuşan; kuşanılıysa
 	bırak. Araçlar sunucudan geliyor (GearService); burası yalnızca gösterip
 	kuşandırıyor.
+
+	KULLANIM GERİ BİLDİRİMİ ("itemleri kullanırken kullandığımız belli
+	olmuyor"): kuşanılı ekipmanın adı ve ne yapılacağı çubuğun üstünde
+	yazıyor; kullanınca yuva zıplıyor, üstüne karanlık bir perde iniyor ve
+	bekleme bitene kadar saniye sayıyor. Beklerken basınca yuva sallanıyor
+	ve "READY IN 3s" diyor. Kullanım anı sunucunun GearFX "use" yankısından
+	alınıyor: yalnızca gerçekten kullanıldıysa (bekleme dolmuşsa) geliyor.
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Net = require(Shared.Net)
+
+local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 
 local Hotbar = {}
@@ -70,6 +85,126 @@ function Hotbar.Create(screen: ScreenGui): Bar
 	local tools: { Tool } = {}
 	local connections: { RBXScriptConnection } = {}
 
+	-- ─── Kullanım göstergesi ────────────────────────────────────────────
+	type SlotView = { button: GuiObject, scale: UIScale, shade: Frame, timer: TextLabel }
+	local slots: { [string]: SlotView } = {}
+	local cooldownUntil: { [string]: number } = {}
+	local cooldownTotal: { [string]: number } = {}
+
+	-- Kuşanılı ekipmanın adı + ne yapılacağı, çubuğun hemen üstünde
+	local hint = CardKit.bold(screen, "", 20, CardKit.WHITE, 4, 2.5)
+	hint.Name = "GearHint"
+	hint.AnchorPoint = Vector2.new(0.5, 1)
+	hint.Position = UDim2.new(0.5, 0, 1, -(14 + SLOT + 4 + 8))
+	hint.Size = UDim2.fromOffset(460, 26)
+	CardKit.fit(hint, 20, 12)
+	hint.Visible = false
+
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local USE_WORD = if touch then "TAP TO USE" else "CLICK TO USE"
+
+	local function equippedTool(): Tool?
+		local char = player.Character
+		return char and char:FindFirstChildOfClass("Tool")
+	end
+
+	local function gearOf(tool: Tool?): Config.GearDef?
+		local id = tool and tool:GetAttribute("GearId")
+		return if typeof(id) == "string" then Config.GetGear(id) else nil
+	end
+
+	local function refreshHint()
+		local def = gearOf(equippedTool())
+		hint.Visible = def ~= nil and bar.Visible
+		if not def then
+			return
+		end
+		local left = (cooldownUntil[def.id] or 0) - os.clock()
+		if def.kind == "speed" then
+			hint.Text = string.format('%s  <font color="#7CFF5B">FASTER WHILE HELD</font>', def.name:upper())
+		elseif left > 0 then
+			hint.Text = string.format('%s  <font color="#FFB43C">READY IN %ds</font>', def.name:upper(), math.ceil(left))
+		else
+			hint.Text = string.format('%s  <font color="#7CFF5B">%s</font>', def.name:upper(), USE_WORD)
+		end
+	end
+
+	local function pop(view: SlotView, big: number)
+		view.scale.Scale = big
+		TweenService:Create(view.scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	end
+
+	local function shake(view: SlotView)
+		local b = view.button
+		task.spawn(function()
+			for _, x in { -6, 6, -4, 4, 0 } do
+				b.Position = UDim2.fromOffset(x, 0)
+				task.wait(0.04)
+			end
+		end)
+		view.timer.TextColor3 = Color3.fromRGB(255, 90, 90)
+		task.delay(0.3, function()
+			view.timer.TextColor3 = CardKit.WHITE
+		end)
+	end
+
+	-- Sunucu kullanımı onayladı: bekleme başlasın, yuva zıplasın
+	table.insert(connections, Net.Get("GearFX").OnClientEvent:Connect(function(kind, character, gearId)
+		if kind ~= "use" or character ~= player.Character or typeof(gearId) ~= "string" then
+			return
+		end
+		local def = Config.GetGear(gearId)
+		if not def then
+			return
+		end
+		cooldownTotal[gearId] = def.cooldown or 1
+		cooldownUntil[gearId] = os.clock() + (def.cooldown or 1)
+		local view = slots[gearId]
+		if view then
+			pop(view, 1.25)
+		end
+	end))
+
+	-- Beklerken basınca: neden olmadığını göster
+	local boundTools: { [Tool]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+	local function bindTool(tool: Tool)
+		if boundTools[tool] then
+			return
+		end
+		boundTools[tool] = true
+		tool.Activated:Connect(function()
+			local def = gearOf(tool)
+			if not def then
+				return
+			end
+			local view = slots[def.id]
+			if view and (cooldownUntil[def.id] or 0) > os.clock() then
+				shake(view)
+			end
+		end)
+	end
+
+	-- Perde ve sayaç her karede; bitince yuva "hazır" diye bir kez zıplıyor
+	table.insert(connections, RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		for id, view in slots do
+			local left = (cooldownUntil[id] or 0) - now
+			if left > 0 then
+				local total = math.max(0.1, cooldownTotal[id] or 1)
+				view.shade.Visible = true
+				view.shade.Size = UDim2.fromScale(1, math.clamp(left / total, 0, 1))
+				view.timer.Visible = true
+				view.timer.Text = tostring(math.ceil(left))
+			elseif view.shade.Visible then
+				view.shade.Visible = false
+				view.timer.Visible = false
+				cooldownUntil[id] = nil
+				pop(view, 1.15)
+			end
+		end
+		refreshHint()
+	end))
+
 	local function humanoid(): Humanoid?
 		local char = player.Character
 		return char and char:FindFirstChildOfClass("Humanoid")
@@ -115,6 +250,7 @@ function Hotbar.Create(screen: ScreenGui): Bar
 			end
 		end
 		tools = collect()
+		table.clear(slots)
 		-- Arayüz gizliyken (Topbar gözü) yeniden çizim çubuğu geri açmasın
 		bar.Visible = #tools > 0 and screen:GetAttribute("UiHidden") ~= true
 		bar.Size = UDim2.fromOffset(math.max(SLOT, #tools * SLOT + (#tools - 1) * GAP), SLOT + 4)
@@ -169,6 +305,32 @@ function Hotbar.Create(screen: ScreenGui): Bar
 			button.MouseButton1Click:Connect(function()
 				toggle(tool)
 			end)
+
+			if typeof(gearId) == "string" then
+				local scale = Instance.new("UIScale")
+				scale.Parent = holder
+
+				-- Bekleme perdesi: yukarıdan aşağı çekiliyor
+				local shade = Instance.new("Frame")
+				shade.Name = "Cooldown"
+				shade.AnchorPoint = Vector2.new(0, 1)
+				shade.Position = UDim2.fromScale(0, 1)
+				shade.Size = UDim2.fromScale(1, 1)
+				shade.BackgroundColor3 = Color3.new(0, 0, 0)
+				shade.BackgroundTransparency = 0.4
+				shade.BorderSizePixel = 0
+				shade.ZIndex = icon.ZIndex + 4
+				shade.Visible = false
+				shade.Parent = button
+				UiKit.Corner(shade, 14)
+
+				local timer = CardKit.bold(button, "", 26, CardKit.WHITE, icon.ZIndex + 5, 3)
+				timer.Size = UDim2.fromScale(1, 1)
+				timer.Visible = false
+
+				slots[gearId] = { button = button, scale = scale, shade = shade, timer = timer }
+				bindTool(tool)
+			end
 		end
 	end
 

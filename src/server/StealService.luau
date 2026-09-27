@@ -28,6 +28,8 @@ type Carry = {
 	unitId: string,
 	mutationId: string?,
 	victim: Player?,
+	-- Çalındığı kaide: yakalanınca karakter oraya dönüyor
+	podium: Part?,
 	-- Işınlanarak taşımayı atlamayı engellemek için: nereden, ne zaman
 	origin: Vector3,
 	startedAt: number,
@@ -229,7 +231,7 @@ local function stopCarrying(player: Player)
 end
 
 --[[ Taşınan karakteri sahibine geri verir (ölüm / çıkış durumunda). ]]
-local function returnToVictim(player: Player)
+local function returnToVictim(player: Player, quiet: boolean?)
 	local carry = carrying[player]
 	if not carry then
 		return
@@ -237,12 +239,27 @@ local function returnToVictim(player: Player)
 
 	local victim = carry.victim
 	if victim and victim.Parent then
+		--[[
+			Önce çalındığı kaideye. Eskiden ilk boş kaideye konuyordu (çoğu
+			zaman başka bir köşe ya da üst kat); oyuncu hırsızı durdurup
+			eski yerine bakınca karakteri "kaybolmuş" sanıyordu.
+		]]
 		local plot = PlotService.GetPlotOf(victim)
-		local podium = plot and PlotService.FindEmptyPodium(plot)
+		local origin = carry.podium
+		local podium: Part? = nil
+		if plot and origin and origin.Parent and PlotService.GetPlotFromDescendant(origin) == plot
+			and not PlotService.IsOccupied(origin) and PlotService.IsPodiumUnlocked(origin) then
+			podium = origin
+		elseif plot then
+			podium = PlotService.FindEmptyPodium(plot)
+		end
 
 		if podium then
 			PlotService.PlaceUnit(podium, carry.unitId, carry.mutationId)
-			notify(victim, "Thief down! Your unit is back", false)
+			-- Yakalayan kurbansa kendi (daha ayrıntılı) mesajı gidiyor
+			if not quiet then
+				notify(victim, "Thief down! Your unit is back", false)
+			end
 		else
 			-- Boş kaide yoksa karakteri sessizce yok etmek yerine parasını iade et.
 			-- Kurban çalınmayı takiben o slotu doldurmuş olabiliyor; eski hali
@@ -294,7 +311,7 @@ end
 	Prompt taşınan karakterin üstünde duruyor, yani yalnızca hırsız gerçekten
 	bir şey taşırken görünüyor. Tetikleyen kişi kurban değilse reddediliyor.
 ]]
-local function setupCatchPrompt(thief: Player, model: Model)
+local function setupCatchPrompt(thief: Player, model: Model, victim: Player?)
 	local primary = model.PrimaryPart
 	if not primary then
 		return
@@ -308,6 +325,9 @@ local function setupCatchPrompt(thief: Player, model: Model)
 	prompt.HoldDuration = Config.CatchHoldTime
 	prompt.MaxActivationDistance = Config.CatchRange
 	prompt.RequiresLineOfSight = false
+	-- Yalnızca soyulan görsün (PromptFilter): hırsız kendi sırtında,
+	-- başkaları da basamadıkları "Stop Thief" yazısını görüyordu
+	prompt:SetAttribute("OwnerId", if victim then victim.UserId else 0)
 	prompt.Parent = primary
 
 	PromptGuard.Connect(prompt, function(catcher)
@@ -327,7 +347,7 @@ local function setupCatchPrompt(thief: Player, model: Model)
 		local unitName = if def then def.name else unitId
 
 		-- returnToVictim karakteri geri koyuyor, kaide doluysa parasını veriyor
-		returnToVictim(thief)
+		returnToVictim(thief, true)
 		blockFrom(thief, catcher, Config.CatchBlockDuration)
 
 		-- Yakalanan hırsızın serisi de kırılıyor: seri risk ödülüydü,
@@ -564,6 +584,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 		unitId = unitId,
 		mutationId = mutationId,
 		victim = victim,
+		podium = podium,
 		origin = podium.Position,
 		startedAt = os.clock(),
 	}
@@ -592,7 +613,7 @@ local function onStealPrompt(podium: Part, thief: Player)
 	local def = Config.GetUnit(unitId)
 	local unitName = if def then def.name else unitId
 
-	setupCatchPrompt(thief, model)
+	setupCatchPrompt(thief, model, victim)
 
 	notify(thief, string.format("Stole %s! Run to your base", unitName), false, "steal")
 	-- Comms Jam sabotajı (SabotageService) altındaki kurban uyarı almıyor.
@@ -604,6 +625,37 @@ local function onStealPrompt(podium: Part, thief: Player)
 		BadgeService.Award(victim, "Victim")
 		TitleService.AddRobbed(victim)
 	end
+end
+
+--[[
+	Testler için: kaidedeki karakteri kurallara bakmadan `thief`in sırtına
+	alır (kurban `victim`). Tek oyunculu testte hırsız ve kurban aynı kişi
+	olabiliyor. Taşıma başladıysa true.
+]]
+function StealService._StartCarry(thief: Player, podium: Part, victim: Player?): boolean
+	if carrying[thief] then
+		return false
+	end
+	local unitId, mutationId = PlotService.ClearUnit(podium)
+	if not unitId then
+		return false
+	end
+	local model = attachToBack(thief, unitId, mutationId)
+	if not model then
+		PlotService.PlaceUnit(podium, unitId, mutationId)
+		return false
+	end
+	carrying[thief] = {
+		model = model,
+		unitId = unitId,
+		mutationId = mutationId,
+		victim = victim,
+		podium = podium,
+		origin = podium.Position,
+		startedAt = os.clock(),
+	}
+	setupCatchPrompt(thief, model, victim)
+	return true
 end
 
 -- ─── Promptlar ──────────────────────────────────────────────────────────────

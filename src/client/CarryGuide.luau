@@ -1,16 +1,25 @@
 --!strict
--- Taşıma rehberi: çalınan karakteri taşırken üssüne doğru ok ve mesafe gösterir.
--- Harita boş olduğu için çaldıktan sonra yön bulmak zor; bu onu çözüyor.
+--[[
+	Taşıma rehberi: çalınan karakteri taşırken üssüne doğru ok gösterir.
+	Harita boş olduğu için çaldıktan sonra yön bulmak zor; bu onu çözüyor.
+
+	Eskiden okun altında "123 studs" yazıyordu (oyuncu stud'ın ne
+	olduğunu bilmiyor, "garip yazı") ve gri Gotham kutusu öbür arayüzden
+	kopuktu. Artık mağaza dilinde (CardKit): konturlu ok, renkli kart,
+	yaklaşınca yeşile dönüyor ve "ALMOST THERE!" diyor.
+]]
 
 local Players = game:GetService("Players")
+
+local CardKit = require(script.Parent.CardKit)
 
 local CarryGuide = {}
 
 local player = Players.LocalPlayer
 
-local ACCENT = Color3.fromRGB(255, 190, 90)
-local NEAR = Color3.fromRGB(120, 255, 150)
-local PANEL = Color3.fromRGB(18, 20, 28)
+local ACCENT = Color3.fromRGB(255, 176, 50)
+local NEAR = Color3.fromRGB(70, 210, 90)
+local Z = 20
 
 -- Bu mesafenin altında "vardın" sayıp rengi yeşile çeviriyoruz.
 local ARRIVED_STUDS = 30
@@ -53,53 +62,28 @@ function CarryGuide.Create(screen: ScreenGui): Guide
 	holder.Name = "CarryGuide"
 	holder.AnchorPoint = Vector2.new(0.5, 0.5)
 	holder.Position = UDim2.new(0.5, 0, 0.32, 0)
-	holder.Size = UDim2.new(0, 220, 0, 150)
+	holder.Size = UDim2.new(0, 280, 0, 150)
 	holder.BackgroundTransparency = 1
 	holder.Visible = false
 	holder.Parent = screen
 
-	local arrow = Instance.new("TextLabel")
+	local arrow = CardKit.bold(holder, "▲", 76, ACCENT, Z, 5)
 	arrow.Name = "Arrow"
-	arrow.AnchorPoint = Vector2.new(0.5, 0)
-	arrow.Position = UDim2.new(0.5, 0, 0, 0)
-	arrow.Size = UDim2.new(0, 90, 0, 90)
-	arrow.BackgroundTransparency = 1
-	arrow.Font = Enum.Font.GothamBold
-	arrow.Text = "▲"
-	arrow.TextSize = 72
-	arrow.TextColor3 = ACCENT
-	arrow.TextStrokeTransparency = 0.3
-	arrow.Parent = holder
+	arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+	arrow.Position = UDim2.new(0.5, 0, 0, 46)
+	arrow.Size = UDim2.new(0, 92, 0, 92)
 
-	local distance = Instance.new("TextLabel")
-	distance.Name = "Distance"
-	distance.AnchorPoint = Vector2.new(0.5, 0)
-	distance.Position = UDim2.new(0.5, 0, 0, 88)
-	distance.Size = UDim2.new(1, 0, 0, 28)
-	distance.BackgroundTransparency = 1
-	distance.Font = Enum.Font.GothamBold
-	distance.TextSize = 24
-	distance.TextColor3 = ACCENT
-	distance.TextStrokeTransparency = 0.3
-	distance.Text = ""
-	distance.Parent = holder
+	local card = CardKit.card(holder, ACCENT, UDim2.new(1, 0, 0, 46), Z, UDim2.fromScale(0.5, 0.5), 380)
+	card.Name = "Caption"
+	card.AnchorPoint = Vector2.new(0.5, 0)
+	card.Position = UDim2.new(0.5, 0, 0, 98)
 
-	local caption = Instance.new("TextLabel")
-	caption.Name = "Caption"
-	caption.AnchorPoint = Vector2.new(0.5, 0)
-	caption.Position = UDim2.new(0.5, 0, 0, 116)
-	caption.Size = UDim2.new(1, 0, 0, 22)
-	caption.BackgroundColor3 = PANEL
-	caption.BackgroundTransparency = 0.25
-	caption.Font = Enum.Font.GothamMedium
-	caption.TextSize = 14
-	caption.TextColor3 = Color3.fromRGB(235, 240, 250)
-	caption.Text = "RETURN TO YOUR BASE"
-	caption.Parent = holder
+	local caption = CardKit.bold(card, "RETURN TO YOUR BASE!", 22, CardKit.WHITE, Z + 3, 2.5)
+	caption.Position = UDim2.fromOffset(10, 0)
+	caption.Size = UDim2.new(1, -20, 1, 0)
+	CardKit.fit(caption, 22, 12)
 
-	local captionCorner = Instance.new("UICorner")
-	captionCorner.CornerRadius = UDim.new(0, 6)
-	captionCorner.Parent = caption
+	local lastArrived: boolean? = nil
 
 	local function update(plot: Model?)
 		local character = player.Character
@@ -120,15 +104,19 @@ function CarryGuide.Create(screen: ScreenGui): Guide
 		holder.Visible = true
 
 		local flat = base.Position - root.Position
-		local studs = Vector3.new(flat.X, 0, flat.Z).Magnitude
-		local arrived = studs <= ARRIVED_STUDS
-		local color = if arrived then NEAR else ACCENT
+		local arrived = Vector3.new(flat.X, 0, flat.Z).Magnitude <= ARRIVED_STUDS
 
+		-- Ok hafifçe nabız gibi atıyor: gözden kaçmasın
 		arrow.Rotation = bearingTo(base.Position, root.Position)
-		arrow.TextColor3 = color
-		distance.TextColor3 = color
-		distance.Text = string.format("%d studs", math.floor(studs + 0.5))
-		caption.Text = if arrived then "ALMOST THERE" else "RETURN TO YOUR BASE"
+		arrow.TextSize = 76 + math.sin(os.clock() * 6) * 4
+
+		if arrived ~= lastArrived then
+			lastArrived = arrived
+			local color = if arrived then NEAR else ACCENT
+			arrow.TextColor3 = color
+			CardKit.tintCard(card, color)
+			caption.Text = if arrived then "ALMOST THERE!" else "RETURN TO YOUR BASE!"
+		end
 	end
 
 	return { Update = update }

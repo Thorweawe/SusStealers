@@ -80,7 +80,7 @@ local EFFECT: { [string]: Effect } = {
 	CarrySpeed = {
 		label = "Carry speed",
 		value = function(level)
-			return string.format("%.1f", Config.GetCarryWalkSpeed(level))
+			return string.format("%.2f", Config.GetCarryWalkSpeed(level))
 		end,
 	},
 	LockPower = {

@@ -13,6 +13,22 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (27) — Batur (Yusuf'un şeridine yazıldı)
+
+- **Bildirimler (`Toasts.luau`, yeni):** alttaki gri kutular ekipman çubuğunun üstüne biniyordu.
+  Artık CardKit kartı (yeşil/kırmızı, kalın konturlu yazı), çubuğun ve ekipman adının üstünde;
+  en fazla 3. `init.client` eski `toastHolder` kodu kalktı, `showToast` aynı imzayla duruyor.
+- **Ekipman geri bildirimi (`Hotbar`):** kuşanılı ekipmanın adı + "CLICK/TAP TO USE" çubuğun
+  üstünde; kullanınca yuva zıplıyor, bekleme perdesi + saniye; beklerken basınca sallanıyor,
+  "READY IN 3s". Kullanım anı sunucunun `GearFX` "use" yankısından.
+- **Taşıma rehberi (`CarryGuide`):** "123 studs" yazısı kalktı; CardKit ok + "RETURN TO YOUR BASE!".
+- **"Stop Thief" yalnızca soyulana:** sunucu promptun `OwnerId` niteliğini yazıyor,
+  `PromptFilter` başkalarında kapatıyor (hırsız kendi sırtında görüyordu).
+- **Durdurulan hırsızın karakteri çalındığı kaideye dönüyor** (ilk boş kaideye gidiyordu,
+  "kayboluyor" sanılıyordu). Test: `StealService._StartCarry`.
+- **Taşıma hızı dengesi (`Config.GetCarryWalkSpeed`):** yükseltme azalan getirili (en fazla +3),
+  pet en fazla +1.5, toplam tavan 12 (eskiden 15). Upgrade paneli 2 ondalık.
+
 ## 2026-09-27 (26) — Batur (Yusuf'un şeridine yazıldı)
 
 - **Mobil olay çizelgesi** üst çubukta, UI gizleme (göz) düğmesinin sağında (`DeviceLayout`

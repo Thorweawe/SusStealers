@@ -99,7 +99,30 @@ local function filledCount(plot: Model): number
 	return n
 end
 
+--[[
+	Hırsızın sırtındaki "Stop Thief" (StealService CatchPrompt) yalnızca
+	soyulan oyuncuda açık. Sunucu kimi beklediğini OwnerId niteliğine
+	yazıyor. Prompt karakterin içinde, üslerin altında değil; bu yüzden
+	aşağıdaki üs taramasına girmiyor, geldiği anda burada süzülüyor.
+	Hırsız kendi sırtında, seyirciler de basamadıkları yazıyı görüyordu.
+]]
+local function filterCatchPrompt(d: Instance)
+	if not (d:IsA("ProximityPrompt") and d.Name == "CatchPrompt") then
+		return
+	end
+	local owner = d:GetAttribute("OwnerId")
+	local want = typeof(owner) ~= "number" or owner == Players.LocalPlayer.UserId
+	if d.Enabled ~= want then
+		d.Enabled = want
+	end
+end
+
 function PromptFilter.Create(): Filter
+	workspace.DescendantAdded:Connect(filterCatchPrompt)
+	for _, d in workspace:GetDescendants() do
+		filterCatchPrompt(d)
+	end
+
 	local function update(myPlot: Model?)
 		local plots = workspace:FindFirstChild("Plots")
 		if not plots then

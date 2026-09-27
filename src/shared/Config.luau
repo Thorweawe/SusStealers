@@ -1317,12 +1317,25 @@ end
 
 --[[
 	Karakter taşırken yürüme hızı. Normal hızı geçmemeli, yoksa taşımak
-	avantaj haline gelir ve çalmanın riski kaybolur. Son seviyede tam
-	tavana ulaşacak şekilde ayarlı.
+	avantaj haline gelir ve çalmanın riski kaybolur.
+
+	2026-09-27 dengesi: eskiden seviye başına düz +0.2 (20 seviyede +4) ve
+	petler sınırsız ekleniyordu; tavan 15'ti, yani hırsız neredeyse normal
+	yürüyüşle (16) kaçıyordu ("carry speed çok artıyor"). Artık:
+	  yükseltme — azalan getiri, en fazla CarryUpgradeBonusMax
+	              (seviye 5: +1.4, 10: +2.2, 20: +2.8)
+	  pet       — en fazla CarryPetBonusMax
+	  toplam    — CarryWalkSpeedMax (normal yürüyüşün 3/4'ü): kovalayan
+	              yürüyerek de yetişebiliyor.
 ]]
+Config.CarryUpgradeBonusMax = 3
+Config.CarryPetBonusMax = 1.5
+Config.CarryWalkSpeedMax = 12
+
 function Config.GetCarryWalkSpeed(level: number, petBonus: number?): number
-	local base = Config.CarryWalkSpeed + level * 0.2 + (petBonus or 0)
-	return math.min(Config.NormalWalkSpeed - 1, base)
+	local upgrade = Config.CarryUpgradeBonusMax * (1 - 0.88 ^ math.max(0, level))
+	local pet = math.clamp(petBonus or 0, 0, Config.CarryPetBonusMax)
+	return math.min(Config.CarryWalkSpeedMax, Config.CarryWalkSpeed + upgrade + pet)
 end
 
 --[[ Kilit süresi ve bekleme süresi, yükseltme seviyesine göre. ]]

@@ -520,6 +520,52 @@ case("Çalma: taşıma hızı normal hızı aşmıyor", function()
 	end
 end)
 
+case("Çalma: taşıma hızı yükseltme + petle bile tavanda kalıyor", function()
+	-- "carry speed çok artıyor": en güçlü oyuncu da normal yürüyüşün 3/4'ünü geçmesin
+	local ceiling = Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed"))
+	local fastest = Config.GetCarryWalkSpeed(ceiling, 99)
+	ok("tavan normalin 3/4'ü", fastest <= Config.NormalWalkSpeed * 0.75, string.format("%.2f", fastest))
+	ok("yükseltme tek başına tavana yapışmıyor", Config.GetCarryWalkSpeed(ceiling) < Config.CarryWalkSpeedMax,
+		string.format("%.2f", Config.GetCarryWalkSpeed(ceiling)))
+	ok("pet katkısı sınırlı", Config.GetCarryWalkSpeed(0, 99) - Config.GetCarryWalkSpeed(0) <= Config.CarryPetBonusMax + 1e-6)
+	local previous = -1
+	for level = 0, ceiling do
+		local v = Config.GetCarryWalkSpeed(level)
+		ok("seviye " .. level .. " artıyor", v > previous, string.format("%.3f", v))
+		previous = v
+	end
+end)
+
+case("Çalma: durdurulan hırsızın taşıdığı karakter ÇALINDIĞI kaideye dönüyor", function(ctx)
+	-- "gearla ya da elle durdurunca amongus kayboluyor": eskiden ilk boş kaideye
+	-- (başka köşe / üst kat) konuyordu
+	clearPlot(ctx.plot)
+	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
+	local target = podiums[#podiums]
+	ok("en az iki kaide", #podiums >= 2)
+	PlotService.PlaceUnit(target, "Engineer", "Golden")
+	ok("taşıma başladı", StealService._StartCarry(ctx.player, target, ctx.player))
+	eq("kaide boşaldı", PlotService.IsOccupied(target), false)
+
+	local carried = ctx.player.Character and ctx.player.Character:FindFirstChild("CarriedUnit")
+	local prompt = carried and carried:FindFirstChild("CatchPrompt", true)
+	eq("Stop Thief yalnızca kurbana (OwnerId)", prompt and prompt:GetAttribute("OwnerId"), ctx.player.UserId)
+
+	ok("tokat düşürdü", StealService.KnockDrop(ctx.player))
+	eq("taşıma bitti", StealService.IsCarrying(ctx.player), false)
+	eq("aynı kaideye döndü", target:GetAttribute("UnitId"), "Engineer")
+	eq("mutasyonu korundu", target:GetAttribute("MutationId"), "Golden")
+	eq("ilk kaide boş kaldı", PlotService.IsOccupied(podiums[1]), false)
+
+	-- Kaide bu arada dolduysa ilk boş kaideye
+	ok("yeniden taşıma", StealService._StartCarry(ctx.player, target, ctx.player))
+	PlotService.PlaceUnit(target, "RedCrew", nil)
+	StealService.KnockDrop(ctx.player)
+	eq("dolu kaide ezilmedi", target:GetAttribute("UnitId"), "RedCrew")
+	eq("boş kaideye kondu", podiums[1]:GetAttribute("UnitId"), "Engineer")
+	clearPlot(ctx.plot)
+end)
+
 case("Çalma: seri bonusu tavanlı", function()
 	local previous = -1
 	for streak = 0, Config.StealStreakMax + 5 do

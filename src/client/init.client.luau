@@ -38,6 +38,7 @@ local ScreenFX = require(script.ScreenFX)
 local GearFX = require(script.GearFX)
 local PromptStyle = require(script.PromptStyle)
 local SoundFX = require(script.SoundFX)
+local Toasts = require(script.Toasts)
 local TaskGames = require(script.TaskGames)
 local ThiefTrail = require(script.ThiefTrail)
 local UiKit = require(script.UiKit)
@@ -91,7 +92,6 @@ local MUTED = Color3.fromRGB(150, 163, 184)
 local GOOD = Color3.fromRGB(120, 255, 150)
 local WARN = Color3.fromRGB(255, 190, 90)
 local BAD = Color3.fromRGB(255, 90, 90)
-local PANEL = Color3.fromRGB(18, 20, 28)
 
 -- ─── Arayüz ─────────────────────────────────────────────────────────────────
 
@@ -155,66 +155,11 @@ UiKit.Coin(cashDisc, 26, UiKit.CREW.LIME)
 ]]
 -- ─── Bildirimler ────────────────────────────────────────────────────────────
 
-local toastHolder = Instance.new("Frame")
-toastHolder.Name = "Toasts"
-toastHolder.AnchorPoint = Vector2.new(0.5, 1)
-toastHolder.Position = UDim2.new(0.5, 0, 1, -40)
-toastHolder.Size = UDim2.new(0, 520, 0, 200)
-toastHolder.BackgroundTransparency = 1
-toastHolder.Parent = screen
-
-local layout = Instance.new("UIListLayout")
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.Padding = UDim.new(0, 6)
-layout.Parent = toastHolder
-
-local toastOrder = 0
+-- Kısa bildirimler ekipman çubuğunun üstünde, mağaza dilinde (Toasts)
+local toasts = Toasts.Create(screen)
 
 local function showToast(text: string, color: Color3)
-	toastOrder += 1
-
-	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(0, 500, 0, 40)
-	frame.BackgroundColor3 = PANEL
-	frame.BackgroundTransparency = 0.15
-	frame.BorderSizePixel = 0
-	frame.LayoutOrder = toastOrder
-	frame.Parent = toastHolder
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = frame
-
-	local stripe = Instance.new("Frame")
-	stripe.Size = UDim2.new(0, 4, 1, 0)
-	stripe.BackgroundColor3 = color
-	stripe.BorderSizePixel = 0
-	stripe.Parent = frame
-
-	local label = Instance.new("TextLabel")
-	label.Position = UDim2.new(0, 16, 0, 0)
-	label.Size = UDim2.new(1, -28, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamMedium
-	label.TextSize = 18
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = INK
-	label.Text = text
-	label.Parent = frame
-
-	task.delay(3, function()
-		if not frame.Parent then
-			return
-		end
-		local info = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		TweenService:Create(frame, info, { BackgroundTransparency = 1 }):Play()
-		TweenService:Create(label, info, { TextTransparency = 1 }):Play()
-		TweenService:Create(stripe, info, { BackgroundTransparency = 1 }):Play()
-		task.wait(0.4)
-		frame:Destroy()
-	end)
+	toasts.Show(text, color == BAD, if color == GOOD or color == BAD then nil else color)
 end
 
 -- ─── Efektler ───────────────────────────────────────────────────────────────
