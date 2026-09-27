@@ -58,6 +58,7 @@ local RogueService = require(Server.RogueService)
 local AdminMapService = require(Server.AdminMapService)
 local SettingsService = require(Server.SettingsService)
 local SpaceService = require(Server.SpaceService)
+local SpaceBonusService = require(Server.SpaceBonusService)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
 local ServerTests = {}
@@ -3982,6 +3983,83 @@ case("Kapsül: kazanç seviyeyle artıyor, hızla azalıyor; eski kayıt taşın
 	eq("kazanılmış hız korunuyor", high.spaceSpeed, 57.5)
 end)
 
+-- ─── Uzay yolu: halkalar, yıldız tozu, sandıklar, kuyruklu yıldız ──────────
+
+case("Uzay yolu: içerik uçulabilir alanda, gezegenlerin içinde değil", function()
+	local s = Config.Space
+	local function inside(p: Vector3): boolean
+		return p.X >= s.BoundsMin.X and p.X <= s.BoundsMax.X and p.Y >= s.BoundsMin.Y and p.Y <= s.BoundsMax.Y
+			and p.Z >= s.BoundsMin.Z and p.Z <= s.BoundsMax.Z
+	end
+	local function clearOfPlanets(p: Vector3, pad: number): boolean
+		for _, def in Config.SpaceMonsters do
+			if (p - SpaceField.PlanetCenter(def)).Magnitude < def.radius + pad then
+				return false
+			end
+		end
+		return true
+	end
+	eq("rota sayısı", #SpaceField.Routes(), #Config.SpaceMonsters)
+	local rings = SpaceField.Rings()
+	ok("en az 10 halka", #rings >= 10, tostring(#rings))
+	for i, ring in rings do
+		ok(i .. ". halka alanda", inside(ring.cf.Position))
+		ok(i .. ". halka gezegende değil", clearOfPlanets(ring.cf.Position, ring.radius))
+	end
+	local dust = SpaceField.StardustSpots()
+	ok("yıldız tozu bol", #dust >= 40, tostring(#dust))
+	local dustClear = 0
+	for _, p in dust do
+		if inside(p) and clearOfPlanets(p, 2) then
+			dustClear += 1
+		end
+	end
+	eq("yıldız tozu alanda ve dışarıda", dustClear, #dust)
+	for i, p in SpaceField.CrateSpots() do
+		ok(i .. ". sandık alanda", inside(p) and clearOfPlanets(p, 4))
+	end
+	ok("dünyada kurulu", workspace:FindFirstChild("SpaceBonus") ~= nil)
+end)
+
+case("Uzay yolu: toplamak para veriyor, sonra yeniden beliriyor", function(ctx)
+	SpaceBonusService._Respawn()
+	local pickups = SpaceBonusService._Pickups()
+	local dustIndex, crateIndex = nil, nil
+	for i, p in pickups do
+		if p.kind == "stardust" and not dustIndex then
+			dustIndex = i
+		elseif p.kind == "crate" and not crateIndex then
+			crateIndex = i
+		end
+	end
+	ok("ikisi de var", dustIndex ~= nil and crateIndex ~= nil)
+	if not (dustIndex and crateIndex) then return end
+
+	setCash(ctx.player, 0)
+	ok("yıldız tozu toplandı", SpaceBonusService._Collect(ctx.player, dustIndex))
+	ok("para geldi", EconomyService.GetCash(ctx.player) >= Config.SpaceBonus.StardustMin)
+	ok("hemen tekrar toplanmıyor", not SpaceBonusService._Collect(ctx.player, dustIndex))
+	eq("gizlendi", pickups[dustIndex].part.Transparency, 1)
+
+	local before = EconomyService.GetCash(ctx.player)
+	ok("sandık açıldı", SpaceBonusService._Collect(ctx.player, crateIndex))
+	ok("sandık büyük ödül", EconomyService.GetCash(ctx.player) - before >= Config.SpaceBonus.CrateMin)
+	ok("sandık ödülü yıldız tozundan büyük", Config.SpaceBonus.CrateMin > Config.SpaceBonus.StardustMin * 10)
+
+	SpaceBonusService._Respawn()
+	ok("yeniden belirdi", SpaceBonusService._Collect(ctx.player, dustIndex))
+	SpaceBonusService._Respawn()
+end)
+
+case("Uzay yolu: Golden Comet başlıyor ve bitiyor", function()
+	ok("olay tanımlı", Config.GetEvent("Comet") ~= nil)
+	local stop = SpaceBonusService.StartComet()
+	ok("kuyruklu yıldız dünyada", SpaceBonusService.GetComet() ~= nil)
+	stop()
+	eq("durdu", SpaceBonusService.GetComet(), nil)
+	ok("halka çarpanı teslim toleransına dahil (hız hilesi sanılmasın)", Config.SpaceBonus.RingBoostMul > 1)
+end)
+
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
 
 --[[
@@ -4102,6 +4180,7 @@ function ServerTests.Run(player: Player?): number
 	RogueService._Reset()
 	-- Canavarlar test oyuncusunu yakalamasın, kapsül hızı kendiliğinden artmasın
 	SpaceService.SetPaused(true)
+	SpaceBonusService.SetPaused(true)
 	CapsuleService.SetPaused(true)
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
@@ -4143,6 +4222,7 @@ function ServerTests.Run(player: Player?): number
 	EventService.SetPaused(false)
 	RogueService.SetPaused(false)
 	SpaceService.SetPaused(false)
+	SpaceBonusService.SetPaused(false)
 	CapsuleService.SetPaused(false)
 	-- Testler iksir içiyor; kalan takviyeyi canlı oturuma bırakma
 	MonetizationService.ClearBoosts(player)

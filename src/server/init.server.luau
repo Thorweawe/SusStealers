@@ -37,6 +37,7 @@ local RogueService = require(script.RogueService)
 local AdminMapService = require(script.AdminMapService)
 local SettingsService = require(script.SettingsService)
 local SpaceService = require(script.SpaceService)
+local SpaceBonusService = require(script.SpaceBonusService)
 local CapsuleService = require(script.CapsuleService)
 
 local started = os.clock()
@@ -80,6 +81,8 @@ AdminMapService.Start()
 SettingsService.Start()
 -- Uzay soygunu: Launch Bay, gezegenler, canavarlar (konveyörün yerine; "conveyor"/"lucky" ürünleri de burada)
 SpaceService.Start()
+-- Gezegen yolundaki halkalar, yıldız tozu, sandıklar, asteroitler, pano (SpaceService'ten sonra)
+SpaceBonusService.Start()
 -- Üslerdeki uzay kapsülleri: antrenman ve yükseltme konsolu
 CapsuleService.Start()
 

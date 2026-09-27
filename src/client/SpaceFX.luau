@@ -191,6 +191,9 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	]]
 	local BOOST_ACTION = "SpaceJetBoost"
 	local boostUntil, boostReadyAt, boostCooldown = 0, 0, 1
+	-- Hız halkası patlaması (SpaceBonus): halkadan geçince kısa süre
+	local ringUntil = 0
+	local ringSide: { [number]: number } = {}
 	local boostBound = false
 	local boostBar = CardKit.bar(screen, UDim2.fromOffset(230, 30), Color3.fromRGB(255, 170, 60), Z + 2, 15)
 	boostBar.frame.Name = "JetBoostBar"
@@ -572,6 +575,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			local jet = jetParams()
 			speed *= if jet then jet.mul else 1
 		end
+		if os.clock() < ringUntil then
+			speed *= Config.SpaceBonus.RingBoostMul
+			boosting = true
+		end
 		local move = inputVector()
 		-- Boost sırasında tuşa basılmasa da ileri atılıyor (kameranın yatay yönü)
 		if boosting and move.Magnitude < 0.1 then
@@ -690,6 +697,54 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			ContextActionService:SetPosition(BOOST_ACTION, UDim2.new(1, -210, 1, -150))
 		else
 			ContextActionService:UnbindAction(BOOST_ACTION)
+		end
+	end
+
+	--[[
+		Hız halkası geçişi: halkanın düzleminin bir yanından öbürüne,
+		halkanın İÇİNDEN geçince. Konumlar shared/SpaceField.Rings (sunucu
+		aynı listeden kuruyor); patlama uçuşta, istemcide.
+	]]
+	local rings = SpaceField.Rings()
+	local function flashRing(index: number)
+		local bonus = workspace:FindFirstChild("SpaceBonus")
+		local folder = bonus and bonus:FindFirstChild("Rings")
+		local model = folder and folder:FindFirstChild("Ring" .. index)
+		if not model then
+			return
+		end
+		for _, d in model:GetChildren() do
+			if d:IsA("BasePart") and d.Name == "RingSeg" then
+				d.Color = Color3.fromRGB(255, 255, 255)
+				TweenService:Create(d, TweenInfo.new(0.6), { Color = Color3.fromRGB(90, 230, 255) }):Play()
+			end
+		end
+	end
+	local function stepRings(root: BasePart)
+		local pos = root.Position
+		for i, ring in rings do
+			local rel = ring.cf:PointToObjectSpace(pos)
+			if math.abs(rel.Z) > 12 then
+				ringSide[i] = nil
+				continue
+			end
+			local side = if rel.Z >= 0 then 1 else -1
+			local before = ringSide[i]
+			ringSide[i] = side
+			if before and before ~= side and Vector2.new(rel.X, rel.Y).Magnitude <= ring.radius + 1 then
+				ringUntil = os.clock() + Config.SpaceBonus.RingBoostTime
+				flashRing(i)
+				effects.Shake(0.25, 0.2)
+				SoundFX.GearSound("GearZap", pos)
+				local camera = workspace.CurrentCamera
+				if camera then
+					local base = camera.FieldOfView
+					TweenService:Create(camera, TweenInfo.new(0.12), { FieldOfView = math.min(base + 8, 90) }):Play()
+					task.delay(Config.SpaceBonus.RingBoostTime, function()
+						TweenService:Create(camera, TweenInfo.new(0.4), { FieldOfView = base }):Play()
+					end)
+				end
+			end
 		end
 	end
 
@@ -856,6 +911,9 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		setFlying(inSpace)
 		stepBoostUi()
 		if flying then
+			stepRings(root)
+		end
+		if flying then
 			stepFlight(dt, root)
 		end
 
@@ -962,6 +1020,42 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			local def = Config.GetSpaceMonster(a)
 			effects.Shake(1.2, 0.5)
 			yell(string.format("%s LUNGES!", string.upper(if def then def.name else "IT")), Color3.fromRGB(255, 90, 90), 1.2)
+		elseif kind == "bonus" and typeof(a) == "string" and typeof(b) == "number" and typeof(c) == "Vector3" then
+			-- Yol üstü ödül (SpaceBonusService): yerinde yükselen "+$" yazısı
+			local anchor = Instance.new("Part")
+			anchor.Anchored = true
+			anchor.CanCollide = false
+			anchor.CanQuery = false
+			anchor.Transparency = 1
+			anchor.Size = Vector3.one
+			anchor.CFrame = CFrame.new(c)
+			anchor.Parent = workspace
+			local gui = Instance.new("BillboardGui")
+			gui.Size = UDim2.fromOffset(if a == "stardust" then 120 else 220, if a == "stardust" then 36 else 56)
+			gui.AlwaysOnTop = true
+			gui.LightInfluence = 0
+			gui.Parent = anchor
+			local label = CardKit.bold(gui, "+$" .. Config.FormatCash(b), if a == "stardust" then 24 else 38,
+				if a == "stardust" then Color3.fromRGB(255, 236, 140) else Color3.fromRGB(255, 205, 60), 1, 3)
+			label.Size = UDim2.fromScale(1, 1)
+			TweenService:Create(anchor, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.new(c + Vector3.new(0, 7, 0)) }):Play()
+			task.delay(0.7, function()
+				TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+			end)
+			task.delay(1.2, function()
+				anchor:Destroy()
+			end)
+			if a == "stardust" then
+				SoundFX.Event("income", false)
+			elseif a == "crate" then
+				effects.Flash(Color3.fromRGB(255, 210, 90), 0.3, 0.4)
+				SoundFX.Success()
+			else
+				effects.Flash(Color3.fromRGB(255, 220, 90), 0.5, 0.7)
+				effects.Shake(1, 0.5)
+				SoundFX.Success()
+				yell("GOLDEN COMET!", Color3.fromRGB(255, 220, 90), 2.4)
+			end
 		elseif kind == "delivered" then
 			effects.Flash(Color3.fromRGB(90, 255, 120), 0.45, 0.6)
 			SoundFX.Success()

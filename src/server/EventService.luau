@@ -9,6 +9,8 @@
 	  Reactor Meltdown   — uzaya enerji çekirdekleri savruluyor, ilk dokunan
 	                       alıyor (nakit / nadiren karakter)
 	  Mutation Storm     — uzaydaki bütün mürettebat mutasyonlu
+	  Golden Comet       — sürpriz: uzaydan altın kuyruklu yıldız geçiyor, ilk
+	                       dokunan mutasyonlu mürettebat + para (SpaceBonusService)
 
 	(Impostor Among Us 2026-09-28'de kalktı: oyuncudan çalmaya dayanıyordu.)
 
@@ -36,6 +38,7 @@ local PlotService = require(script.Parent.PlotService)
 local EconomyService = require(script.Parent.EconomyService)
 local AnnounceService = require(script.Parent.AnnounceService)
 local SpaceService = require(script.Parent.SpaceService)
+local SpaceBonusService = require(script.Parent.SpaceBonusService)
 
 local EventService = {}
 
@@ -121,6 +124,14 @@ local function beginLights(): () -> ()
 	return function()
 		SpaceService.SetEventMods({})
 	end
+end
+
+-- ─── Golden Comet ─────────────────────────────────────────────────────────────
+
+local function beginComet(): () -> ()
+	local stop = SpaceBonusService.StartComet()
+	notifyAll("A GOLDEN COMET is crossing space! First to touch it wins a mutated crewmate!")
+	return stop
 end
 
 -- ─── Mutation Storm ─────────────────────────────────────────────────────────
@@ -289,6 +300,7 @@ local BEGIN: { [string]: () -> (() -> ())? } = {
 	LightsOut = beginLights,
 	Meltdown = beginMeltdown,
 	Storm = beginStorm,
+	Comet = beginComet,
 }
 
 --[[

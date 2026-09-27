@@ -909,6 +909,8 @@ Config.Events = {
 	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
 	-- Uzay soygunu olayı: iki saatte bir, gezegenlerdeki her mürettebat mutasyonlu
 	{ id = "Storm",     name = "Mutation Storm",    every = 2 * 3600, offset = 5 * 60,  duration = 120 },
+	-- 2026-09-28: sürpriz (rastgele), saatte bir; kalkan Impostor Hunt'ın yerine
+	{ id = "Comet",     name = "Golden Comet",      every = 3600, offset = 0, duration = 75, random = true, perHour = 1 },
 } :: { EventDef }
 
 -- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
@@ -2578,6 +2580,34 @@ Config.Space = {
 
 	-- Uçuş (istemci)
 	FlyAccel = 6,               -- hedef hıza yaklaşma katsayısı (sn⁻¹)
+}
+
+--[[
+	Yol üstü ödüller ve engeller (SpaceBonusService, SpaceFX). 2026-09-28:
+	"gezegenlere giden yol çok boş". Ödüller gelire göre (yeni oyuncu için
+	taban), yani her aşamada anlamlı ama kapsülün ve soygunun yerini tutmuyor.
+]]
+Config.SpaceBonus = {
+	RingSpacing = 70,           -- iki hız halkası arası (stud)
+	RingRadius = 9,
+	RingBoostMul = 1.45,        -- halkadan geçince uçuş hızı çarpanı...
+	RingBoostTime = 1.8,        -- ...bu kadar sn
+	StardustClusterSpacing = 95,
+	StardustPerCluster = 6,
+	StardustRadius = 6,         -- toplama mesafesi
+	StardustRespawn = 30,
+	StardustIncomeSeconds = 1.5, -- ödül = saniyelik gelir × bu (en az StardustMin)
+	StardustMin = 40,
+	CrateRadius = 8,
+	CrateRespawn = 120,
+	CrateIncomeSeconds = 25,
+	CrateMin = 1500,
+	CratePotionChance = 0.12,
+	-- Golden Comet olayı: uzaydan geçen altın kuyruklu yıldız, ilk dokunan kazanır
+	CometSpeed = 38,
+	CometRadius = 10,
+	CometIncomeSeconds = 120,
+	CometMin = 25000,
 }
 
 function Config.GetSpaceMonster(id: string): SpaceMonsterDef?

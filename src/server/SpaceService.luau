@@ -650,7 +650,9 @@ local function deliver(player: Player, root: BasePart)
 	]]
 	local distance = (carry.from - root.Position).Magnitude
 	local jet = Config.GetJetBoost(UpgradeService.GetLevel(player, "JetBoost"))
-	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * (if jet then jet.mul else 1)) - 1
+	-- Jet Boost ve hız halkaları (SpaceBonus) üst üste binebiliyor: ikisi de payda
+	local boost = (if jet then jet.mul else 1) * Config.SpaceBonus.RingBoostMul
+	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * boost) - 1
 	if os.clock() - carry.grabbedAt < minTime then
 		drop(player)
 		notify(player, "Too fast! The crewmate slipped back to its planet", true)

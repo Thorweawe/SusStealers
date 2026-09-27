@@ -152,4 +152,123 @@ function SpaceField.ThrowPath(from: Vector3, t: number): Vector3
 	return door:Lerp(landing, u) + Vector3.new(0, math.sin(u * math.pi) * 3, 0)
 end
 
+-- ─── Yol üstü (2026-09-28: "gezegenlere giden yol çok boş") ─────────────────
+--[[
+	Güverteden gezegenlere zikzak rota: güverte ağzı → 1. gezegen → 2. → ...
+	Her rota boyunca hız halkaları, yıldız tozu kümeleri, bir tedarik sandığı
+	ve rotanın YANINDA asteroit kuşakları (engel; rotayı kapatmıyor).
+	Konumlar deterministik: sunucu (SpaceBonusService) kuruyor ve ödülü
+	veriyor, istemci (SpaceFX) halkadan geçişi aynı listeden ölçüyor.
+]]
+export type Route = { a: Vector3, b: Vector3 }
+export type Ring = { cf: CFrame, radius: number }
+
+local routesCache: { Route }? = nil
+
+--[[ Canavarın önündeki, mürettebatın üstündeki hedef nokta. ]]
+function SpaceField.PlanetApproach(def: Config.SpaceMonsterDef): Vector3
+	return def.position + SpaceField.Facing(def) * (def.radius * 0.35 + 10) + Vector3.new(0, 12, 0)
+end
+
+function SpaceField.Routes(): { Route }
+	if routesCache then
+		return routesCache
+	end
+	local list: { Route } = {}
+	local s = space()
+	local previous = Vector3.new(s.GateX, s.DeckTop + 8, SpaceField.DeckEdgeZ() - 12)
+	for _, def in Config.SpaceMonsters do
+		local target = SpaceField.PlanetApproach(def)
+		table.insert(list, { a = previous, b = target })
+		previous = target
+	end
+	routesCache = list
+	return list
+end
+
+local function lateral(dir: Vector3): Vector3
+	local side = dir:Cross(Vector3.yAxis)
+	return if side.Magnitude > 0.01 then side.Unit else Vector3.xAxis
+end
+
+local ringsCache: { Ring }? = nil
+
+--[[ Hız halkaları: rota boyunca ~RingSpacing arayla, uçlardan uzak, rotaya dik. ]]
+function SpaceField.Rings(): { Ring }
+	if ringsCache then
+		return ringsCache
+	end
+	local list: { Ring } = {}
+	local b = Config.SpaceBonus
+	for i, route in SpaceField.Routes() do
+		local delta = route.b - route.a
+		local length = delta.Magnitude
+		local dir = delta.Unit
+		local count = math.max(1, math.floor((length - 80) / b.RingSpacing))
+		local side = lateral(dir)
+		for k = 1, count do
+			local t = (40 + (length - 80) * k / (count + 1)) / length
+			-- Hafif zikzak: halkalar düz bir çizgide değil, yakalamak dikkat istesin
+			local wobble = side * math.sin(k * 1.7 + i) * 8 + Vector3.new(0, math.cos(k * 1.3 + i) * 5, 0)
+			local p = route.a:Lerp(route.b, t) + wobble
+			table.insert(list, { cf = CFrame.lookAt(p, p + dir), radius = b.RingRadius })
+		end
+	end
+	ringsCache = list
+	return list
+end
+
+--[[ Yıldız tozu noktaları (rota boyunca kümeler halinde). ]]
+function SpaceField.StardustSpots(): { Vector3 }
+	local list = {}
+	local rng = Random.new(2809)
+	local b = Config.SpaceBonus
+	for _, route in SpaceField.Routes() do
+		local delta = route.b - route.a
+		local length = delta.Magnitude
+		local dir = delta.Unit
+		local side = lateral(dir)
+		local clusters = math.max(1, math.floor(length / b.StardustClusterSpacing))
+		for k = 1, clusters do
+			local center = route.a:Lerp(route.b, (k - 0.5) / clusters)
+				+ side * rng:NextNumber(-18, 18) + Vector3.new(0, rng:NextNumber(-6, 8), 0)
+			for _ = 1, b.StardustPerCluster do
+				table.insert(list, center + Vector3.new(rng:NextNumber(-7, 7), rng:NextNumber(-4, 4), rng:NextNumber(-7, 7)))
+			end
+		end
+	end
+	return list
+end
+
+--[[ Tedarik sandıkları: her rotanın ortasında, rotadan biraz yanda. ]]
+function SpaceField.CrateSpots(): { Vector3 }
+	local list = {}
+	for i, route in SpaceField.Routes() do
+		local dir = (route.b - route.a).Unit
+		local side = lateral(dir) * (if i % 2 == 0 then 1 else -1)
+		table.insert(list, route.a:Lerp(route.b, 0.55) + side * 26 + Vector3.new(0, 6, 0))
+	end
+	return list
+end
+
+export type RockCluster = { center: Vector3, radius: number, seed: number }
+
+--[[ Asteroit kuşakları: rotanın iki yanında, rotayı kapatmadan. ]]
+function SpaceField.RockClusters(): { RockCluster }
+	local list: { RockCluster } = {}
+	for i, route in SpaceField.Routes() do
+		local dir = (route.b - route.a).Unit
+		local side = lateral(dir)
+		for k, t in { 0.3, 0.72 } do
+			local sign = if (i + k) % 2 == 0 then 1 else -1
+			table.insert(list, {
+				center = route.a:Lerp(route.b, t) + side * sign * 46 + Vector3.new(0, (k - 1.5) * 10, 0),
+				radius = 22,
+				seed = i * 31 + k,
+			})
+		end
+	end
+	return list
+end
+
 return SpaceField
