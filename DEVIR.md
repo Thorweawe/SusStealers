@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (38) — Batur (Yusuf'un şeridine de yazıldı)
+
+Studio'ya aktarıldı, dış harita (`exterior`) yeniden kuruldu (0/0), **173/173 test temiz**.
+
+- **Uzay görev kartı** (SpaceFX) artık sürekli değil: öğretici sürerken uzaya çıkınca ve mürettebat kapınca 6 sn.
+- **Takılı kalan öğretici oku** (TutorialUI): uzayda ya da Launch Bay güvertesindeyken ok, vurgu ve ışın gizli.
+- **Mini oyun:** roketi nişan alan kızgın göktaşları (`addMeteor`), tur ilerledikçe sıklaşıyor; Training Console seyreltiyor.
+- **Nakit paketleri:** Robux başına değer büyüdükçe artıyor (25/99/299 R$ için seconds 900/4800/18000, cashFrac 0.1/0.55/2). Test ekli.
+- **Gear "OWNED ama çantada yok"**: test geri yüklemesi sahipliği ve aletleri yenilemiyordu → `GearService.Refresh`; testler sonunda çağırıyor. Ödül penceresi de (`RewardService.Push`) — reddedilen toplamada da durum yeniden gönderiliyor.
+- **Gemi dışı Star Destroyer diliyle** (`exterior.luau` "Superstructure"): iki kademeli eğimli zırh (tavan cam şeridi üstünde hendek açık), doğu kalçası, batıda büyük komuta kulesi + algılayıcı küreler, en büyük üçüncü motor, istasyonun ALTINDA burna sivrilen hançer gövde. Eski çatı güneş paneli/anten/radar kalktı.
+
+---
+
 ## 2026-09-28 (37) — Batur (Yusuf'un şeridine de yazıldı)
 
 Studio'ya aktarıldı, lobi yeniden kuruldu (0/0), **173/173 test temiz**.

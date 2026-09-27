@@ -256,6 +256,8 @@ function RewardService.ClaimDaily(player: Player): boolean
 	local can, nextStreak = dailyStatus(profile)
 	if not can then
 		notify(player, "Come back tomorrow for the next daily reward", true)
+		-- Pencere eski durumu gösteriyor olabilir: doğrusunu gönder
+		RewardService.Push(player)
 		return false
 	end
 	local reward = Config.DailyRewards[dailySlot(nextStreak)]
@@ -279,6 +281,7 @@ function RewardService.ClaimPlaytime(player: Player, index: number): boolean
 	rollPlaytimeDay(profile)
 	local key = tostring(index)
 	if profile.playtimeClaimed[key] then
+		RewardService.Push(player)
 		return false
 	end
 	if profile.playtimeSeconds < (reward.minutes or 0) * 60 then

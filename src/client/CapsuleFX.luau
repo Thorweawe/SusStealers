@@ -296,7 +296,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 		}
 	end
 
-	type Rock = { x: number, y: number, r: number, spin: number, frame: GuiObject, star: boolean, dx: number }
+	type Rock = { x: number, y: number, r: number, spin: number, frame: GuiObject, star: boolean, dx: number, dy: number }
 	local rocks: { Rock } = {}
 
 	local function addRock(x: number, y: number, r: number, dx: number?)
@@ -324,14 +324,55 @@ function CapsuleFX.Start(screen: Instance): Handle
 			crater.Parent = f
 			CardKit.corner(crater, 20)
 		end
-		table.insert(rocks, { x = x, y = y, r = r, spin = (math.random() - 0.5) * 160, frame = f, star = false, dx = dx or 0 })
+		table.insert(rocks, { x = x, y = y, r = r, spin = (math.random() - 0.5) * 160, frame = f, star = false, dx = dx or 0, dy = 0 })
 	end
 
 	local function addStar(x: number, y: number)
 		local s = CardKit.bold(track, "⭐", 22, CardKit.WHITE, Z + 6, 0)
 		s.AnchorPoint = Vector2.new(0.5, 0.5)
 		s.Size = UDim2.fromOffset(26, 26)
-		table.insert(rocks, { x = x, y = y, r = 11, spin = 90, frame = s, star = true, dx = 0 })
+		table.insert(rocks, { x = x, y = y, r = 11, spin = 90, frame = s, star = true, dx = 0, dy = 0 })
+	end
+
+	--[[
+		2026-09-28: "asteroitler üstümüze doğru da gelsin". Göktaşı: kızgın
+		kırmızı, kuyruklu; doğduğu anda roketin olduğu yere NİŞAN alıp çapraz
+		iniyor (sıradaki taşlardan hızlı). Önünde küçük uyarı "!" yanıp sönüyor.
+	]]
+	local function addMeteor(x: number, targetX: number, targetY: number, speed: number)
+		local r = 13
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Size = UDim2.fromOffset(r * 2, r * 2)
+		f.BackgroundColor3 = Color3.fromRGB(255, 120, 60)
+		f.BorderSizePixel = 0
+		f.ZIndex = Z + 5
+		f.Parent = track
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0.5, 0)
+		c.Parent = f
+		CardKit.gradient(f, Color3.fromRGB(255, 220, 120), Color3.fromRGB(200, 40, 30), 45)
+		CardKit.border(f, Color3.fromRGB(60, 10, 10), 2)
+		local tail = Instance.new("Frame")
+		tail.AnchorPoint = Vector2.new(0.5, 1)
+		tail.Position = UDim2.fromScale(0.5, 0.2)
+		tail.Size = UDim2.fromOffset(r * 1.2, r * 2.6)
+		tail.BackgroundColor3 = Color3.fromRGB(255, 170, 60)
+		tail.BackgroundTransparency = 0.35
+		tail.BorderSizePixel = 0
+		tail.ZIndex = Z + 4
+		tail.Parent = f
+		CardKit.corner(tail, 8)
+		local g = Instance.new("UIGradient")
+		g.Rotation = 90
+		g.Transparency = NumberSequence.new(1, 0.2)
+		g.Parent = tail
+		local y0 = -30
+		local dir = Vector2.new(targetX - x, targetY - y0)
+		dir = if dir.Magnitude > 1 then dir.Unit else Vector2.new(0, 1)
+		-- Kuyruk gidişin tersine baksın
+		f.Rotation = math.deg(math.atan2(dir.Y, dir.X)) - 90
+		table.insert(rocks, { x = x, y = y0, r = r - 2, spin = 0, frame = f, star = false, dx = dir.X * speed, dy = dir.Y * speed })
 	end
 
 	local function clearRocks()
@@ -471,6 +512,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local lastCatchAt = -math.huge
 	local crashedThisRound = false
 	local perfectStreak = 0
+	local nextMeteorAt = 0
 	local clock = 0
 
 	local camera = workspace.CurrentCamera
@@ -479,6 +521,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local function newRound(delay: number)
 		progress = 0
 		crashedThisRound = false
+		nextMeteorAt = os.clock() + delay + 2.5
 		roundAt = os.clock() + delay
 		nextRowAt = roundAt
 		clearRocks()
@@ -619,6 +662,14 @@ function CapsuleFX.Start(screen: Instance): Handle
 				nextRowAt = now + t.rowEvery * (0.85 + math.random() * 0.3)
 				spawnRow(t, progress)
 			end
+			-- Göktaşı: roketin üstünden nişan alarak (tur ilerledikçe sıklaşıyor)
+			if now >= nextMeteorAt then
+				local level = player:GetAttribute("Upg_TrainingConsole")
+				local a = Config.GetTrainingAssist(if typeof(level) == "number" then level else 0)
+				nextMeteorAt = now + (2.6 - 1.1 * progress) * (1 + 0.6 * a) * (0.8 + math.random() * 0.4)
+				local fromX = math.clamp(rx + (math.random() - 0.5) * 160, 20, TRACK_W - 20)
+				addMeteor(fromX, rx, ry, (t.fall + 70) * (1 - 0.25 * a))
+			end
 			progress = math.min(1, progress + t.fill * dt)
 		else
 			local left = math.ceil(roundAt - now)
@@ -629,7 +680,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 		local hurt = now < invulnUntil
 		for i = #rocks, 1, -1 do
 			local rock = rocks[i]
-			rock.y += scroll * dt
+			rock.y += if rock.dy ~= 0 then rock.dy * dt else scroll * dt
 			if rock.dx ~= 0 then
 				rock.x = math.clamp(rock.x + rock.dx * dt, rock.r, TRACK_W - rock.r)
 			end

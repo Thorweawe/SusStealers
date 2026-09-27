@@ -4020,6 +4020,16 @@ case("Mağaza: nakit paketi gelire ve bakiyeye göre, yükseltme adımları kü�
 	ok("gelirle büyüyor", Config.GetCashPackAmount(small, 1e6, 0) >= 1e6 * small.seconds * 0.95)
 	ok("bakiyeyle büyüyor", Config.GetCashPackAmount(small, 0, 1e12) >= 1e12 * small.cashFrac * 0.95)
 	ok("büyük paket küçükten çok", Config.GetCashPackAmount(Config.Products.Cash10M, 5000, 1e7) > Config.GetCashPackAmount(small, 5000, 1e7))
+	-- Robux başına değer paket büyüdükçe artıyor (fiyatlar 25 / 99 / 299)
+	local robux = { Cash100K = 25, Cash1M = 99, Cash10M = 299 }
+	for _, case_ in { { 0, 0 }, { 5000, 0 }, { 0, 1e9 }, { 1e6, 1e10 } } do
+		local per = {}
+		for key, price in robux do
+			per[key] = Config.GetCashPackAmount(Config.Products[key], case_[1], case_[2]) / price
+		end
+		ok(string.format("orta kârlı (%g, %g)", case_[1], case_[2]), per.Cash1M > per.Cash100K)
+		ok(string.format("büyük en kârlı (%g, %g)", case_[1], case_[2]), per.Cash10M > per.Cash1M)
+	end
 	for _, def in Config.Upgrades do
 		ok(def.id .. " tavanı yüksek", def.baseMaxLevel >= 20)
 		local c1, c2 = Config.GetUpgradeCost(def.id, 0), Config.GetUpgradeCost(def.id, 1)
@@ -4355,6 +4365,9 @@ function ServerTests.Run(player: Player?): number
 	profile.playtimeClaimed = backup.playtimeClaimed
 	profile.indexClaimed = backup.indexClaimed
 	profile.gear = backup.gear
+	-- Sahiplik niteliği ve çantadaki aletler de geri yüklenen profile göre
+	-- (eskiden yalnızca profil dönüyordu: dükkân yanlış "OWNED", aletler eksik)
+	GearService.Refresh(player)
 	profile.cosmetics = backup.cosmetics
 	profile.hat = backup.hat
 	profile.trail = backup.trail
@@ -4365,6 +4378,13 @@ function ServerTests.Run(player: Player?): number
 	end
 	-- Petler geri yüklendi: bonusu ve sahadaki modelleri gerçek profile göre kur
 	PetService.Apply(player)
+	--[[
+		Ödül ve iksir durumu da istemciye yeniden: testler günlük ödülü
+		"toplanabilir" yapıp geri alıyordu, ama pencere eski durumu
+		gösteriyordu (toplanamayan ödül "Claim" diyordu).
+	]]
+	RewardService.Push(player)
+	PotionService.Publish(player, true)
 	setCash(player, backup.cash)
 	PlotService.SetUnlockedFloors(plot, backupFloors)
 	FloorService.Publish(player)

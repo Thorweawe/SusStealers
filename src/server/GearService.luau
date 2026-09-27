@@ -284,6 +284,30 @@ local function giveAll(player: Player)
 	end
 end
 
+--[[
+	Profildeki sahipliğe göre her şeyi yeniden kurar: "GearOwned" niteliği
+	ve çantadaki aletler (sahip olunmayanlar alınıyor, eksikler veriliyor).
+	Profil dışarıdan değiştiğinde (testlerin geri yüklemesi) çağrılıyor.
+]]
+function GearService.Refresh(player: Player)
+	local profile = DataService.Get(player)
+	if not profile then
+		return
+	end
+	for _, container in { player:FindFirstChildOfClass("Backpack"), player.Character } do
+		if container then
+			for _, item in container:GetChildren() do
+				local id = item:IsA("Tool") and item:GetAttribute("GearId")
+				if typeof(id) == "string" and not profile.gear[id] then
+					item:Destroy()
+				end
+			end
+		end
+	end
+	GearService.Publish(player)
+	giveAll(player)
+end
+
 -- ─── Satın alma ─────────────────────────────────────────────────────────────
 
 function GearService.TryBuy(player: Player, id: string): boolean

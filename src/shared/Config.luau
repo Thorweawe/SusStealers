@@ -1189,10 +1189,14 @@ Config.Products = {
 		(Config.GetCashPackAmount): amount taban, seconds kaç saniyelik gelir,
 		cashFrac bakiyenin ne kadarı. Hangisi büyükse o. Adlar Roblox'taki
 		ürün adları; mağaza kartı gerçek miktarı gösteriyor.
+
+		Robux fiyatları 25 / 99 / 299. Büyük paket Robux başına daha
+		kârlı olmalı ("küçük paket daha ucuza geliyordu"): Robux başına
+		değer küçüğe göre Orta ~×1.35, Büyük ~×1.65 (üç terimin her birinde).
 	]]
-	Cash100K       = { id = 3714873855, name = "Small Cash Pack",  kind = "cash", amount =   100000, seconds =  900, cashFrac = 0.15 },
-	Cash1M         = { id = 3714873899, name = "Medium Cash Pack", kind = "cash", amount =  1000000, seconds = 3600, cashFrac = 0.5 },
-	Cash10M        = { id = 3714873959, name = "Huge Cash Pack",   kind = "cash", amount = 10000000, seconds = 14400, cashFrac = 1.5 },
+	Cash100K       = { id = 3714873855, name = "Small Cash Pack",  kind = "cash", amount =   100000, seconds =   900, cashFrac = 0.1 },
+	Cash1M         = { id = 3714873899, name = "Medium Cash Pack", kind = "cash", amount =  1000000, seconds =  4800, cashFrac = 0.55 },
+	Cash10M        = { id = 3714873959, name = "Huge Cash Pack",   kind = "cash", amount = 10000000, seconds = 18000, cashFrac = 2 },
 	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı. Konveyör de
 	-- kalktı; "conveyor" ödülü artık SpaceService'te (kaideye bir karakter).
 	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },

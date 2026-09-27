@@ -36,6 +36,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local SpaceField = require(Shared.SpaceField)
 local Net = require(Shared.Net)
 
 local CardKit = require(script.Parent.CardKit)
@@ -516,14 +517,25 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 				setTarget(found)
 			end
 		end
-		-- Uzay yürüyüşünde hedef gemide kalıyor; ok ve ışın yerine SpaceFX'in kartı yol gösteriyor
-		if not (currentTarget and currentTarget.Parent and frame.Visible) or player:GetAttribute("InSpace") then
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		--[[
+			Uzayda ya da Launch Bay güvertesindeyken hedef (gemideki bir şey ya
+			da güvertenin kendisi) zaten geride/ayağın altında: ok ve vurgu
+			orada takılı kalıyordu. O zaman hepsi gizli.
+		]]
+		local away = player:GetAttribute("InSpace") == true
+			or (root ~= nil and root:IsA("BasePart") and (SpaceField.InSpace(root.Position) or SpaceField.InDeck(root.Position)))
+		local wantMarker = currentTarget ~= nil and currentTarget.Parent ~= nil and not away
+		if marker.Enabled ~= wantMarker then
+			marker.Enabled = wantMarker
+			highlight.Enabled = wantMarker
+		end
+		if not (currentTarget and currentTarget.Parent and frame.Visible) or away then
 			compass.Visible = false
 			beam.Enabled = false
 			return
 		end
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
 		local targetPosition = positionOf(currentTarget)
 		if not (root and root:IsA("BasePart") and targetPosition) then
 			compass.Visible = false

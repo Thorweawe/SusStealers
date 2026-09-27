@@ -928,6 +928,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	local clock = 0
 	local lastCarrying: boolean? = nil
 	local shownHud = false
+	--[[
+		2026-09-28: "yukarıda sürekli yazmasına gerek yok". Görev kartı
+		yalnızca öğretici sürerken ve kısa süre: uzaya çıkınca ve mürettebat
+		kapınca HUD_SECONDS gösterilip kayboluyor.
+	]]
+	local HUD_SECONDS = 6
+	local hudUntil = 0
+	local wasInSpace = false
+	local wasCarrying = false
 
 	local function poseFor(v: Visual, dt: number, now: number)
 		local state = (v.holder:GetAttribute("State") :: string?) or "idle"
@@ -1049,7 +1058,12 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		-- Görev kartı yalnızca öğretici sürerken (oyuncu yolu öğrendikten sonra kalabalık yapıyordu)
 		local step = player:GetAttribute("TutorialStep")
 		local learning = typeof(step) == "number" and step < #Config.Tutorial
-		local show = (inSpace or onDeck) and learning
+		local carryingNow = player:GetAttribute("SpaceCarry") == true
+		if (inSpace and not wasInSpace) or (carryingNow and not wasCarrying) then
+			hudUntil = now + HUD_SECONDS
+		end
+		wasInSpace, wasCarrying = inSpace, carryingNow
+		local show = inSpace and learning and now < hudUntil
 		if show ~= shownHud then
 			shownHud = show
 			hud.Visible = show

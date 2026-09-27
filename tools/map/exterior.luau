@@ -146,43 +146,208 @@ return {
 				or p.Z < keepOutMin.Z or p.Z > keepOutMax.Z
 		end
 
-		-- Çatı: güneş paneli dizileri, antenler, radar
+		--[[
+			Üst yapı (2026-09-28, "gemi çok kare, Star Wars gemilerine
+			benzesin"): Star Destroyer dili.
+			  - İki yandan yükselen eğimli zırh (kama): kuzey ve güney duvar
+			    üstünden ortaya doğru yükseliyor. Ortada tavandaki cam şeridin
+			    (Skylight, z 42..86) üstü açık kalıyor: bir "hendek".
+			  - Zırhta panel çizgileri, kule topları, hendek ışıkları.
+			  - Batıda (arka) basamaklı komuta kulesi: köprü, iki algılayıcı
+			    küre, anten; arkasında üçüncü, en büyük motor.
+			Hepsi hayalet (çarpışmasız) ve duvarların DIŞINDA / ÜSTÜNDE.
+		]]
 		do
-			local roof = K.folder("Roof", beyond)
-			local top = M.WALL_H + 1
-			local panelBlue = rgb(38, 70, 150)
-			for i, x in { M.X0 + 60, M.X0 + 170, M.X0 + 280, M.X0 + 390, M.X0 + 500 } do
-				for _, z in { M.Z0 + 40, M.Z1 - 40 } do
-					K.vcyl(roof, "SolarMast", x, top + 3, z, 6, 1.2, C.frameDark, ghost)
-					local tilt = CFrame.new(x, top + 6.5, z) * CFrame.Angles(math.rad(if z < M.centerZ then -22 else 22), 0, 0)
-					K.boxAt(roof, "SolarFrame", tilt, Vector3.new(34, 0.5, 14), C.frame, ghost)
-					for k = 0, 3 do
-						K.boxAt(roof, "SolarCell", tilt * CFrame.new(-12.6 + k * 8.4, 0.3, 0), Vector3.new(7.8, 0.3, 13), panelBlue,
-							{ ghost = true, material = Enum.Material.Glass, reflect = 0.2 })
+			local sup = K.folder("Superstructure", beyond)
+			local armor = rgb(158, 166, 178)
+			local armorDark = rgb(112, 120, 134)
+			local panel = rgb(96, 104, 118)
+			local top = M.WALL_H + 1.15
+			local xa, xb = M.X0 - T / 2 - 0.3, M.X1 + T / 2 + 0.3
+			local sky0, sky1 = M.centerZ - 24, M.centerZ + 24
+			local H1 = 12      -- alt kademe (duvardan kırılma çizgisine)
+			local H2 = 18      -- üst kademe (kırılmadan hendek kenarına), daha dik
+
+			--[[ Kama: alçak kenarı zLow'da (yükseklik 0), yüksek kenarı zHigh'ta (H). ]]
+			local function slope(name: string, x0: number, x1: number, zLow: number, zHigh: number, y0: number, h: number, color: Color3): WedgePart
+				local w = Instance.new("WedgePart")
+				w.Name = name
+				w.Anchored = true
+				w.CanCollide = false
+				w.CanQuery = false
+				w.CanTouch = false
+				w.CastShadow = true
+				w.Material = Enum.Material.SmoothPlastic
+				w.Color = color
+				w.Size = Vector3.new(x1 - x0, h, math.abs(zHigh - zLow))
+				local center = Vector3.new((x0 + x1) / 2, y0 + h / 2, (zLow + zHigh) / 2)
+				local toLow = Vector3.new(0, 0, if zLow < zHigh then -1 else 1)
+				w.CFrame = CFrame.lookAt(center, center + toLow)
+				w.Parent = sup
+				return w
+			end
+			-- Eğimin yüzeyindeki nokta ve yüzey normali (dışa)
+			local function onSlope(zLow: number, zHigh: number, z: number, h: number): (number, Vector3)
+				local len = math.abs(zHigh - zLow)
+				local t = math.clamp(math.abs(z - zLow) / len, 0, 1)
+				local theta = math.atan2(h, len)
+				local dirLow = if zLow < zHigh then -1 else 1
+				return top + h * t, Vector3.new(0, math.cos(theta), dirLow * math.sin(theta))
+			end
+
+			local nLow, nHigh = M.Z0 - T / 2 - 0.4, sky0 - 2
+			local sLow, sHigh = M.Z1 + T / 2 + 0.4, sky1 + 2
+			--[[
+				İki kademe: alt kademe duvar kenarından hendeğe yayvan; üst
+				kademe ortadan başlayıp daha dik yükseliyor. Kırılma çizgisinde
+				koyu bir kaburga. Doğu ucunda kalça (burna doğru inen kama).
+			]]
+			slope("ArmorNorth", xa, xb, nLow, nHigh, top, H1, armor)
+			slope("ArmorSouth", xa, xb, sLow, sHigh, top, H1, armor)
+			local nMid, sMid = (nLow + nHigh) / 2, (sLow + sHigh) / 2
+			slope("ArmorNorthUpper", xa, xb - 8, nMid, nHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
+			slope("ArmorSouthUpper", xa, xb - 8, sMid, sHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
+			for _, z in { nMid, sMid } do
+				K.box(sup, "ArmorRib", (xa + xb) / 2 - 4, top + H1 / 2 + 0.35, z, xb - xa - 8, 0.9, 1.6, panel, { ghost = true })
+			end
+			-- Doğu kalçası: hendek bitince (cam şeridin doğusu) burna doğru inen kama
+			do
+				local hx0, hx1 = M.X1 - 44, xb
+				local w = Instance.new("WedgePart")
+				w.Name = "ArmorHip"
+				w.Anchored = true
+				w.CanCollide = false
+				w.CanQuery = false
+				w.CanTouch = false
+				w.Material = Enum.Material.SmoothPlastic
+				w.Color = armor
+				local height = H1 / 2 + H2
+				w.Size = Vector3.new(sLow - nLow, height, hx1 - hx0)
+				local center = Vector3.new((hx0 + hx1) / 2, top + height / 2, (nLow + sLow) / 2)
+				w.CFrame = CFrame.lookAt(center, center + Vector3.xAxis)
+				w.Parent = sup
+			end
+
+			-- Panel çizgileri: eğime yatık ince şeritler
+			for _, side in { { nLow, nHigh }, { sLow, sHigh } } do
+				for k = 1, 3 do
+					local z = side[1] + (side[2] - side[1]) * (k / 7)
+					local y, n = onSlope(side[1], side[2], z, H1)
+					local pos = Vector3.new((xa + xb) / 2, y, z) + n * 0.12
+					K.boxAt(sup, "PanelLine", CFrame.fromMatrix(pos, Vector3.xAxis, n), Vector3.new(xb - xa - 8, 0.2, 1.1), panel, { ghost = true })
+				end
+				-- Dikine derzler (alt kademe)
+				for x = M.X0 + 40, M.X1 - 60, 64 do
+					local zm = side[1] + (side[2] - side[1]) * 0.25
+					local y, n = onSlope(side[1], side[2], zm, H1)
+					local len = math.abs(side[2] - side[1]) * 0.5 - 6
+					local along = n:Cross(Vector3.xAxis)
+					K.boxAt(sup, "PanelSeam", CFrame.fromMatrix(Vector3.new(x, y, zm) + n * 0.14, Vector3.xAxis, n, along),
+						Vector3.new(0.9, 0.2, len), panel, { ghost = true })
+				end
+				-- Kule topları (turbolaser): dış kenara yakın ve ortada
+				for _, frac in { 0.12, 0.36 } do
+					local z = side[1] + (side[2] - side[1]) * frac
+					for x = M.X0 + 70, M.X1 - 60, 90 do
+						local y, n = onSlope(side[1], side[2], z, H1)
+						local base = Vector3.new(x, y, z)
+						K.boxAt(sup, "TurretBase", CFrame.fromMatrix(base + n * 0.6, Vector3.xAxis, n), Vector3.new(4.4, 1.4, 4.4), armorDark,
+							{ ghost = true, shape = Enum.PartType.Cylinder })
+						K.ball(sup, "TurretDome", base.X, base.Y + 1.6, base.Z, 3.6, armor, { ghost = true })
+						local out = if side[1] < side[2] then -1 else 1
+						for _, dx in { -0.6, 0.6 } do
+							K.boxAt(sup, "TurretGun", CFrame.new(base.X + dx, base.Y + 2, base.Z + out * 2.4), Vector3.new(0.35, 0.35, 3.2), panel, { ghost = true })
+						end
 					end
 				end
-				-- Anten: ucunda yanıp sönen kırmızı lamba
-				local az = M.centerZ + (if i % 2 == 0 then 30 else -30)
-				K.vcyl(roof, "Antenna", x + 30, top + 12, az, 24, 0.7, C.metal, ghost)
-				K.vcyl(roof, "AntennaBar", x + 30, top + 18, az, 0.5, 6, C.frameDark, ghost)
-				local tip = K.ball(roof, "AntennaTip", x + 30, top + 24.6, az, 1.6, C.red, glow())
-				tip:SetAttribute("PulsePeriod", 1.4 + i * 0.13)
 			end
-			-- Dönen radar çanağı (doğu ucunda, burnun üstünde)
-			local rx, rz = M.X1 - 40, M.centerZ
-			K.vcyl(roof, "RadarBase", rx, top + 2, rz, 4, 8, C.frameDark, ghost)
-			K.vcyl(roof, "RadarMast", rx, top + 7, rz, 8, 1.6, C.metal, ghost)
-			local dish = K.boxAt(roof, "RadarDish", CFrame.new(rx, top + 13, rz) * CFrame.Angles(0, 0, math.rad(-60)),
-				Vector3.new(1.2, 16, 16), C.frame, { ghost = true, shape = Enum.PartType.Cylinder })
+
+			-- Hendek ışıkları: eğimlerin tepe kenarında, cam şerit boyunca
+			for _, z in { nHigh - 0.3, sHigh + 0.3 } do
+				local strip = K.box(sup, "TrenchLight", (M.X0 + M.X1) / 2 - 20, top + H1 / 2 + H2 + 0.3, z, M.X1 - M.X0 - 90, 0.4, 0.4, rgb(110, 210, 255),
+					{ ghost = true, emit = "Fixture" })
+				strip.CastShadow = false
+			end
+			-- Seyir lambaları: dış köşelerde yanıp sönen
+			for _, p in { { xb - 2, nLow + 1, C.green }, { xb - 2, sLow - 1, C.red }, { xa + 2, nLow + 1, C.green }, { xa + 2, sLow - 1, C.red } } do
+				local l = K.ball(sup, "NavLight", p[1], top + 1, p[2], 1.8, p[3], glow())
+				l:SetAttribute("PulsePeriod", 1.6)
+			end
+
+			-- ── Komuta kulesi (batı ucu, cam şeridin dışında) ───────────────
+			local tx0, tx1 = xa, M.X0 + 46
+			local tz = M.centerZ
+			K.box(sup, "TowerBase", (tx0 + tx1) / 2, top + 16, tz, tx1 - tx0, 32, 96, armor, { ghost = true })
+			K.box(sup, "TowerMid", (tx0 + tx1) / 2 + 1, top + 37.8, tz, 38, 12, 70, armor, { ghost = true })
+			K.box(sup, "TowerMidBand", (tx0 + tx1) / 2 + 1, top + 37.8, tz, 38.6, 1.4, 70.6, armorDark, { ghost = true })
+			K.box(sup, "TowerNeck", (tx0 + tx1) / 2 + 2, top + 50.6, tz, 16, 14, 20, armorDark, { ghost = true })
+			local bridgeX = (tx0 + tx1) / 2 + 2
+			local bridgeY = top + 61.4
+			K.box(sup, "Bridge", bridgeX, bridgeY, tz, 44, 8, 96, armor, { ghost = true })
+			K.box(sup, "BridgeTop", bridgeX, bridgeY + 4.4, tz, 40, 1, 90, armorDark, { ghost = true })
+			-- Köprü camları: doğuya (burna) bakıyor
+			local win = K.box(sup, "BridgeWindows", bridgeX + 22.05, bridgeY + 0.6, tz, 0.4, 1.8, 88, rgb(150, 230, 255),
+				{ ghost = true, emit = "Screen" })
+			win.CastShadow = false
+			-- Algılayıcı küreler
+			for _, dz in { -34, 34 } do
+				K.vcyl(sup, "SensorMast", bridgeX - 4, bridgeY + 8.5, tz + dz, 8, 2, armorDark, { ghost = true })
+				K.ball(sup, "SensorGlobe", bridgeX - 4, bridgeY + 16, tz + dz, 13, armor, { ghost = true })
+			end
+			-- Anten ve dönen radar
+			K.vcyl(sup, "Antenna", bridgeX + 6, bridgeY + 11, tz, 16, 0.6, C.metal, { ghost = true })
+			local tip = K.ball(sup, "AntennaTip", bridgeX + 6, bridgeY + 19.4, tz, 1.4, C.red, glow())
+			tip:SetAttribute("PulsePeriod", 1.3)
+			local dish = K.boxAt(sup, "RadarDish", CFrame.new(bridgeX - 12, bridgeY + 7, tz) * CFrame.Angles(0, 0, math.rad(-60)),
+				Vector3.new(1, 10, 10), C.frame, { ghost = true, shape = Enum.PartType.Cylinder })
 			dish:SetAttribute("SpinSpeed", 25)
-			K.ball(roof, "RadarEye", rx, top + 13, rz, 2.4, C.green, glow())
-			-- Çatı kenarı seyir lambaları
-			for x = M.X0 + 20, M.X1 - 20, 60 do
-				for _, z in { M.Z0 + 3.3, M.Z1 - 3.3 } do
-					local l = K.box(roof, "RoofLight", x, top + 0.9, z, 1.6, 0.8, 1.6, if z < M.centerZ then C.red else C.green, glow())
-					l:SetAttribute("PulsePeriod", 2.2)
+
+			-- ── Hançer gövde: istasyonun ALTINDA, burna doğru sivrilen üçgen ──
+			--[[
+				Yukarıdan bakınca Star Destroyer'ın üçgeni. İstasyonun zemini ve
+				tünelleri y -19'a kadar iniyor; gövde onun altında (-24'ten
+				aşağı), iç mekâna girmiyor. İki basamak: alttaki geniş, üstteki
+				biraz dar; kenarında ince ışık hattı.
+			]]
+			local apex = Vector2.new(M.X1 + 230, M.centerZ)
+			for i, spec in { { -39, 14, 150, rgb(128, 136, 150) }, { -28.4, 7, 128, armor } } do
+				local halfW = spec[3]
+				local back = xa - 20
+				local foot = Vector2.new(back, M.centerZ)
+				for _, s2 in { -1, 1 } do
+					K.flatTriangle(sup, "DaggerHull" .. i, Vector2.new(back, M.centerZ + s2 * halfW), apex - Vector2.new(i * 18, 0), foot,
+						spec[1], spec[2], spec[4], { CanCollide = false, CastShadow = true })
 				end
 			end
+			-- Kenar ışıkları: üçgenin iki kenarı boyunca
+			for _, s2 in { -1, 1 } do
+				local p0 = Vector2.new(xa - 20, M.centerZ + s2 * 128)
+				local p1 = apex - Vector2.new(36, 0)
+				local mid = (p0 + p1) / 2
+				local dir = (p1 - p0)
+				local light = K.boxAt(sup, "DaggerEdgeLight", CFrame.lookAt(Vector3.new(mid.X, -24.7, mid.Y), Vector3.new(p1.X, -24.7, p1.Y)),
+					Vector3.new(0.5, 0.4, dir.Magnitude - 20), rgb(110, 210, 255), glow())
+				light.CastShadow = false
+			end
+
+			-- ── Ana motor: kulenin arkasında, en büyüğü ─────────────────────
+			local ey = top + 14
+			local x0 = xa
+			local function eseg(name: string, dxa: number, dxb: number, dia: number, color: Color3, extra: { [string]: any }?)
+				return K.boxAt(sup, name, CFrame.new(x0 - (dxa + dxb) / 2, ey, tz), Vector3.new(dxb - dxa, dia, dia), color,
+					K.merge({ shape = Enum.PartType.Cylinder, ghost = true }, extra))
+			end
+			eseg("MainNacelle", 0, 46, 30, rgb(150, 164, 176))
+			eseg("MainBand", 14, 17, 31.4, armorDark)
+			eseg("MainBand", 32, 35, 31.4, armorDark)
+			eseg("MainNozzle", 46, 52, 26, rgb(70, 82, 94))
+			eseg("MainThroat", 52, 53, 21, C.shadow)
+			local flame = eseg("MainFlame", 53, 66, 20, rgb(90, 190, 255), { emit = "Fixture", transparency = 0.25 })
+			flame.CastShadow = false
+			flame:SetAttribute("PulsePeriod", 0.5)
+			local core = eseg("MainFlameCore", 53, 76, 11, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1 })
+			core.CastShadow = false
+			K.light(flame, rgb(110, 190, 255), 60, 2)
 		end
 
 		-- Uydu: gövde, altın folyo, iki güneş kanadı, çanak, anten
