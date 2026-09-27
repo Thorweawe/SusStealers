@@ -638,15 +638,6 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		end
 		local since = now - v.stateAt
 		local gGoal, rGoal, swayGoal, rateGoal = 0, 0, 1, 1
-		if v.holder:GetAttribute("Stunned") then
-			-- Sersem: gevşek ve yavaş sallanıyor
-			local k0 = 1 - math.exp(-6 * dt)
-			v.grab += (0 - v.grab) * k0
-			v.roar += (0.2 - v.roar) * k0
-			v.sway += (0.5 - v.sway) * k0
-			v.rate += (0.4 - v.rate) * k0
-			return "stunned"
-		end
 		if state == "wake" then
 			rGoal, swayGoal, rateGoal = 1, 0.5, 3
 		elseif state == "chase" then
@@ -708,7 +699,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			if v.needLabel.TextColor3 ~= color then
 				v.needLabel.TextColor3 = color
 			end
-			local tag = if state == "stunned" then "STUNNED" elseif state == "idle" then "zzz" elseif state == "return" then "..." else "!!"
+			local tag = if state == "idle" then "zzz" elseif state == "return" then "..." else "!!"
 			if v.tag.Text ~= tag then
 				v.tag.Text = tag
 				v.tag.TextColor3 = if tag == "!!" then Color3.fromRGB(255, 80, 90) else Color3.fromRGB(200, 200, 255)

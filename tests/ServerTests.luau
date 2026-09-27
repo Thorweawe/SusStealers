@@ -2618,7 +2618,7 @@ case("Yükseltme: seviye başına etki yarıya indi ama tavan aynı kaldı", fun
 
 	-- Tavandaki kapsül en üst canavarın hızında bile makul (dakikada birkaç puan)
 	local top = Config.GetCapsuleGain(ceiling, Config.SpaceMonsters[#Config.SpaceMonsters].need)
-	ok("kapsül tavanı makul", top > 0.05 and top < 20, string.format("%.3f", top))
+	ok("kapsül tavanı makul", top > 0.003 and top < 20, string.format("%.4f", top))
 
 	local carry = Config.GetCarryWalkSpeed(Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
 	ok("taşıma hızı normali geçmiyor", carry < Config.NormalWalkSpeed,
@@ -3047,6 +3047,8 @@ case("Ekipman: zıplama aleti yok, hız bobini koşudan hızlı", function(ctx)
 	eq("iade edildi", profile.cash, 1000 + Config.RetiredGear.GravityCoil)
 	ok("kayıttan düştü", profile.gear.GravityCoil == nil)
 	ok("diğer alet kaldı", profile.gear.SlapGlove == true)
+	local p2 = DataService._Sanitize({ cash = 0, gear = { GhostSerum = true } })
+	eq("Ghost Serum iade edildi", p2.cash, Config.RetiredGear.GhostSerum)
 end)
 
 case("Ekipman: denge - uzaktan ve alan aletleri sınırlı, sersemleme kilidi yok", function(ctx)
@@ -3067,24 +3069,16 @@ case("Ekipman: denge - uzaktan ve alan aletleri sınırlı, sersemleme kilidi yo
 	GearService._MarkHit(ctx.player, -math.huge)
 end)
 
-case("Ekipman: bekleme süresi sunucuda, görünmezlik açılıp kapanıyor", function(ctx)
+case("Ekipman: bekleme süresi sunucuda, Ghost Serum kaldırıldı", function(ctx)
 	GearService._ResetCooldowns(ctx.player)
 	ok("tokat atıldı", GearService.Use(ctx.player, "SlapGlove"))
 	ok("hemen ikinci tokat yok", not GearService.Use(ctx.player, "SlapGlove"))
 	ok("bobin kullanılmıyor", not GearService.Use(ctx.player, "SpeedCoil"))
 	ok("tanınmayan alet yok", not GearService.Use(ctx.player, "GravityCoil"))
 
-	local character = ctx.player.Character
-	local head = character and character:FindFirstChild("Head")
-	if head and head:IsA("BasePart") then
-		local before = head.Transparency
-		ok("serum içildi", GearService.Use(ctx.player, "GhostSerum"))
-		eq("görünmez niteliği", ctx.player:GetAttribute("Cloaked"), true)
-		eq("kafa görünmez", head.Transparency, 1)
-		GearService.EndCloak(ctx.player)
-		eq("kafa geri geldi", head.Transparency, before)
-		eq("nitelik kalktı", ctx.player:GetAttribute("Cloaked"), nil)
-	end
+	-- Ghost Serum kaldırıldı: satılmıyor, kullanılmıyor
+	ok("Ghost Serum satılmıyor", Config.GetGear("GhostSerum") == nil)
+	ok("Ghost Serum kullanılmıyor", not GearService.Use(ctx.player, "GhostSerum"))
 	GearService._ResetCooldowns(ctx.player)
 end)
 
@@ -4121,31 +4115,12 @@ case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
 	eq("mutasyonsuz mürettebat yok", plain, 0)
 	EventService.End()
 
-	-- Doğrudan sersemletme
-	local def = Config.SpaceMonsters[1]
-	local home = SpaceField.MonsterHome(def).Position + Vector3.new(0, 7 * def.scale, 0)
-	local count = SpaceService.StunMonsters(home, 10, 2)
-	ok("canavar sersemledi", count >= 1, tostring(count))
-	SpaceService._Step(1 / 30)
-	local holder = (workspace.SpaceZone :: any).Monsters.Monster1
-	eq("Stunned niteliği", holder:GetAttribute("Stunned"), true)
-
-	-- Uzayda Emergency Button yakındaki canavarı sersemletiyor
-	local character = ctx.player.Character
-	if character then
-		local startCf = character:GetPivot()
-		local def2 = Config.SpaceMonsters[2]
-		local near = SpaceField.MonsterHome(def2).Position + Vector3.new(0, 6, 10)
-		character:PivotTo(CFrame.new(near))
-		ctx.player:SetAttribute("InSpace", true)
-		GearService._ResetCooldowns(ctx.player)
-		ok("alet kullanıldı", GearService.Use(ctx.player, "EmergencyButton"))
-		SpaceService._Step(1 / 30)
-		local holder2 = (workspace.SpaceZone :: any).Monsters.Monster2
-		eq("ikinci canavar sersemledi", holder2:GetAttribute("Stunned"), true)
-		ctx.player:SetAttribute("InSpace", nil)
-		character:PivotTo(startCf)
-	end
+	-- Aletler uzayda çalışmıyor (canavarlara karşı kullanılmıyor)
+	ctx.player:SetAttribute("InSpace", true)
+	GearService._ResetCooldowns(ctx.player)
+	ok("uzayda alet yok", not GearService.Use(ctx.player, "EmergencyButton"))
+	ctx.player:SetAttribute("InSpace", nil)
+	GearService._ResetCooldowns(ctx.player)
 end)
 
 case("Kapsül: içinde durunca uzay hızı artıyor, başkasınınkinde artmıyor", function(ctx)

@@ -73,7 +73,6 @@ type Monster = {
 	target: Player?,
 	lungeUntil: number,     -- ani atak bu ana kadar sürüyor
 	nextLunge: number,      -- bir sonraki atak en erken
-	stunnedUntil: number,   -- ekipmanla sersemletildi: bu ana kadar donuk
 }
 
 type Carry = {
@@ -698,7 +697,6 @@ local function buildMonsterRoot(folder: Instance, index: number, def: Config.Spa
 		target = nil,
 		lungeUntil = 0,
 		nextLunge = 0,
-		stunnedUntil = 0,
 	}
 end
 
@@ -719,7 +717,7 @@ local function nearestCarrier(m: Monster): (Player?, BasePart?)
 	local bestRoot: BasePart? = nil
 	local bestD = math.huge
 	for player, carry in carrying do
-		if carry.planet == m.planet and not player:GetAttribute("Cloaked") then
+		if carry.planet == m.planet then
 			local root = rootOf(player)
 			if root then
 				local d = (root.Position - m.position).Magnitude
@@ -750,15 +748,6 @@ local function stepMonsters(dt: number)
 	local s = Config.Space
 	local now = os.clock()
 	for _, m in monsters do
-		-- Ekipmanla sersemletilen canavar yerinde donuk (durumu korunuyor)
-		local stunned = now < m.stunnedUntil
-		local holderInst = m.root.Parent :: Instance
-		if (holderInst:GetAttribute("Stunned") == true) ~= stunned then
-			holderInst:SetAttribute("Stunned", if stunned then true else nil)
-		end
-		if stunned then
-			continue
-		end
 		local need = m.def.need
 		local moveTo: Vector3? = nil
 		local speed = need * s.ReturnSpeedMul
@@ -779,8 +768,7 @@ local function stepMonsters(dt: number)
 			end
 		elseif m.state == "chase" then
 			local target = m.target
-			local visible = target and not target:GetAttribute("Cloaked")
-			local root = if target and visible and carrying[target] and carrying[target].planet == m.planet then rootOf(target) else nil
+			local root = if target and carrying[target] and carrying[target].planet == m.planet then rootOf(target) else nil
 			if not root then
 				local other, otherRoot = nearestCarrier(m)
 				m.target = other
@@ -1011,32 +999,6 @@ function SpaceService.RandomSpacePoint(random: Random?): Vector3?
 		end
 	end
 	return nil
-end
-
---[[
-	Ekipmanın uzaydaki etkisi (GearService): `origin`'den `range` içindeki
-	canavarları `seconds` sn sersemletir. `look` verilirse yalnızca önündekiler
-	(bakışla açının kosinüsü > minDot). Sersemletilen sayısını ve ilkini döner.
-]]
-function SpaceService.StunMonsters(origin: Vector3, range: number, seconds: number, look: Vector3?, minDot: number?): (number, Model?)
-	local now = os.clock()
-	local count = 0
-	local first: Model? = nil
-	for _, m in monsters do
-		local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
-		local offset = body - origin
-		local reach = range + m.def.scale * 4
-		local facing = not look or offset.Magnitude < 0.01 or look:Dot(offset.Unit) > (minDot or 0)
-		if offset.Magnitude <= reach and facing then
-			m.stunnedUntil = math.max(m.stunnedUntil, now + seconds)
-			m.lungeUntil = 0
-			count += 1
-			if not first then
-				first = m.root.Parent :: Model
-			end
-		end
-	end
-	return count, first
 end
 
 -- ─── Testler için ───────────────────────────────────────────────────────────

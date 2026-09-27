@@ -2247,19 +2247,16 @@ export type GearDef = {
 Config.Gear = {
 	{ id = "SlapGlove",       name = "Slap Glove",       price =      250000, kind = "slap",
 		cooldown = 4, range = 10, stun = 1.4, knock = 60,
-		blurb = "Slap players flying: thieves drop their loot. In space it stuns a monster." },
+		blurb = "Slap players flying. Thieves drop what they stole." },
 	{ id = "SpeedCoil",       name = "Speed Coil",       price =     1500000, kind = "speed",
 		walkSpeed = 32, sprintSpeed = 40,
 		blurb = "Run way faster on the ship while holding it. Not while carrying." },
 	{ id = "StunGun",         name = "Stun Gun",         price =    12000000, kind = "stun",
 		cooldown = 20, range = 30, stun = 2.5,
-		blurb = "Zap a player or a space monster from afar: frozen, thieves drop their loot." },
-	{ id = "GhostSerum",      name = "Ghost Serum",      price =    75000000, kind = "cloak",
-		cooldown = 40, duration = 8,
-		blurb = "Invisible for 8s: players can't see you and space monsters lose track of you." },
+		blurb = "Zap a player from afar: frozen for 2.5s, thieves drop their loot." },
 	{ id = "EmergencyButton", name = "Emergency Button", price =   300000000, kind = "blast",
 		cooldown = 45, range = 20, stun = 2, knock = 85,
-		blurb = "Slam it: players around you are blasted away, nearby monsters get stunned." },
+		blurb = "Slam it: everyone around you is blasted away and drops their loot." },
 } :: { GearDef }
 
 -- Vurulan oyuncu bu kadar saniye tekrar vurulamıyor (sersemleme kilidi olmasın)
@@ -2271,6 +2268,8 @@ Config.GearHitImmunity = 3
 ]]
 Config.RetiredGear = {
 	GravityCoil = 800000,
+	-- 2026-09-27: "çok güçlü" — görünmezlik hem gemide hem uzayda fazla kaçırıyordu
+	GhostSerum = 75000000,
 } :: { [string]: number }
 
 function Config.GetGear(id: string): GearDef?
@@ -2752,14 +2751,18 @@ end
 	yükseltmeler gibi), kazanılmış hızı değil.
 ]]
 Config.Capsule = {
-	Rate = 0.12,
-	-- 2026-09-27 ikinci denge: ileri kademeler çok kolaydı. Pow 2 → 2.8,
-	-- Growth 1.2 → 1.18. Mini oyunsuz kaba süreler (kapsül seviyesi →):
-	-- 16→28 ~3 dk (sv0), 28→44 ~8 dk (sv3), 44→64 ~15 dk (sv6),
-	-- 64→90 ~29 dk (sv9), 90→120 ~44 dk (sv12). Mini oyun bunu kısaltıyor.
-	Growth = 1.18,
-	Ref = 24,
-	Pow = 2.8,
+	Rate = 0.14,
+	--[[
+		2026-09-27 üçüncü denge: "44 dk'da son canavara gelmek çok hızlı".
+		Mini oyunsuz kaba süreler (kapsül seviyesi →):
+		  16→28 ~4 dk (sv0), 28→44 ~14 dk (sv3), 44→64 ~42 dk (sv6),
+		  64→90 ~2 sa (sv9), 90→120 ~4 sa (sv12)  — toplam ~7 saat.
+		Mini oyun en fazla ~2 kat hızlandırıyor; sv9+ için 2. kat (rebirth +
+		kat parası) gerekiyor, yani gerçek süre bundan da uzun.
+	]]
+	Growth = 1.14,
+	Ref = 20,
+	Pow = 3.4,
 	Tick = 0.5,                 -- sunucunun ölçtüğü aralık
 	--[[
 		Mini oyun (Stardew balık tutma gibi): roketi hareketli yeşil alanda
