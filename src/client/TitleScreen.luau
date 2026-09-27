@@ -909,7 +909,7 @@ function TitleScreen.Show(options: Options?): Handle
 	listLayout.Parent = list
 
 	local tips = {
-		{ icon = "crew", color = UiKit.CREW.CYAN, title = "Buy crewmates", text = "Crewmates ride the conveyor into your base. Buy them and place them on your podiums: every crewmate earns cash every second." },
+		{ icon = "crew", color = UiKit.CREW.CYAN, title = "Steal from space monsters", text = "Fly out of the Launch Bay, grab a crewmate guarded by a space monster and race it home. Every crewmate on your podiums earns cash each second." },
 		{ icon = "bag", color = UiKit.CREW.RED, title = "Steal from other bases", text = "Sneak into another base, grab a crewmate and carry it back to yours. Lock your base with the button inside to keep thieves out!" },
 		{ icon = "flame", color = UiKit.CREW.ORANGE, title = "Grow your crew", text = "Spend cash on upgrades and new floors. Rebirth when you are rich enough: you start over, but earn more forever." },
 		{ icon = "egg", color = UiKit.CREW.PINK, title = "Hatch pets", text = "Open eggs in the MedBay for pets that boost your cash and speed. Fuse 3 of the same pet into a bigger one at the scanner." },

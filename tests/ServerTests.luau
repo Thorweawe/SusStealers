@@ -20,6 +20,7 @@
 	başlangıç hali geri yükleniyor.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
@@ -34,7 +35,7 @@ local StealService = require(Server.StealService)
 local UpgradeService = require(Server.UpgradeService)
 local RebirthService = require(Server.RebirthService)
 local MonetizationService = require(Server.MonetizationService)
-local ConveyorService = require(Server.ConveyorService)
+local CapsuleService = require(Server.CapsuleService)
 local PromptGuard = require(Server.PromptGuard)
 local DataService = require(Server.DataService)
 local BadgeService = require(Server.BadgeService)
@@ -607,7 +608,7 @@ end)
 -- ─── F. Yükseltmeler ────────────────────────────────────────────────────────
 
 case("Yükseltme: seviye ve maliyet", function(ctx)
-	local id = "ConveyorSpeed"
+	local id = "SpaceCapsule"
 	ctx.profile.upgrades[id] = nil
 
 	eq("başlangıç seviyesi", UpgradeService.GetLevel(ctx.player, id), 0)
@@ -645,8 +646,8 @@ case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
 
 		for level = 0, Config.GetUpgradeCeiling(def) do
 			local value
-			if def.id == "ConveyorSpeed" then
-				value = string.format("%.3f", Config.GetConveyorInterval(level))
+			if def.id == "SpaceCapsule" then
+				value = string.format("%.5f", Config.GetCapsuleGain(level, Config.Space.BaseSpeed))
 			elseif def.id == "UnitGuard" then
 				value = tostring(Config.GetSafeSeconds(level))
 			elseif def.id == "CarrySpeed" then
@@ -783,129 +784,34 @@ case("Monetization: ürün tanımları tutarlı", function()
 	end
 end)
 
---[[ Banttaki bir modelin fiyatı (UnitId + MutationId etiketlerinden). ]]
-local function itemPrice(model: Instance): number
-	local unit = model:FindFirstChild("UnitId") :: StringValue?
-	local mutation = model:FindFirstChild("MutationId") :: StringValue?
-	if not unit then
-		return math.huge
+--[[ Üssün kaidelerindeki karakterler (UnitId niteliği dolu olanlar). ]]
+local function podiumUnits(plot: Model): { { unitId: string, mutationId: string } }
+	local list = {}
+	for _, podium in PlotService.GetPodiums(plot) do
+		local unitId = podium:GetAttribute("UnitId")
+		if typeof(unitId) == "string" and unitId ~= "" then
+			table.insert(list, { unitId = unitId, mutationId = (podium:GetAttribute("MutationId") :: string?) or "" })
+		end
 	end
-	local mutationId = if mutation and mutation.Value ~= "" then mutation.Value else nil
-	return Config.GetPrice(unit.Value, mutationId)
+	return list
 end
 
-case("Konveyör: parasız oyuncuya yalnızca alabileceği karakter geliyor", function(ctx)
-	--[[
-		$100 ile kalan oyuncu (geliri 0) bantta hep alamayacağı karakterler
-		görüyordu; kilitlenme koruması parayı veriyor ama harcanacak yer
-		çıkmıyordu. Artık geliri 0 iken her çekiliş bütçeye uygun.
-	]]
-	clearPlot(ctx.plot)
-	setCash(ctx.player, Config.GetCheapestUnitPrice())
-
-	for _ = 1, 15 do
-		ConveyorService.SpawnFor(ctx.player)
-	end
-
-	local items = ctx.plot:FindFirstChild("Items")
-	local count, affordable = 0, 0
-	for _, model in items:GetChildren() do
-		count += 1
-		if itemPrice(model) <= Config.GetCheapestUnitPrice() then
-			affordable += 1
-		end
-	end
-
-	eq("15 karakter üretildi", count, 15)
-	eq("hepsi $100 ile alınabiliyor", affordable, count)
-	clearPlot(ctx.plot)
-end)
-
-case("Konveyör: bütçe çekilişi sınırlı ve kilitli kademeye girmiyor", function()
-	local rng = Random.new(7)
-	local fine = true
-	for _ = 1, 200 do
-		local unit = Config.RollAffordableUnit(rng, 0, 1000)
-		if unit.price > 1000 or Config.GetUnitWeight(unit, 0) <= 0 then
-			fine = false
-		end
-	end
-	ok("200 çekilişte bütçe ve kademe kilidi tutuyor", fine)
-	eq("bütçe yetmezse en ucuzu", Config.RollAffordableUnit(rng, 0, 0).price, Config.GetCheapestUnitPrice())
-end)
-
-case("Konveyör: bant hızı yükseltmeyle artıyor ama tavanlı", function()
-	local base = Config.GetConveyorBeltSpeed(0)
-	ok("taban pozitif", base > 0)
-	ok("seviye 6 daha hızlı", Config.GetConveyorBeltSpeed(6) > base)
-
-	local def = Config.GetUpgrade("ConveyorSpeed")
-	if not def then
-		return
-	end
-	local top = Config.GetConveyorBeltSpeed(Config.GetUpgradeCeiling(def))
-	near("tavan çarpanı", top / base, Config.ConveyorBeltSpeedMax, 1e-6)
-
-	-- En hızlı hâlde bile karakter bantta alınacak kadar kalmalı
-	local travel = Config.PlotSize.X - 12
-	ok("en hızlı bantta >= 10 sn", travel / top >= 10, string.format("%.1f sn", travel / top))
-end)
-
-case("Konveyör: karakter çıtaya hizalı ve bant saati istemciye gidiyor", function(ctx)
-	clearPlot(ctx.plot)
-	setCash(ctx.player, Config.GetCheapestUnitPrice())
-	ConveyorService.SpawnFor(ctx.player)
-
-	local conveyor = ctx.plot:FindFirstChild("Conveyor") :: BasePart
-	ok("BeltSpeed niteliği var", typeof(conveyor:GetAttribute("BeltSpeed")) == "number")
-	ok("BeltDistance niteliği var", typeof(conveyor:GetAttribute("BeltDistance")) == "number")
-	ok("BeltStamp niteliği var", typeof(conveyor:GetAttribute("BeltStamp")) == "number")
-
-	local model = ctx.plot:FindFirstChild("Items"):FindFirstChildOfClass("Model")
-	ok("karakter doğdu", model ~= nil)
-	if not model then
-		return
-	end
-
-	local travel = model:GetAttribute("Travel") :: number
-	local spawnDistance = model:GetAttribute("SpawnDistance") :: number
-	local gap = travel / Config.ConveyorSlats
-	local rem = spawnDistance % gap
-	ok("doğuş çıta aralığının katında", rem < 1e-6 or gap - rem < 1e-6, string.format("%.4f", rem))
-
-	-- Kapağın içindeyken alınamaz: prompt kapalı, OnBelt false
-	local prompt = model.PrimaryPart and model.PrimaryPart:FindFirstChild("BuyPrompt") :: ProximityPrompt?
-	ok("prompt var", prompt ~= nil)
-	if prompt then
-		eq("kapaktayken OnBelt false", prompt:GetAttribute("OnBelt"), false)
-		-- En fazla bir çıta aralığı sonra ağızdan çıkmış olmalı
-		local speed = conveyor:GetAttribute("BeltSpeed") :: number
-		task.wait(gap / speed + 0.2)
-		if model.Parent then
-			eq("ağızdan çıkınca OnBelt true", prompt:GetAttribute("OnBelt"), true)
-			eq("ağızdan çıkınca prompt açık", prompt.Enabled, true)
-		end
-	end
-	clearPlot(ctx.plot)
-end)
-
-case("Monetization: ödül fonksiyonları çalışıyor", function(ctx)
+case("Monetization: ödül fonksiyonları çalışıyor (konveyörsüz, doğrudan kaide)", function(ctx)
 	clearPlot(ctx.plot)
 
-	eq("anlık üretim", ConveyorService.SpawnFor(ctx.player), true)
-	eq("garantili mutasyon", ConveyorService.GrantLuckyRoll(ctx.player), true)
+	ok("bedava karakter", SpaceService.GrantUnit(ctx.player, false) ~= nil)
+	ok("garantili mutasyon", SpaceService.GrantUnit(ctx.player, true) ~= nil)
 
-	local items = ctx.plot:FindFirstChild("Items")
+	local units = podiumUnits(ctx.plot)
+	eq("iki karakter kaidede", #units, 2)
 	local mutated = 0
-	for _, model in items:GetChildren() do
-		local tag = model:FindFirstChild("MutationId")
-		if tag and (tag :: StringValue).Value ~= "" then
+	for _, u in units do
+		if u.mutationId ~= "" then
 			mutated += 1
 		end
 	end
-
-	ok("en az bir mutasyonlu üretildi", mutated >= 1, tostring(mutated))
-	items:ClearAllChildren()
+	ok("en az bir mutasyonlu", mutated >= 1, tostring(mutated))
+	clearPlot(ctx.plot)
 end)
 
 -- ─── I. Güvenlik ────────────────────────────────────────────────────────────
@@ -1394,6 +1300,7 @@ case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
 		units = true, steals = true, upgrades = true,
 		spins = true, locksUsed = true, tasks = true, pets = true, gear = true, salvaged = true,
+		spaceSpeed = true,
 	}
 
 	local ids = {}
@@ -1435,12 +1342,12 @@ case("Öğretici: adımlar oynanabilir sırada", function()
 
 	ok("aynı sayaca bakan adımlar artıyor", increasing)
 
-	-- İlk adım oyuncunun başlangıç parasıyla yapılabilmeli
+	-- İlk adım: ilk canavardan karakter çalmak; taban uzay hızı ona yetmeli
 	local first = Config.Tutorial[1]
-	ok("ilk adım karakter almak", first.check == "units", first.check)
-	ok("başlangıç parası en ucuz karaktere yetiyor",
-		Config.StartingCash >= Config.GetCheapestUnitPrice(),
-		string.format("%d < %d", Config.StartingCash, Config.GetCheapestUnitPrice()))
+	ok("ilk adım karakter çalmak", first.check == "units", first.check)
+	ok("taban uzay hızı ilk canavara yetiyor",
+		Config.Space.BaseSpeed >= Config.SpaceMonsters[1].need,
+		string.format("%d < %d", Config.Space.BaseSpeed, Config.SpaceMonsters[1].need))
 end)
 
 case("Öğretici: yükseltme adımına gelen oyuncu yükseltmeyi hemen alabiliyor", function()
@@ -1475,7 +1382,8 @@ case("Öğretici: her adım önceki ödüllerle karşılanabiliyor", function()
 		return best
 	end
 	local cost = {
-		units = Config.GetCheapestUnitPrice(),
+		-- Karakterler uzaydan bedava çalınıyor (konveyör yok)
+		units = 0,
 		upgrades = cheapest(Config.Upgrades, "baseCost"),
 		pets = cheapest(Config.Eggs, "price"),
 		gear = cheapest(Config.Gear, "price"),
@@ -1663,8 +1571,13 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 		dünyadaki nesne adlarını senkronda tutuyor.
 	]]
 	local resolvable = {
-		Conveyor = function()
-			return ctx.plot:FindFirstChild("Conveyor")
+		SpaceGate = function()
+			local t = TutorialService._TargetFor(ctx.player, "SpaceGate")
+			return if t and t.Name == "LaunchPad" then t else nil
+		end,
+		Capsule = function()
+			local t = TutorialService._TargetFor(ctx.player, "Capsule")
+			return if t and t.Name == "Pad" then t else nil
 		end,
 		Sign = function()
 			return ctx.plot:FindFirstChild("Sign")
@@ -1691,9 +1604,6 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 		Hatchery = function()
 			local t = TutorialService._TargetFor(ctx.player, "Hatchery")
 			return if t and t.Name == "Egg1" then t else nil
-		end,
-		Airlock = function()
-			return TutorialService._TargetFor(ctx.player, "Airlock")
 		end,
 		GearShop = function()
 			local t = TutorialService._TargetFor(ctx.player, "GearShop")
@@ -1783,6 +1693,7 @@ case("Görev: tanımlar tutarlı", function()
 	local stats = {
 		stolen = true, bought = true, sold = true, earned = true,
 		caught = true, spins = true, rebirths = true, upgrades = true,
+		salvaged = true,
 	}
 
 	local ids = {}
@@ -2296,8 +2207,8 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		Gerekçeleri Net.luau'da tek tek yazılı.
 
 		Sınır on dokuzda (TaskDone ek oda görevleri, CosmeticAction kozmetikler,
-		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları, SpaceHit
-		uzayda asteroit çarpması — yalnızca oyuncunun aleyhine — için eklendi;
+		SabotageAction sabotaj eşyaları, SettingsSave oyuncu ayarları için
+		eklendi; SpaceHit uzay soygununa geçilince kalktı;
 		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
 		kazara büyümesin.
 	]]
@@ -2655,7 +2566,7 @@ case("Yükseltme: tavan kat sayısıyla ikiye katlanıyor", function()
 end)
 
 case("Yükseltme: kat tavanı satın almayı durduruyor", function(ctx)
-	local id = "ConveyorSpeed"
+	local id = "SpaceCapsule"
 	local def = Config.GetUpgrade(id)
 
 	-- 1. katta sadece taban kadar alınabilmeli
@@ -2680,7 +2591,7 @@ case("Yükseltme: rebirth sıfırlıyor", function(ctx)
 	clearPlot(ctx.plot)
 	ctx.profile.rebirths = 0
 	ctx.profile.floorsBought = 1
-	ctx.profile.upgrades = { ConveyorSpeed = 3, LockPower = 2 }
+	ctx.profile.upgrades = { SpaceCapsule = 3, LockPower = 2 }
 	PlotService.SetUnlockedFloors(ctx.plot, Config.GetUnlockedFloors(1))
 
 	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
@@ -2689,7 +2600,7 @@ case("Yükseltme: rebirth sıfırlıyor", function(ctx)
 
 	ok("rebirth başarılı", RebirthService.TryRebirth(ctx.player))
 
-	eq("ConveyorSpeed sıfırlandı", UpgradeService.GetLevel(ctx.player, "ConveyorSpeed"), 0)
+	eq("SpaceCapsule sıfırlandı", UpgradeService.GetLevel(ctx.player, "SpaceCapsule"), 0)
 	eq("LockPower sıfırlandı", UpgradeService.GetLevel(ctx.player, "LockPower"), 0)
 	eq("satın alınan kat korundu", ctx.profile.floorsBought, 1)
 end)
@@ -2700,12 +2611,12 @@ case("Yükseltme: seviye başına etki yarıya indi ama tavan aynı kaldı", fun
 		Net sonuç: tavandaki güç eskisiyle aynı, yol iki kat uzun.
 		Bu test gücün kazara artmasını engelliyor.
 	]]
-	local def = Config.GetUpgrade("ConveyorSpeed")
+	local def = Config.GetUpgrade("SpaceCapsule")
 	local ceiling = Config.GetUpgradeCeiling(def)
 
-	local top = Config.GetConveyorInterval(ceiling)
-	ok("konveyör tabanı makul", top >= 2 and top <= Config.ConveyorInterval,
-		string.format("%.2f", top))
+	-- Tavandaki kapsül en üst canavarın hızında bile makul (dakikada birkaç puan)
+	local top = Config.GetCapsuleGain(ceiling, Config.SpaceMonsters[#Config.SpaceMonsters].need)
+	ok("kapsül tavanı makul", top > 0.05 and top < 20, string.format("%.3f", top))
 
 	local carry = Config.GetCarryWalkSpeed(Config.GetUpgradeCeiling(Config.GetUpgrade("CarrySpeed")))
 	ok("taşıma hızı normali geçmiyor", carry < Config.NormalWalkSpeed,
@@ -3980,110 +3891,150 @@ case("Admin masası: bölgeler ölçülüyor, konum doğru odaya düşüyor", fu
 	ok("kendi üssü kırmızı değil", frame ~= nil and frame.BackgroundColor3 ~= Color3.fromRGB(200, 50, 60))
 end)
 
--- ─── Uzay yürüyüşü ──────────────────────────────────────────────────────────
+-- ─── Uzay soygunu ve kapsül ─────────────────────────────────────────────────
 
-case("Uzay: yol oynanabilir, asteroitler yalnızca yolun üstünden geçiyor", function()
+case("Uzay: gezegen düzeni oynanabilir", function()
 	local sp = Config.Space
-	local previous = -sp.DockHalf.Y
-	for i, seg in sp.Segments do
-		ok("parça " .. i .. " sıralı", seg.z0 > seg.z1)
-		local gap = previous - seg.z0
-		ok("parça " .. i .. " önündeki boşluk atlanabilir", gap >= 0 and gap <= 14, tostring(gap))
-		previous = seg.z1
-	end
-	local nestEdge = sp.NestZ + sp.NestRadius
-	ok("son parça yuvaya bağlı", math.abs(previous - nestEdge) <= 2, string.format("%d / %d", previous, nestEdge))
-
-	for i, lane in sp.Lanes do
-		ok(i .. ". şerit dönüyor (hız × periyot > açıklık)", lane.speed * lane.period > sp.LaneSpan)
-		local onPath = false
-		for _, seg in sp.Segments do
-			if lane.z < seg.z0 - lane.radius and lane.z > seg.z1 + lane.radius then
-				onPath = true
+	local list = Config.SpaceMonsters
+	eq("altı canavar", #list, 6)
+	eq("ilki taban hızda", list[1].need, sp.BaseSpeed)
+	local lastZ = math.huge
+	local lastNeed = 0
+	local lastSide = 0
+	local deckLo, deckHi = SpaceField.DeckBox()
+	for i, def in list do
+		ok(def.id .. " sırada (daha uzak)", def.position.Z < lastZ)
+		ok(def.id .. " daha zor", def.need > lastNeed)
+		local side = if def.position.X > sp.GateX then 1 else -1
+		ok(def.id .. " bir sağda bir solda", side ~= lastSide)
+		lastZ, lastNeed, lastSide = def.position.Z, def.need, side
+		ok(def.id .. " kimlikle bulunuyor", Config.GetSpaceMonster(def.id) == def)
+		for rarity in def.odds do
+			ok(def.id .. " nadirliği tanınıyor " .. rarity, Config.Rarities[rarity] ~= nil)
+		end
+		-- Gezegen uçuş sınırının içinde ve güverteye değmiyor
+		local center = SpaceField.PlanetCenter(def)
+		ok(def.id .. " sınır içinde", SpaceField.ClampToBounds(center) == center)
+		ok(def.id .. " güverteden uzak", center.Z + def.radius < deckLo.Z - 40, string.format("%.0f", center.Z + def.radius))
+		-- Komşu gezegenle çakışmıyor
+		local nextDef = list[i + 1]
+		if nextDef then
+			local d = (SpaceField.PlanetCenter(nextDef) - center).Magnitude
+			ok(def.id .. " komşusuyla çakışmıyor", d > def.radius + nextDef.radius + 20, string.format("%.0f", d))
+		end
+		-- Mürettebat platonun üstünde ve uzayda
+		for k, p in SpaceField.CrewSpots(def) do
+			local flat = Vector3.new(p.X - def.position.X, 0, p.Z - def.position.Z).Magnitude
+			ok(string.format("%s mürettebat %d platoda", def.id, k), flat < SpaceField.PlateauRadius(def) - 1, string.format("%.1f", flat))
+			ok(string.format("%s mürettebat %d uzayda", def.id, k), SpaceField.InSpace(p))
+		end
+		-- Çekilen karakterler yalnızca bu havuzdan
+		local rng = Random.new(i)
+		local fine = true
+		for _ = 1, 150 do
+			local unit = Config.RollSpaceUnit(rng, def)
+			if not def.odds[unit.rarity] then
+				fine = false
 			end
 		end
-		ok(i .. ". şerit bir yol parçasının üstünde", onPath, tostring(lane.z))
-		-- Yolun üstünde geçirdiği süre periyodun yarısından kısa: geçiş penceresi var
-		local busy = (sp.PathHalfWidth * 2 + lane.radius * 2) / lane.speed
-		ok(i .. ". şeridin arasından geçilebiliyor", busy < lane.period / 2, string.format("%.1f / %.1f", busy, lane.period))
+		ok(def.id .. " havuz dışına çıkmıyor", fine)
 	end
-	eq("balon sayısı", #SpaceField.SpotPositions(), sp.NestSpots)
-	eq("canavar sayısı", #SpaceField.MonsterHomes(), sp.MonsterCount)
+	ok("güverte kutusu kapının önünde", deckHi.Z >= sp.WallZ and deckLo.Z < SpaceField.WallOuterZ())
 end)
 
-case("Uzay: asteroit hesabı sunucu ile istemcide aynı", function()
-	local lane = Config.Space.Lanes[1]
-	-- Periyodun başı: açıklığın bir ucunda görünür
-	local t0 = -lane.phase + lane.period * 100
-	local p = SpaceField.AsteroidAt(lane, t0)
-	ok("başta görünür", p ~= nil)
-	-- Açıklığı geçtikten sonra gizli
-	local hidden = SpaceField.AsteroidAt(lane, t0 + Config.Space.LaneSpan / lane.speed + 0.05)
-	ok("açıklıktan sonra yok", hidden == nil)
-	-- Yolun ortasındayken
-	local mid = t0 + (Config.Space.LaneSpan / 2) / lane.speed
-	local midPos = SpaceField.AsteroidAt(lane, mid) :: Vector3
-	near("ortada x", midPos.X, Config.Space.Origin.X, 0.01)
-	eq("çarpma algılanıyor", SpaceField.HitAt(mid, midPos, 1), 1)
-	ok("uzaktaki nokta çarpmıyor", SpaceField.HitAt(mid, midPos + Vector3.new(0, 40, 0), 1) == nil)
-	ok("sunucu doğrulaması tutuyor", SpaceField.CameNear(1, mid - 0.2, mid + 0.2, midPos, 1))
-	ok("başka anda tutmuyor", not SpaceField.CameNear(1, mid + 2.5, mid + 2.8, midPos, 1))
-	eq("ortadayken geçiş şimdi", SpaceField.SecondsUntilCrossing(lane, mid), 0)
-	ok("başta geçişe süre var", SpaceField.SecondsUntilCrossing(lane, t0) > 0)
-end)
-
-case("Uzay: hızlar gemidekinden yüksek, canavar kaçılabilir", function()
+case("Uzay: güvenli bölge, uçuş bölgesi ve fırlatma yolu", function()
 	local sp = Config.Space
-	ok("yürüme gemidekinden hızlı", sp.WalkSpeed > Config.NormalWalkSpeed)
-	ok("koşma gemidekinden hızlı", sp.SprintSpeed > Config.SprintWalkSpeed)
-	ok("taşıma gemidekinin çok üstünde", sp.CarrySpeed > Config.CarryWalkSpeedMax * 1.5)
-	ok("taşırken koşmak canavarın tavanından hızlı", sp.CarrySprintSpeed > sp.MonsterMaxSpeed)
-	ok("canavar yürüyerek taşıyanı zamanla yakalayabiliyor", sp.MonsterMaxSpeed > sp.CarrySpeed)
-	ok("canavar yavaş başlıyor", sp.MonsterSpeed < sp.CarrySpeed)
-	ok("kapmak gemide çalmaktan hızlı", sp.GrabHold < Config.StealHoldTime)
+	ok("iniş noktası güvenli", SpaceField.InSafe(sp.Landing))
+	ok("güverte güvenli", SpaceField.InSafe(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
+	ok("güverte uzay sayılmıyor", not SpaceField.InSpace(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
+	ok("gemi içi uzay değil", not SpaceField.InSpace(Vector3.new(180, 3, 0)))
+	ok("gezegen uzayda", SpaceField.InSpace(Config.SpaceMonsters[1].position + Vector3.new(0, 4, 0)))
+	ok("gezegen güvenli değil", not SpaceField.InSafe(Config.SpaceMonsters[1].position))
+	local from = Config.SpaceMonsters[3].position + Vector3.new(0, 10, 0)
+	ok("yol elden başlıyor", (SpaceField.ThrowPath(from, 0) - from).Magnitude < 0.01)
+	ok("yol inişte bitiyor", (SpaceField.ThrowPath(from, 1) - sp.Landing).Magnitude < 0.01)
+
+	local characters = {}
+	for _, pl in Players:GetPlayers() do
+		if pl.Character then
+			table.insert(characters, pl.Character)
+		end
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = characters
+	local down = workspace:Raycast(sp.Landing + Vector3.new(0, 2, 0), Vector3.new(0, -10, 0), params)
+	ok("inişin altında zemin var", down ~= nil)
+	-- İniş noktasında karakteri sıkıştıracak katı parça yok
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Exclude
+	overlap.FilterDescendantsInstances = characters
+	local solid = {}
+	for _, p in workspace:GetPartBoundsInBox(CFrame.new(sp.Landing + Vector3.new(0, 1.2, 0)), Vector3.new(3, 4, 3), overlap) do
+		if p.CanCollide and p.Transparency < 0.95 then
+			table.insert(solid, p:GetFullName())
+		end
+	end
+	ok("iniş noktası boş", #solid == 0, table.concat(solid, ", "))
+	-- Kapı gerçekten açık: güverteden gemiye düz ışın katı bir şeye çarpmıyor
+	local gate = Vector3.new(sp.GateX, sp.DeckTop + 4, SpaceField.DeckEdgeZ() + 6)
+	local through = workspace:Raycast(gate, Vector3.new(0, 0, 60), params)
+	ok("kapıdan geçiliyor", through == nil, if through then through.Instance:GetFullName() else "")
 end)
 
-case("Uzay: gir, kap, düşür, teslim et, çık", function(ctx)
+case("Uzay: çal, bırak, hile payı, teslim et", function(ctx)
 	local character = ctx.player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	ok("karakter var", humanoid ~= nil)
-	if not (character and humanoid) then
+	if not character then
+		ok("karakter var", false)
 		return
 	end
 	local startCf = character:GetPivot()
 	clearPlot(ctx.plot)
-	ok("hava kilidi kurulu", workspace:FindFirstChild("SpaceAirlock") ~= nil and SpaceService.GetAirlock() ~= nil)
+	SpaceService._ClearImmunity(ctx.player)
 	ok("uzay alanı kurulu", workspace:FindFirstChild("SpaceZone") ~= nil)
+	ok("eski hava kilidi yok", workspace:FindFirstChild("SpaceAirlock") == nil)
 
-	SpaceService._Enter(ctx.player)
-	ok("uzayda", ctx.player:GetAttribute("InSpace") == true)
-	eq("uzay yürüyüş hızı", humanoid.WalkSpeed, Config.Space.WalkSpeed)
-	eq("uzay zıplaması", humanoid.JumpHeight, Config.Space.JumpHeight)
-	ok("rıhtımda", SpaceField.InDock(character:GetPivot().Position))
+	local def = Config.SpaceMonsters[1]
+	local spot = SpaceField.CrewSpots(def)[1]
+	character:PivotTo(CFrame.new(spot + Vector3.new(0, 3, 4)))
+	local unitId, mutationId = SpaceService._Spot(1, 1)
+	ok("mürettebat var", unitId ~= nil)
 
-	local unitId, mutationId = SpaceService._Spot(1)
-	ok("balonda mürettebat var", unitId ~= nil)
-	SpaceService._Grab(ctx.player, 1)
+	SpaceService._Grab(ctx.player, 1, 1)
 	ok("taşıyor", SpaceService.IsCarrying(ctx.player))
+	ok("nitelik", ctx.player:GetAttribute("SpaceCarry") == true)
 	ok("sırtında (CarriedUnit değil)", character:FindFirstChild("SpaceCarry") ~= nil and character:FindFirstChild("CarriedUnit") == nil)
-	eq("balon boşaldı", (SpaceService._Spot(1)), nil)
-	eq("taşıma hızı", humanoid.WalkSpeed, Config.Space.CarrySpeed)
-	local awake = 0
-	for _, m in SpaceService._Monsters() do
-		if m.state == "wake" or m.state == "chase" then
-			awake += 1
-		end
-	end
-	eq("canavarlar uyandı", awake, Config.Space.MonsterCount)
+	eq("yeri boşaldı", (SpaceService._Spot(1, 1)), nil)
+	local state, target = SpaceService._Monster(1)
+	eq("canavar uyandı", state, "wake")
+	eq("hedef bu oyuncu", target, ctx.player)
+	eq("başka canavar uyanmadı", (SpaceService._Monster(2)), "idle")
 
 	SpaceService._Drop(ctx.player)
-	ok("düşürdü", not SpaceService.IsCarrying(ctx.player))
-	local back, backMutation = SpaceService._Spot(1)
-	eq("aynı mürettebat balona döndü", back, unitId)
+	ok("bıraktı", not SpaceService.IsCarrying(ctx.player))
+	local back, backMutation = SpaceService._Spot(1, 1)
+	eq("aynı mürettebat yerine döndü", back, unitId)
 	eq("mutasyonu da", backMutation, mutationId)
 
-	local before = ctx.profile.salvaged or 0
-	SpaceService._Grab(ctx.player, 1)
+	-- Hile payı: kapıp anında güverteye ışınlanan teslim edemiyor
+	SpaceService._Grab(ctx.player, 1, 1)
+	character:PivotTo(CFrame.new(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
+	SpaceService._Deliver(ctx.player, true)
+	ok("hızlı teslim reddedildi", not SpaceService.IsCarrying(ctx.player))
+	eq("karakter yerine döndü", (SpaceService._Spot(1, 1)), unitId)
+	local filled = 0
+	for _, podium in PlotService.GetUnlockedPodiums(ctx.plot) do
+		if PlotService.IsOccupied(podium) then
+			filled += 1
+		end
+	end
+	eq("kaideler boş kaldı", filled, 0)
+
+	-- Dürüst teslim
+	local before = ctx.profile.salvaged
+	character:PivotTo(CFrame.new(spot + Vector3.new(0, 3, 4)))
+	SpaceService._Grab(ctx.player, 1, 1)
+	character:PivotTo(CFrame.new(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
 	SpaceService._Deliver(ctx.player)
 	ok("teslim edildi", not SpaceService.IsCarrying(ctx.player))
 	local placed = false
@@ -4095,12 +4046,153 @@ case("Uzay: gir, kap, düşür, teslim et, çık", function(ctx)
 	ok("üssün kaidesinde", placed)
 	eq("sayaç arttı", ctx.profile.salvaged, before + 1)
 
-	SpaceService._Exit(ctx.player)
-	ok("gemide", ctx.player:GetAttribute("InSpace") == nil)
-	eq("normal hız", humanoid.WalkSpeed, Config.NormalWalkSpeed)
-	ok("zıplama geri geldi", humanoid.JumpHeight < Config.Space.JumpHeight)
+	-- Canavar hedefi kaybedince eve dönüyor
+	SpaceService._Step(1 / 30)
+	SpaceService._Step(1 / 30)
+	local after = SpaceService._Monster(1)
+	ok("canavar geri dönüyor", after == "return" or after == "idle", tostring(after))
+
 	character:PivotTo(startCf)
 	clearPlot(ctx.plot)
+end)
+
+case("Uzay: canavar yakalayınca elinde tutup gemiye fırlatıyor", function(ctx)
+	local character = ctx.player.Character
+	if not character then
+		ok("karakter var", false)
+		return
+	end
+	local startCf = character:GetPivot()
+	clearPlot(ctx.plot)
+	SpaceService._ClearImmunity(ctx.player)
+	local def = Config.SpaceMonsters[2]
+	local spot = SpaceField.CrewSpots(def)[3]
+	character:PivotTo(CFrame.new(spot + Vector3.new(0, 3, 4)))
+	local unitId = SpaceService._Spot(2, 3)
+	SpaceService._Grab(ctx.player, 2, 3)
+	ok("taşıyor", SpaceService.IsCarrying(ctx.player))
+
+	SpaceService._Catch(ctx.player, 2)
+	ok("elinden alındı", not SpaceService.IsCarrying(ctx.player))
+	eq("canavarın elinde", ctx.player:GetAttribute("SpaceGrabbed"), def.id)
+	eq("canavar kavrıyor", (SpaceService._Monster(2)), "grab")
+	eq("karakter gezegenine döndü", (SpaceService._Spot(2, 3)), unitId)
+
+	-- Fırlatma sürerken yeniden çalamıyor
+	SpaceService._Grab(ctx.player, 2, 3)
+	ok("fırlatılırken çalamıyor", not SpaceService.IsCarrying(ctx.player))
+
+	SpaceService._ClearImmunity(ctx.player)
+	character:PivotTo(startCf)
+	clearPlot(ctx.plot)
+end)
+
+case("Uzay: bedava karakter (çark / ürün) doğrudan kaideye", function(ctx)
+	clearPlot(ctx.plot)
+	local name = SpaceService.GrantUnit(ctx.player, true)
+	ok("bedava karakter verildi", name ~= nil)
+	local count = 0
+	for _, podium in PlotService.GetUnlockedPodiums(ctx.plot) do
+		if PlotService.IsOccupied(podium) then
+			count += 1
+		end
+	end
+	eq("bir kaide doldu", count, 1)
+	clearPlot(ctx.plot)
+end)
+
+case("Kapsül: içinde durunca uzay hızı artıyor, başkasınınkinde artmıyor", function(ctx)
+	local character = ctx.player.Character
+	local capsule = ctx.plot:FindFirstChild("Capsule")
+	ok("kapsül üste kurulu", capsule ~= nil)
+	ok("konveyör yok", ctx.plot:FindFirstChild("Conveyor") == nil)
+	if not (character and capsule) then
+		return
+	end
+	local zone = capsule:FindFirstChild("Zone") :: BasePart
+	local console = capsule:FindFirstChild("Console")
+	ok("yükseltme promptu", console ~= nil and console:FindFirstChild("CapsulePrompt") ~= nil)
+	local startCf = character:GetPivot()
+	CapsuleService.SetSpeed(ctx.player, Config.Space.BaseSpeed)
+	ctx.profile.upgrades.SpaceCapsule = 2
+
+	character:PivotTo(CFrame.new(zone.Position))
+	CapsuleService._Tick(1)
+	local gained = CapsuleService.GetSpeed(ctx.player) - Config.Space.BaseSpeed
+	near("bir saniyelik kazanç", gained, Config.GetCapsuleGain(2, Config.Space.BaseSpeed), 1e-6)
+	eq("InCapsule", ctx.player:GetAttribute("InCapsule"), true)
+	near("nitelik güncel", ctx.player:GetAttribute("SpaceSpeed") :: number, CapsuleService.GetSpeed(ctx.player), 0.01)
+
+	local other: Model? = nil
+	for _, plot in PlotService.GetAllPlots() do
+		if plot ~= ctx.plot then
+			other = plot
+			break
+		end
+	end
+	if other then
+		local otherZone = (other:FindFirstChild("Capsule") :: Model):FindFirstChild("Zone") :: BasePart
+		character:PivotTo(CFrame.new(otherZone.Position))
+		local s0 = CapsuleService.GetSpeed(ctx.player)
+		CapsuleService._Tick(1)
+		eq("başkasının kapsülü hız vermiyor", CapsuleService.GetSpeed(ctx.player), s0)
+		eq("InCapsule kalktı", ctx.player:GetAttribute("InCapsule"), nil)
+	end
+
+	character:PivotTo(startCf)
+	CapsuleService.SetSpeed(ctx.player, Config.Space.BaseSpeed)
+	ctx.profile.upgrades.SpaceCapsule = nil
+end)
+
+case("Kapsül: mini oyun bonusu ısınma ve bekleme ile sınırlı, dışarıda yok", function(ctx)
+	local character = ctx.player.Character
+	local capsule = ctx.plot:FindFirstChild("Capsule")
+	if not (character and capsule) then
+		ok("karakter ve kapsül", false)
+		return
+	end
+	local startCf = character:GetPivot()
+	local zone = capsule:FindFirstChild("Zone") :: BasePart
+	-- Kapsül üssün zemininin dışında (arkasında), duvara değmeden
+	local base = ctx.plot:FindFirstChild("Base") :: BasePart
+	local local_ = base.CFrame:PointToObjectSpace(zone.Position)
+	ok("kapsül üssün arkasında", math.abs(local_.Z) > base.Size.Z / 2, string.format("%.1f", local_.Z))
+	CapsuleService.SetSpeed(ctx.player, Config.Space.BaseSpeed)
+	ctx.profile.upgrades.SpaceCapsule = 3
+
+	character:PivotTo(CFrame.new(zone.Position))
+	CapsuleService._Tick(0.5)
+	eq("antrenmanda", ctx.player:GetAttribute("InCapsule"), true)
+	CapsuleService._ResetCatch(ctx.player, 0)
+	eq("ısınmadan bonus yok", CapsuleService.TryCatch(ctx.player), nil)
+	CapsuleService._ResetCatch(ctx.player, Config.Capsule.CatchWarmup + 1)
+	local s0 = CapsuleService.GetSpeed(ctx.player)
+	local bonus = CapsuleService.TryCatch(ctx.player)
+	ok("bonus verildi", bonus ~= nil)
+	near("bonus = kapsül kazancı × süre", bonus or 0, Config.GetCapsuleGain(3, s0) * Config.Capsule.CatchBonusSeconds, 1e-6)
+	near("hıza eklendi", CapsuleService.GetSpeed(ctx.player), s0 + (bonus or 0), 1e-6)
+	eq("art arda ikinci bonus yok", CapsuleService.TryCatch(ctx.player), nil)
+
+	character:PivotTo(startCf)
+	CapsuleService._Tick(0.5)
+	CapsuleService._ResetCatch(ctx.player, 60)
+	eq("kapsül dışında bonus yok", CapsuleService.TryCatch(ctx.player), nil)
+	CapsuleService.SetSpeed(ctx.player, Config.Space.BaseSpeed)
+	ctx.profile.upgrades.SpaceCapsule = nil
+end)
+
+case("Kapsül: kazanç seviyeyle artıyor, hızla azalıyor; eski kayıt taşınıyor", function()
+	ok("seviye artırıyor", Config.GetCapsuleGain(3, 30) > Config.GetCapsuleGain(2, 30))
+	ok("hız yavaşlatıyor", Config.GetCapsuleGain(3, 90) < Config.GetCapsuleGain(3, 30))
+	ok("taban hızda pozitif", Config.GetCapsuleGain(0, Config.Space.BaseSpeed) > 0)
+	local p = DataService._Sanitize({ cash = 10, upgrades = { ConveyorSpeed = 4 } })
+	eq("eski Conveyor Speed kapsüle taşındı", p.upgrades.SpaceCapsule, 4)
+	eq("eski kimlik atıldı", p.upgrades.ConveyorSpeed, nil)
+	eq("uzay hızı varsayılanı", p.spaceSpeed, Config.Space.BaseSpeed)
+	local low = DataService._Sanitize({ spaceSpeed = 3 })
+	eq("taban altı kırpılıyor", low.spaceSpeed, Config.Space.BaseSpeed)
+	local high = DataService._Sanitize({ spaceSpeed = 57.5 })
+	eq("kazanılmış hız korunuyor", high.spaceSpeed, 57.5)
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────
@@ -4148,6 +4240,7 @@ function ServerTests.Run(player: Player?): number
 		cash = profile.cash,
 		rebirths = profile.rebirths,
 		upgrades = table.clone(profile.upgrades),
+		spaceSpeed = profile.spaceSpeed,
 		lastSpinAt = profile.lastSpinAt,
 		titles = table.clone(profile.titles),
 		robbed = profile.robbed,
@@ -4219,6 +4312,9 @@ function ServerTests.Run(player: Player?): number
 	-- Gezen impostor da çıkmasın; sahnede varsa kaldır
 	RogueService.SetPaused(true)
 	RogueService._Reset()
+	-- Canavarlar test oyuncusunu yakalamasın, kapsül hızı kendiliğinden artmasın
+	SpaceService.SetPaused(true)
+	CapsuleService.SetPaused(true)
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -4258,12 +4354,15 @@ function ServerTests.Run(player: Player?): number
 	EventService.End()
 	EventService.SetPaused(false)
 	RogueService.SetPaused(false)
+	SpaceService.SetPaused(false)
+	CapsuleService.SetPaused(false)
 	-- Testler iksir içiyor; kalan takviyeyi canlı oturuma bırakma
 	MonetizationService.ClearBoosts(player)
 
 	profile.cash = backup.cash
 	profile.rebirths = backup.rebirths
 	profile.upgrades = backup.upgrades
+	CapsuleService.SetSpeed(player, backup.spaceSpeed)
 	profile.lastSpinAt = backup.lastSpinAt
 	profile.titles = backup.titles
 	profile.robbed = backup.robbed

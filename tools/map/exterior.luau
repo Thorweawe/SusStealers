@@ -100,9 +100,10 @@ return {
 		do
 			local f = K.folder("Space", ex)
 			-- Gezegen: kuzeyde, uzakta; cam şeritten ve kuzey pencerelerinden görünüyor
-			local planet = K.ball(f, "Planet", M.centerX - 300, 260, M.Z0 - 1500, 700, rgb(226, 150, 96), { ghost = true })
+			-- Uzay soygununun gezegen sırası (z -330..-1800) bunun önünde kalsın
+			local planet = K.ball(f, "Planet", M.centerX - 480, 320, M.Z0 - 2900, 1000, rgb(226, 150, 96), { ghost = true })
 			planet.CastShadow = false
-			K.ball(f, "PlanetBand", M.centerX - 300, 300, M.Z0 - 1497, 690, rgb(236, 180, 120), { ghost = true }).CastShadow = false
+			K.ball(f, "PlanetBand", M.centerX - 480, 380, M.Z0 - 2896, 986, rgb(236, 180, 120), { ghost = true }).CastShadow = false
 			local moon = K.ball(f, "Moon", M.centerX + 420, 330, M.Z0 - 1100, 140, rgb(196, 204, 214), { ghost = true })
 			moon.CastShadow = false
 			-- Güneyde ikinci gezegen: lobi pencerelerinden

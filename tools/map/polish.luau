@@ -123,7 +123,10 @@ return {
 				local wallZ = if back then hallMinZ else hallMaxZ
 				local inward = if back then 1 else -1
 				local facing = Vector3.new(0, 0, inward)
-				local atGate = not back and gx >= gateX0 and gx <= gateX1
+				-- Arka (kuzey) uçta da artık kapı var: Launch Bay (Config.Space)
+				local space = K.Config.Space or {}
+				local northGate = space.GateX ~= nil and math.abs(gx - space.GateX) <= (space.GateWidth or 0) / 2
+				local atGate = (not back and gx >= gateX0 and gx <= gateX1) or (back and northGate)
 				-- Ortadaki boşluğun arka ucunda kasa yığını; yanlardakinde vent var (aşağıda)
 				if gi == math.ceil(#gaps / 2) and not atGate then
 					local base = Vector3.new(gx - 4, 2.5, wallZ + inward * 3.2)

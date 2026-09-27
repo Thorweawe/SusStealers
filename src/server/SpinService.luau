@@ -24,7 +24,7 @@ local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
-local ConveyorService = require(script.Parent.ConveyorService)
+local SpaceService = require(script.Parent.SpaceService)
 local MonetizationService = require(script.Parent.MonetizationService)
 local BadgeService = require(script.Parent.BadgeService)
 
@@ -85,35 +85,21 @@ local function grantReward(player: Player, reward: Config.SpinReward): string?
 		EconomyService.AddCash(player, amount)
 		return string.format("$%s", Config.FormatCash(amount))
 
-	elseif reward.kind == "spawn" then
-		if not ConveyorService.SpawnFor(player) then
-			return nil
-		end
-		return "a unit on your conveyor"
-
-	elseif reward.kind == "mutation" then
-		if not ConveyorService.GrantLuckyRoll(player) then
-			return nil
-		end
-		return "a guaranteed mutation"
-
-	elseif reward.kind == "unit" then
+	elseif reward.kind == "spawn" or reward.kind == "mutation" or reward.kind == "unit" then
 		--[[
-			Doğrudan kaideye konan bedava karakter. Boş kaide yoksa
-			ödülü kaybetmesin diye nakde çevriliyor.
+			Konveyör kalktı: karakter doğrudan kaideye (SpaceService). Havuz
+			oyuncunun hızının yettiği en iyi canavar; "unit" (Jackpot) bir
+			üst canavarın havuzundan. Boş kaide yoksa ödül kaybolmasın diye
+			o havuzdan bir karakterin satış değeri kadar nakit.
 		]]
-		local plot = PlotService.GetPlotOf(player)
-		local podium = plot and PlotService.FindEmptyPodium(plot)
-		local def = Config.RollUnit(rng, 0)
-
-		if podium and PlotService.PlaceUnit(podium, def.id, nil) then
-			if def.rarity == "Secret" then
-				BadgeService.Award(player, "SecretFind")
-			end
-			return def.name
+		local mutated = reward.kind == "mutation"
+		local bonusTier = if reward.kind == "unit" then 1 else 0
+		local name = SpaceService.GrantUnit(player, mutated, bonusTier)
+		if name then
+			return name
 		end
-
-		local amount = Config.GetPrice(def.id, nil)
+		local def = Config.RollSpaceUnit(rng, SpaceService.PoolFor(player, bonusTier))
+		local amount = Config.GetSellPrice(def.id, nil)
 		EconomyService.AddCash(player, amount)
 		return string.format("$%s (no free podium)", Config.FormatCash(amount))
 	end
@@ -179,9 +165,9 @@ local SLICE_LOOK: { [string]: { color: Color3, text: string } } = {
 	SmallCash = { color = Color3.fromRGB(88, 200, 74), text = "CASH" },
 	MedCash = { color = Color3.fromRGB(40, 150, 230), text = "BIG CASH" },
 	HugeCash = { color = Color3.fromRGB(255, 190, 30), text = "HUGE CASH" },
-	Spawn = { color = Color3.fromRGB(245, 120, 30), text = "SPAWN" },
-	Mutation = { color = Color3.fromRGB(160, 80, 235), text = "MUTATION" },
-	FreeUnit = { color = Color3.fromRGB(230, 45, 70), text = "FREE UNIT" },
+	Spawn = { color = Color3.fromRGB(245, 120, 30), text = "CREWMATE" },
+	Mutation = { color = Color3.fromRGB(160, 80, 235), text = "MUTATED" },
+	FreeUnit = { color = Color3.fromRGB(230, 45, 70), text = "JACKPOT" },
 }
 
 --[[

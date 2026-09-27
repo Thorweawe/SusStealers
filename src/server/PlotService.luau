@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local UnitModel = require(Shared.UnitModel)
+local CapsuleModel = require(Shared.CapsuleModel)
 
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
@@ -71,7 +72,6 @@ local LOOK = {
 	dark = Color3.fromRGB(30, 38, 46),
 	lamp = Color3.fromRGB(255, 250, 238),
 	lane = Color3.fromRGB(186, 204, 214),
-	belt = Color3.fromRGB(58, 72, 86),
 }
 
 local function newAnchoredPart(name: string, size: Vector3, cframe: CFrame, color: Color3, parent: Instance): Part
@@ -108,7 +108,7 @@ end
 	     -9   ön kaide sırası
 	      0   bonus kaide sırası
 	     +9   arka kaide sırası
-	    +21   konveyör
+	    +37   uzay kapsülü (üssün zemininin dışında, arkada)
 
 	KAİDE DAĞILIMI — "5'e 3 olmuş, 4'e 4 olmalı" şikâyetinin sebebi:
 	eskiden 10 kaide sırayla ikiye bölünüyordu (1-5 ön, 6-10 arka) ve bonus
@@ -607,7 +607,6 @@ local function buildUpgradeBooth(parent: Instance, origin: Vector3)
 		Sağ kenarda, ön ve arka arasında. Çakışma kontrolü:
 		    doğuş pedi   x ±4,   z -23..-15
 		    kaideler     x ±11.2 (sıralar), ±18.8 (bonus)
-		    konveyör     z +21
 		    merdiven     x -36..-25
 		Kulübe x 22..34, z -10..-2 → hiçbiriyle kesişmiyor.
 	]]
@@ -963,18 +962,14 @@ local function buildPlot(index: number): Model
 	buildUpgradeBooth(plot, origin)
 	buildLockConsole(plot, origin)
 
-	-- Konveyör (görsel şerit)
-	local conveyor = newAnchoredPart(
-		"Conveyor",
-		Vector3.new(Config.PlotSize.X - 8, 1, 5),
-		CFrame.new(origin + Vector3.new(0, Config.PlotSize.Y / 2 + 0.5, Config.PlotSize.Z / 2 - 5)),
-		LOOK.belt,
-		plot
-	)
-
-	local items = Instance.new("Folder")
-	items.Name = "Items"
-	items.Parent = plot
+	--[[
+		Uzay kapsülü: üssün arkasında, zeminin DIŞINDA (oda ile arka duvar
+		arasında ~40 stud boşluk var; konveyörün eski yeri büyük kapsüle
+		dar geliyordu). Ayak tabanı oda karolarının üstünde (0.27). Kapı
+		üsse (-Z) bakıyor. Antrenman ve yükseltme CapsuleService'te.
+	]]
+	local capsule = CapsuleModel.Build(CFrame.new(origin + Vector3.new(0, 0.27, Config.PlotSize.Z / 2 + 11)))
+	capsule.Parent = plot
 
 	-- Sahip tabelası
 	local sign = newAnchoredPart(

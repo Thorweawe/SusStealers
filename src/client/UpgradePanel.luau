@@ -44,13 +44,13 @@ local Z = 30
 
 -- Her yükseltmenin kart rengi ve ikonu: kartlar birbirinden ayrılsın
 local TINT: { [string]: Color3 } = {
-	ConveyorSpeed = Color3.fromRGB(40, 150, 200),
+	SpaceCapsule = Color3.fromRGB(40, 150, 220),
 	UnitGuard = Color3.fromRGB(60, 170, 80),
 	CarrySpeed = Color3.fromRGB(230, 110, 40),
 	LockPower = Color3.fromRGB(140, 80, 220),
 }
 local ICON: { [string]: string } = {
-	ConveyorSpeed = "crate",
+	SpaceCapsule = "bolt",
 	UnitGuard = "crewmate",
 	CarrySpeed = "boot",
 	LockPower = "lock",
@@ -63,12 +63,12 @@ local ICON: { [string]: string } = {
 type Effect = { label: string, value: (level: number) -> string }
 
 local EFFECT: { [string]: Effect } = {
-	-- Yükseltme hem aralığı kısaltıyor hem bandı hızlandırıyor (ConveyorService)
-	ConveyorSpeed = {
-		label = "Crewmate every / belt",
+	-- Kapsülde saniyede kazanılan uzay hızı (şu anki hızla, CapsuleService)
+	SpaceCapsule = {
+		label = "Space Speed / sec",
 		value = function(level)
-			return string.format("%.1fs / %.1fx", Config.GetConveyorInterval(level),
-				Config.GetConveyorBeltSpeed(level) / Config.GetConveyorBeltSpeed(0))
+			local speed = Players.LocalPlayer:GetAttribute("SpaceSpeed")
+			return string.format("+%.3f", Config.GetCapsuleGain(level, if typeof(speed) == "number" then speed else Config.Space.BaseSpeed))
 		end,
 	},
 	UnitGuard = {

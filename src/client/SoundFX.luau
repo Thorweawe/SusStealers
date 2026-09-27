@@ -147,8 +147,9 @@ function SoundFX.StartAmbient()
 end
 
 --[[
-	Konveyör dağıtıcılarına konumlu uğultu. 3B ses olduğu için oyuncu
-	yaklaştıkça yükseliyor; istasyonun çalıştığı hissini veriyor.
+	Üslerin uzay kapsüllerine konumlu uğultu (eskiden konveyör
+	dağıtıcılarındaydı). 3B ses olduğu için oyuncu yaklaştıkça yükseliyor;
+	istasyonun çalıştığı hissini veriyor.
 	Kaynak ses kısa, döngüye alınıyor.
 ]]
 function SoundFX.AttachMachineHum(anchor: BasePart)

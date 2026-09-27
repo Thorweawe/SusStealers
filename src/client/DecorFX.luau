@@ -100,7 +100,6 @@ function DecorFX.Start(): FX
 				})
 			end
 
-			-- Bant çıtası: kendi ekseninde değil, bir hat boyunca kayıyor
 			-- Kuluçka yumurtaları (Hatchery.EggN) EggStyle'da: her birinin kendi animasyonu var
 			local isHatchEgg = string.match(obj.Name, "^Egg%d+$") ~= nil
 				and obj.Parent ~= nil and obj.Parent.Name == "Hatchery"
@@ -118,14 +117,10 @@ function DecorFX.Start(): FX
 				})
 			end
 
-			--[[
-				Konveyör çıtaları (BeltSlat) burada DEĞİL, ConveyorFX'te:
-				hızları sabit değil, üssün bant saatine bağlı ve bandın
-				üstündeki karakterlerle birlikte çiziliyorlar.
-			]]
+			-- Bir hat boyunca kayan parçalar (SlideSpeed/SlideRange nitelikli)
 			local slide = obj:GetAttribute("SlideSpeed")
 			local slideRange = obj:GetAttribute("SlideRange")
-			if obj.Name ~= "BeltSlat" and typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
+			if typeof(slide) == "number" and typeof(slideRange) == "number" and slideRange > 0 then
 				local phase = obj:GetAttribute("SlidePhase")
 				table.insert(sliders, {
 					part = obj,
@@ -254,9 +249,9 @@ function DecorFX.Start(): FX
 		end
 
 		--[[
-			Bant çıtaları. Parçanın kendi yerel x ekseninde kayıyorlar, yani
-			konveyör hangi yöne dönükse çıta da o yöne akıyor — dünya eksenine
-			bağlamak üsler döndüğünde ters yöne akmalarına yol açardı.
+			Kayan parçalar kendi yerel x ekseninde kayıyor, yani parça hangi
+			yöne dönükse o yöne akıyor — dünya eksenine bağlamak döndürülmüş
+			parçalarda ters yöne akmalarına yol açardı.
 		]]
 		--[[
 			Yol hep [0, range] içinde; hız negatifse aynı yol ters yönde

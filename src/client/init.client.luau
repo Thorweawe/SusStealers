@@ -13,7 +13,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CarryGuide = require(script.CarryGuide)
-local ConveyorFX = require(script.ConveyorFX)
+local CapsuleFX = require(script.CapsuleFX)
 local CosmeticPanel = require(script.CosmeticPanel)
 local SabotagePanel = require(script.SabotagePanel)
 local AlertBanner = require(script.AlertBanner)
@@ -385,7 +385,6 @@ end)
 DecorFX.Start()
 -- Petleri istemci yürütüyor (sunucu yalnızca kuruyor): akıcı takip
 PetFollow.Start()
-ConveyorFX.Start()
 ThiefTrail.Start()
 
 local guide = CarryGuide.Create(screen)
@@ -399,22 +398,21 @@ local catalog = Index.Create(screen)
 
 
 --[[
-	Konveyör dağıtıcılarına konumlu makine uğultusu. Üsler oyun başlayınca
-	kuruluyor, o yüzden bir kez değil kurulana kadar deneniyor. Ses parçaya
-	bağlı olduğu için yaklaştıkça yükseliyor.
+	Üslerin uzay kapsüllerine konumlu makine uğultusu (eskiden konveyör
+	kapaklarındaydı). Üsler oyun başlayınca kuruluyor, o yüzden bir kez
+	değil kurulana kadar deneniyor. Ses parçaya bağlı: yaklaştıkça yükseliyor.
 ]]
 task.spawn(function()
 	for _ = 1, 40 do
-		local decor = workspace:FindFirstChild("Decor")
-		local plots = decor and decor:FindFirstChild("Plots")
+		local plots = workspace:FindFirstChild("Plots")
 		if plots then
 			local attached = 0
-			for _, pf in plots:GetChildren() do
-				for _, part in pf:GetChildren() do
-					if part:IsA("BasePart") and part.Name == "HatchHood" then
-						SoundFX.AttachMachineHum(part)
-						attached += 1
-					end
+			for _, plot in plots:GetChildren() do
+				local capsule = plot:FindFirstChild("Capsule")
+				local dome = capsule and capsule:FindFirstChild("Dome")
+				if dome and dome:IsA("BasePart") then
+					SoundFX.AttachMachineHum(dome)
+					attached += 1
 				end
 			end
 			if attached > 0 then
@@ -550,9 +548,14 @@ mountPanel("GearFX", function()
 	GearFX.Start(effects)
 end)
 
--- Uzay yürüyüşü: asteroitler, düşük yerçekimi, görev kartı (SpaceFX)
+-- Uzay soygunu: uçuş, canavarlar, yakalanıp fırlatılma, görev kartı (SpaceFX)
 mountPanel("SpaceFX", function()
 	SpaceFX.Start(screen, effects)
+end)
+
+-- Üssün uzay kapsülünde antrenman göstergesi (CapsuleFX)
+mountPanel("CapsuleFX", function()
+	CapsuleFX.Start(screen)
 end)
 
 --[[

@@ -437,8 +437,13 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		local plots = workspace:FindFirstChild("Plots")
 		local mine = player:GetAttribute("Plot")
 		local plot = plots and typeof(mine) == "string" and plots:FindFirstChild(mine)
-		if hint == "Conveyor" then
-			return plot and plot:FindFirstChild("Conveyor")
+		if hint == "SpaceGate" then
+			local zone = workspace:FindFirstChild("SpaceZone")
+			local bay = zone and zone:FindFirstChild("LaunchBay")
+			return bay and bay:FindFirstChild("LaunchPad")
+		elseif hint == "Capsule" then
+			local capsule = plot and plot:FindFirstChild("Capsule")
+			return capsule and capsule:FindFirstChild("Pad")
 		elseif hint == "Sign" then
 			return plot and plot:FindFirstChild("Sign")
 		elseif hint == "Upgrades" then
@@ -459,9 +464,6 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 			local decor = workspace:FindFirstChild("Decor")
 			local hatchery = decor and decor:FindFirstChild("Hatchery", true)
 			return hatchery and hatchery:FindFirstChild("Egg1")
-		elseif hint == "Airlock" then
-			local airlock = workspace:FindFirstChild("SpaceAirlock")
-			return airlock and airlock:FindFirstChild("AirlockPad")
 		elseif hint == "GearShop" then
 			local decor = workspace:FindFirstChild("Decor")
 			local shop = decor and decor:FindFirstChild("GearShop", true)

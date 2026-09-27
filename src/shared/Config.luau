@@ -150,48 +150,11 @@ Config.DefaultSettings = {
 Config.StartingCash = 250
 Config.IncomeInterval = 1
 
--- ─── Konveyör ───────────────────────────────────────────────────────────────
-Config.ConveyorInterval = 10   -- kaç saniyede bir yeni karakter gelir
-
 --[[
-	Bant hızı (stud/sn). Karakterler ve banttaki gri çıtalar AYNI hızla,
-	aynı saatle ilerliyor: her karakter bir çıtanın üstünde kapaktan çıkıyor
-	ve o çıtayla birlikte girişe kadar gidiyor.
-
-	ESKİ HATA: karakter 22 saniyede bandı geçiyordu (~2.7 stud/sn), çıtalar
-	ise sabit 5 stud/sn'de akıyordu. Çıtalar karakterlerin altından kayıp
-	gidiyor, bant "boşa dönüyor" gibi görünüyordu.
-
-	Conveyor Speed yükseltmesi bandı da hızlandırıyor (adına uygun), ama
-	tavanlı: en hızlı hâlde bile karakter bantta ~12 sn kalıyor, yoksa
-	almaya yetişilemezdi.
+	Konveyör 2026-09-27'de kaldırıldı: karakterler artık uzaydaki
+	canavarlardan çalınıyor (Config.Space, SpaceService). Üssün arkasındaki
+	bant yerine uzay hızını geliştiren kapsül duruyor (Config.Capsule).
 ]]
-Config.ConveyorBeltSpeed = 2.75       -- 0. seviyede
-Config.ConveyorBeltSpeedStep = 0.035  -- seviye başına +%3.5
-Config.ConveyorBeltSpeedMax = 1.8     -- en fazla 1.8 katı
--- Banttaki çıta sayısı. Harita (tools/map/bays.luau) ile aynı olmalı:
--- karakterler çıta aralığına hizalı doğuyor.
-Config.ConveyorSlats = 8
-
-function Config.GetConveyorBeltSpeed(level: number): number
-	local mul = math.min(Config.ConveyorBeltSpeedMax, 1 + math.max(0, level) * Config.ConveyorBeltSpeedStep)
-	return Config.ConveyorBeltSpeed * mul
-end
-
---[[
-	Parası bitmiş oyuncu koruması.
-
-	Kaidesi boş (geliri 0) oyuncuya kilitlenme koruması en ucuz karakterin
-	parasını veriyor ($100). Ama konveyör rastgele çekiyordu: $100'lük Red
-	Crewmate beş çekilişte bir çıkıyor, çoğu zaman mutasyonla pahalanıyor,
-	bantta 22 sn kalıyor. Oyuncu $100 ile bekleyip hiçbir şey alamıyordu.
-
-	Artık geliri 0 olan oyuncunun bandına YALNIZCA alabileceği karakterler
-	geliyor. Geliri olan ama art arda ConveyorPityAfter karakteri alamayan
-	oyuncuya da bir sonraki çekiliş bütçesine uygun geliyor (elinde en ucuz
-	karakterin parası varsa).
-]]
-Config.ConveyorPityAfter = 3
 
 -- ─── Çalma ──────────────────────────────────────────────────────────────────
 Config.StealHoldTime = 4.0     -- prompt kaç saniye basılı tutulur
@@ -282,10 +245,12 @@ export type SpinReward = {
 Config.SpinRewards = {
 	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  60, minimum =   1000 },
 	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 300, minimum =  10000 },
-	{ id = "Spawn",      name = "Instant Spawn",     weight = 15, kind = "spawn" },
-	{ id = "Mutation",   name = "Guaranteed Mutation", weight = 12, kind = "mutation" },
+	-- spawn/mutation/unit: karakter doğrudan kaideye (SpaceService.GrantUnit)
+	{ id = "Spawn",      name = "Free Crewmate",     weight = 15, kind = "spawn" },
+	{ id = "Mutation",   name = "Mutated Crewmate",  weight = 12, kind = "mutation" },
 	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 900, minimum = 100000 },
-	{ id = "FreeUnit",   name = "Free Unit",         weight =  2, kind = "unit" },
+	-- Jackpot: bir üst canavarın havuzundan
+	{ id = "FreeUnit",   name = "Jackpot Crewmate",  weight =  2, kind = "unit" },
 } :: { SpinReward }
 
 --[[
@@ -435,7 +400,7 @@ export type QuestDef = {
 ]]
 Config.Quests = {
 	{ id = "Steal",   stat = "stolen",   base = 3, maxGoal = 30, fromTier = 1, text = "Steal %s crewmates" },
-	{ id = "Buy",     stat = "bought",   base = 5, maxGoal = 50, fromTier = 1, text = "Buy %s crewmates off the conveyor" },
+	{ id = "Heist",   stat = "salvaged", base = 2, maxGoal = 20, fromTier = 1, text = "Steal %s crewmates from space monsters" },
 	{ id = "Sell",    stat = "sold",     base = 3, maxGoal = 25, fromTier = 1, text = "Sell %s crewmates" },
 	{ id = "Earn",    stat = "earned",   base = 0, maxGoal = 0,  fromTier = 1, text = "Earn $%s", incomeSeconds = 300, minimum = 20000 },
 	{ id = "Catch",   stat = "caught",   base = 1, maxGoal =  3, fromTier = 2, text = "Catch %s thieves red-handed" },
@@ -607,8 +572,9 @@ end
 --[[
 	Yeni oyuncunun ilk oturumunda izlediği sıralı adımlar.
 
-	Neden var: oyunun döngüsü (konveyörden al -> kaideye koy -> gelir üret ->
-	başkasından çal -> üssünü kilitle) hiçbir yerde anlatılmıyor. Bu türde
+	Neden var: oyunun döngüsü (uzaydaki canavardan çal -> kaideye koy -> gelir
+	üret -> kapsülde hızlan -> başkasından çal -> üssünü kilitle) hiçbir
+	yerde anlatılmıyor. Bu türde
 	oyuncu ilk iki dakikada döngüyü çözemezse çıkıyor.
 
 	Adımlar sıralı: biri bitmeden sonraki gösterilmiyor. Koşul kontrolü
@@ -637,30 +603,29 @@ export type TutorialStep = {
 }
 
 Config.Tutorial = {
+	--[[
+		Konveyör yok: ilk karakter uzaydaki ilk canavardan (Glorp) çalınıyor.
+		Taban uzay hızı ilk canavara yetiyor (Config.Space.BaseSpeed).
+	]]
 	{
-		id = "Buy", title = "Hire a crewmate", hint = "Conveyor",
-		text = "Crewmates ride the conveyor at your base. Hold the prompt on one to buy it.",
+		id = "Heist", title = "Steal from a space monster", hint = "SpaceGate",
+		text = "Go through the Launch Bay gate, fly to the first planet and grab a crewmate. Fly back before the monster catches you!",
 		check = "units", goal = 1, reward = 500,
 	},
 	{
-		id = "Fill", title = "Fill another podium", hint = "Conveyor",
-		text = "Every crewmate on a podium prints cash each second. Buy a second one.",
+		id = "Fill", title = "Steal another crewmate", hint = "SpaceGate",
+		text = "Every crewmate on a podium prints cash each second. Bring home a second one.",
 		check = "units", goal = 2, reward = 1500,
+	},
+	{
+		id = "Train", title = "Train in your capsule", hint = "Capsule",
+		text = "Stand inside the Space Capsule in your base. It raises your Space Speed so you can outrun bigger monsters.",
+		check = "spaceSpeed", goal = 18, reward = 3000,
 	},
 	{
 		id = "Steal", title = "Steal from a rival", hint = "RivalPlot",
 		text = "Walk into another base, hold the prompt on a podium, then carry it home.",
 		check = "steals", goal = 1, reward = 4000,
-	},
-	--[[
-		Sunucuda kimse yokken çalma döngüsü kayboluyordu: uzay yürüyüşü
-		(SpaceService) tek başına da oynanıyor. Çalma adımının hemen
-		arkasında ki yalnız oyuncu "çalamadım" deyip kalmasın.
-	]]
-	{
-		id = "Space", title = "Rescue a lost crewmate", hint = "Airlock",
-		text = "Go through the airlock, grab a crewmate floating in space and outrun the Void Beasts back!",
-		check = "salvaged", goal = 1, reward = 6000,
 	},
 	{
 		id = "Lock", title = "Lock your base", hint = "Sign",
@@ -1227,7 +1192,7 @@ Config.PassStrongLockCooldown = 50
 export type ProductDef = {
 	id: number,
 	name: string,
-	kind: string,       -- cash | conveyor | lucky | rebirth | spin | potion
+	kind: string,       -- cash | conveyor | lucky | rebirth | spin | potion (conveyor/lucky: karakter doğrudan kaideye, SpaceService)
 	amount: number?,
 	potion: string?,    -- kind = "potion": verilecek iksirin kimliği (Config.Potions)
 }
@@ -1237,9 +1202,8 @@ Config.Products = {
 	Cash100K       = { id = 3714873855, name = "$100K",           kind = "cash", amount =   100000 },
 	Cash1M         = { id = 3714873899, name = "$1M",             kind = "cash", amount =  1000000 },
 	Cash10M        = { id = 3714873959, name = "$10M",            kind = "cash", amount = 10000000 },
-	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı: bant zaten
-	-- sürekli karakter getiriyor, parayla beklemeyi atlamak anlamlı değildi.
-	-- ConveyorService'in "conveyor" ödülü duruyor; ürün tekrar eklenirse çalışır.
+	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı. Konveyör de
+	-- kalktı; "conveyor" ödülü artık SpaceService'te (kaideye bir karakter).
 	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },
 	InstantRebirth = { id = 3714874005, name = "Instant Rebirth", kind = "rebirth" },
 	ExtraSpin      = { id = 3714873337, name = "Extra Spin",      kind = "spin" },
@@ -1294,7 +1258,8 @@ export type UpgradeDef = {
 	rebirth'ten sonra harcanacak yer yine kalmazdı.
 ]]
 Config.Upgrades = {
-	{ id = "ConveyorSpeed", name = "Conveyor Speed", baseMaxLevel = 6, baseCost = 100000, costGrowth = 2.0 },
+	-- Kapsül ucuz başlıyor: yeni oyuncunun ilk harcaması (Config.Capsule)
+	{ id = "SpaceCapsule",  name = "Space Capsule",  baseMaxLevel = 6, baseCost = 4000,   costGrowth = 2.3 },
 	{ id = "UnitGuard",     name = "Unit Guard",     baseMaxLevel = 6, baseCost = 240000, costGrowth = 2.0 },
 	{ id = "CarrySpeed",    name = "Carry Speed",    baseMaxLevel = 5, baseCost = 400000, costGrowth = 2.0 },
 	{ id = "LockPower",     name = "Lock Power",     baseMaxLevel = 6, baseCost = 600000, costGrowth = 2.0 },
@@ -1345,16 +1310,6 @@ end
 
 -- Yükseltme etkileri. Hepsi tek yerde dursun ki denge değiştirmek kolay olsun.
 
---[[
-	Konveyörde iki karakter arası süre. Çarpımsal azalıyor: doğrusal
-	olsaydı birkaç seviyede tabana çarpar, kalan seviyeler hiçbir şey
-	yapmazdı.
-]]
-function Config.GetConveyorInterval(level: number): number
-	-- 0.88 -> 0.94: seviye başına yarı etki, iki kat seviyede aynı taban
-	return math.max(2, Config.ConveyorInterval * 0.94 ^ level)
-end
-
 --[[ Yeni konan karakterin dokunulmazlık süresi. ]]
 function Config.GetSafeSeconds(level: number): number
 	return Config.SafeSeconds + level * 1
@@ -1403,7 +1358,8 @@ Config.Rarities = {
 }
 
 -- ─── Karakterler ────────────────────────────────────────────────────────────
--- weight: konveyörde çıkma ağırlığı (büyük = sık)
+-- weight: aynı nadirlikteki karakterler arasında çıkma ağırlığı (büyük = sık;
+--         nadirliği canavarın odds'u seçiyor, Config.RollSpaceUnit)
 -- income: saniyede kazandırdığı para
 export type UnitDef = {
 	id: string,
@@ -1525,7 +1481,7 @@ for _, unit in Config.Units do
 end
 
 -- ─── Mutasyonlar ────────────────────────────────────────────────────────────
--- Konveyörde çıkan her karaktere sırayla bakılır, ilk tutan uygulanır.
+-- Uzayda (ve bedava ödüllerde) çıkan her karaktere sırayla bakılır, ilk tutan uygulanır.
 export type MutationDef = {
 	id: string,
 	name: string,
@@ -1551,10 +1507,16 @@ Config.Mutations = {
 -- bir karakter olur.
 Config.MutationPriceFactor = 0.6
 
--- Karakter satılınca alış fiyatının bu kadarı geri gelir. 1.0'a yaklaştıkça
--- oyuncu bedava deneme hakkı kazanır: alır, beğenmezse tam iade alır.
--- Düşürdükçe kaide dolduğunda karar vermek zorlaşır.
-Config.SellRefundFactor = 0.5
+--[[
+	Satınca karakter değerinin (price) bu kadarı gelir.
+
+	2026-09-27: 0.5 → 0.25. Konveyörde karakter parayla alınıyordu, satış
+	zararına bir iadeydi. Artık canavarlardan BEDAVA çalınıyor; yarı değer
+	"çal-sat" döngüsünü gelirden hızlı bir para musluğuna çeviriyordu. Şimdi
+	satış kaide açmak içindir: tutmak her zaman daha kârlı (Common ~20 sn,
+	Secret ~4 dk'lık geliri eder).
+]]
+Config.SellRefundFactor = 0.25
 
 -- ─── Yardımcılar ────────────────────────────────────────────────────────────
 
@@ -1580,9 +1542,9 @@ function Config.GetMutation(id: string?): MutationDef?
 end
 
 --[[
-	Karakterin satış fiyatı. Konveyör bunu kullanır; çalınan bir karakter
-	sahibine iade edilemediğinde para iadesi de buradan hesaplanır.
-	Tek kaynak olsun diye iki yerde ayrı ayrı hesaplanmıyor.
+	Karakterin değeri (eskiden konveyördeki fiyatı). Satış bunun
+	SellRefundFactor'ü; çalınan karakter sahibine iade edilemediğinde para
+	iadesi ve çalma süresi de buradan. Tek kaynak.
 ]]
 function Config.GetPrice(unitId: string, mutationId: string?): number
 	local def = unitsById[unitId]
@@ -1596,9 +1558,8 @@ function Config.GetPrice(unitId: string, mutationId: string?): number
 end
 
 --[[
-	Konveyörden alınabilecek en ucuz karakterin fiyatı. Oyuncunun
-	kilitlenip kilitlenmediğini anlamak için kullanılıyor: geliri sıfır
-	ve nakdi bunun altındaysa hiçbir şey yapamaz.
+	En düşük karakter değeri. (Konveyör döneminde "kilitlenme koruması"
+	buna bakıyordu; karakterler artık bedava, koruma kalktı.)
 ]]
 local cheapestPrice: number? = nil
 function Config.GetCheapestUnitPrice(): number
@@ -1678,111 +1639,10 @@ function Config.GetOfflineEarnings(incomePerSecond: number, secondsAway: number)
 end
 
 --[[
-	Konveyör seviyesinin nadirliğe etkisi.
-
-	Önceden bütün seviyelerde aynı ağırlıklar kullanılıyordu: ilk dakikasında
-	oyuna giren biri Amogus Prime görebiliyordu. Bu iki şeyi birden bozuyor —
-	ilerleme hissi kalmıyor ve ConveyorSpeed upgrade'i sadece "daha sık"
-	anlamına geliyor, "daha iyi" anlamına gelmiyor.
-
-	Artık her nadirlik kademesinin bir açılma seviyesi var. Kilitli kademe
-	hiç çıkmıyor; açık kademelerin ağırlığı seviye yükseldikçe artıyor.
-	Böylece upgrade "daha hızlı kasa" değil "daha iyi kasa" oluyor.
-
-	unlockLevel: bu kademenin çıkmaya başladığı ConveyorSpeed seviyesi
-	bonus:       seviye başına ağırlık çarpanı artışı
+	Konveyörün seviyeye bağlı nadirlik kilidi (RarityUnlock, RollUnit,
+	RollAffordableUnit) 2026-09-27'de kalktı: nadirliği artık canavarın
+	havuzu seçiyor (Config.SpaceMonsters[i].odds, Config.RollSpaceUnit).
 ]]
-Config.RarityUnlock = {
-	Common    = { unlockLevel = 0,  bonus = 0.00 },
-	Uncommon  = { unlockLevel = 0,  bonus = 0.06 },
-	Rare      = { unlockLevel = 2,  bonus = 0.14 },
-	Epic      = { unlockLevel = 4,  bonus = 0.22 },
-	Legendary = { unlockLevel = 6,  bonus = 0.30 },
-	Mythic    = { unlockLevel = 8,  bonus = 0.40 },
-	Secret    = { unlockLevel = 10, bonus = 0.50 },
-}
-
---[[
-	Bir karakterin verilen seviyedeki ağırlığı. Kilitliyse 0.
-	Common'a bonus verilmiyor: seviye yükseldikçe payı kendiliğinden
-	azalsın, yoksa üst kademeler hiç öne çıkamıyor.
-]]
-function Config.GetUnitWeight(unit: UnitDef, conveyorLevel: number): number
-	local gate = Config.RarityUnlock[unit.rarity]
-	if not gate then
-		return unit.weight
-	end
-	if conveyorLevel < gate.unlockLevel then
-		return 0
-	end
-
-	local steps = conveyorLevel - gate.unlockLevel
-	return unit.weight * (1 + gate.bonus * steps)
-end
-
---[[
-	Konveyör için ağırlıklı rastgele karakter seçer. Seviye verilmezse 0
-	kabul edilir: çağıran taraf seviyeyi geçirmeyi unutursa oyun kırılmaz,
-	sadece başlangıç havuzundan çeker.
-]]
-function Config.RollUnit(rng: Random, conveyorLevel: number?): UnitDef
-	local level = conveyorLevel or 0
-
-	local total = 0
-	for _, unit in Config.Units do
-		total += Config.GetUnitWeight(unit, level)
-	end
-
-	if total <= 0 then
-		return Config.Units[1]
-	end
-
-	local roll = rng:NextNumber(0, total)
-	for _, unit in Config.Units do
-		roll -= Config.GetUnitWeight(unit, level)
-		if roll <= 0 then
-			return unit
-		end
-	end
-
-	return Config.Units[1]
-end
-
---[[
-	Bütçeye uygun karakter çeker: yalnızca fiyatı `budget`'ı aşmayan ve o
-	seviyede açık olan karakterler, kendi ağırlıklarıyla. Hiçbiri uymuyorsa
-	en ucuz karakter (kilitlenme koruması parayı zaten ona tamamlıyor).
-]]
-function Config.RollAffordableUnit(rng: Random, conveyorLevel: number?, budget: number): UnitDef
-	local level = conveyorLevel or 0
-
-	local total = 0
-	for _, unit in Config.Units do
-		if unit.price <= budget then
-			total += Config.GetUnitWeight(unit, level)
-		end
-	end
-
-	if total > 0 then
-		local roll = rng:NextNumber(0, total)
-		for _, unit in Config.Units do
-			if unit.price <= budget then
-				roll -= Config.GetUnitWeight(unit, level)
-				if roll <= 0 then
-					return unit
-				end
-			end
-		end
-	end
-
-	local cheapest = Config.Units[1]
-	for _, unit in Config.Units do
-		if unit.price < cheapest.price then
-			cheapest = unit
-		end
-	end
-	return cheapest
-end
 
 --[[ Mutasyon çeker, çıkmazsa nil döner. ]]
 function Config.RollMutation(rng: Random): MutationDef?
@@ -2680,96 +2540,222 @@ function Config.FormatCash(amount: number): string
 	return string.format("%.2f%s", value, suffixes[index])
 end
 
--- ─── Uzay yürüyüşü ──────────────────────────────────────────────────────────
+-- ─── Uzay soygunu ───────────────────────────────────────────────────────────
 --[[
-	Kafeteryadaki hava kilidinden geminin dışına çıkılıyor: asteroit yağan
-	bir kaya yolundan Void Beast yuvasına yürünüp balonlarda süzülen kayıp
-	mürettebatlar kapılıyor, canavarlar kovalarken rıhtıma kaçılıyor.
-	Rıhtıma varan karakter doğrudan üssün boş kaidesine gidiyor.
+	Karakterlerin kaynağı: uzaydaki canavarlar ("Steal an Egg" fikri, bizim
+	temada). Kafeteryanın karşısındaki kuzey duvarın ortası açık; arkasında
+	Launch Bay güvertesi, ötesinde uzay. Güverteden atlayan oyuncu uçuyor.
 
-	NEDEN: sunucuda kimse yokken oyunun asıl olayı (çalma) kayboluyordu.
-	Uzay yürüyüşü tek başına da çalma heyecanını veriyor; oyuncular varken
-	de ikinci bir yol.
+	  Gezegenler  — tek sırada, bir sağda bir solda; her birinin tepesinde
+	                bir canavar ve önünde CrewPerPlanet kayıp mürettebat
+	  Çalma       — mürettebata GrabHold sn basılı tut → sırtına alıyorsun,
+	                canavar kükreyip kovalıyor. Güverteye (ya da gemiye)
+	                varınca karakter üssün boş kaidesine gidiyor
+	  Yakalanma   — canavar oyuncuyu eliyle kavrıyor ve gemiye fırlatıyor;
+	                karakter canavarın önüne geri dönüyor
+	  Uzay hızı   — uçuş hızı (stud/sn), profilde kalıcı. Kapsülde durarak
+	                artıyor (Config.Capsule). Her canavar need hızında
+	                kovalıyor: hızın ondan düşükse kaçamazsın
 
-	HIZLAR BİLEREK GEMİDEKİNDEN FARKLI: gemide taşırken yavaş olmak çalmanın
-	riskiydi; uzayda yavaşlık eğlenceyi öldürür. Burada risk asteroitler
-	ve canavarlar. Canavarın tavan hızı taşırken koşmanın altında: iyi
-	kaçan kurtulur, asteroide çarpan (savrulup duran) yakalanır.
+	Kademe = nadirlik havuzu. İlk canavar taban hıza göre ayarlı: oyuna yeni
+	giren herkes ilk karakterini oradan alıyor.
 
-	Geometri ve asteroit hesabı: shared/SpaceField (sunucu + istemci aynı).
+	Geometri SpaceField'da (sunucu + istemci aynı hesap). Konumlar dünya
+	koordinatı: istasyon x -78..438, z -68..184; kuzey duvar z = -68.
 ]]
-export type SpaceLane = {
-	z: number,       -- yol boyunca yeri (Origin'e göre, negatif)
-	speed: number,   -- stud/sn
-	period: number,  -- iki geçiş arası sn (speed × period > LaneSpan olmalı)
-	radius: number,
-	height: number,  -- zeminden merkez yüksekliği
-	dir: number,     -- 1 soldan sağa, -1 sağdan sola
-	phase: number,
+export type SpaceMonsterDef = {
+	id: string,
+	name: string,           -- oyuncunun gördüğü ad
+	planet: string,         -- gezegenin adı
+	need: number,           -- önerilen uzay hızı = canavarın tavan kovalama hızı
+	position: Vector3,      -- gezegenin tepesindeki düzlüğün (plato) merkezi, üst yüz
+	radius: number,         -- gezegen yarıçapı
+	scale: number,          -- canavar modelinin ölçeği (MonsterModel)
+	odds: { [string]: number },   -- nadirlik -> ağırlık
+	planetColor: Color3,
+	planetColor2: Color3,
+	glow: Color3,
 }
-export type SpaceSegment = { z0: number, z1: number }
+
+Config.SpaceMonsters = {
+	{
+		id = "Glorp", name = "Glorp", planet = "Gloopus", need = 16,
+		position = Vector3.new(40, 2, -330), radius = 44, scale = 1,
+		odds = { Common = 88, Uncommon = 12 },
+		planetColor = Color3.fromRGB(96, 178, 88), planetColor2 = Color3.fromRGB(62, 128, 70), glow = Color3.fromRGB(150, 255, 90),
+	},
+	{
+		id = "Chomper", name = "Chomper", planet = "Candorra", need = 28,
+		position = Vector3.new(320, 16, -610), radius = 48, scale = 1.15,
+		odds = { Common = 30, Uncommon = 55, Rare = 15 },
+		planetColor = Color3.fromRGB(214, 96, 170), planetColor2 = Color3.fromRGB(150, 58, 130), glow = Color3.fromRGB(255, 120, 200),
+	},
+	{
+		id = "Kraken", name = "Nebula Kraken", planet = "Abyssia", need = 44,
+		position = Vector3.new(40, -6, -890), radius = 52, scale = 1.3,
+		odds = { Uncommon = 30, Rare = 50, Epic = 20 },
+		planetColor = Color3.fromRGB(46, 96, 184), planetColor2 = Color3.fromRGB(30, 60, 132), glow = Color3.fromRGB(80, 230, 255),
+	},
+	{
+		id = "SandMaw", name = "Sand Maw", planet = "Duneveil", need = 64,
+		position = Vector3.new(320, 22, -1170), radius = 56, scale = 1.45,
+		odds = { Rare = 30, Epic = 50, Legendary = 18, Mythic = 2 },
+		planetColor = Color3.fromRGB(214, 146, 84), planetColor2 = Color3.fromRGB(170, 104, 58), glow = Color3.fromRGB(90, 200, 255),
+	},
+	{
+		id = "RiftStalker", name = "Rift Stalker", planet = "Cinderhold", need = 90,
+		position = Vector3.new(40, 4, -1450), radius = 58, scale = 1.6,
+		odds = { Epic = 30, Legendary = 50, Mythic = 18, Secret = 2 },
+		planetColor = Color3.fromRGB(64, 58, 66), planetColor2 = Color3.fromRGB(40, 36, 44), glow = Color3.fromRGB(255, 90, 40),
+	},
+	{
+		id = "VoidLeviathan", name = "Void Leviathan", planet = "Umbra Prime", need = 120,
+		position = Vector3.new(320, 30, -1730), radius = 64, scale = 1.8,
+		odds = { Legendary = 45, Mythic = 43, Secret = 12 },
+		planetColor = Color3.fromRGB(38, 26, 64), planetColor2 = Color3.fromRGB(22, 14, 40), glow = Color3.fromRGB(200, 80, 255),
+	},
+} :: { SpaceMonsterDef }
 
 Config.Space = {
-	-- Geminin çok uzağında, yukarıda (pencerelerden uzak bir kaya yolu gibi görünüyor)
-	Origin = Vector3.new(180, 520, -1150),
-	DockHalf = Vector2.new(22, 20),     -- rıhtım yarı genişliği (x) ve yarı derinliği (z)
-	PathHalfWidth = 16,
-	-- Yol parçaları (z0 > z1). Aralar 12 stud: düşük yerçekiminde rahat atlanıyor
-	Segments = {
-		{ z0 = -20, z1 = -84 },
-		{ z0 = -96, z1 = -158 },
-		{ z0 = -170, z1 = -232 },
-		{ z0 = -244, z1 = -300 },
-	} :: { SpaceSegment },
-	NestZ = -362,
-	NestRadius = 62,
-	NestSpots = 6,
-	SpotRing = 36,
-	SpotHeight = 4.5,
-	MonsterCount = 3,
-	MonsterHover = 9,
-	LaneSpan = 200,
-	Lanes = {
-		{ z = -45,  speed = 30, period = 6.8, radius = 4.5, height = 3.5, dir = 1,  phase = 0.0 },
-		{ z = -68,  speed = 36, period = 6.2, radius = 5.0, height = 4.0, dir = -1, phase = 1.7 },
-		{ z = -115, speed = 34, period = 6.6, radius = 5.5, height = 4.0, dir = 1,  phase = 0.9 },
-		{ z = -140, speed = 40, period = 5.8, radius = 4.0, height = 3.0, dir = -1, phase = 3.1 },
-		{ z = -190, speed = 38, period = 6.0, radius = 6.0, height = 4.5, dir = 1,  phase = 2.2 },
-		{ z = -214, speed = 32, period = 7.0, radius = 4.5, height = 3.5, dir = -1, phase = 0.4 },
-		{ z = -262, speed = 42, period = 5.4, radius = 5.0, height = 4.0, dir = 1,  phase = 1.1 },
-		{ z = -285, speed = 36, period = 6.4, radius = 6.5, height = 5.0, dir = -1, phase = 2.8 },
-	} :: { SpaceLane },
-	FallDepth = 60,             -- yolun bu kadar altına düşen rıhtıma döner (taşıdığını düşürür)
+	BaseSpeed = 16,             -- yeni oyuncunun uzay hızı (ilk canavarın need'i)
+	MaxSpeed = 1000,            -- kayıt kırpması
 
-	-- Hareket (gemide: yürüme 16, koşma 24, taşıma en fazla 10)
-	Gravity = 55,               -- istemcide, yalnızca uzaydayken (normali 196.2)
-	JumpHeight = 14,
-	WalkSpeed = 24,
-	SprintSpeed = 32,
-	CarrySpeed = 22,
-	CarrySprintSpeed = 27,
+	-- Launch Bay: kuzey duvarın dışında, orta koridorun ucunda
+	GateX = 180,
+	GateWidth = 36,
+	GateHeight = 24,
+	WallZ = -68,                -- kuzey duvarın merkez çizgisi
+	WallThickness = 2.4,
+	DeckHalfWidth = 64,
+	DeckDepth = 62,             -- duvarın dış yüzünden dışarı
+	DeckTop = 0.27,             -- istasyonun karo üstüyle aynı
+	SafeHeight = 44,
 
-	GrabHold = 1.0,             -- balondaki mürettebatı kapma (gemide çalma ~4 sn)
-	SpotRespawn = 10,           -- boşalan balona yeni mürettebat
-	RollLevel = 4,              -- balondakilerin çekildiği havuz (konveyör seviyesi gibi)
+	-- Uçulabilen alan (dışına çıkan içeri itiliyor)
+	BoundsMin = Vector3.new(-220, -200, -1900),
+	BoundsMax = Vector3.new(580, 280, -68),
 
-	-- Void Beast
-	MonsterWakeDelay = 1.2,     -- kapınca kükreyip bu kadar sonra kovalamaya başlıyor
-	MonsterSpeed = 16,
-	MonsterMaxSpeed = 24.5,     -- taşırken koşmanın (27) altında
-	MonsterAccel = 1.6,         -- sn başına hız artışı
-	MonsterReturnSpeed = 30,
-	MonsterCatchRadius = 8.5,
-	MonsterSwipeRadius = 11,    -- yuvada boş elle yaklaşanı savuruyor
-	MonsterSwipeCooldown = 2.5,
+	-- Fırlatılan oyuncunun indiği yer: gemide, kapının içinde
+	Landing = Vector3.new(180, 3.5, -40),
 
-	-- Çarpmalar
-	HitImmunity = 2.2,
-	AsteroidKnock = 75,
-	AsteroidStun = 1.1,
-	MonsterKnock = 95,
-	MonsterStun = 1.6,
-	HitTolerance = 9,           -- sunucu doğrulamasında ağ gecikmesi payı (stud)
+	CrewPerPlanet = 5,
+	CrewRing = 13,              -- mürettebat yayının yarıçapı
+	CrewRespawn = 9,
+	GrabHold = 1.2,
+	GrabDistance = 12,
+
+	-- Canavar
+	WakeDelay = 0.9,            -- kükreme; sonra kovalıyor
+	ChaseStartMul = 0.8,        -- kovalamaya need × bu hızla başlıyor...
+	ChaseRamp = 2.5,            -- ...bu kadar sn'de need'e çıkıyor
+	CatchRadius = 7,            -- + ölçek × 2
+	ReturnSpeedMul = 1.4,
+	GrabTime = 1.3,             -- elinde tutup sallıyor
+	ThrowTime = 1.9,            -- gemiye uçuş süresi
+	ThrowImmunity = 2.5,        -- indikten sonra tekrar çalamama süresi
+
+	-- Hile payı: teslimde "bu yolu bu hızla en az şu kadar sürede gelmiş olmalı"
+	DeliverSpeedTolerance = 1.7,
+
+	-- Uçuş (istemci)
+	FlyAccel = 6,               -- hedef hıza yaklaşma katsayısı (sn⁻¹)
 }
+
+function Config.GetSpaceMonster(id: string): SpaceMonsterDef?
+	for _, def in Config.SpaceMonsters do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+
+--[[
+	Canavarın havuzundan karakter çeker: önce nadirlik (odds ağırlığıyla),
+	sonra o nadirlikteki karakterler kendi weight'leriyle.
+]]
+function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef): UnitDef
+	local total = 0
+	for _, w in def.odds do
+		total += w
+	end
+	local roll = rng:NextNumber(0, total)
+	local rarity = "Common"
+	for _, name in RARITY_LADDER do
+		local w = def.odds[name]
+		if w then
+			rarity = name
+			roll -= w
+			if roll <= 0 then
+				break
+			end
+		end
+	end
+	local pool = 0
+	for _, unit in Config.Units do
+		if unit.rarity == rarity then
+			pool += unit.weight
+		end
+	end
+	local pick = rng:NextNumber(0, pool)
+	for _, unit in Config.Units do
+		if unit.rarity == rarity then
+			pick -= unit.weight
+			if pick <= 0 then
+				return unit
+			end
+		end
+	end
+	return Config.Units[1]
+end
+
+--[[ Oyuncunun hızının yettiği en yüksek canavar (hiçbiri değilse ilki). ]]
+function Config.BestSpaceMonster(speed: number): SpaceMonsterDef
+	local best = Config.SpaceMonsters[1]
+	for _, def in Config.SpaceMonsters do
+		if speed >= def.need then
+			best = def
+		end
+	end
+	return best
+end
+
+-- ─── Uzay kapsülü ───────────────────────────────────────────────────────────
+--[[
+	Her üssün arkasında (konveyörün eski yerinde) bir kapsül. İçinde duran
+	sahibinin uzay hızı artıyor ("uzay yürüyüşü simülasyonu"). Kapsül
+	seviyesi = SpaceCapsule yükseltmesi (Config.Upgrades).
+
+	    kazanç/sn = Rate × Growth^seviye × (Ref / (hız + Ref − BaseSpeed))^Pow
+
+	İkinci çarpan azalan getiri: hız büyüdükçe aynı kapsül yavaşlıyor, üst
+	canavarlar yükseltme ister. Rebirth kapsülü sıfırlıyor (bütün
+	yükseltmeler gibi), kazanılmış hızı değil.
+]]
+Config.Capsule = {
+	Rate = 0.12,
+	Growth = 1.2,
+	Ref = 24,
+	Pow = 2,
+	Tick = 0.5,                 -- sunucunun ölçtüğü aralık
+	--[[
+		Mini oyun (Stardew balık tutma gibi): roketi hareketli yeşil alanda
+		tut, çubuk dolunca CatchBonusSeconds saniyelik kazanç bir anda gelir.
+		Sunucu sınırı: iki bonus arası en az CatchCooldown sn, kapsüle
+		girdikten en az CatchWarmup sn sonra. Hile en fazla ~2.2x verir;
+		iyi oynayan zaten oraya yaklaşıyor.
+	]]
+	CatchBonusSeconds = 10,
+	CatchCooldown = 8,
+	CatchWarmup = 3,
+}
+
+function Config.GetCapsuleGain(level: number, speed: number): number
+	local c = Config.Capsule
+	local falloff = (c.Ref / (math.max(speed, Config.Space.BaseSpeed) + c.Ref - Config.Space.BaseSpeed)) ^ c.Pow
+	return c.Rate * c.Growth ^ math.max(0, level) * falloff
+end
 
 return Config

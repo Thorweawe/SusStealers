@@ -2,7 +2,7 @@
 --[[
 	Sunucu geneli duyurular: sohbette "Summons" sekmesi.
 
-	Ne düşüyor: nadir çıkışlar. Birinin konveyöründe Mythic/Secret belirdi,
+	Ne düşüyor: nadir çıkışlar. Biri uzaydaki bir canavardan Mythic/Secret çaldı,
 	biri yumurtadan ya da birleştirmeden Mythic/Secret/Cosmic pet çıkardı.
 	Bunlar herkesin bilmesi gereken anlar — hırsız hedef seçiyor, sahibi
 	üssüne koşuyor.

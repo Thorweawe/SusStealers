@@ -44,8 +44,8 @@ local EVENTS = {
 	"SettingsSave", -- client -> server (settings: { music: number, sfx: number, shake: boolean })
 	"GearFX",       -- server -> client (kind: "use"|"hit"|"cloak", ...) — ekipman animasyon/etkileri
 	"CodeResult",   -- server -> client (ok: boolean, message: string) — mağazadaki kod kutusu
-	"SpaceFX",      -- server -> client (kind: "enter"|"exit"|"roar"|"knock"|"delivered", ...) — uzay yürüyüşü
-	"SpaceHit",     -- client -> server (laneIndex: number, serverTime: number) — asteroit çarptı
+	"SpaceFX",      -- server -> client (kind: "roar"|"grab"|"delivered", ...) — uzay soygunu (SpaceService)
+	"CapsuleCatch", -- client -> server (argümansız) — kapsül mini oyununda çubuk doldu
 }
 
 --[[
@@ -162,14 +162,13 @@ local CLIENT_TO_SERVER = {
 	]]
 	SettingsSave = true,
 	--[[
-		SpaceHit hiçbir şey VERMİYOR, yalnızca oyuncunun KENDİ aleyhine:
-		"bana asteroit çarptı" → taşıdığı kayıp mürettebatı düşürüyor.
-		Sunucu asteroidin o anda gerçekten o noktadan geçtiğini aynı
-		formülle doğruluyor (SpaceField.CameNear), sıklık çarpma
-		dokunulmazlığıyla sınırlı. Hile ile hiç göndermemek yalnızca
-		oyunu kolaylaştırıyor.
+		CapsuleCatch küçük bir hız bonusu veriyor ama sınırlı
+		(CapsuleService.TryCatch): oyuncu KENDİ kapsülünde antrenmanda
+		olmalı (sunucu konumdan ölçüyor), kapsüle gireli en az CatchWarmup
+		sn, iki bonus arası en az CatchCooldown sn. Bonus kapsülün kendi
+		kazancının CatchBonusSeconds katı: hile en fazla ~2.2x hız verir.
 	]]
-	SpaceHit = true,
+	CapsuleCatch = true,
 }
 
 local Net = {}

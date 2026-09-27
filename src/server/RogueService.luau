@@ -210,7 +210,7 @@ local function markObstacle(root: Instance)
 	end
 end
 
---[[ Bütün üslerin kaide ve bantlarını engel olarak işaretler (her çıkışta; ucuz). ]]
+--[[ Bütün üslerin kaide ve kapsüllerini engel olarak işaretler (her çıkışta; ucuz). ]]
 local function markObstacles()
 	ensureGroups()
 	for _, plot in PlotService.GetAllPlots() do
@@ -218,9 +218,9 @@ local function markObstacles()
 		if podiums then
 			markObstacle(podiums)
 		end
-		local conveyor = plot:FindFirstChild("Conveyor")
-		if conveyor then
-			markObstacle(conveyor)
+		local capsule = plot:FindFirstChild("Capsule")
+		if capsule then
+			markObstacle(capsule)
 		end
 	end
 end

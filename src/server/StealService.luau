@@ -138,20 +138,6 @@ local function applyWalkSpeed(player: Player)
 	local gearSprint = player:GetAttribute("GearSprint")
 	local sprintBoost = if typeof(gearSprint) == "number" then gearSprint else boost
 
-	--[[
-		Uzay yürüyüşü (SpaceService) kendi hızlarını kullanıyor: orada
-		yavaşlık risk değil sıkıntı; risk asteroitler ve canavarlar.
-	]]
-	if player:GetAttribute("InSpace") then
-		local space = Config.Space
-		if player:GetAttribute("SpaceCarry") then
-			humanoid.WalkSpeed = if sprinting[player] then space.CarrySprintSpeed else space.CarrySpeed
-		else
-			humanoid.WalkSpeed = if sprinting[player] then space.SprintSpeed else space.WalkSpeed
-		end
-		return
-	end
-
 	if carrying[player] then
 		humanoid.WalkSpeed = carrySpeedFor(player)
 	elseif sprinting[player] then

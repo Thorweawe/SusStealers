@@ -156,7 +156,7 @@ local POTIONS: { Entry } = {
 
 local BOOSTS: { Entry } = {
 	{ key = "LuckyRoll", kind = "product", title = "Mutation", art = "LuckyRoll", icon = "vial",
-		tint = Color3.fromRGB(150, 70, 220), blurb = "Next spawn is " .. hi("mutated", "#7CFF5B") },
+		tint = Color3.fromRGB(150, 70, 220), blurb = "A " .. hi("mutated", "#7CFF5B") .. " crewmate on your podium" },
 	{ key = "ExtraSpin", kind = "product", title = "Extra Spin", art = "ExtraSpin", icon = "wheel",
 		tint = Color3.fromRGB(226, 70, 150), blurb = hi("+1", "#FFE13C") .. " wheel spin" },
 	{ key = "InstantRebirth", kind = "product", title = "Rebirth", art = "InstantRebirth", icon = "crewmate",

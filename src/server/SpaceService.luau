@@ -1,33 +1,30 @@
 --!strict
 --[[
-	Uzay yürüyüşü: kafeteryadaki hava kilidinden geminin dışına çıkılıyor,
-	asteroit yağan kaya yolundan Void Beast yuvasına gidiliyor, balonlarda
-	süzülen kayıp mürettebatlardan biri kapılıyor ve canavarlar kovalarken
-	rıhtıma kaçılıyor. Rıhtıma varan karakter üssün boş kaidesine gidiyor.
+	Uzay soygunu: karakterlerin kaynağı (konveyörün yerine).
 
-	NEDEN: sunucuda kimse yokken çalma döngüsü tamamen kayboluyordu. Bu
-	yol tek başına da oynanıyor; oyuncular varken ikinci bir kaynak.
+	Kafeteryanın karşısındaki kuzey duvarın ortası açık; kapının dışında
+	Launch Bay güvertesi, ötesinde uzay. Güverteden çıkan oyuncu uçuyor
+	(istemci, SpaceFX). Uzayda tek sırada, bir sağda bir solda altı gezegen;
+	her birinin tepesinde bir canavar ve önünde kayıp mürettebatlar.
 
-	Parçalar:
-	  Hava kilidi (gemi)  — workspace.SpaceAirlock: kafeteryanın kuzeydoğu
-	                        köşe duvarında yuvarlak kapak + zemin pedi + prompt
-	  Uzay alanı          — workspace.SpaceZone (kalıcı model): rıhtım, yol,
-	                        yuva, balonlar, canavarlar. Çalışma anında kuruluyor.
-	  Asteroitler         — DETERMİNİSTİK (shared/SpaceField): ağda konum
-	                        gitmiyor, istemci çiziyor ve çarpmayı kendi
-	                        ekranında görüp bildiriyor ("SpaceHit"), sunucu aynı
-	                        formülle doğruluyor. Hile ile çarpmayı bildirmemek
-	                        yalnızca oyunu kolaylaştırıyor, hiçbir şey vermiyor.
-	  Canavarlar          — sunucuda: uyku → (kapınca) kükreme → kovalama →
-	                        yakalarsa karakteri yuvaya geri alıyor → dönüş.
+	  Çalma     — mürettebata basılı tut → sırtında; o gezegenin canavarı
+	              kükreyip kovalıyor (hızı Config.SpaceMonsters[i].need)
+	  Teslim    — güverteye ya da gemiye varınca karakter üssün boş kaidesine
+	  Yakalanma — canavar oyuncuyu eliyle kavrıyor ve gemiye fırlatıyor
+	              (istemci çiziyor, sunucu sonunda yerini garantiliyor);
+	              karakter gezegendeki yerine dönüyor
 
-	Hız: StealService.applyWalkSpeed "InSpace"/"SpaceCarry" niteliklerine
-	bakıp Config.Space hızlarını veriyor (tek yerde, koşma da orada).
-	Yerçekimi istemcide (karakter fiziği oyuncunun makinesinde).
+	Canavarlar sunucuda yalnızca görünmez bir kök parça: konum, yön ve
+	durum ("idle" | "wake" | "chase" | "grab" | "throw" | "return")
+	nitelikle gidiyor, modeli ve animasyonu istemci kuruyor (MonsterModel).
+	Ağda canavar başına tek parça.
+
+	Uzay hızı oyuncunun "SpaceSpeed" niteliğinde (CapsuleService yazıyor).
 
 	Oyuncu nitelikleri:
-	  InSpace     — uzay alanında
-	  SpaceCarry  — kayıp mürettebat taşıyor (istemci arayüzü ve hız için)
+	  InSpace       — uçuş bölgesinde (sunucu konumdan hesaplıyor)
+	  SpaceCarry    — canavardan çalınan karakteri taşıyor
+	  SpaceGrabbed  — canavarın elinde (id), fırlatılana kadar
 ]]
 
 local Players = game:GetService("Players")
@@ -40,7 +37,10 @@ local Net = require(Shared.Net)
 local SpaceField = require(Shared.SpaceField)
 local UnitModel = require(Shared.UnitModel)
 
+local AnnounceService = require(script.Parent.AnnounceService)
+local BadgeService = require(script.Parent.BadgeService)
 local DataService = require(script.Parent.DataService)
+local MonetizationService = require(script.Parent.MonetizationService)
 local PlotService = require(script.Parent.PlotService)
 local PromptGuard = require(script.Parent.PromptGuard)
 local StealService = require(script.Parent.StealService)
@@ -50,51 +50,53 @@ local SpaceService = {}
 SpaceService.NotifyKind = "steal"
 
 type Spot = {
+	planet: number,
 	index: number,
-	position: Vector3,
-	bubble: BasePart,
-	prompt: ProximityPrompt,
+	position: Vector3,   -- ayak hizası
 	unitId: string?,
 	mutationId: string?,
 	model: Model?,
 	emptySince: number?,
+	held: boolean,       -- biri taşıyor: yenisi gelmesin, düşerse aynısı dönsün
+}
+
+type Monster = {
+	def: Config.SpaceMonsterDef,
+	planet: number,
+	root: BasePart,
+	home: CFrame,
+	position: Vector3,
+	facing: Vector3,
+	state: string,
+	stateAt: number,
+	chaseAt: number,
+	target: Player?,
 }
 
 type Carry = {
 	unitId: string,
 	mutationId: string?,
+	planet: number,
 	spot: number,
 	model: Model,
-}
-
-type Monster = {
-	model: Model,
-	root: BasePart,
-	parts: { BasePart },
-	offsets: { CFrame },
-	wiggle: { number },     -- parça başına dokunaç salınımı (0 = sabit)
-	label: TextLabel,
-	home: Vector3,
-	position: Vector3,
-	facing: Vector3,
-	state: string,          -- "sleep" | "wake" | "chase" | "return"
-	target: Player?,
-	speed: number,
-	wakeAt: number,
-	lastSwipe: { [Player]: number },
+	grabbedAt: number,
+	from: Vector3,
 }
 
 local rng = Random.new()
 local notifyRemote: RemoteEvent? = nil
 local fxRemote: RemoteEvent? = nil
 
-local zone: Model? = nil
-local airlockPad: BasePart? = nil
-local spots: { Spot } = {}
+local spots: { { Spot } } = {}
 local monsters: { Monster } = {}
 local carrying: { [Player]: Carry } = {}
-local lastHit: { [Player]: number } = {}
-local savedJump: { [Player]: number } = {}
+local immuneUntil: { [Player]: number } = {}
+local grabbedBy: { [Player]: Monster } = {}
+-- Testler döngüyü durduruyor (canavar test oyuncusunu yakalamasın)
+local paused = false
+
+-- Gemi çıkışı nadir karakterleri herkese duyurulsun (eski konveyör kuralı)
+local ANNOUNCE_RARITIES = { Mythic = true, Secret = true }
 
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote and player.Parent then
@@ -108,6 +110,12 @@ local function fx(player: Player, ...: any)
 	end
 end
 
+local function fxAll(...: any)
+	if fxRemote then
+		fxRemote:FireAllClients(...)
+	end
+end
+
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -117,9 +125,9 @@ local function rootOf(player: Player): BasePart?
 	return nil
 end
 
-local function humanoidOf(player: Player): Humanoid?
-	local character = player.Character
-	return character and character:FindFirstChildOfClass("Humanoid")
+local function speedOf(player: Player): number
+	local v = player:GetAttribute("SpaceSpeed")
+	return if typeof(v) == "number" then v else Config.Space.BaseSpeed
 end
 
 -- ─── Yapı yardımcıları ──────────────────────────────────────────────────────
@@ -143,13 +151,17 @@ local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, c
 	return p
 end
 
-local function ball(parent: Instance, name: string, diameter: number, cf: CFrame, color: Color3, props: { [string]: any }?): BasePart
-	local p = part(parent, name, Vector3.one * diameter, cf, color, props)
-	p.Shape = Enum.PartType.Ball
+--[[ Ekseni `normal` olan disk/silindir. ]]
+local function cyl(parent: Instance, name: string, center: Vector3, normal: Vector3, length: number, diameter: number, color: Color3, props: { [string]: any }?): BasePart
+	local n = normal.Unit
+	local up = if math.abs(n.Y) > 0.95 then Vector3.xAxis else Vector3.yAxis
+	local cf = CFrame.lookAt(center, center + n, up) * CFrame.Angles(0, math.rad(90), 0)
+	local p = part(parent, name, Vector3.new(length, diameter, diameter), cf, color, props)
+	p.Shape = Enum.PartType.Cylinder
 	return p
 end
 
---[[ Uçan kalın yazı (FredokaOne + kontur); sunucuda CardKit yok. ]]
+--[[ Kalın yazılı tabela (FredokaOne + kontur). ]]
 local function sign(parent: BasePart, face: Enum.NormalId, lines: { { text: string, color: Color3, size: number } }, pixelsPerStud: number?)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
@@ -172,249 +184,216 @@ local function sign(parent: BasePart, face: Enum.NormalId, lines: { { text: stri
 		t.Text = line.text
 		t.TextWrapped = true
 		local s = Instance.new("UIStroke")
-		s.Color = Color3.fromRGB(22, 20, 34)
+		s.Color = Color3.fromRGB(16, 18, 34)
 		s.Thickness = math.max(2, line.size / 10)
 		s.Parent = t
 		t.Parent = gui
 	end
 end
 
-local ROCK = Color3.fromRGB(84, 76, 98)
-local ROCK_DARK = Color3.fromRGB(58, 52, 70)
-local EDGE = Color3.fromRGB(90, 200, 255)
+local METAL = Color3.fromRGB(176, 186, 200)
+local METAL_DARK = Color3.fromRGB(70, 78, 94)
+local HULL = Color3.fromRGB(128, 138, 152)
 local HAZARD = Color3.fromRGB(255, 200, 40)
-local METAL = Color3.fromRGB(150, 160, 176)
+local CYAN = Color3.fromRGB(90, 210, 255)
+local WHITE = Color3.new(1, 1, 1)
 
--- ─── Hava kilidi (gemide) ───────────────────────────────────────────────────
+-- ─── Launch Bay (güverte) ───────────────────────────────────────────────────
 
---[[
-	Kafeteryanın kuzeydoğu pah duvarı (lobby.luau sekizgeni). İç yüzün
-	hemen önüne yuvarlak kapak; önünde sarı-siyah ped ve prompt. Köprüden
-	kafeteryaya giren oyuncu ilk bakışta görüyor.
-]]
-local function buildAirlock(): BasePart?
-	local old = workspace:FindFirstChild("SpaceAirlock")
-	if old then
-		old:Destroy()
+local function buildDeck(zone: Model)
+	local s = Config.Space
+	local deck = Instance.new("Folder")
+	deck.Name = "LaunchBay"
+	deck.Parent = zone
+	local z1 = SpaceField.WallOuterZ()
+	local z0 = SpaceField.DeckEdgeZ()
+	local cz = (z0 + z1) / 2
+	local W = s.DeckHalfWidth * 2
+	local D = z1 - z0
+	local top = s.DeckTop
+	local X = s.GateX
+
+	-- Zemin: iki kademe (üstte açık gri güverte, altta gövde rengi karın)
+	part(deck, "Deck", Vector3.new(W, 1, D), CFrame.new(X, top - 0.5, cz), METAL, { Material = Enum.Material.DiamondPlate })
+	part(deck, "DeckBelly", Vector3.new(W - 6, 7, D - 4), CFrame.new(X, top - 4.5, cz + 1), HULL)
+	part(deck, "DeckKeel", Vector3.new(W - 30, 4, D - 20), CFrame.new(X, top - 9, cz + 4), METAL_DARK)
+	-- Karo çizgileri
+	for k = 1, 7 do
+		local x = X - W / 2 + k * (W / 8)
+		part(deck, "Seam", Vector3.new(0.2, 0.06, D - 2), CFrame.new(x, top + 0.03, cz), METAL_DARK, { CanCollide = false })
+	end
+	-- Dış kenar: sarı-siyah şerit + parlak çizgi
+	for k = 0, 15 do
+		local x = X - W / 2 + (k + 0.5) * (W / 16)
+		part(deck, "Hazard", Vector3.new(W / 16, 0.08, 3), CFrame.new(x, top + 0.04, z0 + 1.6), if k % 2 == 0 then HAZARD else Color3.fromRGB(30, 30, 36), { CanCollide = false })
+	end
+	part(deck, "EdgeGlow", Vector3.new(W, 0.3, 0.4), CFrame.new(X, top + 0.15, z0 + 0.2), CYAN, { Material = Enum.Material.Neon, CanCollide = false })
+	-- Kalkış pedi: ortada parlak halka ve dışarı bakan oklar
+	cyl(deck, "LaunchPad", Vector3.new(X, top + 0.05, cz - 4), Vector3.yAxis, 0.1, 22, Color3.fromRGB(40, 60, 90), { CanCollide = false })
+	cyl(deck, "LaunchRing", Vector3.new(X, top + 0.08, cz - 4), Vector3.yAxis, 0.1, 20, CYAN, { Material = Enum.Material.Neon, Transparency = 0.2, CanCollide = false })
+	cyl(deck, "LaunchCore", Vector3.new(X, top + 0.11, cz - 4), Vector3.yAxis, 0.1, 17, Color3.fromRGB(40, 60, 90), { CanCollide = false })
+	for k = 0, 2 do
+		local az = cz - 18 - k * 6
+		local arrow = Instance.new("WedgePart")
+		arrow.Name = "Arrow"
+		arrow.Size = Vector3.new(6, 0.12, 3)
+		arrow.CFrame = CFrame.new(X, top + 0.08, az) * CFrame.Angles(math.rad(-90), 0, 0) * CFrame.Angles(0, 0, 0)
+		arrow.Anchored = true
+		arrow.CanCollide = false
+		arrow.Material = Enum.Material.Neon
+		arrow.Color = HAZARD
+		arrow.Transparency = 0.1 + k * 0.2
+		arrow.Parent = deck
+		arrow:SetAttribute("PulsePeriod", 1.2)
 	end
 
-	local cafX1, cafZ0, chamfer = 290, 242, 40
-	local a = Vector3.new(cafX1 - chamfer, 0, cafZ0)
-	local b = Vector3.new(cafX1, 0, cafZ0 + chamfer)
-	local mid = (a + b) / 2
-	local inward = Vector3.new(-1, 0, 1).Unit
-	local wallFace = mid + inward * 1.4
-
-	-- Zemin yüksekliği: kafeterya zeminine ışın
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { Players:GetPlayers() }
-	local floorY = 0.5
-	local hit = workspace:Raycast(wallFace + inward * 8 + Vector3.new(0, 30, 0), Vector3.new(0, -60, 0), params)
-	if hit then
-		floorY = hit.Position.Y
-	end
-
-	local model = Instance.new("Model")
-	model.Name = "SpaceAirlock"
-	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
-
-	local doorCenter = Vector3.new(wallFace.X, floorY + 8.5, wallFace.Z)
-	local facing = CFrame.lookAt(doorCenter, doorCenter + inward)
-	-- Disk: silindirin ekseni X; bakış yönüne çevir
-	local disk = facing * CFrame.Angles(0, math.rad(90), 0)
-	part(model, "HatchRing", Vector3.new(0.8, 17, 17), disk * CFrame.new(-0.1, 0, 0), HAZARD, { Shape = Enum.PartType.Cylinder })
-	part(model, "HatchStripe", Vector3.new(0.9, 15.6, 15.6), disk * CFrame.new(0.05, 0, 0), Color3.fromRGB(28, 28, 34), { Shape = Enum.PartType.Cylinder })
-	local hatch = part(model, "Hatch", Vector3.new(1, 13.6, 13.6), disk * CFrame.new(0.3, 0, 0), METAL, { Shape = Enum.PartType.Cylinder, Material = Enum.Material.DiamondPlate })
-	part(model, "HatchWindow", Vector3.new(1.1, 6, 6), disk * CFrame.new(0.4, 1.5, 0), Color3.fromRGB(40, 120, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon })
-	for i = 0, 7 do
-		local ang = math.rad(i * 45)
-		part(model, "HatchBolt", Vector3.new(1.3, 1, 1), disk * CFrame.new(0.45, math.cos(ang) * 5.6, math.sin(ang) * 5.6), Color3.fromRGB(60, 64, 72), { Shape = Enum.PartType.Cylinder })
-	end
-	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(80, 170, 255)
-	light.Range = 18
-	light.Brightness = 1.6
-	light.Parent = hatch
-
-	-- Kapağın üstünde tabela
-	local board = part(model, "AirlockSign", Vector3.new(16, 3.4, 0.4), facing * CFrame.new(0, 10.2, -0.2), Color3.fromRGB(24, 26, 40))
-	sign(board, Enum.NormalId.Front, {
-		{ text = "SPACE WALK", color = Color3.fromRGB(120, 220, 255), size = 68 },
-	}, 12)
-	-- Front yüzü -Z: lookAt'ın ileri yönü odaya bakıyor
-
-	-- Zeminde ped: prompt burada
-	local padCf = CFrame.lookAt(Vector3.new(doorCenter.X, floorY + 0.15, doorCenter.Z) + inward * 5, Vector3.new(doorCenter.X, floorY + 0.15, doorCenter.Z) + inward * 10)
-	local pad = part(model, "AirlockPad", Vector3.new(12, 0.3, 8), padCf, Color3.fromRGB(34, 34, 40))
-	part(model, "AirlockPadStripe", Vector3.new(11, 0.32, 1), padCf * CFrame.new(0, 0, 3.2), HAZARD, { Material = Enum.Material.Neon })
-	part(model, "AirlockPadStripe", Vector3.new(11, 0.32, 1), padCf * CFrame.new(0, 0, -3.2), HAZARD, { Material = Enum.Material.Neon })
-
-	model.PrimaryPart = hatch
-	model.Parent = workspace
-	return pad
-end
-
--- ─── Uzay alanı ─────────────────────────────────────────────────────────────
-
-local function buildMonster(parent: Instance, home: Vector3, index: number): Monster
-	local model = Instance.new("Model")
-	model.Name = "VoidBeast" .. index
-	local origin = CFrame.new(home)
-	local body = Color3.fromRGB(58, 26, 84)
-	local skin = Color3.fromRGB(92, 40, 128)
-	local parts: { BasePart } = {}
-	local offsets: { CFrame } = {}
-	local wiggle: { number } = {}
-
-	local function add(p: BasePart, offset: CFrame, w: number?)
-		p.CanCollide = false
-		p.CanQuery = false
-		p.CanTouch = false
-		p.CastShadow = false
-		table.insert(parts, p)
-		table.insert(offsets, offset)
-		table.insert(wiggle, w or 0)
-	end
-
-	local root = ball(model, "Body", 16, origin, body)
-	add(root, CFrame.new())
-	add(ball(model, "Belly", 12, origin, Color3.fromRGB(170, 70, 255), { Material = Enum.Material.Neon, Transparency = 0.35 }), CFrame.new(0, -2.5, -3.2))
-	-- Üç göz (ileri = -Z)
-	for i, x in { -3.6, 0, 3.6 } do
-		local y = if i == 2 then 4 else 2.6
-		add(ball(model, "Eye", 3.4, origin, Color3.fromRGB(255, 236, 60), { Material = Enum.Material.Neon }), CFrame.new(x, y, -6.6))
-		add(ball(model, "Pupil", 1.5, origin, Color3.fromRGB(20, 10, 20)), CFrame.new(x, y, -8.2))
-	end
-	-- Ağız ve dişler
-	add(part(model, "Mouth", Vector3.new(9, 2.6, 2), origin, Color3.fromRGB(24, 6, 18)), CFrame.new(0, -2.2, -7))
-	for i = -3, 3 do
-		local tooth = Instance.new("WedgePart")
-		tooth.Name = "Tooth"
-		tooth.Size = Vector3.new(0.9, 1.4, 0.8)
-		tooth.Color = Color3.fromRGB(245, 240, 230)
-		tooth.Anchored = true
-		tooth.Material = Enum.Material.SmoothPlastic
-		tooth.Parent = model
-		add(tooth, CFrame.new(i * 1.2, -1.3, -7.9) * CFrame.Angles(math.rad(180), 0, 0))
-	end
-	-- Sırt dikenleri
-	for i = -2, 2 do
-		local spike = Instance.new("WedgePart")
-		spike.Name = "Spike"
-		spike.Size = Vector3.new(1.2, 3.6, 3)
-		spike.Color = skin
-		spike.Anchored = true
-		spike.Parent = model
-		add(spike, CFrame.new(i * 2.4, 7.4 - math.abs(i) * 0.6, 1 + math.abs(i) * 0.4) * CFrame.Angles(math.rad(-20), 0, 0))
-	end
-	-- Dokunaçlar: altta halka, uçları parlak
-	for i = 1, 6 do
-		local ang = math.rad(i * 60)
-		local base = CFrame.new(math.cos(ang) * 4.5, -6.5, math.sin(ang) * 4.5) * CFrame.Angles(0, -ang, 0)
-		add(part(model, "Tentacle", Vector3.new(1.6, 8, 1.6), origin, skin), base * CFrame.new(0, -3, 0), 1)
-		add(ball(model, "TentacleTip", 2, origin, Color3.fromRGB(255, 80, 200), { Material = Enum.Material.Neon }), base * CFrame.new(0, -7.2, 0), 1)
-	end
-
-	-- İsim etiketi
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "BeastLabel"
-	gui.Size = UDim2.fromOffset(200, 40)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 12, 0)
-	gui.MaxDistance = 220
-	gui.LightInfluence = 0
-	gui.Parent = root
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextSize = 26
-	label.TextColor3 = Color3.fromRGB(200, 150, 255)
-	label.Text = "VOID BEAST  zzz"
-	label.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 3
-	stroke.Color = Color3.fromRGB(22, 10, 30)
-	stroke.Parent = label
-
-	model.PrimaryPart = root
-	model.Parent = parent
-
-	return {
-		model = model,
-		root = root,
-		parts = parts,
-		offsets = offsets,
-		wiggle = wiggle,
-		label = label,
-		home = home,
-		position = home,
-		facing = Vector3.new(0, 0, 1),
-		state = "sleep",
-		target = nil,
-		speed = Config.Space.MonsterSpeed,
-		wakeAt = 0,
-		lastSwipe = {},
-	}
-end
-
-local function rollSpot(spot: Spot)
-	local def = Config.RollUnit(rng, Config.Space.RollLevel)
-	local mutation = Config.RollMutation(rng)
-	spot.unitId = def.id
-	spot.mutationId = if mutation then mutation.id else nil
-	spot.emptySince = nil
-
-	if spot.model then
-		spot.model:Destroy()
-	end
-	local model = UnitModel.Build(def.id, spot.mutationId)
-	model.Name = "StrandedCrew"
-	model:PivotTo(CFrame.new(spot.position - Vector3.new(0, 2.6, 0)) * CFrame.Angles(0, math.rad(180), 0))
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.CanCollide = false
+	-- Yan duvarlar: alçak metal korkuluk + cam
+	for _, side in { -1, 1 } do
+		local x = X + side * (W / 2 - 0.6)
+		part(deck, "SideWall", Vector3.new(1.2, 5, D), CFrame.new(x, top + 2.5, cz), HULL)
+		part(deck, "SideCap", Vector3.new(1.6, 0.5, D), CFrame.new(x, top + 5.2, cz), METAL)
+		part(deck, "SideGlass", Vector3.new(0.3, 10, D - 2), CFrame.new(x, top + 10.4, cz), Color3.fromRGB(150, 220, 255),
+			{ Material = Enum.Material.Glass, Transparency = 0.7, CastShadow = false })
+		for z = z0 + 4, z1 - 4, 12 do
+			part(deck, "Post", Vector3.new(1, 11, 1), CFrame.new(x, top + 10.7, z), METAL_DARK)
+			local lamp = part(deck, "Lamp", Vector3.new(1.3, 1.3, 1.3), CFrame.new(x, top + 16.4, z), Color3.fromRGB(255, 90, 80),
+				{ Material = Enum.Material.Neon, Shape = Enum.PartType.Ball })
+			lamp:SetAttribute("PulsePeriod", 1.8)
 		end
 	end
-	local label = UnitModel.BuildLabel(def.id, spot.mutationId)
-	label.StudsOffsetWorldSpace = Vector3.new(0, 9, 0)
-	label.Parent = model.PrimaryPart
-	model.Parent = spot.bubble.Parent
-	spot.model = model
 
-	spot.bubble.Transparency = 0.15
-	spot.prompt.ObjectText = def.name
-	spot.prompt.Enabled = true
+	-- Dış kemer: iki ayak + üst kiriş, arasında kuvvet alanı perdesi
+	local archH = 30
+	for _, side in { -1, 1 } do
+		local x = X + side * (W / 2 - 2)
+		part(deck, "ArchLeg", Vector3.new(4, archH, 4), CFrame.new(x, top + archH / 2, z0 + 2), METAL)
+		part(deck, "ArchStripe", Vector3.new(4.2, 2, 4.2), CFrame.new(x, top + 8, z0 + 2), HAZARD)
+		part(deck, "ArchStripe", Vector3.new(4.2, 2, 4.2), CFrame.new(x, top + 20, z0 + 2), HAZARD)
+	end
+	local beam = part(deck, "ArchBeam", Vector3.new(W, 5, 4), CFrame.new(X, top + archH + 2.5, z0 + 2), METAL)
+	part(deck, "ArchGlow", Vector3.new(W - 6, 0.5, 0.5), CFrame.new(X, top + archH - 0.3, z0 + 0.4), CYAN, { Material = Enum.Material.Neon, CanCollide = false })
+	local field = part(deck, "ForceField", Vector3.new(W - 8, archH, 0.3), CFrame.new(X, top + archH / 2, z0 + 2), Color3.fromRGB(110, 200, 255),
+		{ Material = Enum.Material.ForceField, Transparency = 0.55, CanCollide = false, CanQuery = false, CastShadow = false })
+	local _ = field
+	-- Tabela: içeriden LAUNCH BAY, dışarıdan SAFE ZONE
+	local board = part(deck, "ArchSign", Vector3.new(40, 4.6, 0.4), CFrame.new(X, top + archH + 2.5, z0 + 4.25), Color3.fromRGB(20, 26, 46))
+	sign(board, Enum.NormalId.Back, { { text = "LAUNCH BAY", color = Color3.fromRGB(130, 225, 255), size = 120 } }, 6)
+	local outBoard = part(deck, "SafeSign", Vector3.new(40, 4.6, 0.4), CFrame.new(X, top + archH + 2.5, z0 - 0.25), Color3.fromRGB(20, 46, 30))
+	sign(outBoard, Enum.NormalId.Front, { { text = "SAFE ZONE", color = Color3.fromRGB(120, 255, 140), size = 120 } }, 6)
+	local beamLight = Instance.new("SurfaceLight")
+	beamLight.Face = Enum.NormalId.Bottom
+	beamLight.Range = 32
+	beamLight.Brightness = 1.4
+	beamLight.Color = Color3.fromRGB(200, 230, 255)
+	beamLight.Parent = beam
+
+	-- Bilgi panosu: kapının yanında, içeri bakıyor
+	local info = part(deck, "InfoBoard", Vector3.new(0.4, 12, 22), CFrame.new(X - W / 2 + 1.6, top + 9, z1 - 16), Color3.fromRGB(20, 26, 46))
+	sign(info, Enum.NormalId.Right, {
+		{ text = "SPACE HEIST", color = Color3.fromRGB(130, 225, 255), size = 64 },
+		{ text = "1. Fly to a planet", color = WHITE, size = 34 },
+		{ text = "2. Hold on a crewmate to steal it", color = WHITE, size = 34 },
+		{ text = "3. Fly back here before the monster catches you!", color = Color3.fromRGB(255, 140, 170), size = 34 },
+		{ text = "Train in your base Capsule to fly faster", color = Color3.fromRGB(255, 220, 110), size = 30 },
+	}, 18)
 end
+
+-- ─── Gezegenler ─────────────────────────────────────────────────────────────
+
+local function surfacePoint(center: Vector3, radius: number, dir: Vector3): Vector3
+	return center + dir.Unit * radius
+end
+
+local function buildPlanet(folder: Instance, index: number, def: Config.SpaceMonsterDef)
+	local model = Instance.new("Model")
+	model.Name = "Planet" .. index
+	model:SetAttribute("MonsterId", def.id)
+	model.Parent = folder
+	local detail = Random.new(index * 97)
+	local center = SpaceField.PlanetCenter(def)
+	local r = def.radius
+	local plateauR = SpaceField.PlateauRadius(def)
+
+	local sphere = part(model, "Planet", Vector3.one * r * 2, CFrame.new(center), def.planetColor, { Shape = Enum.PartType.Ball })
+	-- Plato: düz tepe, kenarında parlak halka
+	cyl(model, "Plateau", def.position - Vector3.new(0, 1.5, 0), Vector3.yAxis, 3, plateauR * 2 + 1.5, def.planetColor2)
+	cyl(model, "PlateauRim", def.position - Vector3.new(0, 0.4, 0), Vector3.yAxis, 0.6, plateauR * 2 + 2.2, def.glow,
+		{ Material = Enum.Material.Neon, CanCollide = false })
+	cyl(model, "PlateauTop", def.position - Vector3.new(0, 0.05, 0), Vector3.yAxis, 0.1, plateauR * 2 - 2, def.planetColor2:Lerp(WHITE, 0.08), { CanCollide = false })
+
+	-- Kraterler ve lekeler (üst yarıküre, platonun dışında)
+	for k = 1, 22 do
+		local a = detail:NextNumber(0, math.pi * 2)
+		local y = detail:NextNumber(-0.85, 0.72)
+		local flat = math.sqrt(1 - y * y)
+		local dir = Vector3.new(math.cos(a) * flat, y, math.sin(a) * flat)
+		local size = detail:NextNumber(0.12, 0.3) * r
+		local p = surfacePoint(center, r - 0.25, dir)
+		cyl(model, "Crater", p, dir, 0.8, size, def.planetColor2, { CanCollide = false, CastShadow = false })
+		if k % 3 == 0 then
+			cyl(model, "CraterRim", p + dir * 0.1, dir, 0.6, size * 1.18, def.planetColor:Lerp(WHITE, 0.15), { CanCollide = false, CastShadow = false })
+		end
+	end
+	-- Parlayan kristaller platonun kenarında
+	for k = 1, 10 do
+		local a = (k / 10) * math.pi * 2 + detail:NextNumber(-0.2, 0.2)
+		local rr = plateauR + detail:NextNumber(0.5, 3)
+		local h = detail:NextNumber(3, 7) * (0.8 + def.scale * 0.2)
+		local base = Vector3.new(def.position.X + math.cos(a) * rr, def.position.Y - 1, def.position.Z + math.sin(a) * rr)
+		local crystal = part(model, "Crystal", Vector3.new(1.6, h, 1.6), CFrame.new(base + Vector3.new(0, h / 2, 0))
+			* CFrame.Angles(detail:NextNumber(-0.35, 0.35), a, detail:NextNumber(-0.35, 0.35)), def.glow,
+			{ Material = Enum.Material.Neon, Transparency = 0.15, CanCollide = false, CastShadow = false })
+		if k % 4 == 0 then
+			local l = Instance.new("PointLight")
+			l.Color = def.glow
+			l.Range = 20
+			l.Brightness = 1.2
+			l.Parent = crystal
+		end
+	end
+	-- Halkalı gezegenler (2 ve 6): eğik neon halka
+	if index == 2 or index == 6 then
+		local tilt = CFrame.new(center) * CFrame.Angles(math.rad(12), 0, math.rad(if index == 2 then 18 else -14))
+		local segments = 40
+		local ringR = r * 1.55
+		for k = 1, segments do
+			local a0 = (k - 1) / segments * math.pi * 2
+			local a1 = k / segments * math.pi * 2
+			local p0 = (tilt * CFrame.new(math.cos(a0) * ringR, 0, math.sin(a0) * ringR)).Position
+			local p1 = (tilt * CFrame.new(math.cos(a1) * ringR, 0, math.sin(a1) * ringR)).Position
+			local mid = (p0 + p1) / 2
+			part(model, "Ring", Vector3.new((p1 - p0).Magnitude + 0.4, 0.4, r * 0.28), CFrame.lookAt(mid, p1, tilt.UpVector) * CFrame.Angles(0, math.rad(90), 0),
+				def.glow, { Material = Enum.Material.Neon, Transparency = 0.45, CanCollide = false, CanQuery = false, CastShadow = false })
+		end
+	end
+	-- Atmosfer parıltısı: biraz büyük yarı saydam küre
+	part(model, "Atmosphere", Vector3.one * r * 2.12, CFrame.new(center), def.glow,
+		{ Shape = Enum.PartType.Ball, Material = Enum.Material.ForceField, Transparency = 0.6, CanCollide = false, CanQuery = false, CastShadow = false })
+
+	model.PrimaryPart = sphere :: BasePart
+	return model
+end
+
+-- ─── Mürettebat yerleri ─────────────────────────────────────────────────────
+
+local onGrab: (player: Player, spot: Spot) -> ()
 
 local function clearSpot(spot: Spot)
 	spot.unitId = nil
 	spot.mutationId = nil
-	spot.emptySince = os.clock()
 	if spot.model then
 		spot.model:Destroy()
 		spot.model = nil
 	end
-	spot.bubble.Transparency = 0.85
-	spot.prompt.Enabled = false
 end
 
---[[ Taşınan karakteri balonuna geri koyar (düşürme / yakalanma). ]]
-local function restoreSpot(index: number, unitId: string, mutationId: string?)
-	local spot = spots[index]
-	if not spot then
-		return
-	end
-	if spot.unitId then
-		return -- bu arada yenisi gelmiş; eskisi uzayda kayboldu
-	end
+local function placeSpot(spot: Spot, unitId: string, mutationId: string?, folder: Instance)
 	clearSpot(spot)
-	spot.emptySince = nil
-	-- rollSpot yerine aynı karakter
+	local def = Config.SpaceMonsters[spot.planet]
+	local facing = SpaceField.Facing(def)
 	local model = UnitModel.Build(unitId, mutationId)
-	model.Name = "StrandedCrew"
-	model:PivotTo(CFrame.new(spot.position - Vector3.new(0, 2.6, 0)) * CFrame.Angles(0, math.rad(180), 0))
+	model.Name = "LostCrew"
+	model:PivotTo(CFrame.lookAt(spot.position, spot.position + facing))
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = true
@@ -422,201 +401,35 @@ local function restoreSpot(index: number, unitId: string, mutationId: string?)
 		end
 	end
 	local label = UnitModel.BuildLabel(unitId, mutationId)
-	label.StudsOffsetWorldSpace = Vector3.new(0, 9, 0)
 	label.Parent = model.PrimaryPart
-	model.Parent = spot.bubble.Parent
+	local unit = Config.GetUnit(unitId)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "HeistPrompt"
+	prompt.ActionText = "Steal"
+	prompt.ObjectText = if unit then unit.name else unitId
+	prompt.HoldDuration = Config.Space.GrabHold
+	prompt.MaxActivationDistance = Config.Space.GrabDistance
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = model.PrimaryPart
+	PromptGuard.Connect(prompt, function(player)
+		onGrab(player, spot)
+	end)
+	model:SetAttribute("Planet", spot.planet)
+	model:SetAttribute("Spot", spot.index)
+	model.Parent = folder
 	spot.model = model
 	spot.unitId = unitId
 	spot.mutationId = mutationId
-	spot.bubble.Transparency = 0.15
-	local def = Config.GetUnit(unitId)
-	spot.prompt.ObjectText = if def then def.name else unitId
-	spot.prompt.Enabled = true
+	spot.emptySince = nil
 end
 
-local onGrab: (player: Player, spot: Spot) -> ()
-local enterSpace: (player: Player) -> ()
-local exitSpace: (player: Player) -> ()
+local crewFolder: Folder? = nil
 
-local function buildZone(): Model
-	local old = workspace:FindFirstChild("SpaceZone")
-	if old then
-		old:Destroy()
-	end
-	local s = Config.Space
-	local O = s.Origin
-	local model = Instance.new("Model")
-	model.Name = "SpaceZone"
-	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
-	local deco = Instance.new("Folder")
-	deco.Name = "Deco"
-	deco.Parent = model
-	local detail = Random.new(1150)
-
-	-- ─── Rıhtım ─────────────────────────────────────────────────────────
-	local dock = part(model, "Dock", Vector3.new(s.DockHalf.X * 2, 2, s.DockHalf.Y * 2), CFrame.new(O + Vector3.new(0, -1, 0)), METAL,
-		{ Material = Enum.Material.DiamondPlate })
-	for _, x in { -1, 1 } do
-		part(deco, "DockEdge", Vector3.new(1, 0.4, s.DockHalf.Y * 2), CFrame.new(O + Vector3.new(x * (s.DockHalf.X - 0.5), 0.2, 0)), HAZARD, { Material = Enum.Material.Neon })
-		for z = -s.DockHalf.Y + 3, s.DockHalf.Y - 3, 8 do
-			part(deco, "RailPost", Vector3.new(0.6, 4, 0.6), CFrame.new(O + Vector3.new(x * (s.DockHalf.X - 0.6), 2, z)), METAL)
-		end
-		part(deco, "Rail", Vector3.new(0.5, 0.5, s.DockHalf.Y * 2 - 4), CFrame.new(O + Vector3.new(x * (s.DockHalf.X - 0.6), 4, 0)), METAL)
-	end
-	part(deco, "DockMouth", Vector3.new(s.DockHalf.X * 2, 0.4, 1.2), CFrame.new(O + Vector3.new(0, 0.2, -s.DockHalf.Y + 0.6)), HAZARD, { Material = Enum.Material.Neon })
-
-	-- Arkada gemiye dönüş kapısı
-	local backZ = s.DockHalf.Y - 2
-	part(deco, "GateL", Vector3.new(2, 16, 2), CFrame.new(O + Vector3.new(-9, 8, backZ)), METAL)
-	part(deco, "GateR", Vector3.new(2, 16, 2), CFrame.new(O + Vector3.new(9, 8, backZ)), METAL)
-	part(deco, "GateTop", Vector3.new(20, 2.4, 2), CFrame.new(O + Vector3.new(0, 16.4, backZ)), METAL)
-	local portal = part(deco, "GatePortal", Vector3.new(16, 14.6, 0.4), CFrame.new(O + Vector3.new(0, 7.6, backZ + 0.4)), Color3.fromRGB(60, 150, 255),
-		{ Material = Enum.Material.Neon, Transparency = 0.35, CanCollide = false })
-	local console = part(model, "ReturnConsole", Vector3.new(4, 3.6, 2.4), CFrame.new(O + Vector3.new(0, 1.8, backZ - 5)), Color3.fromRGB(40, 44, 58))
-	part(deco, "ConsoleScreen", Vector3.new(3.4, 1.6, 0.2), CFrame.new(O + Vector3.new(0, 3.2, backZ - 6.25)) * CFrame.Angles(math.rad(-25), 0, 0),
-		Color3.fromRGB(80, 200, 255), { Material = Enum.Material.Neon })
-	local returnPrompt = Instance.new("ProximityPrompt")
-	returnPrompt.Name = "ReturnPrompt"
-	returnPrompt.ActionText = "Back to Ship"
-	returnPrompt.ObjectText = "Airlock"
-	returnPrompt.HoldDuration = 0.3
-	returnPrompt.MaxActivationDistance = 10
-	returnPrompt.RequiresLineOfSight = false
-	returnPrompt.Parent = console
-	PromptGuard.Connect(returnPrompt, function(player)
-		exitSpace(player)
-	end)
-	local portalLight = Instance.new("PointLight")
-	portalLight.Color = Color3.fromRGB(80, 170, 255)
-	portalLight.Range = 24
-	portalLight.Brightness = 2
-	portalLight.Parent = portal
-
-	-- Rıhtımdaki bilgi tabelası (yola bakan oyuncunun solunda)
-	local board = part(deco, "InfoBoard", Vector3.new(0.4, 9, 16), CFrame.new(O + Vector3.new(-s.DockHalf.X + 1.5, 6.5, 4)), Color3.fromRGB(24, 26, 40))
-	sign(board, Enum.NormalId.Right, {
-		{ text = "SPACE WALK", color = Color3.fromRGB(120, 220, 255), size = 64 },
-		{ text = "1. Dodge the asteroids", color = Color3.new(1, 1, 1), size = 34 },
-		{ text = "2. Grab a lost crewmate", color = Color3.new(1, 1, 1), size = 34 },
-		{ text = "3. Outrun the Void Beasts!", color = Color3.fromRGB(255, 120, 200), size = 34 },
-	}, 20)
-
-	-- ─── Yol ────────────────────────────────────────────────────────────
-	local W = s.PathHalfWidth
-	for i, seg in s.Segments do
-		local len = seg.z0 - seg.z1
-		local cz = (seg.z0 + seg.z1) / 2
-		local slab = part(model, "Path" .. i, Vector3.new(W * 2, 3, len), CFrame.new(O + Vector3.new(0, -1.5, cz)), ROCK,
-			{ Material = Enum.Material.Rock })
-		slab:SetAttribute("SpacePath", true)
-		part(deco, "PathBelly", Vector3.new(W * 2 - 6, 6, len - 6), CFrame.new(O + Vector3.new(0, -5, cz)), ROCK_DARK, { Material = Enum.Material.Rock })
-		-- Kenar ışıkları: karanlıkta yolun sınırı okunsun
-		for _, x in { -1, 1 } do
-			part(deco, "PathEdge", Vector3.new(0.6, 0.3, len - 1), CFrame.new(O + Vector3.new(x * (W - 0.5), 0.15, cz)), EDGE, { Material = Enum.Material.Neon })
-		end
-		-- Yanlarda süs kayalar
-		for _ = 1, 4 do
-			local size = detail:NextNumber(3, 7)
-			local x = (if detail:NextNumber() < 0.5 then -1 else 1) * detail:NextNumber(W - 2, W + 3)
-			local z = detail:NextNumber(seg.z1 + 4, seg.z0 - 4)
-			part(deco, "Boulder", Vector3.new(size, size * 0.7, size * 1.1), CFrame.new(O + Vector3.new(x, size * 0.25, z))
-				* CFrame.Angles(detail:NextNumber(0, 1), detail:NextNumber(0, 6), detail:NextNumber(0, 1)), ROCK_DARK, { Material = Enum.Material.Rock })
-		end
-	end
-
-	-- Asteroit şeritlerinin yol üstündeki uyarı çizgisi istemcide (SpaceFX); burada yok.
-
-	-- ─── Yuva ───────────────────────────────────────────────────────────
-	local nest = SpaceField.NestCenter()
-	local nestSlab = part(model, "Nest", Vector3.new(4, s.NestRadius * 2, s.NestRadius * 2), CFrame.new(nest + Vector3.new(0, -2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color3.fromRGB(66, 40, 84), { Material = Enum.Material.Rock, Shape = Enum.PartType.Cylinder })
-	nestSlab:SetAttribute("SpacePath", true)
-	part(deco, "NestBelly", Vector3.new(14, s.NestRadius * 2 - 16, s.NestRadius * 2 - 16), CFrame.new(nest + Vector3.new(0, -10, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		ROCK_DARK, { Material = Enum.Material.Rock, Shape = Enum.PartType.Cylinder })
-	-- Kenar halkası: zeminin biraz altında, yalnızca dış kuşağı görünüyor
-	part(deco, "NestRim", Vector3.new(0.5, s.NestRadius * 2 + 2, s.NestRadius * 2 + 2), CFrame.new(nest + Vector3.new(0, -0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color3.fromRGB(190, 80, 255), { Material = Enum.Material.Neon, Shape = Enum.PartType.Cylinder, CanCollide = false })
-	-- Kristaller ve yapışkan birikintiler
-	for i = 1, 14 do
-		local a = math.rad(i * (360 / 14) + detail:NextNumber(-8, 8))
-		local r = s.NestRadius - detail:NextNumber(3, 8)
-		local h = detail:NextNumber(5, 12)
-		local crystal = part(deco, "Crystal", Vector3.new(2.4, h, 2.4), CFrame.new(nest + Vector3.new(math.sin(a) * r, h / 2 - 0.5, math.cos(a) * r))
-			* CFrame.Angles(detail:NextNumber(-0.3, 0.3), a, detail:NextNumber(-0.3, 0.3)),
-			Color3.fromRGB(180, 90, 255), { Material = Enum.Material.Neon, Transparency = 0.1 })
-		if i % 3 == 0 then
-			local l = Instance.new("PointLight")
-			l.Color = Color3.fromRGB(190, 110, 255)
-			l.Range = 22
-			l.Brightness = 1.4
-			l.Parent = crystal
-		end
-	end
-	for _ = 1, 6 do
-		local a = detail:NextNumber(0, math.pi * 2)
-		local r = detail:NextNumber(8, s.NestRadius - 14)
-		part(deco, "Goo", Vector3.new(0.3, detail:NextNumber(5, 9), detail:NextNumber(5, 9)), CFrame.new(nest + Vector3.new(math.sin(a) * r, 0.1, math.cos(a) * r))
-			* CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(120, 255, 120), { Material = Enum.Material.Neon, Transparency = 0.3, Shape = Enum.PartType.Cylinder, CanCollide = false })
-	end
-	local nestSign = part(deco, "NestSign", Vector3.new(14, 4, 0.4), CFrame.new(nest + Vector3.new(0, 14, s.NestRadius - 6)) * CFrame.Angles(0, math.rad(180), 0), Color3.fromRGB(40, 16, 50))
-	sign(nestSign, Enum.NormalId.Back, { { text = "VOID BEAST NEST", color = Color3.fromRGB(255, 120, 200), size = 60 } }, 14)
-
-	-- ─── Balonlar ───────────────────────────────────────────────────────
-	local spotFolder = Instance.new("Folder")
-	spotFolder.Name = "Spots"
-	spotFolder.Parent = model
-	table.clear(spots)
-	for i, pos in SpaceField.SpotPositions() do
-		local holder = Instance.new("Model")
-		holder.Name = "Spot" .. i
-		holder.Parent = spotFolder
-		local bubble = ball(holder, "Bubble", 9, CFrame.new(pos), Color3.fromRGB(140, 220, 255),
-			{ Material = Enum.Material.ForceField, CanCollide = false, CastShadow = false })
-		part(holder, "Beam", Vector3.new(0.4, pos.Y - nest.Y, 0.4), CFrame.new(Vector3.new(pos.X, (pos.Y + nest.Y) / 2 - 2, pos.Z)),
-			Color3.fromRGB(140, 220, 255), { Material = Enum.Material.Neon, Transparency = 0.5, CanCollide = false })
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "RescuePrompt"
-		prompt.ActionText = "Grab"
-		prompt.ObjectText = ""
-		prompt.HoldDuration = Config.Space.GrabHold
-		prompt.MaxActivationDistance = 11
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = bubble
-		local spot: Spot = { index = i, position = pos, bubble = bubble, prompt = prompt }
-		spots[i] = spot
-		PromptGuard.Connect(prompt, function(player)
-			onGrab(player, spot)
-		end)
-		rollSpot(spot)
-	end
-
-	-- ─── Canavarlar ─────────────────────────────────────────────────────
-	local monsterFolder = Instance.new("Folder")
-	monsterFolder.Name = "Monsters"
-	monsterFolder.Parent = model
-	for _, m in monsters do
-		m.model:Destroy()
-	end
-	table.clear(monsters)
-	for i, home in SpaceField.MonsterHomes() do
-		table.insert(monsters, buildMonster(monsterFolder, home, i))
-	end
-
-	-- Uzakta süzülen dev kayalar (manzara)
-	for _ = 1, 26 do
-		local size = detail:NextNumber(8, 26)
-		local p = O + Vector3.new(detail:NextNumber(-260, 260), detail:NextNumber(-120, 90), detail:NextNumber(-520, 120))
-		if math.abs(p.X - O.X) < 60 and p.Y > O.Y - 40 then
-			p += Vector3.new(if p.X > O.X then 80 else -80, 0, 0)
-		end
-		part(deco, "FarRock", Vector3.new(size, size * detail:NextNumber(0.6, 1), size * detail:NextNumber(0.7, 1.3)), CFrame.new(p)
-			* CFrame.Angles(detail:NextNumber(0, 6), detail:NextNumber(0, 6), detail:NextNumber(0, 6)), ROCK_DARK,
-			{ Material = Enum.Material.Rock, CanCollide = false, CastShadow = false })
-	end
-
-	model.PrimaryPart = dock
-	model.Parent = workspace
-	return model
+local function rollSpot(spot: Spot)
+	local def = Config.SpaceMonsters[spot.planet]
+	local unit = Config.RollSpaceUnit(rng, def)
+	local mutation = Config.RollMutation(rng)
+	placeSpot(spot, unit.id, if mutation then mutation.id else nil, crewFolder :: Folder)
 end
 
 -- ─── Taşıma ─────────────────────────────────────────────────────────────────
@@ -630,12 +443,13 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 	local model = UnitModel.Build(unitId, mutationId)
 	-- "CarriedUnit" DEĞİL: o adı gemideki çalma sistemi (alarm, iz, rehber) izliyor
 	model.Name = "SpaceCarry"
-	model:PivotTo(root.CFrame * CFrame.new(0, 3.5, 0.4))
+	model:PivotTo(root.CFrame * CFrame.new(0, 2.2, 1.6) * CFrame.Angles(0, math.rad(180), 0))
 	local primary = model.PrimaryPart :: BasePart
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = false
 			d.CanCollide = false
+			d.CanQuery = false
 			d.Massless = true
 			if d ~= primary then
 				local weld = Instance.new("WeldConstraint")
@@ -653,18 +467,7 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 	return model
 end
 
-local function monstersForget(player: Player)
-	for _, m in monsters do
-		if m.target == player then
-			m.target = nil
-			if m.state == "chase" or m.state == "wake" then
-				m.state = "return"
-			end
-		end
-	end
-end
-
---[[ Taşınanı düşürür: karakter balonuna döner. ]]
+--[[ Taşınanı bırakır: karakter gezegendeki yerine döner. ]]
 local function drop(player: Player)
 	local carry = carrying[player]
 	if not carry then
@@ -675,26 +478,34 @@ local function drop(player: Player)
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
-	restoreSpot(carry.spot, carry.unitId, carry.mutationId)
-	monstersForget(player)
-	StealService.RefreshSpeed(player)
+	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
+	if spot then
+		spot.held = false
+		if not spot.unitId and crewFolder then
+			placeSpot(spot, carry.unitId, carry.mutationId, crewFolder)
+		end
+	end
 end
 
---[[ Uzaydaki oyuncuyu savurur (istemci uyguluyor). ]]
-local function knock(player: Player, from: Vector3, strength: number, stun: number)
-	lastHit[player] = os.clock()
-	fx(player, "knock", from, strength, stun)
+local function unitName(unitId: string, mutationId: string?): string
+	local def = Config.GetUnit(unitId)
+	local mutation = Config.GetMutation(mutationId)
+	local name = if def then def.name else unitId
+	return if mutation then mutation.name .. " " .. name else name
 end
 
 function onGrab(player: Player, spot: Spot)
-	if not player:GetAttribute("InSpace") then
+	if not spot.unitId or spot.held then
 		return
 	end
 	if carrying[player] then
-		notify(player, "You're already carrying one - run to the airlock!", true)
+		notify(player, "You're already carrying one - fly back to the Launch Bay!", true)
 		return
 	end
-	if not spot.unitId then
+	if StealService.IsCarrying(player) then
+		return
+	end
+	if grabbedBy[player] or os.clock() < (immuneUntil[player] or 0) then
 		return
 	end
 	local plot = PlotService.GetPlotOf(player)
@@ -703,7 +514,7 @@ function onGrab(player: Player, spot: Spot)
 		return
 	end
 	if not PlotService.FindEmptyPodium(plot) then
-		notify(player, "No free podium - make room first", true)
+		notify(player, "No free podium - sell or rebirth to make room", true)
 		return
 	end
 	local unitId, mutationId = spot.unitId :: string, spot.mutationId
@@ -712,384 +523,473 @@ function onGrab(player: Player, spot: Spot)
 		return
 	end
 	clearSpot(spot)
-	-- Taşınırken balon yenilenmiyor: düşürülürse aynı karakter geri dönüyor
-	spot.emptySince = nil
-	carrying[player] = { unitId = unitId, mutationId = mutationId, spot = spot.index, model = model }
+	spot.held = true
+	carrying[player] = {
+		unitId = unitId,
+		mutationId = mutationId,
+		planet = spot.planet,
+		spot = spot.index,
+		model = model,
+		grabbedAt = os.clock(),
+		from = spot.position,
+	}
 	player:SetAttribute("SpaceCarry", true)
-	StealService.RefreshSpeed(player)
+	DataService.Discover(player, unitId)
 
-	local def = Config.GetUnit(unitId)
-	notify(player, string.format("Grabbed %s! RUN to the airlock!", if def then def.name else unitId), false, "steal")
-
-	-- Yuvadaki canavarlar uyanıyor: kısa kükreme, sonra kovalama
-	local now = os.clock()
-	local root = rootOf(player)
-	for _, m in monsters do
-		if m.state == "sleep" or m.state == "return" then
-			m.state = "wake"
-			m.target = player
-			m.wakeAt = now + Config.Space.MonsterWakeDelay
-			m.speed = Config.Space.MonsterSpeed
+	local monster = monsters[spot.planet]
+	notify(player, string.format("Stole %s! Fly back to the Launch Bay!", unitName(unitId, mutationId)), false, "steal")
+	if monster then
+		if monster.state == "idle" or monster.state == "return" then
+			monster.state = "wake"
+			monster.stateAt = os.clock()
+			monster.target = player
 		end
-	end
-	for _, other in Players:GetPlayers() do
-		if other:GetAttribute("InSpace") then
-			fx(other, "roar", SpaceField.NestCenter(), if root then root.Position else SpaceField.NestCenter())
-		end
+		fxAll("roar", monster.def.id, player.UserId)
 	end
 end
 
-local function deliver(player: Player)
+--[[
+	Kaideye koyar. Nadirse duyurur. Teslim ve bedava karakter (çark,
+	Robux ürünü) aynı yoldan geçiyor.
+]]
+local function placeOnPodium(player: Player, unitId: string, mutationId: string?, origin: string): boolean
+	local plot = PlotService.GetPlotOf(player)
+	local podium = plot and PlotService.FindEmptyPodium(plot)
+	if not podium then
+		return false
+	end
+	if not PlotService.PlaceUnit(podium, unitId, mutationId) then
+		return false
+	end
+	DataService.Discover(player, unitId)
+	local def = Config.GetUnit(unitId)
+	if def and def.rarity == "Secret" then
+		BadgeService.Award(player, "SecretFind")
+	end
+	if def and ANNOUNCE_RARITIES[def.rarity] then
+		local rarity = Config.Rarities[def.rarity]
+		AnnounceService.Summon(string.format("%s %s %s!", player.DisplayName, origin,
+			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color)))
+	end
+	return true
+end
+
+local function deliver(player: Player, root: BasePart)
 	local carry = carrying[player]
 	if not carry then
 		return
 	end
-	local plot = PlotService.GetPlotOf(player)
-	local podium = plot and PlotService.FindEmptyPodium(plot)
-	if not podium then
-		notify(player, "No free podium! It floated back to the nest", true)
+	--[[
+		Hile payı: bu yolu oyuncunun uzay hızıyla (toleranslı) en az şu kadar
+		sürede gelmiş olmalı. Hız hilesiyle ışınlanan karakterini geri verir.
+	]]
+	local distance = (carry.from - root.Position).Magnitude
+	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance) - 1
+	if os.clock() - carry.grabbedAt < minTime then
 		drop(player)
+		notify(player, "Too fast! The crewmate slipped back to its planet", true)
 		return
 	end
+
 	carrying[player] = nil
 	if carry.model.Parent then
 		carry.model:Destroy()
 	end
 	player:SetAttribute("SpaceCarry", nil)
-	PlotService.PlaceUnit(podium, carry.unitId, carry.mutationId)
-	-- Balon artık yeni bir kayıp mürettebat bekliyor
-	local spot = spots[carry.spot]
-	if spot and not spot.unitId then
+	local spot = spots[carry.planet] and spots[carry.planet][carry.spot]
+	if spot then
+		spot.held = false
 		spot.emptySince = os.clock()
 	end
-	monstersForget(player)
-	StealService.RefreshSpeed(player)
 
-	local profile = DataService.Get(player)
-	if profile then
-		profile.salvaged = (profile.salvaged or 0) + 1
+	if not placeOnPodium(player, carry.unitId, carry.mutationId, "stole") then
+		-- Bu arada kaide dolduysa karakter kaybolmasın: yerine dönsün
+		if spot and not spot.unitId and crewFolder then
+			placeSpot(spot, carry.unitId, carry.mutationId, crewFolder)
+		end
+		notify(player, "No free podium! The crewmate floated back to its planet", true)
+		return
 	end
-	local def = Config.GetUnit(carry.unitId)
-	local name = if def then def.name else carry.unitId
-	notify(player, string.format("Rescued %s! It's on your podium", name), false, "deposit")
+	DataService.Bump(player, "salvaged")
+	local name = unitName(carry.unitId, carry.mutationId)
+	notify(player, string.format("%s is on your podium!", name), false, "deposit")
 	fx(player, "delivered", name)
 end
 
--- ─── Giriş / çıkış ──────────────────────────────────────────────────────────
+-- ─── Yakalama ve fırlatma ───────────────────────────────────────────────────
 
-function enterSpace(player: Player)
-	if player:GetAttribute("InSpace") then
-		return
-	end
-	if StealService.IsCarrying(player) then
-		notify(player, "Bring your loot home first!", true)
-		return
-	end
-	local character = player.Character
-	local humanoid = humanoidOf(player)
-	if not (character and humanoid and humanoid.Health > 0) then
-		return
-	end
-	local spawn = SpaceField.DockSpawn()
-	pcall(function()
-		player:RequestStreamAroundAsync(spawn.Position, 3)
-	end)
-	savedJump[player] = humanoid.JumpHeight
-	humanoid.JumpHeight = Config.Space.JumpHeight
-	player:SetAttribute("InSpace", true)
-	character:PivotTo(spawn)
-	StealService.RefreshSpeed(player)
-	fx(player, "enter")
+local function landing(): CFrame
+	local p = Config.Space.Landing
+	return CFrame.lookAt(p, p + Vector3.new(0, 0, 1))
 end
 
-function exitSpace(player: Player)
-	if not player:GetAttribute("InSpace") then
-		return
-	end
+local function catch(monster: Monster, player: Player)
+	local carry = carrying[player]
+	local name = if carry then unitName(carry.unitId, carry.mutationId) else "it"
 	drop(player)
-	player:SetAttribute("InSpace", nil)
-	local humanoid = humanoidOf(player)
-	if humanoid then
-		humanoid.JumpHeight = savedJump[player] or 7.2
-	end
-	savedJump[player] = nil
-	local character = player.Character
-	if character and airlockPad then
-		local look = airlockPad.CFrame.LookVector
-		local p = airlockPad.Position + look * 4 + Vector3.new(0, 3.5, 0)
-		character:PivotTo(CFrame.lookAt(p, p + look))
-	end
-	StealService.RefreshSpeed(player)
-	fx(player, "exit")
+	local s = Config.Space
+	local now = os.clock()
+	grabbedBy[player] = monster
+	immuneUntil[player] = now + s.GrabTime + s.ThrowTime + s.ThrowImmunity
+	player:SetAttribute("SpaceGrabbed", monster.def.id)
+	monster.state = "grab"
+	monster.stateAt = now
+	monster.target = player
+	fx(player, "grab", monster.def.id, s.GrabTime, s.ThrowTime)
+	notify(player, string.format("%s caught you! %s went back to its planet", monster.def.name, name), true)
+
+	-- Sunucu yedeği: istemci fırlatmayı çizemezse yine de gemiye insin
+	task.delay(s.GrabTime + s.ThrowTime + 0.8, function()
+		if grabbedBy[player] ~= monster then
+			return
+		end
+		grabbedBy[player] = nil
+		player:SetAttribute("SpaceGrabbed", nil)
+		local root = rootOf(player)
+		if root and not SpaceField.InSafe(root.Position) and player.Character then
+			player.Character:PivotTo(landing())
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
 end
 
--- ─── Döngü ──────────────────────────────────────────────────────────────────
+-- ─── Canavarlar ─────────────────────────────────────────────────────────────
 
-local function nearestCarrier(from: Vector3): (Player?, BasePart?)
+local function buildMonsterRoot(folder: Instance, index: number, def: Config.SpaceMonsterDef): Monster
+	local home = SpaceField.MonsterHome(def)
+	local holder = Instance.new("Model")
+	holder.Name = "Monster" .. index
+	local root = part(holder, "Root", Vector3.new(2, 2, 2), home, def.glow,
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+	holder.PrimaryPart = root
+	holder:SetAttribute("MonsterId", def.id)
+	holder:SetAttribute("Planet", index)
+	holder:SetAttribute("State", "idle")
+	holder:SetAttribute("Target", 0)
+	holder.Parent = folder
+	return {
+		def = def,
+		planet = index,
+		root = root,
+		home = home,
+		position = home.Position,
+		facing = home.LookVector,
+		state = "idle",
+		stateAt = 0,
+		chaseAt = 0,
+		target = nil,
+	}
+end
+
+local function setState(m: Monster, state: string)
+	if m.state ~= state then
+		m.state = state
+		m.stateAt = os.clock()
+	end
+end
+
+-- Canavarın gövde merkezi kökten bu kadar yukarıda (yakalama mesafesi buradan)
+local function bodyHeight(def: Config.SpaceMonsterDef): number
+	return 7 * def.scale
+end
+
+local function nearestCarrier(m: Monster): (Player?, BasePart?)
 	local best: Player? = nil
 	local bestRoot: BasePart? = nil
-	local bestDist = math.huge
-	for player in carrying do
-		local root = rootOf(player)
-		if root then
-			local d = (root.Position - from).Magnitude
-			if d < bestDist then
-				best, bestRoot, bestDist = player, root, d
+	local bestD = math.huge
+	for player, carry in carrying do
+		if carry.planet == m.planet then
+			local root = rootOf(player)
+			if root then
+				local d = (root.Position - m.position).Magnitude
+				if d < bestD then
+					best, bestRoot, bestD = player, root, d
+				end
 			end
 		end
 	end
 	return best, bestRoot
 end
 
-local clock = 0
+--[[ Canavar güvenli bölgeye giremiyor: güvertenin önünde duruyor. ]]
+local function clampOutside(m: Monster, p: Vector3): Vector3
+	local margin = 6 + m.def.scale * 6
+	local limitZ = SpaceField.WallOuterZ() - margin
+	local lo, hi = SpaceField.DeckBox()
+	if p.X > lo.X - margin and p.X < hi.X + margin and p.Y < hi.Y + margin then
+		limitZ = lo.Z - margin
+	end
+	if p.Z > limitZ then
+		p = Vector3.new(p.X, p.Y, limitZ)
+	end
+	return p
+end
 
 local function stepMonsters(dt: number)
-	clock += dt
 	local s = Config.Space
 	local now = os.clock()
-	local dockEdgeZ = s.Origin.Z - s.DockHalf.Y - 8
-
-	for index, m in monsters do
-		local goal = m.home
-		local speed = s.MonsterReturnSpeed
+	for _, m in monsters do
+		local need = m.def.need
+		local moveTo: Vector3? = nil
+		local speed = need * s.ReturnSpeedMul
+		local look: Vector3? = nil
 
 		if m.state == "wake" then
-			goal = m.position
-			if now >= m.wakeAt then
-				m.state = "chase"
+			local other, root = nearestCarrier(m)
+			if root then
+				look = root.Position - m.position
 			end
-		end
-
-		if m.state == "chase" then
+			if not other then
+				-- Kükrerken taşıyan teslim etti / bıraktı: eve dön
+				m.target = nil
+				setState(m, "return")
+			elseif now - m.stateAt >= s.WakeDelay then
+				setState(m, "chase")
+				m.chaseAt = now
+			end
+		elseif m.state == "chase" then
 			local target = m.target
-			local root = target and carrying[target] and rootOf(target)
-			if not (target and root) then
-				-- Hedef düştü/teslim etti: başka taşıyan varsa ona, yoksa eve
-				local other, otherRoot = nearestCarrier(m.position)
-				if other and otherRoot then
-					m.target = other
-					root = otherRoot
-				else
-					m.state = "return"
-					m.target = nil
+			local root = if target and carrying[target] and carrying[target].planet == m.planet then rootOf(target) else nil
+			if not root then
+				local other, otherRoot = nearestCarrier(m)
+				m.target = other
+				root = otherRoot
+			end
+			if not (m.target and root) then
+				m.target = nil
+				setState(m, "return")
+			else
+				local ramp = math.clamp((now - m.chaseAt) / s.ChaseRamp, 0, 1)
+				speed = need * (s.ChaseStartMul + (1 - s.ChaseStartMul) * ramp)
+				moveTo = root.Position - Vector3.new(0, bodyHeight(m.def), 0)
+				look = root.Position - m.position
+				local reach = SpaceField.CatchRadius(m.def)
+				local body = m.position + Vector3.new(0, bodyHeight(m.def), 0)
+				if (body - root.Position).Magnitude <= reach and not SpaceField.InSafe(root.Position) then
+					catch(m, m.target :: Player)
 				end
 			end
-			if m.state == "chase" and root then
-				-- Kalabalık olmasın: her canavar hedefin biraz yanına
-				local side = (index - (#monsters + 1) / 2) * 5
-				goal = root.Position + Vector3.new(side, 5, 0)
-				m.speed = math.min(s.MonsterMaxSpeed, m.speed + s.MonsterAccel * dt)
-				speed = m.speed
-				local target2 = m.target :: Player
-				-- Yakaladı mı
-				if (m.position - root.Position).Magnitude <= s.MonsterCatchRadius + 5 and not SpaceField.InDock(root.Position) then
-					local def = carrying[target2] and Config.GetUnit(carrying[target2].unitId)
-					drop(target2)
-					knock(target2, m.position, s.MonsterKnock, s.MonsterStun)
-					notify(target2, string.format("The Void Beast snatched %s back!", if def then def.name else "it"), true)
-					m.state = "return"
-					m.target = nil
-				end
+		elseif m.state == "grab" then
+			if now - m.stateAt >= s.GrabTime then
+				setState(m, "throw")
 			end
-		end
-
-		if m.state == "return" and (m.position - m.home).Magnitude < 2 then
-			m.state = "sleep"
-			m.speed = s.MonsterSpeed
-		end
-
-		-- Hareket
-		local delta = goal - m.position
-		if m.state ~= "sleep" and m.state ~= "wake" and delta.Magnitude > 0.05 then
-			local step = math.min(delta.Magnitude, speed * dt)
-			local nextPos = m.position + delta.Unit * step
-			-- Rıhtıma giremez
-			if nextPos.Z > dockEdgeZ then
-				nextPos = Vector3.new(nextPos.X, nextPos.Y, dockEdgeZ)
+		elseif m.state == "throw" then
+			if now - m.stateAt >= 0.6 then
+				m.target = nil
+				setState(m, "return")
 			end
-			m.position = nextPos
-			local flat = Vector3.new(delta.X, 0, delta.Z)
-			if flat.Magnitude > 0.1 then
-				m.facing = m.facing:Lerp(flat.Unit, math.min(1, dt * 6))
+		elseif m.state == "return" then
+			moveTo = m.home.Position
+			local d = (m.home.Position - m.position).Magnitude
+			if d < 1 then
+				m.position = m.home.Position
+				setState(m, "idle")
 			end
-		end
-
-		-- Uyurken yakındaki boş elli oyuncuyu savuruyor; yüzünü en yakına dönüyor
-		if m.state == "sleep" then
-			local nearest: Vector3? = nil
-			local nearestD = 60
+			-- Dönerken biri yine çalarsa kovalamaya geri dön
+			local other = nearestCarrier(m)
+			if other then
+				m.target = other
+				setState(m, "wake")
+			end
+		elseif m.state == "idle" then
+			-- En yakın oyuncuyu gözüyle izliyor
+			local best: Vector3? = nil
+			local bestD = 70
 			for _, player in Players:GetPlayers() do
-				local root = player:GetAttribute("InSpace") and rootOf(player)
+				local root = rootOf(player)
 				if root then
 					local d = (root.Position - m.position).Magnitude
-					if d < nearestD then
-						nearest, nearestD = root.Position, d
-					end
-					local flatD = Vector3.new(root.Position.X - m.position.X, 0, root.Position.Z - m.position.Z).Magnitude
-					if flatD <= s.MonsterSwipeRadius and not carrying[player] and now - (m.lastSwipe[player] or 0) >= s.MonsterSwipeCooldown then
-						m.lastSwipe[player] = now
-						knock(player, m.position, s.AsteroidKnock, s.AsteroidStun)
+					if d < bestD then
+						best, bestD = root.Position, d
 					end
 				end
 			end
-			if nearest then
-				local flat = Vector3.new(nearest.X - m.position.X, 0, nearest.Z - m.position.Z)
-				if flat.Magnitude > 0.1 then
-					m.facing = m.facing:Lerp(flat.Unit, math.min(1, dt * 2))
-				end
+			look = if best then best - m.position else m.home.LookVector
+			local other = nearestCarrier(m)
+			if other then
+				m.target = other
+				setState(m, "wake")
 			end
 		end
 
-		-- Çizim: gövde salınımı, uyanınca titreme, dokunaç dalgası
-		local bob = math.sin(clock * 1.6 + index) * (if m.state == "sleep" then 1.2 else 0.6)
-		local shake = if m.state == "wake" then Vector3.new(math.sin(clock * 50) * 0.5, 0, math.cos(clock * 43) * 0.5) else Vector3.zero
-		local base = CFrame.lookAt(m.position, m.position + m.facing) + Vector3.new(0, bob, 0) + shake
-		local cframes = table.create(#m.parts)
-		for i, offset in m.offsets do
-			if m.wiggle[i] ~= 0 then
-				local sway = math.sin(clock * (if m.state == "chase" then 9 else 3) + i * 0.7) * 0.35
-				cframes[i] = base * offset * CFrame.Angles(sway, 0, sway * 0.5)
-			else
-				cframes[i] = base * offset
+		if moveTo then
+			local delta = moveTo - m.position
+			if delta.Magnitude > 0.05 then
+				local step = math.min(delta.Magnitude, speed * dt)
+				m.position = clampOutside(m, m.position + delta.Unit * step)
+			end
+			if not look and delta.Magnitude > 0.5 then
+				look = delta
 			end
 		end
-		workspace:BulkMoveTo(m.parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+		if look then
+			local flat = Vector3.new(look.X, 0, look.Z)
+			if flat.Magnitude > 0.1 then
+				m.facing = m.facing:Lerp(flat.Unit, math.min(1, dt * (if m.state == "idle" then 2 else 6))).Unit
+			end
+		end
 
-		local text = if m.state == "chase" or m.state == "wake" then "VOID BEAST!" else "VOID BEAST  zzz"
-		if m.label.Text ~= text then
-			m.label.Text = text
-			-- İstemci (SpaceFX) tehlike kenarını buna göre yakıyor
-			m.model:SetAttribute("Chasing", if m.state == "chase" or m.state == "wake" then true else nil)
-			m.label.TextColor3 = if m.state == "sleep" or m.state == "return" then Color3.fromRGB(200, 150, 255) else Color3.fromRGB(255, 70, 90)
+		local cf = CFrame.lookAt(m.position, m.position + m.facing)
+		if (m.root.CFrame.Position - cf.Position).Magnitude > 0.01 or m.root.CFrame.LookVector:Dot(cf.LookVector) < 0.9999 then
+			m.root.CFrame = cf
+		end
+		local holder = m.root.Parent :: Instance
+		if holder:GetAttribute("State") ~= m.state then
+			holder:SetAttribute("State", m.state)
+		end
+		local targetId = if m.target then m.target.UserId else 0
+		if holder:GetAttribute("Target") ~= targetId then
+			holder:SetAttribute("Target", targetId)
 		end
 	end
 end
 
+-- ─── Oyuncular ──────────────────────────────────────────────────────────────
+
+local lastPlayerStep = 0
+
 local function stepPlayers()
 	local now = os.clock()
+	if now - lastPlayerStep < 0.1 then
+		return
+	end
+	lastPlayerStep = now
 	for _, player in Players:GetPlayers() do
-		if not player:GetAttribute("InSpace") then
-			continue
-		end
 		local root = rootOf(player)
 		if not root then
 			continue
 		end
-		-- Başka yoldan gemiye dönmüş (ışınlanma vb.): durumu temizle
-		if (root.Position - Config.Space.Origin).Magnitude > 900 then
-			drop(player)
-			player:SetAttribute("InSpace", nil)
-			local humanoid = humanoidOf(player)
-			if humanoid then
-				humanoid.JumpHeight = savedJump[player] or 7.2
-			end
-			savedJump[player] = nil
-			StealService.RefreshSpeed(player)
-			fx(player, "exit")
-			continue
+		local pos = root.Position
+		local inSpace = SpaceField.InSpace(pos)
+		if (player:GetAttribute("InSpace") == true) ~= inSpace then
+			player:SetAttribute("InSpace", if inSpace then true else nil)
 		end
-		if SpaceField.Fell(root.Position) then
-			local had = carrying[player] ~= nil
+		if inSpace and StealService.IsCarrying(player) then
+			-- Gemiden çalınan karakter uzaya çıkamaz: sahibine döner
+			StealService.KnockDrop(player)
+			notify(player, "Stolen crewmates can't leave the ship! It went back home", true)
+		end
+		if carrying[player] and not grabbedBy[player] and SpaceField.InSafe(pos) then
+			deliver(player, root)
+		end
+		-- Uçuş sınırının çok dışına düşen / fırlayan: güverteye
+		local lo, hi = Config.Space.BoundsMin, Config.Space.BoundsMax
+		if pos.Z < hi.Z and (pos.X < lo.X - 60 or pos.X > hi.X + 60 or pos.Y < lo.Y - 60 or pos.Y > hi.Y + 60 or pos.Z < lo.Z - 60) then
 			drop(player)
-			local character = player.Character
-			if character then
-				character:PivotTo(SpaceField.DockSpawn())
+			if player.Character then
+				local deck = SpaceField.DeckCenter() + Vector3.new(0, 3.5, 0)
+				player.Character:PivotTo(CFrame.lookAt(deck, deck + Vector3.new(0, 0, -1)))
 				root.AssemblyLinearVelocity = Vector3.zero
 			end
-			notify(player, if had then "Lost in space! The crewmate floated back to the nest" else "Lost in space! Back to the dock", true)
-			continue
-		end
-		if carrying[player] and SpaceField.InDock(root.Position) then
-			deliver(player)
+			notify(player, "Lost in space! Back to the Launch Bay", true)
 		end
 	end
 
-	-- Boş balonlar dolsun
-	for _, spot in spots do
-		if not spot.unitId and spot.emptySince and now - spot.emptySince >= Config.Space.SpotRespawn then
-			rollSpot(spot)
+	for _, list in spots do
+		for _, spot in list do
+			if not spot.unitId and not spot.held and spot.emptySince and now - spot.emptySince >= Config.Space.CrewRespawn then
+				rollSpot(spot)
+			end
 		end
 	end
 end
 
--- ─── Çarpma bildirimi ───────────────────────────────────────────────────────
+-- ─── Dışa açık ──────────────────────────────────────────────────────────────
 
-local function onHit(player: Player, laneIndex: any, t: any)
-	if typeof(laneIndex) ~= "number" or typeof(t) ~= "number" or laneIndex ~= laneIndex or t ~= t then
-		return
+function SpaceService.IsCarrying(player: Player): boolean
+	return carrying[player] ~= nil
+end
+
+--[[
+	Bedava karakter (çark, "Guaranteed Mutation" ürünü): oyuncunun hızının
+	yettiği en iyi canavarın havuzundan, doğrudan kaideye. Boş kaide yoksa
+	nil — çağıran ödülü harcamasın (ürün makbuzu sonra yeniden denenir).
+]]
+--[[ Oyuncunun hızının yettiği en iyi canavar, isteğe bağlı bir üst kademe. ]]
+function SpaceService.PoolFor(player: Player, bonusTier: number?): Config.SpaceMonsterDef
+	local best = Config.BestSpaceMonster(speedOf(player))
+	local index = table.find(Config.SpaceMonsters, best) or 1
+	return Config.SpaceMonsters[math.min(#Config.SpaceMonsters, index + (bonusTier or 0))]
+end
+
+function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?): string?
+	local def = SpaceService.PoolFor(player, bonusTier)
+	local unit = Config.RollSpaceUnit(rng, def)
+	local mutation = Config.RollMutation(rng)
+	if forceMutation then
+		while not mutation do
+			mutation = Config.RollMutation(rng)
+		end
 	end
-	if not player:GetAttribute("InSpace") then
-		return
+	local mutationId = if mutation then mutation.id else nil
+	if not placeOnPodium(player, unit.id, mutationId, "got") then
+		return nil
 	end
-	local now = os.clock()
-	if now - (lastHit[player] or 0) < Config.Space.HitImmunity * 0.8 then
-		return
-	end
-	local serverNow = workspace:GetServerTimeNow()
-	if t < serverNow - 1.5 or t > serverNow + 0.5 then
-		return
-	end
-	local root = rootOf(player)
-	if not root then
-		return
-	end
-	if not SpaceField.CameNear(math.floor(laneIndex), t - 0.4, t + 0.2, root.Position, Config.Space.HitTolerance) then
-		return
-	end
-	lastHit[player] = now
-	if carrying[player] then
-		drop(player)
-		notify(player, "Asteroid hit! You dropped the crewmate", true)
-	end
+	return unitName(unit.id, mutationId)
 end
 
 -- ─── Testler için ───────────────────────────────────────────────────────────
 
-function SpaceService._Enter(player: Player)
-	enterSpace(player)
-end
-
-function SpaceService._Exit(player: Player)
-	exitSpace(player)
-end
-
-function SpaceService._Grab(player: Player, index: number)
-	local spot = spots[index]
+function SpaceService._Grab(player: Player, planet: number, index: number)
+	local list = spots[planet]
+	local spot = list and list[index]
 	if spot then
 		onGrab(player, spot)
 	end
 end
 
-function SpaceService._Deliver(player: Player)
-	deliver(player)
+--[[ keepTime: yol süresi kontrolünü de dene (hile testi). ]]
+function SpaceService._Deliver(player: Player, keepTime: boolean?)
+	local root = rootOf(player)
+	if root then
+		local carry = carrying[player]
+		if carry and not keepTime then
+			carry.grabbedAt = -math.huge
+		end
+		deliver(player, root)
+	end
+end
+
+function SpaceService.SetPaused(value: boolean)
+	paused = value
 end
 
 function SpaceService._Drop(player: Player)
 	drop(player)
 end
 
-function SpaceService._Spot(index: number): (string?, string?)
-	local spot = spots[index]
+function SpaceService._Catch(player: Player, planet: number)
+	local m = monsters[planet]
+	if m then
+		catch(m, player)
+	end
+end
+
+function SpaceService._Spot(planet: number, index: number): (string?, string?)
+	local list = spots[planet]
+	local spot = list and list[index]
 	if not spot then
 		return nil, nil
 	end
 	return spot.unitId, spot.mutationId
 end
 
-function SpaceService._Monsters(): { { state: string, target: Player? } }
-	local list = {}
-	for _, m in monsters do
-		table.insert(list, { state = m.state, target = m.target })
+function SpaceService._Monster(planet: number): (string?, Player?)
+	local m = monsters[planet]
+	if not m then
+		return nil, nil
 	end
-	return list
+	return m.state, m.target
 end
 
-function SpaceService.IsCarrying(player: Player): boolean
-	return carrying[player] ~= nil
+function SpaceService._Step(dt: number)
+	stepMonsters(dt)
 end
 
-function SpaceService.GetAirlock(): BasePart?
-	return airlockPad
+function SpaceService._ClearImmunity(player: Player)
+	immuneUntil[player] = nil
+	grabbedBy[player] = nil
+	player:SetAttribute("SpaceGrabbed", nil)
 end
 
 -- ─── Başlangıç ──────────────────────────────────────────────────────────────
@@ -1098,38 +998,80 @@ function SpaceService.Start()
 	notifyRemote = Net.Get("Notify")
 	fxRemote = Net.Get("SpaceFX")
 
-	zone = buildZone()
-	airlockPad = buildAirlock()
-	if airlockPad then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "AirlockPrompt"
-		prompt.ActionText = "Space Walk"
-		prompt.ObjectText = "Airlock"
-		prompt.HoldDuration = 0.4
-		prompt.MaxActivationDistance = 12
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = airlockPad
-		PromptGuard.Connect(prompt, function(player)
-			enterSpace(player)
-		end)
+	-- Eski sürümün kafeterya hava kilidi (Batur, 2026-09-27) artık yok
+	local oldAirlock = workspace:FindFirstChild("SpaceAirlock")
+	if oldAirlock then
+		oldAirlock:Destroy()
+	end
+	local old = workspace:FindFirstChild("SpaceZone")
+	if old then
+		old:Destroy()
 	end
 
-	Net.Get("SpaceHit").OnServerEvent:Connect(onHit)
+	local zone = Instance.new("Model")
+	zone.Name = "SpaceZone"
+	zone.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	buildDeck(zone)
+
+	local planetFolder = Instance.new("Folder")
+	planetFolder.Name = "Planets"
+	planetFolder.Parent = zone
+	local monsterFolder = Instance.new("Folder")
+	monsterFolder.Name = "Monsters"
+	monsterFolder.Parent = zone
+	local crew = Instance.new("Folder")
+	crew.Name = "Crew"
+	crew.Parent = zone
+	crewFolder = crew
+
+	table.clear(spots)
+	table.clear(monsters)
+	for i, def in Config.SpaceMonsters do
+		buildPlanet(planetFolder, i, def)
+		monsters[i] = buildMonsterRoot(monsterFolder, i, def)
+		local list: { Spot } = {}
+		for k, pos in SpaceField.CrewSpots(def) do
+			local spot: Spot = { planet = i, index = k, position = pos, held = false }
+			-- Mürettebatın altında parlak halka
+			cyl(planetFolder, "CrewPad", pos + Vector3.new(0, 0.06, 0), Vector3.yAxis, 0.12, 5, def.glow,
+				{ Material = Enum.Material.Neon, Transparency = 0.35, CanCollide = false })
+			list[k] = spot
+		end
+		spots[i] = list
+	end
+	zone.Parent = workspace
+	for _, list in spots do
+		for _, spot in list do
+			rollSpot(spot)
+		end
+	end
+
+	--[[
+		Konveyör kalktı; onun ürünleri artık doğrudan kaideye karakter veriyor.
+		Boş kaide yoksa false: MonetizationService makbuzu sonra yeniden dener.
+	]]
+	MonetizationService.RegisterGranter("conveyor", function(player)
+		return SpaceService.GrantUnit(player, false) ~= nil
+	end)
+	MonetizationService.RegisterGranter("lucky", function(player)
+		return SpaceService.GrantUnit(player, true) ~= nil
+	end)
 
 	RunService.Heartbeat:Connect(function(dt)
-		if #monsters > 0 then
-			stepMonsters(dt)
+		if paused then
+			return
 		end
+		stepMonsters(dt)
 		stepPlayers()
 	end)
 
 	local function watch(player: Player)
 		player.CharacterAdded:Connect(function()
-			-- Yeniden doğan uzayda değil; taşıdığı balonuna döner
 			drop(player)
+			grabbedBy[player] = nil
 			player:SetAttribute("InSpace", nil)
 			player:SetAttribute("SpaceCarry", nil)
-			savedJump[player] = nil
+			player:SetAttribute("SpaceGrabbed", nil)
 		end)
 	end
 	for _, player in Players:GetPlayers() do
@@ -1138,10 +1080,12 @@ function SpaceService.Start()
 	Players.PlayerAdded:Connect(watch)
 	Players.PlayerRemoving:Connect(function(player)
 		drop(player)
-		lastHit[player] = nil
-		savedJump[player] = nil
+		immuneUntil[player] = nil
+		grabbedBy[player] = nil
 		for _, m in monsters do
-			m.lastSwipe[player] = nil
+			if m.target == player then
+				m.target = nil
+			end
 		end
 	end)
 end

@@ -30,7 +30,7 @@ local OWN_ONLY: { [string]: boolean } = {
 	LockPrompt = true,
 	RebirthPrompt = true,
 	UpgradePrompt = true,
-	BuyPrompt = true,
+	CapsulePrompt = true,
 }
 
 -- Yalnızca başkasının üssünde görünmeli
@@ -163,12 +163,6 @@ function PromptFilter.Create(): Filter
 				end
 
 				if want and d.Name == "SellPrompt" and lastUnit then
-					want = false
-				end
-
-				-- Konveyördeki karakter henüz kapağın içindeyse alınamıyor
-				-- (sunucu OnBelt niteliğiyle bildiriyor, ConveyorService)
-				if want and d.Name == "BuyPrompt" and d:GetAttribute("OnBelt") == false then
 					want = false
 				end
 

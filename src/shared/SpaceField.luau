@@ -1,26 +1,16 @@
 --!strict
 --[[
-	Uzay yürüyüşü alanının geometrisi ve asteroitleri. Sunucu (SpaceService)
-	ve istemci (SpaceFX) AYNI hesabı kullanıyor.
+	Uzay soygununun geometrisi. Sunucu (SpaceService) ve istemci (SpaceFX)
+	AYNI hesabı kullanıyor: güvenli bölge, uçuş sınırı, gezegen düzeni,
+	mürettebat yerleri, canavarların evi.
 
-	Yerleşim Config.Space.Origin'e göre, yol -Z yönünde:
+	    GEMİ (z > -68)  │ kapı │  LAUNCH BAY (güverte)  │   UZAY → gezegenler (-z)
 
-	    RIHTIM (0,0,0) ── yol parçaları (aralarında atlanacak boşluklar) ── YUVA
-
-	  Rıhtım   — hava kilidinin uzaydaki ucu: doğuş noktası, teslim alanı,
-	             gemiye dönüş konsolu. Canavarlar buraya giremiyor.
-	  Yol      — Config.Space.Segments: kaya platformlar; aralardaki boşluk
-	             düşük yerçekiminde kolay atlanıyor ama düşen kaybediyor.
-	  Yuva     — Void Beast'lerin yuvası; kayıp mürettebatlar balonlarda.
-
-	ASTEROİTLER DETERMİNİSTİK: her şerit sunucu saatinden hesaplanıyor
-	(RogueTrack / WheelSpin ile aynı fikir). Ağda tek bir asteroit konumu
-	gitmiyor; her istemci kendi ekranında her karede çiziyor, sunucu da aynı
-	formülle "gerçekten çarptı mı" diye doğruluyor.
-
-	    şerit: z, hız, periyot, yarıçap, yükseklik, yön, faz
-	    d = ((t + faz) mod periyot) × hız      (0 .. span arası görünür)
-	    x = (−span/2 + d) × yön
+	  Güvenli   — gemi içi + güverte kutusu. Canavar giremiyor, taşınan
+	              karakter burada teslim ediliyor.
+	  Uzay      — kuzey duvarın dışı (güverte hariç). Burada oyuncu uçuyor.
+	  Gezegen   — Config.SpaceMonsters[i].position platonun üst yüzü;
+	              küre merkezi onun radius × PLATEAU_DROP altında.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,139 +19,123 @@ local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local SpaceField = {}
 
-export type Lane = Config.SpaceLane
+-- Platonun küredeki yeri: merkezden radius × bu kadar yukarıda kesiliyor
+SpaceField.PLATEAU_DROP = 0.8
 
 local function space()
 	return Config.Space
 end
 
---[[ Yerel (Origin'e göre) noktayı dünyaya çevirir. ]]
-function SpaceField.World(localPos: Vector3): Vector3
-	return space().Origin + localPos
+--[[ Kuzey duvarın dış yüzü (güvertenin iç kenarı). ]]
+function SpaceField.WallOuterZ(): number
+	return space().WallZ - space().WallThickness / 2
 end
 
-function SpaceField.DockCenter(): Vector3
-	return space().Origin
-end
-
---[[ Rıhtımdaki doğuş noktası (yola, -Z'ye bakıyor). ]]
-function SpaceField.DockSpawn(): CFrame
-	local p = space().Origin + Vector3.new(0, 3.5, 8)
-	return CFrame.lookAt(p, p + Vector3.new(0, 0, -1))
-end
-
-function SpaceField.NestCenter(): Vector3
-	return space().Origin + Vector3.new(0, 0, space().NestZ)
-end
-
---[[ Yuvadaki kayıp mürettebat balonlarının yerleri (dünya). ]]
-function SpaceField.SpotPositions(): { Vector3 }
+--[[ Güverte kutusu: {min, max} (güvenli bölge). ]]
+function SpaceField.DeckBox(): (Vector3, Vector3)
 	local s = space()
-	local center = SpaceField.NestCenter()
+	local z1 = SpaceField.WallOuterZ()
+	return Vector3.new(s.GateX - s.DeckHalfWidth - 4, s.DeckTop - 8, z1 - s.DeckDepth - 4),
+		Vector3.new(s.GateX + s.DeckHalfWidth + 4, s.DeckTop + s.SafeHeight, s.WallZ + 1)
+end
+
+--[[ Güvertenin dış (uzaya bakan) kenarının z'si. ]]
+function SpaceField.DeckEdgeZ(): number
+	return SpaceField.WallOuterZ() - space().DeckDepth
+end
+
+function SpaceField.DeckCenter(): Vector3
+	local s = space()
+	return Vector3.new(s.GateX, s.DeckTop, SpaceField.WallOuterZ() - s.DeckDepth / 2)
+end
+
+function SpaceField.InDeck(p: Vector3): boolean
+	local lo, hi = SpaceField.DeckBox()
+	return p.X >= lo.X and p.X <= hi.X and p.Y >= lo.Y and p.Y <= hi.Y and p.Z >= lo.Z and p.Z <= hi.Z
+end
+
+--[[ Gemi ya da güverte: canavar erişemez, teslim burada. ]]
+function SpaceField.InSafe(p: Vector3): boolean
+	-- Gemi içi: kuzey duvarın içi ve istasyonun x aralığı (lobi dahil)
+	local inShip = p.Z > SpaceField.WallOuterZ() and p.X > -90 and p.X < 450 and p.Y > -40 and p.Y < 120
+	return inShip or SpaceField.InDeck(p)
+end
+
+--[[ Uçuş bölgesi: kuzey duvarın dışı, güverte hariç. ]]
+function SpaceField.InSpace(p: Vector3): boolean
+	return p.Z <= SpaceField.WallOuterZ() and not SpaceField.InDeck(p)
+end
+
+--[[ Noktayı uçuş sınırının içine kırpar (değişmediyse aynısı). ]]
+function SpaceField.ClampToBounds(p: Vector3): Vector3
+	local lo, hi = space().BoundsMin, space().BoundsMax
+	return Vector3.new(math.clamp(p.X, lo.X, hi.X), math.clamp(p.Y, lo.Y, hi.Y), math.clamp(p.Z, lo.Z, hi.Z))
+end
+
+-- ─── Gezegenler ─────────────────────────────────────────────────────────────
+
+function SpaceField.PlanetCenter(def: Config.SpaceMonsterDef): Vector3
+	return def.position - Vector3.new(0, def.radius * SpaceField.PLATEAU_DROP, 0)
+end
+
+function SpaceField.PlateauRadius(def: Config.SpaceMonsterDef): number
+	return def.radius * math.sqrt(1 - SpaceField.PLATEAU_DROP ^ 2)
+end
+
+--[[ Canavarın baktığı yön: güverteye doğru, yatay. ]]
+function SpaceField.Facing(def: Config.SpaceMonsterDef): Vector3
+	local d = SpaceField.DeckCenter() - def.position
+	local flat = Vector3.new(d.X, 0, d.Z)
+	return if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, 1)
+end
+
+--[[ Canavarın evi (ayaklarının bastığı nokta): platonun arka yarısı. ]]
+function SpaceField.MonsterHome(def: Config.SpaceMonsterDef): CFrame
+	local facing = SpaceField.Facing(def)
+	local p = def.position - facing * (SpaceField.PlateauRadius(def) * 0.38)
+	return CFrame.lookAt(p, p + facing)
+end
+
+--[[ Mürettebatların durduğu noktalar (ayak hizası, dünya), canavarın önünde yay. ]]
+function SpaceField.CrewSpots(def: Config.SpaceMonsterDef): { Vector3 }
+	local s = space()
+	local facing = SpaceField.Facing(def)
+	local right = facing:Cross(Vector3.yAxis)
+	local center = def.position + facing * (SpaceField.PlateauRadius(def) * 0.1)
 	local list = {}
-	for i = 1, s.NestSpots do
-		-- Yolun karşısındaki yarım halkaya diziliyor: oyuncu yuvaya girip derine yürüyor
-		local a = math.rad(-150 + (i - 1) * (300 / math.max(1, s.NestSpots - 1)))
-		local r = s.SpotRing
-		table.insert(list, center + Vector3.new(math.sin(a) * r, s.SpotHeight, -math.cos(a) * r * 0.85 - 6))
+	local n = s.CrewPerPlanet
+	for i = 1, n do
+		local a = math.rad(-62 + (i - 1) * (124 / math.max(1, n - 1)))
+		local offset = facing * math.cos(a) * s.CrewRing + right * math.sin(a) * s.CrewRing
+		table.insert(list, center + offset)
 	end
 	return list
 end
 
---[[ Canavarların uyuduğu yerler (dünya). ]]
-function SpaceField.MonsterHomes(): { Vector3 }
+--[[ Canavarın yakalama menzili. ]]
+function SpaceField.CatchRadius(def: Config.SpaceMonsterDef): number
+	return space().CatchRadius + def.scale * 2
+end
+
+--[[
+	Fırlatma yolu: canavarın elinden gemiye. Önce güverte kapısının önündeki
+	bir noktaya yüksek bir yayla, oradan içeri düz; t 0..1.
+]]
+function SpaceField.ThrowPath(from: Vector3, t: number): Vector3
 	local s = space()
-	local center = SpaceField.NestCenter()
-	local list = {}
-	for i = 1, s.MonsterCount do
-		local a = math.rad(-60 + (i - 1) * (120 / math.max(1, s.MonsterCount - 1)))
-		table.insert(list, center + Vector3.new(math.sin(a) * 22, s.MonsterHover, -math.cos(a) * 22 - 4))
+	local door = Vector3.new(s.GateX, s.DeckTop + 14, SpaceField.DeckEdgeZ() - 10)
+	local landing = s.Landing
+	local split = 0.78
+	if t <= split then
+		local u = t / split
+		local peak = (from + door) / 2 + Vector3.new(0, 40 + (from - door).Magnitude * 0.12, 0)
+		local a = from:Lerp(peak, u)
+		local b = peak:Lerp(door, u)
+		return a:Lerp(b, u)
 	end
-	return list
-end
-
---[[ Rıhtımda mı (teslim ve canavarların giremediği güvenli alan). ]]
-function SpaceField.InDock(position: Vector3): boolean
-	local d = position - space().Origin
-	return math.abs(d.X) <= space().DockHalf.X and d.Z <= space().DockHalf.Y and d.Z >= -space().DockHalf.Y - 4
-		and math.abs(d.Y) <= 18
-end
-
---[[ Uzay alanına düşüp kayboldu mu (yolun çok altında). ]]
-function SpaceField.Fell(position: Vector3): boolean
-	return position.Y < space().Origin.Y - space().FallDepth
-end
-
--- ─── Asteroitler ────────────────────────────────────────────────────────────
-
---[[
-	Şeridin t anındaki asteroit konumu (dünya); şerit o an boşsa nil.
-	`t` sunucu saati (workspace:GetServerTimeNow()).
-]]
-function SpaceField.AsteroidAt(lane: Lane, t: number): Vector3?
-	local span = space().LaneSpan
-	local cycle = (t + lane.phase) % lane.period
-	local d = cycle * lane.speed
-	if d > span then
-		return nil
-	end
-	local x = (-span / 2 + d) * lane.dir
-	return space().Origin + Vector3.new(x, lane.height, lane.z)
-end
-
---[[
-	Şerit yolun üstünü ne zaman kesecek: şu an kesiyorsa 0, yoksa kaç
-	saniye sonra (istemci uyarı şeridini buna göre yakıyor).
-]]
-function SpaceField.SecondsUntilCrossing(lane: Lane, t: number): number
-	local s = space()
-	local half = s.PathHalfWidth + lane.radius
-	-- Yolun ortasına varış mesafesi: span/2; yola giriş: span/2 - half
-	local enter = (s.LaneSpan / 2 - half) / lane.speed
-	local leave = (s.LaneSpan / 2 + half) / lane.speed
-	local cycle = (t + lane.phase) % lane.period
-	if cycle >= enter and cycle <= leave then
-		return 0
-	end
-	if cycle < enter then
-		return enter - cycle
-	end
-	return lane.period - cycle + enter
-end
-
---[[
-	Bu noktaya çarpan asteroit şeridinin numarası (yoksa nil). `pad` oyuncu
-	gövdesinin yarıçapı gibi eklenen pay.
-]]
-function SpaceField.HitAt(t: number, position: Vector3, pad: number): number?
-	for i, lane in space().Lanes do
-		local rock = SpaceField.AsteroidAt(lane, t)
-		if rock and (rock - position).Magnitude <= lane.radius + pad then
-			return i
-		end
-	end
-	return nil
-end
-
---[[
-	Sunucu doğrulaması: `lane` şeridinin asteroidi [t0, t1] aralığında bu
-	noktaya `tolerance` kadar yaklaştı mı. İstemci çarpmayı kendi ekranında
-	görüyor; arada ağ gecikmesi olduğu için bir pencere taranıyor.
-]]
-function SpaceField.CameNear(laneIndex: number, t0: number, t1: number, position: Vector3, tolerance: number): boolean
-	local lane = space().Lanes[laneIndex]
-	if not lane then
-		return false
-	end
-	local t = t0
-	while t <= t1 do
-		local rock = SpaceField.AsteroidAt(lane, t)
-		if rock and (rock - position).Magnitude <= lane.radius + tolerance then
-			return true
-		end
-		t += 0.05
-	end
-	return false
+	local u = (t - split) / (1 - split)
+	-- İçeri girerken hafif kavis: yere yumuşak insin
+	return door:Lerp(landing, u) + Vector3.new(0, math.sin(u * math.pi) * 3, 0)
 end
 
 return SpaceField

@@ -1,7 +1,7 @@
 --!strict
 -- Öğretici: yeni oyuncuyu oyunun döngüsünden sırayla geçirir.
 --
--- Neden gerekli: oyunun hiçbir yerinde konveyörün ne olduğu, kaidenin ne
+-- Neden gerekli: oyunun hiçbir yerinde uzaydan nasıl çalınacağı, kaidenin ne
 -- işe yaradığı ya da başkasından nasıl çalınacağı yazmıyor. Bu türde
 -- oyuncu ilk iki dakikada döngüyü çözemezse çıkıyor.
 --
@@ -146,6 +146,10 @@ local function checkValue(player: Player, check: string): number
 	elseif check == "salvaged" then
 		return profile.salvaged or 0
 
+	elseif check == "spaceSpeed" then
+		-- Kapsülde antrenman (CapsuleService); tam sayıya yuvarlanmış
+		return math.floor(profile.spaceSpeed)
+
 	elseif check == "gear" then
 		local owned = 0
 		for _, has in profile.gear do
@@ -168,8 +172,15 @@ end
 local function targetFor(player: Player, hint: string): Instance?
 	local plot = PlotService.GetPlotOf(player)
 
-	if hint == "Conveyor" then
-		return plot and plot:FindFirstChild("Conveyor")
+	if hint == "SpaceGate" then
+		-- Launch Bay'deki kalkış pedi (SpaceService kuruyor)
+		local zone = workspace:FindFirstChild("SpaceZone")
+		local bay = zone and zone:FindFirstChild("LaunchBay")
+		return bay and bay:FindFirstChild("LaunchPad")
+
+	elseif hint == "Capsule" then
+		local capsule = plot and plot:FindFirstChild("Capsule")
+		return capsule and (capsule:FindFirstChild("Pad") or capsule)
 
 	elseif hint == "Sign" then
 		return plot and plot:FindFirstChild("Sign")
@@ -214,11 +225,6 @@ local function targetFor(player: Player, hint: string): Instance?
 		local decor = workspace:FindFirstChild("Decor")
 		local hatchery = decor and decor:FindFirstChild("Hatchery", true)
 		return hatchery and (hatchery:FindFirstChild("Egg1") or hatchery)
-
-	elseif hint == "Airlock" then
-		-- Kafeteryadaki hava kilidi (SpaceService kuruyor)
-		local airlock = workspace:FindFirstChild("SpaceAirlock")
-		return airlock and (airlock:FindFirstChild("AirlockPad") or airlock:FindFirstChild("Hatch"))
 
 	elseif hint == "GearShop" then
 		-- Klasörün kendisi vurgulanamıyor; dükkân tezgâhındaki ilk promptun parçası
@@ -386,7 +392,7 @@ function TutorialService.Check(player: Player)
 			end
 			if aloneLongEnough(player) then
 				done = true
-				notify(player, "No rivals aboard - space walk to steal from the Void Beasts instead!", false)
+				notify(player, "No rivals aboard - you'll steal from players once someone joins!", false)
 			elseif os.clock() - since >= Config.TutorialStealGiveUpSeconds then
 				done = true
 				notify(player, "Stealing takes practice - keep trying later!", false)
@@ -516,7 +522,7 @@ function TutorialService.Start()
 
 			TutorialService.SkipIfVeteran(player)
 
-			-- Üs verilene kadar bekle: ilk adımın hedefi konveyör ve
+			-- Üs verilene kadar bekle: ilk adımlar karakteri üsse getirmek,
 			-- üs yoksa oyuncu zaten hiçbir şey yapamıyor
 			for _ = 1, 20 do
 				if PlotService.GetPlotOf(player) then

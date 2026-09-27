@@ -25,13 +25,13 @@
 	(yumurtanın ekranı, E/R/T). Enabled süzmesi PromptFilter'da; burası
 	yalnızca çizim.
 
-	YAPIŞKAN KART (bant, "BuyPrompt"): bantta birkaç karakter kayarken en
-	yakın olan sürekli değişiyor; Roblox her değişimde eskisini gizleyip
-	yenisini gösteriyor. Her seferinde kart küçülüp yok oluyor, yenisi
-	"pop" ile çıkıyordu — saniyede birkaç kez, satın alma tuşu titreyip
-	takılıyor gibi görünüyordu. Artık aynı kart yeni karaktere kayıyor,
-	yalnızca yazısı (fiyat) değişiyor; son karakter de uzaklaşınca kısa
-	bir gecikmeyle kapanıyor.
+	YAPIŞKAN KART ("HeistPrompt", eskiden konveyörün "BuyPrompt"u):
+	gezegende beş mürettebat yan yana; uçarken en yakın olan sürekli
+	değişiyor ve Roblox her değişimde eskisini gizleyip yenisini gösteriyor.
+	Her seferinde kart küçülüp yok olur, yenisi "pop" ile çıkardı — tuş
+	titreyip takılıyor gibi görünürdü. Aynı kart yeni karaktere kayıyor,
+	yalnızca yazısı değişiyor; son karakter uzaklaşınca kısa bir
+	gecikmeyle kapanıyor.
 ]]
 
 local Players = game:GetService("Players")
@@ -57,7 +57,8 @@ local TONES: { [string]: Color3 } = {
 	StealPrompt = Color3.fromRGB(240, 60, 70),
 	CatchPrompt = Color3.fromRGB(240, 60, 70),
 	RoguePrompt = Color3.fromRGB(240, 60, 70),
-	BuyPrompt = Color3.fromRGB(80, 220, 70),
+	HeistPrompt = Color3.fromRGB(240, 60, 70),
+	CapsulePrompt = Color3.fromRGB(80, 200, 255),
 	SellPrompt = Color3.fromRGB(255, 196, 40),
 	LockPrompt = Color3.fromRGB(70, 150, 255),
 	UpgradePrompt = Color3.fromRGB(255, 140, 40),
@@ -71,7 +72,7 @@ local DEFAULT_TONE = Color3.fromRGB(80, 210, 230)
 
 -- Aynı kartı paylaşan (yeniden çizilmeyen) prompt adları
 local STICKY: { [string]: boolean } = {
-	BuyPrompt = true,
+	HeistPrompt = true,
 }
 local STICKY_LINGER = 0.2
 

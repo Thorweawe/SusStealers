@@ -2,7 +2,7 @@
 
 Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 
-**Döngü:** Konveyörden karakter al → kaideye koy → saniyelik para bassın → rakibin üssüne girip karakterini çal → kendi kaidene bırak.
+**Döngü:** Launch Bay'den uzaya uç → canavarın önündeki mürettebatı çal, yakalanmadan dön → kaideye koy → saniyelik para bassın → kapsülde uzay hızını artır, daha zor canavarlara git → rakibin üssüne girip karakterini çal.
 
 ---
 
@@ -17,7 +17,8 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/DataService.luau` | Sunucu | Kalıcı kayıt, oturum kilidi, çevrimdışı gelir |
 | `src/server/PlotService.luau` | Sunucu | Üsleri kurar, dağıtır, kaide ve kat durumu |
 | `src/server/EconomyService.luau` | Sunucu | Nakit, leaderstats, saniyelik gelir |
-| `src/server/ConveyorService.luau` | Sunucu | Konveyör üretimi, kaydırma, satın alma |
+| `src/server/SpaceService.luau` | Sunucu | Uzay soygunu: Launch Bay, gezegenler, canavar kovalaması, yakalayıp fırlatma, teslim (konveyörün yerine) |
+| `src/server/CapsuleService.luau` | Sunucu | Üslerdeki uzay kapsülü: antrenman (uzay hızı), yükseltme konsolu |
 | `src/server/StealService.luau` | Sunucu | Çalma, taşıma, bırakma, kilit, seri bonusu |
 | `src/server/SellService.luau` | Sunucu | Karakter satma |
 | `src/server/RebirthService.luau` | Sunucu | Rebirth, kat açma |
@@ -34,7 +35,9 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/server/FriendService.luau` | Sunucu | Aynı sunucudaki arkadaş başına küçük gelir bonusu |
 | `src/client/DeviceLayout.luau` | İstemci | Telefon/tablet/konsol: arayüz ölçeği, dokunmatik yerleşim, gamepad seçimi |
 | `src/client/Inventory.luau` | İstemci | Envanter penceresi (PETS/POTIONS/STYLE/TITLES sekmeleri) ve sağ ortadaki düğme dizisi (MenuDock) |
-| `src/client/ConveyorFX.luau` | İstemci | Konveyör çıtaları + bandın üstündeki karakterler, üssün bant saatiyle |
+| `src/client/SpaceFX.luau` | İstemci | Uzayda uçuş, canavar modelleri/animasyonu, yakalanıp fırlatılma, görev kartı, jetpack |
+| `src/client/CapsuleFX.luau` | İstemci | Kapsülde antrenman göstergesi |
+| `src/shared/SpaceField.luau` · `MonsterModel.luau` · `CapsuleModel.luau` | Her yerde | Uzay geometrisi · 6 canavarın modeli ve iskeleti · kapsül modeli |
 | `src/client/EggStyle.luau` | İstemci | Yumurta stilleri: kuluçkada süs + boşta animasyon, açılışta stil |
 | `src/client/EventFX.luau` | İstemci | Olay şeridi (üst orta), olay çizelgesi (sağ alt), Lights Sabotage karanlığı |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
@@ -51,7 +54,7 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 ### 1. Dosya sahipliği — BU KURAL BAĞLAYICI
 
 ```
-Batur   : src/server/*       (plot, ekonomi, konveyör, çalma)
+Batur   : src/server/*       (plot, ekonomi, uzay, çalma)
 Diğeri  : src/client/*       (HUD, efektler, ses, kamera)
 Ortak   : src/shared/*       -> dokunmadan önce haber ver
 ```
@@ -161,7 +164,8 @@ local mapping = {
 	{ "src/client/HudToggle.luau",              client.HudToggle },
 	{ "src/client/UpgradePanel.luau",           client.UpgradePanel },
 	{ "src/client/init.client.luau",            client },
-	{ "src/server/ConveyorService.luau",        server.ConveyorService },
+	{ "src/server/SpaceService.luau",           server.SpaceService },
+	{ "src/server/CapsuleService.luau",         server.CapsuleService },
 	{ "src/server/DataService.luau",            server.DataService },
 	{ "src/server/EconomyService.luau",         server.EconomyService },
 	{ "src/server/MonetizationService.luau",    server.MonetizationService },
@@ -196,7 +200,7 @@ end
 
 `HttpService.HttpEnabled` kapalı olsa bile çalışıyor — plugin bağlamında `GetAsync` izinli.
 
-**Yapı ilk kez kuruluyorsa** (place boşsa) önce kapları yarat: `ReplicatedStorage.Shared` (Folder), `ServerScriptService.Server` (Script), `StarterPlayerScripts.Client` (LocalScript), ve Shared altına `Config`/`Net`/`UnitModel`, Server altına `PlotService`/`EconomyService`/`ConveyorService`/`StealService` ModuleScript'leri.
+**Yapı ilk kez kuruluyorsa** (place boşsa) önce kapları yarat: `ReplicatedStorage.Shared` (Folder), `ServerScriptService.Server` (Script), `StarterPlayerScripts.Client` (LocalScript), ve Shared altına `Config`/`Net`/`UnitModel`, Server altına `PlotService`/`EconomyService`/`SpaceService`/`StealService` ModuleScript'leri.
 
 ## Kayıt (DataStore)
 
@@ -280,8 +284,9 @@ Normal `run_code` **edit datamodel'inde** çalışır; `workspace.Plots` orada y
 
 ## Öğretici
 
-Yeni oyuncu altı adımdan geçiyor: karakter al → ikinci kaideyi doldur →
-birinden çal → üssünü kilitle → yükseltme al → çarkı çevir. Adımlar
+Yeni oyuncu sırayla: uzaydaki ilk canavardan (Glorp) karakter çal →
+ikincisini çal → kapsülde antrenman yap → bir rakipten çal → üssünü kilitle
+→ çarkı çevir → yükseltme al → görev → yumurta → ekipman. Adımlar
 `Config.Tutorial`'da veri; koşullar `TutorialService`'te.
 
 Kurallar:
@@ -469,12 +474,13 @@ PodRing / PodScreen / FuseCore`, `GearShop.GearCounter / GearPlinth1..3`,
 
 Hepsi `src/shared/Config.luau` içinde, tek yerde:
 
-- `ConveyorInterval` — kaç saniyede bir yeni karakter (varsayılan 10)
-- `ConveyorBeltSpeed` / `GetConveyorBeltSpeed` — bant hızı (çıtalar ve karakterler aynı saatle)
-- `ConveyorPityAfter` — art arda kaç alınamayan karakterden sonra bütçeye uygun gelsin
+- `Config.SpaceMonsters` — 6 canavar: gereken uzay hızı (`need`), yeri, nadirlik havuzu (`odds`)
+- `Config.Space` — uçuş, güverte, kovalama, yakalama/fırlatma süreleri
+- `Config.Capsule` / `GetCapsuleGain` — kapsülde uzay hızı artışı ve mini oyun bonusu
+- `SellRefundFactor` — satışta karakter değerinin ne kadarı gelir (0.25; karakterler bedava çalındığı için düşük)
 - `PodiumsPerPlot` — üs başına kaide sayısı (varsayılan 8)
 - `StealHoldTime` / `StealCooldown` — çalma zorluğu
 - `SafeSeconds` — yeni konan karakterin dokunulmazlık süresi
 - `LockDuration` / `LockCooldown` — savunma dengesi
-- `Config.Units` — karakter listesi (fiyat, gelir, çıkma ağırlığı)
+- `Config.Units` — karakter listesi (değer, gelir, aynı nadirlikte çıkma ağırlığı)
 - `Config.Mutations` — mutasyon şansları ve gelir çarpanları

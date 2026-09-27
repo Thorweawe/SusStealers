@@ -33,8 +33,10 @@ export type Profile = {
 	version: number,
 	cash: number,
 	stolen: number,
-	-- Uzay yürüyüşünden kurtarılıp üsse getirilen mürettebat (SpaceService)
+	-- Uzaydaki canavarlardan çalınıp üsse getirilen mürettebat (SpaceService)
 	salvaged: number,
+	-- Uzay hızı (stud/sn): uçuş hızı, kapsülde artıyor (CapsuleService)
+	spaceSpeed: number,
 	rebirths: number,
 	units: { StoredUnit },
 	-- Çevrimdışı gelir hesabı için: son görülme ve o andaki kazanç hızı
@@ -171,6 +173,7 @@ local function newProfile(): Profile
 		cash = Config.StartingCash,
 		stolen = 0,
 		salvaged = 0,
+		spaceSpeed = Config.Space.BaseSpeed,
 		rebirths = 0,
 		units = {},
 		lastSeen = 0,
@@ -399,7 +402,19 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
+	if typeof(raw.spaceSpeed) == "number" and raw.spaceSpeed == raw.spaceSpeed then
+		profile.spaceSpeed = math.clamp(raw.spaceSpeed, Config.Space.BaseSpeed, Config.Space.MaxSpeed)
+	end
+
 	if typeof(raw.upgrades) == "table" then
+		--[[
+			Konveyör 2026-09-27'de kalktı; Conveyor Speed'e harcanan seviyeler
+			kaybolmasın diye Space Capsule seviyesine taşınıyor.
+		]]
+		local legacy = (raw.upgrades :: any).ConveyorSpeed
+		if typeof(legacy) == "number" and legacy > 0 and (raw.upgrades :: any).SpaceCapsule == nil then
+			(raw.upgrades :: any).SpaceCapsule = legacy
+		end
 		for id, level in raw.upgrades do
 			local def = typeof(id) == "string" and Config.GetUpgrade(id)
 			if def and typeof(level) == "number" and level > 0 then

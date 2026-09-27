@@ -13,6 +13,80 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-27 (31) — Yusuf (Batur'un şeridine de yazıldı: uzay yürüyüşü yeniden, konveyör kalktı)
+
+Yusuf'un istediği düzen (30)'daki uzay yürüyüşünden farklıydı; onun kodunun üstüne kuruldu.
+Yusuf "Batur şu an çalışmıyor, dönüştür" dedi. Studio'daki kopya (30)'dan önceki haldeydi,
+çakışma yoktu. Studio'ya aktarıldı, **175/175 test temiz**; kovalama, yakalama ve fırlatma
+oyunda denendi.
+
+- **Konveyör kalktı.** Karakterler artık yalnızca uzaydaki canavarlardan (ve oyunculardan) çalınıyor.
+  - `ConveyorService` ve `ConveyorFX` silindi.
+  - "conveyor"/"lucky" ürünleri ile çarkın "spawn"/"mutation" ödülleri karakteri doğrudan kaideye koyuyor:
+    `SpaceService.GrantUnit`. Boş kaide yoksa false döner, makbuz sonra yeniden denenir.
+  - `Config.Conveyor*` alanları ve `GetConveyorInterval` kalktı.
+  - `RollUnit`/`RarityUnlock` duruyor ama artık kullanılmıyor.
+- **Launch Bay:** kuzey duvarın ortası açık.
+  - Kapı kafeteryanın tam karşısında (`tools/map/station.luau`, `Config.Space.GateX/Width/Height`).
+  - Kuzey kapıda polish'in kasaları ve lambası artık yok.
+  - Dışarıdaki güverte (`workspace.SpaceZone.LaunchBay`) çalışma anında SpaceService'te kuruluyor.
+  - Güverte ve gemi güvenli bölge: canavar giremez, taşınan karakter burada teslim edilir.
+  - Kafeteryadaki eski hava kilidi (`SpaceAirlock`) Start'ta siliniyor.
+- **Uzay:** tek sırada, bir sağda bir solda 6 gezegen (`Config.SpaceMonsters`). Tepelerinde canavar, önlerinde 5 kayıp mürettebat.
+  - Canavarlar, gereken uzay hızıyla: Glorp 16, Chomper 28, Nebula Kraken 44, Sand Maw 64, Rift Stalker 90, Void Leviathan 120.
+  - Her canavarın nadirlik havuzu kendi (`odds`); karakter `Config.RollSpaceUnit` ile çekiliyor.
+  - Güverteden çıkan oyuncu uçuyor: istemci tarafında (`SpaceFX`), LinearVelocity + AlignOrientation ile, kamera yönünde, "SpaceSpeed" hızında.
+  - Asteroitler ve `SpaceHit` remote'u kalktı (istemciden dinlenen remote sayısı bir azaldı).
+- **Çalma → kovalama → yakalama:**
+  - Mürettebata 1.2 sn basılı tutulunca karakter sırtına geçiyor (`SpaceCarry`) ve o gezegenin canavarı kükreyip kovalıyor.
+  - Kovalama hızı `need`'e kadar çıkıyor.
+  - Yakalanınca canavar oyuncuyu eliyle tutuyor (`SpaceGrabbed` niteliği, `SpaceFX` "grab"), sonra gemiye fırlatıyor (`SpaceField.ThrowPath` → `Config.Space.Landing`). Karakter gezegendeki yerine dönüyor.
+  - Sunucu, fırlatmanın sonunda oyuncuyu inişe koyarak yedekliyor.
+  - Teslimde hile payı var: grab anından sonra "yol / (hız × 1.7)" süre geçmiş olmalı.
+- **Canavar ağda tek parça:** `SpaceZone.Monsters.MonsterN.Root` görünmez; State ve Target nitelikte.
+  - Modeli ve iskelet animasyonunu istemci kuruyor: `shared/MonsterModel`, kemikler Attachment. Sunucu MonsterModel'i require etmiyor.
+- **Uzay kapsülü:** her üssün arkasında, konveyörün eski yerinde.
+  - PlotService, `shared/CapsuleModel` ile kuruyor; üs modelinde adı `Capsule`.
+  - Sahibi içinde durunca uzay hızı artıyor (`CapsuleService`, `Config.GetCapsuleGain`, azalan getiri).
+  - Hız profilde kalıcı: `profile.spaceSpeed`, rebirth'te sıfırlanmıyor.
+  - Kapsülün seviyesi yeni **SpaceCapsule** yükseltmesi; ConveyorSpeed'in yerini aldı. Eski ConveyorSpeed seviyeleri sanitize'da kapsüle taşınıyor.
+  - Kapsülün yanındaki konsolda `CapsulePrompt` var (PromptFilter OWN_ONLY).
+  - Oyuncu nitelikleri: `SpaceSpeed`, `InCapsule`, `CapsuleGain`.
+- **Öğretici:**
+  - İlk iki adım uzaydan çalmak (hint `SpaceGate`).
+  - Üçüncü adım kapsülde antrenman (check `spaceSpeed`, hint `Capsule`).
+  - (30)'un "Space" adımı kalktı.
+  - Görev "Buy … off the conveyor" yerine "Heist" geldi (stat `salvaged`).
+- **Diğer dosyalar:**
+  - StealService: InSpace hız dalı kalktı; uçuşta WalkSpeed kullanılmıyor.
+  - Uzaya çıkan gemi hırsızının karakteri `KnockDrop` ile sahibine dönüyor.
+  - RogueService engel listesinde Conveyor yerine Capsule.
+  - Makine uğultusu kapsülün kubbesinde.
+- **Aynı gün, ikinci tur:**
+  - Gezegenler arası mesafe açıldı (z adımı 280, x 40/320). Arka plandaki dev dekor gezegeni (`exterior.luau`) daha uzağa alındı.
+  - Uzak canavar görseli (0,0,0)'da, yani 1. üsste kalıyordu; artık kurulur kurulmaz yerine konuyor.
+  - Uçuş girişi sağlamlaştırıldı: WASD kamera yatayında, kontrol modülü boşsa klavye / MoveDirection yedek.
+- **Kapsül ikinci tur:**
+  - Büyüdü (R 7.5, H 16) ve üssün zemininin DIŞINA, arkaya taşındı (üs kenarından 11 stud geride, oda boşluğunda).
+  - İçinde karakter uçma pozunda süzülüyor.
+  - Stardew balık tutma tarzı mini oyun var: roketi yeşil alanda tut, çubuk dolunca 10 sn'lik kazanç bir anda gelir.
+  - Yeni client→server remote **`CapsuleCatch`**. Sınırları `CapsuleService.TryCatch`'te: kendi kapsülünde, ısınma 3 sn, bekleme 8 sn. Gerekçesi Net.luau'da.
+- **Üçüncü tur: konveyörden kalanlar yeni temaya göre ayarlandı.**
+  - **Satış:** `SellRefundFactor` 0.5'ten 0.25'e indi. Karakterler bedava çalındığı için "çal-sat" para musluğuydu; satış artık kaide açmak için.
+  - **Kilitlenme koruması kalktı** (`EconomyService`). Geliri 0 olana en ucuz karakterin parasını veriyordu; karakterler artık bedava.
+  - **Çark:**
+    - "Instant Spawn" ve "Guaranteed Mutation" yerine **Free Crewmate** ve **Mutated Crewmate**; "Free Unit" yerine **Jackpot Crewmate** (bir üst canavarın havuzundan).
+    - Üçü de `SpaceService.GrantUnit(player, mutated, bonusTier)` ile. Boş kaide yoksa satış değeri kadar nakit veriliyor. Yeni: `SpaceService.PoolFor`.
+    - Dilim yazıları: CREWMATE / MUTATED / JACKPOT.
+  - **İndeks:** "Cost / Pays back" yerine **Value / Steal from** (o nadirliği veren ilk canavar). İpucu yazısı da güncellendi.
+  - **Mağaza:** "Mutation" ürününün açıklaması "A mutated crewmate on your podium" oldu.
+  - **PromptStyle:** konveyör için yapılan "yapışkan kart" (BuyPrompt) artık gezegendeki `HeistPrompt`'ta. Beş mürettebat yan yanayken kart titremiyor.
+  - Config'ten `RarityUnlock`, `GetUnitWeight`, `RollUnit` ve `RollAffordableUnit` silindi. `LOOK.belt`, DecorFX'teki BeltSlat istisnası, yorumlar ve README güncellendi.
+- **Testler:** `SpaceService.SetPaused` ve `CapsuleService.SetPaused` Run'da duraklatılıyor. 176/176 temiz.
+- **Batur'a:** denge sayıları ilk tahmin; oynayınca ayarlanmalı:
+  - `need`, `odds`, `Config.Capsule`, kapsül fiyatı (4000 × 2.3^sv).
+  - 1. kat tavanıyla (sv 6) 120'ye ~1 saat.
+
 ## 2026-09-27 (30) — Batur (Yusuf'un şeridine de yazıldı)
 
 - **Uzay yürüyüşü (yeni):** kimse yokken de çalma heyecanı olsun diye.

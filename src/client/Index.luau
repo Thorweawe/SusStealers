@@ -339,13 +339,21 @@ function Index.Create(screen: ScreenGui): Catalog
 		detailName.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
 		drawFigure(figureSlot, def, isKnown, 80)
 
-		local payback = def.price / math.max(1, def.income)
+		-- Konveyör yok: "Cost / Pays back" yerine değeri ve nereden çalınacağı
+		-- (bu nadirliği veren ilk canavar: Steal an Egg tarzı "hangi yaratık")
+		local source = "Rivals only"
+		for _, monster in Config.SpaceMonsters do
+			if monster.odds[def.rarity] then
+				source = monster.name
+				break
+			end
+		end
 		local values = {
 			{ "Rarity", string.upper(def.rarity), tone },
 			{ "Number", string.format("#%03d", card.number), UiKit.MUTED },
-			{ "Cost", if isKnown then "$" .. Config.FormatCash(def.price) else "???", UiKit.INK },
+			{ "Value", if isKnown then "$" .. Config.FormatCash(def.price) else "???", UiKit.INK },
 			{ "Income", if isKnown then "+$" .. Config.FormatCash(def.income) .. "/s" else "???", UiKit.CREW.LIME },
-			{ "Pays back", if isKnown then Config.FormatDuration(math.floor(payback)) else "???", UiKit.MUTED },
+			{ "Steal from", source, UiKit.MUTED },
 		}
 		for i, row in statRows do
 			local v = values[i]
@@ -355,9 +363,9 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 
 		local have = owned[def.id] or 0
-		hint.Text = if not isKnown then "Not discovered yet. Watch your conveyor or steal one!"
+		hint.Text = if not isKnown then "Not discovered yet. Steal one from a space monster or a rival!"
 			elseif have > 0 then string.format("You have %d on your podiums.", have)
-			else "Discovered. Buy or steal one to own it."
+			else "Discovered. Steal one from a space monster to own it."
 		hint.TextColor3 = if have > 0 then UiKit.GOOD else UiKit.DIM
 
 		for _, other in cards do

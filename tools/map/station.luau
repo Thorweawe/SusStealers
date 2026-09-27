@@ -63,9 +63,24 @@ return {
 			exterior = C.hullOut,
 		}
 
-		-- Arka (kuzey) duvar: +x yönünde, iç taraf +z
-		K.wall(hull, Vector2.new(M.X0 - T / 2, M.Z0), Vector2.new(M.X1 + T / 2, M.Z0), 1,
-			K.merge(spec, { name = "North", inset0 = T + 0.6, inset1 = T + 0.6 }))
+		--[[
+			Arka (kuzey) duvar: +x yönünde, iç taraf +z. Ortada Launch Bay
+			kapısı (kafeteryanın tam karşısı): dışarıdaki güverte ve uzay
+			SpaceService'te, ölçüler Config.Space (GateX/GateWidth/GateHeight).
+		]]
+		local na = Vector2.new(M.X0 - T / 2, M.Z0)
+		local nb = Vector2.new(M.X1 + T / 2, M.Z0)
+		local space = K.Config.Space or {}
+		local gateX = space.GateX or M.centerX
+		local gateW = space.GateWidth or M.GATE_W
+		local gateH = space.GateHeight or M.GATE_H
+		local nu0 = (gateX - gateW / 2) - na.X
+		local nu1 = (gateX + gateW / 2) - na.X
+		K.wall(hull, na, nb, 1, K.merge(spec, {
+			name = "North", inset0 = T + 0.6, inset1 = T + 0.6,
+			doors = { { u0 = nu0, u1 = nu1, h = gateH } },
+		}))
+		K.door(hull, na, nb, 1, nu0, nu1, gateH)
 
 		-- Ön (güney) duvar: -x yönünde, lobi kapısı ortada
 		local a = Vector2.new(M.X1 + T / 2, M.Z1)
