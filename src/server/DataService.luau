@@ -73,6 +73,8 @@ export type Profile = {
 	-- Öğreticide tamamlanan adım sayısı. #Config.Tutorial ise bitmiş,
 	-- -1 ise oyuncu atlamış. Sayı olarak tutuluyor çünkü adımlar sıralı.
 	tutorialStep: number,
+	-- tutorialStep hangi öğretici listesine göre (Config.TutorialVersion)
+	tutorialVersion: number,
 	-- Oyuncu unvanı kendi eliyle seçtiyse true. O andan sonra yeni unvan
 	-- açılsa bile üstüne yazmıyoruz; seçim oyuncunun.
 	titleManual: boolean,
@@ -222,6 +224,7 @@ local function newProfile(): Profile
 		bossSteals = 0,
 		bestPlanet = 0,
 		tutorialStep = 0,
+		tutorialVersion = Config.TutorialVersion,
 		titleManual = false,
 		bought = 0,
 		sold = 0,
@@ -339,8 +342,14 @@ local function sanitize(raw: any): Profile
 	-- silinirse eski kayıt aralık dışı kalır; kırpmak öğreticiyi bitmiş
 	-- saymaktan daha doğru, çünkü kalan adımlar hâlâ öğretilmeli.
 	if typeof(raw.tutorialStep) == "number" and raw.tutorialStep == raw.tutorialStep then
-		profile.tutorialStep = math.clamp(math.floor(raw.tutorialStep), -1, #Config.Tutorial)
+		local step = math.floor(raw.tutorialStep)
+		-- Eski (11 adımlı) öğreticinin kaydı: yeni listeye çevir (2026-09-29)
+		if raw.tutorialVersion ~= Config.TutorialVersion then
+			step = Config.MigrateTutorialStep(step)
+		end
+		profile.tutorialStep = math.clamp(step, -1, #Config.Tutorial)
 	end
+	profile.tutorialVersion = Config.TutorialVersion
 
 	profile.titleManual = raw.titleManual == true
 

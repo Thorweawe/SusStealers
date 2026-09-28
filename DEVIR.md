@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-29 (52) — Batur (Yusuf'un şeridine de yazıldı: öğretici, sol menü)
+
+Studio'ya aktarıldı, **179/179 test temiz**. PC ve telefon düzeninde bakıldı.
+
+- **Kısa öğretici** (`Config.Tutorial`): 11 adım → 5. Heist → Kapsül oyunu (Train ile birleşti) → Yükseltme (Space Capsule, üssün yanında) → Chomper'dan çal → Bedava çark. Çıkanlar: Fill, Train, Jetpack, Hatch, Gear, Task (çok yürütüyordu). Ödüller: 2K / 25K / 30K / 60K / 40K (+50K bitiş); kapsül ödülü en ucuz yükseltmeyi karşılıyor.
+- **Eski kayıt geçişi** (`Config.MigrateTutorialStep`, `DataService`, yeni profil alanı `tutorialVersion`): yarıda kalan oyuncunun "kaç adım bitti"si yeni listeye çevriliyor (yeni listenin baştan kaç adımı eskide bitmişse).
+- Sol menüde ITEMS artık 3. adımdan sonra açılıyor (eskiden 8); PASS ve WEEKLY öğretici bitince (artık 5 adım).
+
+---
+
 ## 2026-09-28 (51) — Batur (Yusuf'un şeridine yazıldı: mobil)
 
 Studio'ya aktarıldı; yalnızca istemci (+ Config'te iki metin). iPhone XR emülatöründe bakıldı.

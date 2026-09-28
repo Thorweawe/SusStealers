@@ -633,72 +633,72 @@ export type TutorialStep = {
 
 Config.Tutorial = {
 	--[[
-		2026-09-28 YENİDEN: oyuncudan çalma kalktı ("rakipten çal", "kilitle"
-		adımları gitti). Akış oyunun asıl döngüsünü sırayla öğretiyor:
-		  soygun → ikinci soygun → kapsül → mini oyun → çark → JETPACK →
-		  yükseltme → daha güçlü canavar (hızın ne işe yaradığı) → pet →
-		  gear → görev.
-		Ödüller bir sonraki adımın masrafını karşılıyor (test "her adım
-		karşılanabiliyor"): Scout Jet 15 bin, Supply Egg 50 bin, Slap Glove
-		250 bin. Jetpack adımının ödülü fiyatını geri veriyor ve Gear
-		adımına pay bırakıyor (yükseltmeler pahalandı).
+		2026-09-29 KISA ÖĞRETİCİ (Batur: "çok uzun, çok yürüyorlar"): 11 adım
+		5'e indi. Kalanlar oyunun asıl döngüsü ve hepsi üs ↔ Launch Bay
+		arasında; sonuncusu çark (bedava ödül, oyuncuyu Cafeteria'ya bir kez
+		götürüyor). Çıkanlar: ikinci soygun (tekrar), kapsüle gir (mini oyunla
+		birleşti), jetpack, pet, gear, görev — oyuncu bunları dükkânlarda ve
+		hedef kartında (GOAL) kendisi buluyor.
+		Ödüller sonraki adımın masrafını karşılıyor (test "her adım
+		karşılanabiliyor"): kapsül adımı en ucuz yükseltmeyi (Space Capsule,
+		25 bin) ödüyor.
 	]]
 	{
 		id = "Heist", title = "Rescue your first crewmate", hint = "SpaceGate",
 		text = "Glorp is hoarding stolen crewmates! Go through the Launch Bay gate, grab one and fly back to the SAFE deck before Glorp catches you.",
-		check = "units", goal = 1, reward = 500,
+		check = "units", goal = 1, reward = 2000,
 	},
 	{
-		id = "Fill", title = "Bring home another", hint = "SpaceGate",
-		text = "Every crewmate on your podiums prints cash each second. Steal a second one!",
-		check = "units", goal = 2, reward = 1500,
-	},
-	{
-		id = "Train", title = "Train your space speed", hint = "Capsule",
-		text = "Step into the Space Capsule behind your base. It raises your Space Speed so you can outrun bigger monsters.",
-		check = "spaceSpeed", goal = 18, reward = 3000,
-	},
-	{
-		id = "CapsuleGame", title = "Win the capsule game", hint = "Capsule",
-		text = "Inside the capsule, steer the rocket (WASD on PC, drag on the track on mobile) and dodge the rocks until the bar fills.",
-		check = "trainings", goal = 1, reward = 5000,
-	},
-	{
-		id = "Spin", title = "Take your free spin", hint = "Wheel",
-		text = "The lucky wheel in the Cafeteria gives one free spin every day. Go claim today's!",
-		check = "spins", goal = 1, reward = 20000,
-	},
-	{
-		id = "Jetpack", title = "Buy a jetpack", hint = "JetpackStand",
-		text = "The JETPACKS stand on the Launch Bay deck sells faster jetpacks. Buy the Scout Jet: you fly out to the planets faster!",
-		check = "jetpacks", goal = 1, reward = 40000,
+		id = "CapsuleGame", title = "Train in your capsule", hint = "Capsule",
+		text = "Step into the Space Capsule behind your base and win the rocket game: dodge the rocks until the bar fills. Every win raises your Space Speed!",
+		check = "trainings", goal = 1, reward = 25000,
 	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
-		text = "Your upgrade booth sells Jet Boost, Quick Hands and more. Upgrades cost cash, not Robux.",
-		check = "upgrades", goal = 1, reward = 25000,
+		text = "Your upgrade booth is next to your base. Buy the Space Capsule upgrade: every training gives more Space Speed!",
+		check = "upgrades", goal = 1, reward = 30000,
 	},
 	{
 		id = "Tougher", title = "Rob a tougher monster", hint = "Planet2",
 		text = "Chomper guards better crewmates but needs 28 Space Speed. Train up, then steal from Chomper!",
-		check = "bestPlanet", goal = 2, reward = 30000,
+		check = "bestPlanet", goal = 2, reward = 60000,
 	},
 	{
-		id = "Hatch", title = "Hatch a pet", hint = "Hatchery",
-		text = "Eggs in the Hatchery hold pets. Every pet you equip boosts your cash!",
-		check = "pets", goal = 1, reward = 220000,
-	},
-	{
-		id = "Gear", title = "Get a gear", hint = "GearShop",
-		text = "Gear from the Weapons room slaps, zaps and blasts other players, even while flying. Buy one and try it!",
-		check = "gear", goal = 1, reward = 50000,
-	},
-	{
-		id = "Task", title = "Do a ship task", hint = "Task",
-		text = "Task consoles in the side rooms pay cash. Finish one to complete your training!",
-		check = "tasks", goal = 1, reward = 20000,
+		id = "Spin", title = "Take your free spin", hint = "Wheel",
+		text = "Last one! The lucky wheel in the Cafeteria gives a free spin every day. Go spin it!",
+		check = "spins", goal = 1, reward = 40000,
 	},
 } :: { TutorialStep }
+
+--[[
+	Öğretici sürümü ve eski (11 adımlı) sıra. Eski kayıttaki "kaç adım
+	bitti" sayısı yeni listeye çevriliyor (Config.MigrateTutorialStep):
+	yeni listenin baştan kaç adımı eskisinde bitmişse o kadar. Bitmiş ama
+	sırası gelmemiş adımlar (ör. çark) sayaçla hemen geçiyor.
+]]
+Config.TutorialVersion = 2
+Config.TutorialLegacyOrder = { "Heist", "Fill", "Train", "CapsuleGame", "Spin", "Jetpack", "Upgrade", "Tougher", "Hatch", "Gear", "Task" }
+
+function Config.MigrateTutorialStep(oldDone: number): number
+	if oldDone < 0 then
+		return -1
+	end
+	if oldDone >= #Config.TutorialLegacyOrder then
+		return #Config.Tutorial
+	end
+	local finished: { [string]: boolean } = {}
+	for i = 1, oldDone do
+		finished[Config.TutorialLegacyOrder[i]] = true
+	end
+	local done = 0
+	for _, step in Config.Tutorial do
+		if not finished[step.id] then
+			break
+		end
+		done += 1
+	end
+	return done
+end
 
 -- Bitirince verilen ek ödül. Adım ödüllerinden büyük ki son adım yarıda
 -- bırakılmasın.

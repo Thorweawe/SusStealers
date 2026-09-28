@@ -1373,6 +1373,20 @@ case("Öğretici: ödül toplamı dengeyi bozmuyor", function()
 		Config.FormatCash(total))
 end)
 
+case("Öğretici: eski 11 adımlı kayıt yeni listeye çevriliyor", function()
+	eq("başlamamış", Config.MigrateTutorialStep(0), 0)
+	eq("atlamış", Config.MigrateTutorialStep(-1), -1)
+	eq("eski listeyi bitirmiş", Config.MigrateTutorialStep(#Config.TutorialLegacyOrder), #Config.Tutorial)
+	-- Eskide Heist + Fill bitmiş: yenide yalnızca Heist
+	eq("iki adım", Config.MigrateTutorialStep(2), 1)
+	-- Eskide çarka kadar (5): Heist, CapsuleGame bitti, Upgrade bitmedi
+	eq("beş adım", Config.MigrateTutorialStep(5), 2)
+	for k = 0, #Config.TutorialLegacyOrder do
+		local v = Config.MigrateTutorialStep(k)
+		ok(k .. " aralıkta", v >= 0 and v <= #Config.Tutorial, tostring(v))
+	end
+end)
+
 case("Öğretici: profil alanı var ve sınırlı", function(ctx)
 	ok("tutorialStep sayı", typeof(ctx.profile.tutorialStep) == "number",
 		typeof(ctx.profile.tutorialStep))
@@ -1384,6 +1398,8 @@ end)
 case("Öğretici: koşul sağlanınca ilerliyor ve ödül veriyor", function(ctx)
 	clearPlot(ctx.plot)
 	ctx.profile.tutorialStep = 0
+	-- 2. adım kapsül oyunu: sayacı sıfır olsun ki aynı turda geçmesin
+	ctx.profile.trainings = 0
 	setCash(ctx.player, 0)
 
 	TutorialService.Check(ctx.player)
@@ -1413,24 +1429,28 @@ end)
 
 case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
 	--[[
-		Oyuncu arka arkaya iki karakter alırsa iki adım birden tamamlanmalı.
-		Tek adım ilerleyen bir döngü, oyuncuyu bir saniye boyunca bitmiş bir
-		görevle bekletiyordu.
+		Oyuncu iki adımın koşulunu birden sağlarsa (karakter çaldı, kapsül
+		oyununu da kazandı) iki adım aynı turda geçmeli. Tek adım ilerleyen
+		bir döngü, oyuncuyu bir saniye boyunca bitmiş bir görevle bekletiyordu.
+		(2026-09-29: öğretici kısaldı, 2. adım kapsül oyunu.)
 	]]
 	clearPlot(ctx.plot)
 	ctx.profile.tutorialStep = 0
-	ctx.profile.trainings = 0
+	ctx.profile.trainings = 1
 	ctx.profile.bestPlanet = 0
-	-- Uzay hızı tabanda olmalı: yoksa 3. adım (kapsülde antrenman) da aynı turda geçer
-	ctx.profile.spaceSpeed = Config.Space.BaseSpeed
+	-- 3. adım (yükseltme) aynı turda geçmesin
+	local savedUpgrades = ctx.profile.upgrades
+	ctx.profile.upgrades = {}
 	setCash(ctx.player, 0)
 
 	local podiums = PlotService.GetUnlockedPodiums(ctx.plot)
-	ok("en az iki kaide açık", #podiums >= 2, tostring(#podiums))
-	if #podiums < 2 then return end
+	ok("en az bir kaide açık", #podiums >= 1, tostring(#podiums))
+	if #podiums < 1 then
+		ctx.profile.upgrades = savedUpgrades
+		return
+	end
 
 	PlotService.PlaceUnit(podiums[1], Config.Units[1].id, nil)
-	PlotService.PlaceUnit(podiums[2], Config.Units[1].id, nil)
 
 	TutorialService.Check(ctx.player)
 	ok("iki adım birden geçti", ctx.profile.tutorialStep >= 2,
@@ -1439,6 +1459,7 @@ case("Öğretici: bir turda birden fazla adım geçebiliyor", function(ctx)
 	local expected = Config.Tutorial[1].reward + Config.Tutorial[2].reward
 	eq("iki ödül de verildi", EconomyService.GetCash(ctx.player), expected)
 
+	ctx.profile.upgrades = savedUpgrades
 	clearPlot(ctx.plot)
 end)
 
@@ -1446,15 +1467,15 @@ case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
 	ctx.profile.tutorialStep = #Config.Tutorial - 1
 	setCash(ctx.player, 0)
 
-	-- Son adımın koşulunu sağla
+	-- Son adımın koşulunu sağla (2026-09-29: son adım bedava çark)
 	local last = Config.Tutorial[#Config.Tutorial]
-	eq("son adım gemi görevi", last.check, "tasks")
-	local key = "TaskReady_" .. Config.Tasks[1].id
-	local had = ctx.player:GetAttribute(key)
-	ctx.player:SetAttribute(key, os.time() + 60)
+	eq("son adım çark", last.check, "spins")
+	-- "spins" sayacı: çark bir kez çevrildiyse (lastSpinAt) tamam
+	local hadSpinAt = ctx.profile.lastSpinAt
+	ctx.profile.lastSpinAt = os.time()
 
 	TutorialService.Check(ctx.player)
-	ctx.player:SetAttribute(key, had)
+	ctx.profile.lastSpinAt = hadSpinAt
 	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
 	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
 		last.reward + Config.TutorialFinishBonus)

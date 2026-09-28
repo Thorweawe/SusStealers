@@ -712,7 +712,8 @@ mountPanel("SideRail", function()
 			tint = Color3.fromRGB(64, 150, 214),
 			icon = "backpack",
 			onClick = call("InventoryToggle"),
-			unlockAt = 8,
+			-- Kısa öğretici (5 adım): yükseltmeden sonra
+			unlockAt = 3,
 		},
 		{
 			name = "Pass",
