@@ -2568,6 +2568,8 @@ Config.Codes = {
 	{ code = "RELEASE",  rewards = { { kind = "cash", seconds = 300, minimum = 25000 }, { kind = "potion", count = 1 } } },
 	{ code = "CREWMATE", rewards = { { kind = "cash", seconds = 600, minimum = 50000 } } },
 	{ code = "SUS",      rewards = { { kind = "egg", egg = "SupplyEgg" } } },
+	-- TikTok videosunun son karesinde yazıyor ("CODE: TIKTOK = FREE EGG"); kullanım sayısı videonun getirdiği oyuncuyu ölçüyor
+	{ code = "TIKTOK",   rewards = { { kind = "egg", egg = "SupplyEgg" } } },
 } :: { CodeDef }
 
 --[[ Kodu normalleştirip tanımını verir (yoksa nil). ]]
