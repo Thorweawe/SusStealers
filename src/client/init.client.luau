@@ -8,6 +8,15 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 
+--[[
+	Telefonda yalnızca YATAY, en başta: aşağıdaki WaitForChild / require'lar
+	beklerken ekran dikey kalıyordu (2026-09-28, Batur: "dikey girilebiliyor").
+]]
+do
+	local pg = Players.LocalPlayer:WaitForChild("PlayerGui") :: PlayerGui
+	pg.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
+end
+
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
@@ -112,6 +121,9 @@ local hudGui = Instance.new("ScreenGui")
 hudGui.Name = "SusStealersHud"
 hudGui.ResetOnSpawn = false
 hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Yerleşim telefonun güvenli alanında kalıyor (çentik, alt çubuk), ama tam
+-- ekran perdeler (yumurta açılışı) o alanın dışına da taşabilsin
+hudGui.ClipToDeviceSafeArea = false
 hudGui.Parent = playerGui
 
 --[[

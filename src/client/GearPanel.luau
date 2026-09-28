@@ -10,6 +10,7 @@
 	niteliğinden okunuyor.
 ]]
 
+local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,7 +49,9 @@ end
 
 local function statLine(def: Config.GearDef): string
 	if def.kind == "speed" then
-		return string.format("Speed %d · Shift %d  (run %d)", def.walkSpeed or 0, def.sprintSpeed or 0, Config.SprintWalkSpeed)
+		-- Telefonda Shift yok: RUN düğmesi
+		return string.format("Speed %d · %s %d  (run %d)", def.walkSpeed or 0,
+			if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "RUN" else "Shift", def.sprintSpeed or 0, Config.SprintWalkSpeed)
 	elseif def.kind == "slap" then
 		return string.format("Range %d · cooldown %ss", def.range or 0, fmt(def.cooldown or 0))
 	elseif def.kind == "stun" then
@@ -82,7 +85,9 @@ function GearPanel.Create(screen: ScreenGui): Panel
 	hint.Font = Enum.Font.FredokaOne
 	hint.TextSize = 16
 	hint.TextColor3 = Color3.fromRGB(220, 228, 255)
-	hint.Text = string.format("Bought once, yours forever. Equip from your hotbar (1-%d), click to use.", #Config.Gear)
+	hint.Text = if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+		then "Bought once, yours forever. Tap it in your hotbar, then tap to use."
+		else string.format("Bought once, yours forever. Equip from your hotbar (1-%d), click to use.", #Config.Gear)
 	hint.ZIndex = Z + 2
 	hint.Parent = root
 	local hs = Instance.new("UIStroke")

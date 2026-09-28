@@ -133,6 +133,8 @@ function Intro.Play()
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "Intro"
 	gui.IgnoreGuiInset = true
+	-- Tam ekran: telefonun çentik / alt çubuk bölgesi de kaplansın
+	gui.ScreenInsets = Enum.ScreenInsets.None
 	gui.DisplayOrder = 50
 	gui.ResetOnSpawn = false
 	gui.Parent = player:WaitForChild("PlayerGui")

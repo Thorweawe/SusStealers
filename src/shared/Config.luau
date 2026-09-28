@@ -660,7 +660,7 @@ Config.Tutorial = {
 	},
 	{
 		id = "CapsuleGame", title = "Win the capsule game", hint = "Capsule",
-		text = "Inside the capsule, steer the rocket with WASD (or the joystick) and dodge the rocks until the bar fills.",
+		text = "Inside the capsule, steer the rocket (WASD on PC, drag on the track on mobile) and dodge the rocks until the bar fills.",
 		check = "trainings", goal = 1, reward = 5000,
 	},
 	{
@@ -1329,7 +1329,7 @@ Config.Upgrades = {
 	  blurb = "Grab lost crewmates faster" },
 	-- Adı "Escape Dash": hız değil, canavardan kaçış hamlesi (kimlik aynı: kayıtlar bozulmasın)
 	{ id = "JetBoost",        name = "Escape Dash",      category = "heist",    baseMaxLevel = 5, baseCost = 500000, costGrowth = 3.0,
-	  blurb = "Press Q in space to dash away from monsters" },
+	  blurb = "Use BOOST in space to dash away from monsters" },
 	{ id = "StealthSuit",     name = "Stealth Suit",     category = "heist",    baseMaxLevel = 5, baseCost = 1500000, costGrowth = 3.0,
 	  blurb = "Monsters wake up later and reach less far" },
 	{ id = "LuckyScanner",    name = "Lucky Scanner",    category = "heist",    baseMaxLevel = 5, baseCost = 4000000, costGrowth = 3.1,

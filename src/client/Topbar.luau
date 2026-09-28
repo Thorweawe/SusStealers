@@ -258,7 +258,8 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 		screen:SetAttribute("UiHidden", hidden)
 		eyeArt.ImageTransparency = if hidden then 0.35 else 0
 		slash.Visible = hidden
-		tip.Text = if hidden then "Show UI  (H)" else "Hide UI  (H)"
+		local keys = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+		tip.Text = (if hidden then "Show UI" else "Hide UI") .. (if keys then "  (H)" else "")
 	end
 	apply()
 

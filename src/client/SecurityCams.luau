@@ -147,6 +147,8 @@ function SecurityCams.Start()
 		local gui = Instance.new("ScreenGui")
 		gui.Name = "SecurityCams"
 		gui.IgnoreGuiInset = true
+		-- Tam ekran: telefonun çentik / alt çubuk bölgesi de kaplansın
+		gui.ScreenInsets = Enum.ScreenInsets.None
 		gui.ResetOnSpawn = false
 		gui.DisplayOrder = 150
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling

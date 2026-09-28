@@ -176,7 +176,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 	head.Position = UDim2.fromOffset(0, 8)
 	head.Size = UDim2.new(1, 0, 0, 22)
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local sub = CardKit.bold(panel, if touch then "Steer with the joystick. Dodge the rocks!" else "Steer with WASD. Dodge the rocks!", 11, CardKit.WHITE, Z + 3, 1.5)
+	local sub = CardKit.bold(panel, if touch then "Drag on the track to steer. Dodge the rocks!" else "Steer with WASD. Dodge the rocks!", 11, CardKit.WHITE, Z + 3, 1.5)
 	sub.Position = UDim2.fromOffset(8, 30)
 	sub.Size = UDim2.new(1, -16, 0, 16)
 
@@ -413,6 +413,37 @@ function CapsuleFX.Start(screen: Instance): Handle
 	end
 
 	-- ─── Girdi ──────────────────────────────────────────────────────────
+	--[[
+		Dokunmatik: pistin üstünde parmağı sürükle, roket parmağa gider
+		(2026-09-28, Batur: "mobilde minigame oynanmıyor, WASD'ye göre").
+		Joystick kapsülde PlatformStand yüzünden güvenilir değildi. Hedef
+		pistin kendi biriminde (ölçekli ekranda da doğru).
+	]]
+	local dragInput: InputObject? = nil
+	local dragTarget: Vector2? = nil
+	track.Active = true
+	local function toTrack(screenPos: Vector3): Vector2
+		local k = TRACK_W / math.max(1, track.AbsoluteSize.X)
+		return Vector2.new((screenPos.X - track.AbsolutePosition.X) * k, (screenPos.Y - track.AbsolutePosition.Y) * k)
+	end
+	table.insert(connections, track.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+			dragTarget = toTrack(input.Position)
+		end
+	end))
+	table.insert(connections, UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput then
+			dragTarget = toTrack(input.Position)
+		end
+	end))
+	table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+		if input == dragInput then
+			dragInput = nil
+			dragTarget = nil
+		end
+	end))
+
 	--[[ Ham yön girdisi (ekrana göre): X sağ, Y yukarı. Joystick/gamepad dahil. ]]
 	local function steerInput(): Vector2
 		local move = Vector3.zero
@@ -649,6 +680,11 @@ function CapsuleFX.Start(screen: Instance): Handle
 
 		-- Roket: yumuşak ivmeyle yön; alt yarıda serbest
 		local steer = steerInput()
+		if dragTarget then
+			-- Parmağa doğru: uzaklık büyüdükçe tam hız, yakında yavaşlıyor
+			local d = Vector2.new(dragTarget.X - rx, -(dragTarget.Y - 40 - ry)) / 40
+			steer = if d.Magnitude > 1 then d.Unit else d
+		end
 		vx += (steer.X * 250 - vx) * math.min(1, dt * 9)
 		vy += (-steer.Y * 170 - vy) * math.min(1, dt * 9)
 		rx = math.clamp(rx + vx * dt, 16, TRACK_W - 16)

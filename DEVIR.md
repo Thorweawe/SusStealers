@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (51) — Batur (Yusuf'un şeridine yazıldı: mobil)
+
+Studio'ya aktarıldı; yalnızca istemci (+ Config'te iki metin). iPhone XR emülatöründe bakıldı.
+
+- **Yatay kilit** en başta (`init.client`): require'lar beklerken dikey kalabiliyordu. StarterGui zaten LandscapeSensor.
+- **Telefon yerleşimi** (`DeviceLayout`): hız + para hapları sağ üstte, CREW tablosunun altında (tablo uzayınca kendini yeniden yerleştiriyor, `TOUCH_PLACE beside = "leaderboard"`); sol ray aşağı indi (`TOUCH_BASE`). Studio'da telefon düzenini denemek için LocalPlayer'a `DebugTouch = true` niteliği (emülatör klavyeyi açık saydığı için).
+- **Uzayda yukarı/aşağı** (`SpaceFX`): telefonda ▲ / ▼ tuşları (sağ altta, Return to Station'ın solunda; basılı tuttukça). Eskiden yukarı yalnızca zıplama tuşu, aşağı hiç yoktu.
+- **Kapsül mini oyunu** (`CapsuleFX`): telefonda pistin üstünde parmağı sürükleyerek yönlendirme.
+- **Tam ekran perdeler**: `SusStealersHud.ClipToDeviceSafeArea = false`, yumurta açılışının karartması dört yöne taşıyor (çentik/alt çubuk boş kalıyordu); TitleScreen / Intro / SecurityCams `ScreenInsets = None`.
+- **Klavye yazıları telefonda yok**: "press B", "Press ENTER", "(H)", "Click" → "Tap", Shift → RUN; öğretici ve Jet Boost metinleri cihazdan bağımsız.
+
+---
+
 ## 2026-09-28 (50) — Batur (Yusuf'un şeridine de yazıldı: mağaza, HUD, taşıma)
 
 Studio'ya aktarıldı, **178/178 test temiz**.

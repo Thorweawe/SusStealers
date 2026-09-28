@@ -109,7 +109,8 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 	hint.TextSize = 12
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 	hint.TextColor3 = UiKit.MUTED
-	hint.Text = string.format("Click the asteroids before they pass the ship. Destroy %d.", rules.goal)
+	hint.Text = string.format("%s the asteroids before they pass the ship. Destroy %d.",
+		if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "Tap" else "Click", rules.goal)
 	hint.ZIndex = Z + 2
 	hint.Parent = root
 
@@ -424,7 +425,8 @@ function AsteroidGame.Create(screen: ScreenGui): Game
 		if left > 0 then
 			return string.format("Practice run — next reward in %d:%02d. Destroy %d.", left // 60, left % 60, rules.goal)
 		end
-		return string.format("Click the asteroids before they pass the ship. Destroy %d for a reward!", rules.goal)
+		return string.format("%s the asteroids before they pass the ship. Destroy %d for a reward!",
+			if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "Tap" else "Click", rules.goal)
 	end
 
 	local function open()

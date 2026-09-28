@@ -34,6 +34,7 @@
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local UiKit = require(script.Parent.UiKit)
 
@@ -56,8 +57,10 @@ local WINDOW_FIT = Vector2.new(840, 600)
 	birimine ölçeğe bölünerek çevriliyor.
 ]]
 local TOUCH_LIFT = {
-	StatBar = "left",
+	-- StatBar (hız + para hapları) telefonda sağ üstte, CREW tablosunun altında (TOUCH_PLACE)
 	SideRail = "left",
+	-- Uzaydaki yukarı / aşağı tuşları (SpaceFX), Return to Station'ın solunda
+	FlyPad = "right",
 	Tutorial = "left",
 	-- Uzaydaki "Return to Station" (SpaceFX): zıplama düğmesinin üstüne
 	ReturnToStation = "right",
@@ -74,6 +77,20 @@ local TOUCH_LIFT = {
 ]]
 local TOUCH_PLACE: { [string]: { anchor: Vector2, position: UDim2?, beside: string? } } = {
 	EventSchedule = { anchor = Vector2.new(0, 0), beside = "topbar" },
+	--[[
+		2026-09-28 (Batur: telefonda sol sütun sıkışıyordu — ray + iki hap):
+		hız ve para hapları sağ üstte, CREW tablosunun hemen altında. Tablo
+		oyuncu sayısıyla uzuyor; boyu değişince yeniden yerleşiyor.
+	]]
+	StatBar = { anchor = Vector2.new(1, 0), beside = "leaderboard" },
+}
+
+--[[
+	Dokunmatikte kaldırılan öğelerin kendi (masaüstü) konumu yerine
+	kullanılan taban: haplar sağa gidince sol ray aşağı inebiliyor.
+]]
+local TOUCH_BASE: { [string]: UDim2 } = {
+	SideRail = UDim2.new(0, 22, 1, -22),
 }
 
 --[[
@@ -99,6 +116,11 @@ local function touchClearance(viewport: Vector2): (number, number)
 end
 
 function DeviceLayout.GetDevice(): Device
+	-- Yalnızca Studio: emülatör klavyeyi açık sayıyor; telefon düzenini denemek için
+	-- LocalPlayer "DebugTouch" niteliği
+	if RunService:IsStudio() and Players.LocalPlayer:GetAttribute("DebugTouch") == true then
+		return "Touch"
+	end
 	local ok, preferred = pcall(function()
 		return (UserInputService :: any).PreferredInput
 	end)
@@ -251,7 +273,25 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 		return UDim2.fromOffset(x / scale, y / scale)
 	end
 
-	local function place(element: Instance)
+	local place: (Instance) -> ()
+	local watchingBoard = false
+
+	--[[ Sağ üstteki CREW tablosunun hemen altı (root biriminde). ]]
+	local function belowLeaderboard(element: GuiObject): UDim2?
+		local board = root:FindFirstChild("Leaderboard")
+		if not (board and board:IsA("GuiObject")) then
+			return nil
+		end
+		if not watchingBoard then
+			watchingBoard = true
+			board:GetPropertyChangedSignal("Size"):Connect(function()
+				task.defer(place, element)
+			end)
+		end
+		return UDim2.new(1, -22, 0, board.Position.Y.Offset + board.Size.Y.Offset + 10)
+	end
+
+	function place(element: Instance)
 		if not element:IsA("GuiObject") then
 			return
 		end
@@ -261,7 +301,9 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 				original[element] = element.Position
 				originalAnchor[element] = element.AnchorPoint
 			end
-			local target = if moved.beside == "topbar" then besideTopbar(element) else moved.position
+			local target = if moved.beside == "topbar" then besideTopbar(element)
+				elseif moved.beside == "leaderboard" then belowLeaderboard(element)
+				else moved.position
 			if device == "Touch" and target then
 				element.AnchorPoint = moved.anchor
 				element.Position = target
@@ -284,6 +326,7 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 			element.Position = base
 			return
 		end
+		base = TOUCH_BASE[element.Name] or base
 		local left, right = touchClearance(workspace.CurrentCamera.ViewportSize)
 		local lift = (if side == "left" then left else right) / scale
 		-- Öğenin kendi alt payını koruyarak joystick bandının üstüne çık
@@ -330,6 +373,7 @@ function DeviceLayout.Wrap(gui: ScreenGui): Layout
 			task.defer(refresh)
 		end)
 	end)
+	Players.LocalPlayer:GetAttributeChangedSignal("DebugTouch"):Connect(refresh)
 	UserInputService.LastInputTypeChanged:Connect(function()
 		if DeviceLayout.GetDevice() ~= device then
 			refresh()

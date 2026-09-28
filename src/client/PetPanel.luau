@@ -19,6 +19,7 @@
 	ve büyük FUSE düğmeleriyle.
 ]]
 
+local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -520,7 +521,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			if slotsUsed > 0 then
 				hint.Text ..= string.format("  ·  +%d%% cash", math.floor(income * 100 + 0.5))
 			else
-				hint.Text ..= "  ·  click a pet to equip"
+				hint.Text ..= if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "  ·  tap a pet to equip" else "  ·  click a pet to equip"
 			end
 		end
 

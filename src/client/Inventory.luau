@@ -154,6 +154,8 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	sub.Size = UDim2.fromOffset(160, 22)
 	sub.TextXAlignment = Enum.TextXAlignment.Right
 	sub.TextTransparency = 0.15
+	-- Telefonda klavye yok
+	sub.Visible = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
 
 	local crest = CardKit.badge(skin.header, 50, bagTint, Z + 4)
 	crest.AnchorPoint = Vector2.new(0, 0.5)

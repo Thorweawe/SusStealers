@@ -82,21 +82,39 @@ function HatchFX.Create(screen: ScreenGui): Handle
 		uzanmıyordu. Katmanın üstüne yukarı taşan bir örtü; rengi ve
 		saydamlığı katmanla birlikte değişiyor (bütün tween'ler katmana).
 	]]
-	local topVeil = Instance.new("Frame")
-	topVeil.Name = "TopVeil"
-	topVeil.AnchorPoint = Vector2.new(0, 1)
-	topVeil.Position = UDim2.fromScale(0, 0)
-	topVeil.Size = UDim2.new(1, 0, 0, 400)
-	topVeil.BackgroundColor3 = layer.BackgroundColor3
-	topVeil.BackgroundTransparency = 1
-	topVeil.BorderSizePixel = 0
-	topVeil.ZIndex = Z
-	topVeil.Parent = layer
+	--[[
+		2026-09-28 (telefon): dört yöne de örtü — çentik tarafı ve alt çubuk
+		güvenli alanın dışında kalıyor, karartma ekranın tamamını kaplamıyordu
+		(ScreenGui.ClipToDeviceSafeArea kapalı, init.client).
+	]]
+	local veils: { Frame } = {}
+	for _, spec in {
+		{ "TopVeil", Vector2.new(0, 1), UDim2.fromScale(0, 0), UDim2.new(1, 1600, 0, 800), -800 },
+		{ "BottomVeil", Vector2.new(0, 0), UDim2.fromScale(0, 1), UDim2.new(1, 1600, 0, 800), -800 },
+		{ "LeftVeil", Vector2.new(1, 0), UDim2.fromScale(0, 0), UDim2.new(0, 800, 1, 0), 0 },
+		{ "RightVeil", Vector2.new(0, 0), UDim2.fromScale(1, 0), UDim2.new(0, 800, 1, 0), 0 },
+	} do
+		local v = Instance.new("Frame")
+		v.Name = spec[1]
+		v.AnchorPoint = spec[2]
+		v.Position = spec[3] + UDim2.fromOffset(spec[5], 0)
+		v.Size = spec[4]
+		v.BackgroundColor3 = layer.BackgroundColor3
+		v.BackgroundTransparency = 1
+		v.BorderSizePixel = 0
+		v.ZIndex = Z
+		v.Parent = layer
+		table.insert(veils, v)
+	end
 	layer:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function()
-		topVeil.BackgroundTransparency = layer.BackgroundTransparency
+		for _, v in veils do
+			v.BackgroundTransparency = layer.BackgroundTransparency
+		end
 	end)
 	layer:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
-		topVeil.BackgroundColor3 = layer.BackgroundColor3
+		for _, v in veils do
+			v.BackgroundColor3 = layer.BackgroundColor3
+		end
 	end)
 
 	-- Tıklanınca erken kapanıyor; animasyonun ilk yarısında kapalı

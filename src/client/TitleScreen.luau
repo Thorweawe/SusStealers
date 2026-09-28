@@ -301,6 +301,8 @@ function TitleScreen.Show(options: Options?): Handle
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "TitleScreen"
 	gui.IgnoreGuiInset = true
+	-- Tam ekran: telefonun çentik / alt çubuk bölgesi de kaplansın
+	gui.ScreenInsets = Enum.ScreenInsets.None
 	gui.ResetOnSpawn = false
 	gui.DisplayOrder = 200
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -594,6 +596,8 @@ function TitleScreen.Show(options: Options?): Handle
 	helpButton.Position = UDim2.new(0.5, 102, 0, 142)
 
 	local hint = label(content, "Press ENTER to play", Enum.Font.GothamMedium, 14, Color3.fromRGB(130, 140, 164), 11)
+	-- Telefonda ENTER yok
+	hint.Visible = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
 	hint.AnchorPoint = Vector2.new(0.5, 0)
 	hint.Position = UDim2.fromOffset(REF.X / 2, 560)
 	hint.Size = UDim2.fromOffset(300, 20)

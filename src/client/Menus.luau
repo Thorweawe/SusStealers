@@ -23,6 +23,7 @@
 	Eskiden düz gri satırlar ve ince yazılardı.
 ]]
 
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -515,7 +516,8 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 	local function drawPotions()
 		applyAccent(POTION_ACCENT)
 		heading.Text = "POTIONS"
-		hint.Text = "Earned by finishing all daily quests. Click to drink."
+		hint.Text = if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "Earned by finishing all daily quests. Tap to drink."
+			else "Earned by finishing all daily quests. Click to drink."
 
 		local now = os.time()
 		local index = 0

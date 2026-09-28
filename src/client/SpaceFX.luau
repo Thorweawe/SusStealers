@@ -505,6 +505,62 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		end
 	end))
 
+	--[[
+		Dokunmatik YUKARI / AŞAĞI (2026-09-28, Batur: "mobilde yukarı/aşağı
+		gidemiyorum"). Klavyede Space / C, gamepad'de A / B var; telefonda
+		yukarı yalnızca zıplama tuşuna bağlıydı (uçuşta gizlenebiliyor),
+		aşağının hiç yolu yoktu. Sağ ortada iki yuvarlak tuş: basılı tuttukça
+		çıkıyor / iniyor. Yalnızca dokunmatikte ve uçarken görünüyor.
+	]]
+	local flyPad = Instance.new("Frame")
+	flyPad.Name = "FlyPad"
+	-- Sağ altta, Return to Station'ın solunda; DeviceLayout zıplama düğmesinin üstüne kaldırıyor
+	flyPad.AnchorPoint = Vector2.new(1, 1)
+	flyPad.Position = UDim2.new(1, -250, 1, -22)
+	flyPad.Size = UDim2.fromOffset(86, 184)
+	flyPad.BackgroundTransparency = 1
+	flyPad.Visible = false
+	flyPad.ZIndex = Z
+	flyPad.Parent = screen
+	local padHeld = { up = false, down = false }
+	local function padButton(key: string, glyph: string, y: number, top: Color3, bottom: Color3)
+		local b = Instance.new("TextButton")
+		b.Name = if key == "up" then "FlyUp" else "FlyDown"
+		b.Position = UDim2.fromOffset(0, y)
+		b.Size = UDim2.fromOffset(86, 86)
+		b.BackgroundColor3 = CardKit.WHITE
+		b.BackgroundTransparency = 0.1
+		b.AutoButtonColor = false
+		b.Text = ""
+		b.ZIndex = Z
+		b.Parent = flyPad
+		CardKit.corner(b, 43)
+		CardKit.border(b, CardKit.OUTLINE, 3.5)
+		CardKit.gradient(b, top, bottom)
+		local l = CardKit.bold(b, glyph, 40, CardKit.WHITE, Z + 1, 3)
+		l.Size = UDim2.fromScale(1, 1)
+		local scale = Instance.new("UIScale")
+		scale.Parent = b
+		local current: InputObject? = nil
+		table.insert(connections, b.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				current = input
+				padHeld[key] = true
+				scale.Scale = 0.9
+			end
+		end))
+		-- Parmak tuşun dışına kayıp kalksa da bırakılsın
+		table.insert(connections, UserInputService.InputEnded:Connect(function(input)
+			if input == current or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				current = nil
+				padHeld[key] = false
+				scale.Scale = 1
+			end
+		end))
+	end
+	padButton("up", "▲", 0, Color3.fromRGB(120, 220, 255), Color3.fromRGB(30, 120, 210))
+	padButton("down", "▼", 98, Color3.fromRGB(255, 190, 110), Color3.fromRGB(210, 100, 30))
+
 	-- ─── Uçuş ───────────────────────────────────────────────────────────
 	local flying = false
 	local flyVelocity = Vector3.zero
@@ -530,6 +586,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			return
 		end
 		flying = on
+		flyPad.Visible = on and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		if not on then
+			padHeld.up, padHeld.down = false, false
+		end
 		local humanoid, root = humanoidOf()
 		if on and humanoid and root then
 			-- Güverteden koşarak (bobinle) çıkan uzay hızından hızlı başlamasın
@@ -642,9 +702,9 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		if dir.Magnitude < 0.05 and humanoid and humanoid.MoveDirection.Magnitude > 0.05 then
 			dir = humanoid.MoveDirection
 		end
-		local up = (humanoid and humanoid.Jump) or UserInputService:IsKeyDown(Enum.KeyCode.Space)
+		local up = padHeld.up or (humanoid and humanoid.Jump) or UserInputService:IsKeyDown(Enum.KeyCode.Space)
 			or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonA)
-		local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.C)
+		local down = padHeld.down or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.C)
 			or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonB)
 		if up then
 			dir += Vector3.yAxis
