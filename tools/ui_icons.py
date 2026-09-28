@@ -24,6 +24,7 @@ BADGE = {
     "Potion_Income3x": ("3X", T.gold_fill),
     "Top_Invite": ("+", T.money_fill),
     "ServerLuck": ("2X", T.gold_fill),
+    "SpinPack": ("+5", T.gold_fill),
 }
 
 
