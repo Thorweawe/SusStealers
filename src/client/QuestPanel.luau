@@ -69,6 +69,8 @@ end
 
 export type Panel = {
 	Toggle: () -> (),
+	Redraw: () -> (),
+	Ready: () -> number,
 	Destroy: () -> (),
 }
 
@@ -95,19 +97,32 @@ local W, H = 660, 560
 local HEADER = 64
 
 --[[
-	`onReady` hazır (toplanmamış) ödül sayısı değişince çağrılıyor; sol
-	raydaki QUESTS düğmesinin rozeti buna bağlı.
-]]
-function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
-	local root = UiKit.Window(screen, "QuestPanel", HEADER_COLOR)
-	root.AnchorPoint = Vector2.new(0.5, 0.5)
-	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(W, H)
-	root.Visible = false
-	root.ZIndex = Z
+	`onReady` hazır (toplanmamış) ödül sayısı değişince çağrılıyor (ödül
+	penceresindeki QUESTS sekmesinin ve hediye düğmesinin rozeti).
 
-	local skin = CardKit.skin(root, HEADER_COLOR, "Quests", HEADER, Z)
-	local close = skin.close
+	`host` verilirse (2026-09-28: görevler ödül penceresinin içine taşındı)
+	ayrı pencere kurulmuyor: içerik o çerçeveye (bir sekme sayfası) çiziliyor,
+	`zBase` onun katmanı.
+]]
+function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?, host: Frame?, zBase: number?): Panel
+	local Z = zBase or Z
+	local root: Frame
+	local body: Frame
+	local close: GuiButton? = nil
+	if host then
+		root = host
+		body = host
+	else
+		root = UiKit.Window(screen, "QuestPanel", HEADER_COLOR)
+		root.AnchorPoint = Vector2.new(0.5, 0.5)
+		root.Position = UDim2.fromScale(0.5, 0.5)
+		root.Size = UDim2.fromOffset(W, H)
+		root.Visible = false
+		root.ZIndex = Z
+		local skin = CardKit.skin(root, HEADER_COLOR, "Quests", HEADER, Z)
+		body = body
+		close = skin.close
+	end
 
 	-- ─── Vade sekmeleri ─────────────────────────────────────────────────────
 
@@ -116,7 +131,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 	tabs.Size = UDim2.new(1, -32, 0, 70)
 	tabs.BackgroundTransparency = 1
 	tabs.ZIndex = Z + 1
-	tabs.Parent = skin.body
+	tabs.Parent = body
 
 	local tabLayout = Instance.new("UIListLayout")
 	tabLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -139,7 +154,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.ScrollingDirection = Enum.ScrollingDirection.Y
 	list.ZIndex = Z + 1
-	list.Parent = skin.body
+	list.Parent = body
 
 	local listLayout = Instance.new("UIListLayout")
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -153,7 +168,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 
 	local CARD_W = W - 24 - 16 - 10 - 8
 
-	local footer = CardKit.bold(skin.body, "", 18, Color3.fromRGB(200, 210, 230), Z + 2, 2)
+	local footer = CardKit.bold(body, "", 18, Color3.fromRGB(200, 210, 230), Z + 2, 2)
 	footer.AnchorPoint = Vector2.new(0.5, 1)
 	footer.Position = UDim2.new(0.5, 0, 1, -8)
 	footer.Size = UDim2.new(1, -32, 0, 24)
@@ -302,6 +317,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 		end
 	end
 
+	local lastReady = 0
 	redraw = function()
 		for _, card in cards do
 			card:Destroy()
@@ -321,6 +337,7 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 			tab.dot.Text = tostring(ready)
 		end
 
+		lastReady = totalReady
 		if onReady then
 			onReady(totalReady)
 		end
@@ -413,9 +430,11 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 		end
 	end)
 
-	close.MouseButton1Click:Connect(function()
-		root.Visible = false
-	end)
+	if close then
+		close.MouseButton1Click:Connect(function()
+			root.Visible = false
+		end)
+	end
 
 	return {
 		Toggle = function()
@@ -423,6 +442,12 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?): Panel
 			if root.Visible then
 				redraw()
 			end
+		end,
+		Redraw = function()
+			redraw()
+		end,
+		Ready = function()
+			return lastReady
 		end,
 		Destroy = function()
 			connection:Disconnect()

@@ -473,8 +473,12 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	local returnButton = Instance.new("TextButton")
 	returnButton.Name = "ReturnToStation"
 	returnButton.AnchorPoint = Vector2.new(1, 1)
-	-- Sağ alttaki menü sütununun (MenuDock, 64 px + 22 kenar) soluna: üst üste binmesin
-	returnButton.Position = UDim2.new(1, -104, 1, -250)
+	--[[
+		Sağ alt köşe (2026-09-28: sağdaki menü dizisi kalktı, sol menü 2×2).
+		Dokunmatikte DeviceLayout zıplama düğmesinin üstüne kaldırıyor
+		(TOUCH_LIFT "right"); BOOST düğmesi onun altında ve solunda kalıyor.
+	]]
+	returnButton.Position = UDim2.new(1, -24, 1, -110)
 	returnButton.Size = UDim2.fromOffset(210, 50)
 	returnButton.BackgroundColor3 = Color3.fromRGB(46, 96, 210)
 	returnButton.AutoButtonColor = false

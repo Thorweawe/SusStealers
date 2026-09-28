@@ -416,6 +416,11 @@ end
 	Arka plan taramasını durdurur. TitleService.SetPaused ile aynı sebep:
 	testler profili doğrudan değiştirirken tarama araya girmemeli.
 ]]
+--[[ Durumu zorla yeniden yayınlar (profil dışarıdan değiştiğinde: testlerin geri yüklemesi). ]]
+function TutorialService.Refresh(player: Player)
+	publish(player, true)
+end
+
 function TutorialService.SetPaused(value: boolean)
 	paused = value
 end

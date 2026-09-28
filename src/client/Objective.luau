@@ -27,6 +27,12 @@
 
 	Altında küçük satır: sıradaki olay 10 dakikadan yakınsa "⏱ Meteor
 	Shower in 4:12" (eski sağ alt çizelgenin yerine; saatte iki olay var).
+
+	═══ ARA ARA (2026-09-28) ══════════════════════════════════════════════
+
+	"Sürekli açık kalınca rahatsız ediyor": kart SHOW_SECONDS görünüp
+	sönerek kayboluyor; hedef değişince ya da REPEAT_SECONDS geçince
+	yeniden geliyor. (Pencere / uzay / sinema sırasında yine gizli.)
 ]]
 
 local Players = game:GetService("Players")
@@ -45,6 +51,8 @@ export type Handle = { Destroy: () -> () }
 
 local player = Players.LocalPlayer
 local Z = 20
+local SHOW_SECONDS = 5
+local REPEAT_SECONDS = 90
 local W, H = 420, 64
 
 type Goal = { key: string, icon: string, title: string, sub: string, progress: number?, tint: Color3, onClick: (() -> ())? }
@@ -78,7 +86,8 @@ local function podiumsFull(): boolean
 end
 
 function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Handle
-	local holder = Instance.new("Frame")
+	-- CanvasGroup: kartın bütün yazıları birlikte sönebilsin
+	local holder = Instance.new("CanvasGroup")
 	holder.Name = "Objective"
 	holder.AnchorPoint = Vector2.new(0.5, 0)
 	holder.Position = UDim2.new(0.5, 0, 0, 78)
@@ -204,6 +213,18 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 
 	local conns: { RBXScriptConnection } = {}
 	local last = 0
+	local showUntil = 0
+	local nextShowAt = 0
+	local lastKey = ""
+	local fading = false
+	local fadeTween: Tween? = nil
+	local function fadeTo(target: number, seconds: number)
+		if fadeTween then
+			fadeTween:Cancel()
+		end
+		fadeTween = TweenService:Create(holder, TweenInfo.new(seconds, Enum.EasingStyle.Quad), { GroupTransparency = target })
+		fadeTween:Play()
+	end
 	table.insert(conns, RunService.Heartbeat:Connect(function()
 		local now = os.clock()
 		if now - last < 0.5 then
@@ -224,11 +245,39 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 				break
 			end
 		end
-		holder.Visible = tutorialDone and not busy and not windowOpen and player:GetAttribute("Cinematic") ~= true
-		if not holder.Visible then
+		local allowed = tutorialDone and not busy and not windowOpen and player:GetAttribute("Cinematic") ~= true
+		if not allowed then
+			holder.Visible = false
+			fading = false
 			return
 		end
-		show(pick())
+		local goal = pick()
+		-- Yeni hedef ya da uzun süre görünmedi: SHOW_SECONDS göster
+		if goal.key ~= lastKey or now >= nextShowAt then
+			lastKey = goal.key
+			showUntil = now + SHOW_SECONDS
+			nextShowAt = now + REPEAT_SECONDS
+			if not holder.Visible then
+				holder.GroupTransparency = 1
+				holder.Visible = true
+			end
+			fading = false
+			fadeTo(0, 0.35)
+		end
+		if now >= showUntil then
+			-- Süre doldu: sönerek kaybol
+			if holder.Visible and not fading then
+				fading = true
+				fadeTo(1, 0.9)
+				task.delay(0.95, function()
+					if fading then
+						holder.Visible = false
+					end
+				end)
+			end
+			return
+		end
+		show(goal)
 		-- Olay şeridi açıkken hedef onun altında
 		local eventOn = typeof(workspace:GetAttribute("EventId")) == "string" and workspace:GetAttribute("EventId") ~= ""
 		holder.Position = UDim2.new(0.5, 0, 0, if eventOn then 82 else 10)

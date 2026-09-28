@@ -47,7 +47,6 @@ local UiKit = require(script.UiKit)
 -- serbest, sunucu yalnizca veri gonderiyor.
 local ChatTitles = require(script.ChatTitles)
 local TutorialUI = require(script.TutorialUI)
-local QuestPanel = require(script.QuestPanel)
 local Menus = require(script.Menus)
 local Topbar = require(script.Topbar)
 local RewardsPanel = require(script.RewardsPanel)
@@ -55,7 +54,6 @@ local Music = require(script.Music)
 local OwnPlot = require(script.OwnPlot)
 local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
-local RebirthPanel = require(script.RebirthPanel)
 local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
 local PetPanel = require(script.PetPanel)
@@ -205,7 +203,6 @@ local currentPlot: Model? = nil
 -- Yukseltme arayuzu en sonda kuruluyor (asagidaki mountPanel); ana dongu
 -- ona buradan ulasiyor. Kurulmadiysa nil kaliyor ve dongu atliyor.
 local upgradePanel: UpgradePanel.Panel? = nil
-local rebirthPanel: RebirthPanel.Panel? = nil
 
 --[[
 	Sunucu bildirimin TÜRÜNÜ de gönderiyor (dördüncü argüman) ve ses ona
@@ -367,9 +364,6 @@ task.spawn(function()
 		if upgradePanel then
 			upgradePanel.Update()
 		end
-		if rebirthPanel then
-			rebirthPanel.Update()
-		end
 	end
 end)
 
@@ -448,6 +442,8 @@ end)
 mountPanel("UpgradePanel", function()
 	local panel = UpgradePanel.Create(screen)
 	upgradePanel = panel
+	-- Rebirth artık bu pencerenin sekmesi (2026-09-28): hedef kartı buradan açıyor
+	previews.Rebirth = panel.OpenRebirth
 end)
 
 mountPanel("Music", function()
@@ -483,15 +479,6 @@ mountPanel("CapsuleFX", function()
 	CapsuleFX.Start(screen)
 end)
 
---[[
-	Rebirth arayüzü: panel ekranın ortasında açılıyor. Düğmesi sol menüde
-	(SideRail, öğretici bitince); sağ ortadaki dizi 2026-09-28'de kalktı.
-]]
-mountPanel("RebirthPanel", function()
-	local panel = RebirthPanel.Create(screen)
-	rebirthPanel = panel
-	previews.Rebirth = panel.Toggle
-end)
 
 --[[
 	ENVANTER: petler, iksirler, stil ve unvanlar tek pencerede (Inventory.luau).
@@ -677,15 +664,16 @@ end)
 mountPanel("SideRail", function()
 	local shop = ShopPanel.Create(screen)
 
-	local quests: QuestPanel.Panel? = nil
 	-- Sezon Kartı: sol rayda PASS (rozet = toplanacak ödül)
 	local seasonPass = SeasonPanel.Create(screen)
 	previews.Season = seasonPass.Open
 	--[[
-		Sol menü: bütün pencereler tek yerde (SideRail). `unlockAt` = kaç
-		öğretici adımı bitince görünüyor (kademeli açılma): ilk soygundan
-		sonra SHOP ve INDEX, ikinciden sonra QUESTS, pet adımında INVENTORY,
-		öğretici bitince PASS ve REBIRTH.
+		Sol menü: 2×2 dört düğme (SideRail). `unlockAt` = kaç öğretici adımı
+		bitince görünüyor (kademeli açılma): ilk soygundan sonra SHOP ve
+		INDEX, pet adımında ITEMS, öğretici bitince PASS.
+		2026-09-28: QUESTS ödül penceresinin sekmesi (üst şeritteki hediye,
+		yine 2. adımdan sonra), REBIRTH yükseltme penceresinin sekmesi
+		(öğretici bitince).
 	]]
 	local function call(key: string)
 		return function()
@@ -713,18 +701,6 @@ mountPanel("SideRail", function()
 			unlockAt = 8,
 		},
 		{
-			name = "Quests",
-			label = "QUESTS",
-			tint = UiKit.CREW.YELLOW:Lerp(UiKit.CREW.ORANGE, 0.35),
-			icon = "clipboard",
-			onClick = function()
-				if quests then
-					quests.Toggle()
-				end
-			end,
-			unlockAt = 2,
-		},
-		{
 			name = "Index",
 			label = "INDEX",
 			tint = UiKit.CREW.CYAN,
@@ -740,14 +716,6 @@ mountPanel("SideRail", function()
 			onClick = seasonPass.Toggle,
 			unlockAt = #Config.Tutorial,
 		},
-		{
-			name = "Rebirth",
-			label = "REBIRTH",
-			tint = UiKit.CREW.ORANGE,
-			icon = "rebirth",
-			onClick = call("Rebirth"),
-			unlockAt = #Config.Tutorial,
-		},
 	})
 	Inventory.BadgeChanged.Event:Connect(function(total: number)
 		rail.SetBadge("Inventory", total)
@@ -759,10 +727,6 @@ mountPanel("SideRail", function()
 		player:GetAttributeChangedSignal(attr):Connect(passBadge)
 	end
 	passBadge()
-
-	quests = QuestPanel.Create(screen, function(ready)
-		rail.SetBadge("Quests", ready)
-	end)
 
 	previews.Shop = shop.Toggle
 	previews.Index = catalog.Toggle
@@ -814,11 +778,6 @@ mountPanel("SideRail", function()
 	end)
 	previews.PetIndex = function()
 		catalog.ShowPets()
-	end
-	previews.Quests = function()
-		if quests then
-			quests.Toggle()
-		end
 	end
 end)
 
@@ -960,6 +919,12 @@ mountPanel("Topbar", function()
 	previews.Rewards = function()
 		if rewards then
 			rewards.Toggle()
+		end
+	end
+	-- Görevler ödül penceresinin sekmesi (2026-09-28)
+	previews.Quests = function()
+		if rewards then
+			rewards.OpenQuests()
 		end
 	end
 end)

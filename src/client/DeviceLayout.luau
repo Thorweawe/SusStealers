@@ -59,6 +59,8 @@ local TOUCH_LIFT = {
 	StatBar = "left",
 	SideRail = "left",
 	Tutorial = "left",
+	-- Uzaydaki "Return to Station" (SpaceFX): zıplama düğmesinin üstüne
+	ReturnToStation = "right",
 	-- MenuDock artık sağ ortada (Envanter + Rebirth): zıplama düğmesine denk gelmiyor.
 }
 

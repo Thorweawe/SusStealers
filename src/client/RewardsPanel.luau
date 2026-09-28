@@ -31,6 +31,7 @@ local Net = require(Shared.Net)
 local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 local EggStyle = require(script.Parent.EggStyle)
+local QuestPanel = require(script.Parent.QuestPanel)
 
 local RewardsPanel = {}
 
@@ -40,15 +41,28 @@ local ACCENT = Color3.fromRGB(236, 80, 160)
 local TODAY_TINT = Color3.fromRGB(230, 160, 20)
 local DONE_TINT = Color3.fromRGB(50, 150, 60)
 local LATER_TINT = Color3.fromRGB(60, 90, 150)
-local TAB_TINT = { daily = Color3.fromRGB(230, 150, 30), playtime = Color3.fromRGB(40, 150, 220) }
-local W, H, HEADER = 700, 540, 64
+local TAB_TINT = { daily = Color3.fromRGB(230, 150, 30), playtime = Color3.fromRGB(40, 150, 220), quests = Color3.fromRGB(50, 140, 240) }
+-- Görevler sekmesi (2026-09-28) kendi vade sekmeleri + listesiyle daha çok yer istiyor
+local W, H, HEADER = 700, 600, 64
+-- Görevler sekmesi öğreticinin bu adımından sonra açılıyor (eski sol ray QUESTS ile aynı)
+local QUESTS_UNLOCK = 2
 local GOLD = Color3.fromRGB(255, 200, 70)
 local Z = 45
 
 export type Panel = {
 	Toggle: () -> (),
+	OpenQuests: () -> (),
 	Destroy: () -> (),
 }
+
+--[[ Öğretici adımı (atlanmış / bitmiş = hepsi açık). SideRail ile aynı kural. ]]
+local function tutorialDone(): number
+	local v = player:GetAttribute("TutorialStep")
+	if typeof(v) ~= "number" then
+		return 0
+	end
+	return if v < 0 then #Config.Tutorial else v
+end
 
 local function clock(seconds: number): string
 	seconds = math.max(0, math.floor(seconds))
@@ -132,7 +146,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	tabLayout.Parent = tabs
 
-	type Tab = { card: Frame, scale: UIScale, dot: TextLabel, tint: Color3 }
+	type Tab = { card: Frame, scale: UIScale, dot: TextLabel, tint: Color3, holder: Frame }
 	local tabButtons: { [string]: Tab } = {}
 	local current = "daily"
 
@@ -157,7 +171,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		local tint = TAB_TINT[id]
 		local holder = Instance.new("Frame")
 		holder.LayoutOrder = order
-		holder.Size = UDim2.new(0.5, -6, 1, 0)
+		holder.Size = UDim2.new(1 / 3, -8, 1, 0)
 		holder.BackgroundTransparency = 1
 		holder.ZIndex = Z + 2
 		holder.Parent = tabs
@@ -182,7 +196,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		hit.Text = ""
 		hit.ZIndex = Z + 7
 		hit.Parent = holder
-		tabButtons[id] = { card = card, scale = scale, dot = dot, tint = tint }
+		tabButtons[id] = { card = card, scale = scale, dot = dot, tint = tint, holder = holder }
 		hit.MouseButton1Click:Connect(function()
 			current = id
 			redraw()
@@ -191,6 +205,20 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 
 	makeTab("daily", "DAILY STREAK", 1)
 	makeTab("playtime", "PLAYTIME GIFTS", 2)
+	makeTab("quests", "QUESTS", 3)
+
+	--[[
+		Görevler sekmesi: eskiden sol raydaki ayrı pencere (QuestPanel);
+		artık bu pencerenin içinde. Sayfa sekmelerin altından başlıyor,
+		QuestPanel kendi vade sekmelerini ve listesini ona çiziyor.
+	]]
+	local questPage = makePage("quests")
+	questPage.Position = UDim2.fromOffset(0, 66)
+	questPage.Size = UDim2.new(1, 0, 1, -66)
+	local questReady = 0
+	local quests = QuestPanel.Create(screen, function(ready)
+		questReady = ready
+	end, questPage, Z + 1)
 
 	-- ─── Kutu kalıbı ────────────────────────────────────────────────────────
 
@@ -400,6 +428,18 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			end
 		end
 
+		-- Görevler sekmesi öğreticinin 2. adımından sonra (kademeli açılma)
+		local questsOpen = tutorialDone() >= QUESTS_UNLOCK
+		tabButtons.quests.holder.Visible = questsOpen
+		if current == "quests" and not questsOpen then
+			current = "daily"
+		end
+		tabButtons.quests.dot.Visible = questsOpen and questReady > 0
+		tabButtons.quests.dot.Text = tostring(questReady)
+		if current == "quests" then
+			quests.Redraw()
+		end
+
 		local ready = readyCount()
 		tabButtons.daily.dot.Visible = state.canClaim
 		tabButtons.daily.dot.Text = "1"
@@ -447,7 +487,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		if root.Visible then
 			redraw()
 		end
-		local ready = readyCount()
+		local ready = readyCount() + (if tutorialDone() >= QUESTS_UNLOCK then questReady else 0)
 		if ready ~= lastBadge then
 			lastBadge = ready
 			if onBadge then
@@ -469,9 +509,16 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 					current = "daily"
 				elseif readyCount() > 0 then
 					current = "playtime"
+				elseif questReady > 0 and tutorialDone() >= QUESTS_UNLOCK then
+					current = "quests"
 				end
 				redraw()
 			end
+		end,
+		OpenQuests = function()
+			root.Visible = true
+			current = if tutorialDone() >= QUESTS_UNLOCK then "quests" else "daily"
+			redraw()
 		end,
 		Destroy = function()
 			connection:Disconnect()

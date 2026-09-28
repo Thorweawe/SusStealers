@@ -4514,6 +4514,9 @@ function ServerTests.Run(player: Player?): number
 	profile.bossSteals = backup.bossSteals
 	profile.bestPlanet = backup.bestPlanet
 	profile.tutorialStep = backup.tutorialStep
+	-- İstemci de bilsin: nitelik test sırasındaki adımda kalıyordu, arayüz (sol menü,
+	-- sekmeler) yeni oyuncu gibi kapanıyordu
+	TutorialService.Refresh(player)
 	profile.stolen = backup.stolen
 	profile.salvaged = backup.salvaged
 	profile.titleManual = backup.titleManual

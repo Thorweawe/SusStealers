@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (44) — Batur (Yusuf'un şeridine yazıldı: arayüz)
+
+Studio'ya aktarıldı (önce Studio–HEAD karşılaştırıldı, aynıydı), **177/177 test temiz**.
+
+- **Sol menü 2×2:** SHOP, ITEMS, INDEX, PASS. QUESTS ve REBIRTH düğmeleri kalktı.
+- **Görevler ödül penceresinde** (`RewardsPanel` 3. sekme QUESTS): `QuestPanel.Create(screen, onReady, host, zBase)` artık bir sayfaya gömülebiliyor; sekme öğreticinin 2. adımından sonra (eski unlockAt ile aynı). Hediye rozeti görev ödüllerini de sayıyor. `previews.Quests` → `rewards.OpenQuests()`.
+- **Rebirth yükseltme penceresinde** (`UpgradePanel` sekmeleri UPGRADES / REBIRTH, mağaza dilinde kahraman kart + kaybedilen/kazanılan kartları + düğme). Sekme öğretici bitince. Hedef kartındaki "REBIRTH is ready" pencereyi kulübeden uzakta da açıyor (`OpenRebirth`). `client/RebirthPanel.luau` SİLİNDİ (Studio'dan da).
+- **GOAL kartı** (`Objective`) sürekli değil: 5 sn görünüp sönerek kayboluyor (CanvasGroup), hedef değişince ya da 90 sn'de bir yeniden.
+- **Return to Station** sağ alt köşede; dokunmatikte DeviceLayout zıplama düğmesinin üstüne kaldırıyor (`TOUCH_LIFT.ReturnToStation = "right"`).
+- Testler bitince öğretici durumu yeniden yayınlanıyor (`TutorialService.Refresh`): nitelik test adımında kalıyor, menü yeni oyuncu gibi kapanıyordu.
+
+---
+
 ## 2026-09-28 (43) — Yusuf (iki şeridi de ilgilendirir)
 
 **Sadeleştirme: daha az hız kaynağı, daha az olay, tek görsel dil, tek hedef, kademeli açılma, hikâye girişi.** Studio'ya aktarıldı (Studio–disk karşılaştırıldı, çakışma yoktu). Testler temiz (Top Crew isim plakası testi bir kez canlı global panoyla yarıştı; önceki koşuda geçiyordu).

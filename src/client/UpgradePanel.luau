@@ -25,6 +25,11 @@
 	2026-09-28: yükseltmeler yeni döngüye göre (Config.Upgrades): yedi kart
 	üç bölümde (SPACE TRAINING / HEIST GEAR / BASE), kaydırılabilir liste.
 	Kapsül ve Training Console kapsülün yanındaki istasyonlardan da alınıyor.
+
+	2026-09-28: REBIRTH bu pencerenin ikinci sekmesi (eski ayrı RebirthPanel
+	ve sol raydaki REBIRTH düğmesi kalktı). Sekme öğretici bitince görünüyor
+	(kademeli açılma). Hedef kartındaki "REBIRTH is ready" pencereyi
+	kulübeden uzakta da bu sekmede açıyor (OpenRebirth).
 ]]
 
 local Players = game:GetService("Players")
@@ -144,8 +149,17 @@ local REACH = 6
 
 export type Panel = {
 	Update: () -> (),
+	OpenRebirth: () -> (),
 	Destroy: () -> (),
 }
+
+local REBIRTH_TINT = Color3.fromRGB(235, 120, 30)
+
+--[[ Öğretici bitti mi (atlanmış = bitti). SideRail ile aynı kural. ]]
+local function tutorialFinished(): boolean
+	local v = Players.LocalPlayer:GetAttribute("TutorialStep")
+	return typeof(v) == "number" and (v < 0 or v >= #Config.Tutorial)
+end
 
 type Row = {
 	def: Config.UpgradeDef,
@@ -176,11 +190,91 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	local skin = CardKit.skin(root, HEADER_COLOR, "Upgrades", HEADER, Z)
 
+	-- ─── Sekmeler: UPGRADES / REBIRTH ───────────────────────────────────────
+
+	local TAB_H = 46
+	local tabs = Instance.new("Frame")
+	tabs.Position = UDim2.fromOffset(14, 10)
+	tabs.Size = UDim2.new(1, -28, 0, TAB_H)
+	tabs.BackgroundTransparency = 1
+	tabs.ZIndex = Z + 1
+	tabs.Parent = skin.body
+	local tabLayout = Instance.new("UIListLayout")
+	tabLayout.FillDirection = Enum.FillDirection.Horizontal
+	tabLayout.Padding = UDim.new(0, 12)
+	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	tabLayout.Parent = tabs
+
+	local current = "upgrades"
+	local pages: { [string]: Frame } = {}
+	type TabRef = { holder: Frame, card: Frame, scale: UIScale, tint: Color3 }
+	local tabRefs: { [string]: TabRef } = {}
+	local paintTabs: () -> ()
+
+	local function makePage(id: string): Frame
+		local page = Instance.new("Frame")
+		page.Name = id
+		page.Position = UDim2.fromOffset(0, TAB_H + 14)
+		page.Size = UDim2.new(1, 0, 1, -(TAB_H + 14))
+		page.BackgroundTransparency = 1
+		page.ZIndex = Z + 1
+		page.Visible = id == current
+		page.Parent = skin.body
+		pages[id] = page
+		return page
+	end
+
+	local function makeTab(id: string, text: string, tint: Color3, order: number)
+		local holder = Instance.new("Frame")
+		holder.LayoutOrder = order
+		holder.Size = UDim2.new(0.5, -6, 1, 0)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = Z + 2
+		holder.Parent = tabs
+		local scale = Instance.new("UIScale")
+		scale.Parent = holder
+		local card = CardKit.card(holder, tint, UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.5, 0.5), 260)
+		local label = CardKit.bold(card, text, 22, CardKit.WHITE, Z + 4, 3)
+		label.Size = UDim2.fromScale(1, 1)
+		local hit = Instance.new("TextButton")
+		hit.Size = UDim2.fromScale(1, 1)
+		hit.BackgroundTransparency = 1
+		hit.Text = ""
+		hit.ZIndex = Z + 6
+		hit.Parent = holder
+		tabRefs[id] = { holder = holder, card = card, scale = scale, tint = tint }
+		hit.MouseButton1Click:Connect(function()
+			current = id
+			paintTabs()
+		end)
+	end
+	makeTab("upgrades", "UPGRADES", HEADER_COLOR, 1)
+	makeTab("rebirth", "REBIRTH", REBIRTH_TINT, 2)
+
+	paintTabs = function()
+		local rebirthOpen = tutorialFinished()
+		tabRefs.rebirth.holder.Visible = rebirthOpen
+		if current == "rebirth" and not rebirthOpen then
+			current = "upgrades"
+		end
+		for id, page in pages do
+			page.Visible = id == current
+		end
+		for id, ref in tabRefs do
+			local on = id == current
+			CardKit.tintCard(ref.card, if on then ref.tint else ref.tint:Lerp(Color3.fromRGB(70, 78, 96), 0.6))
+			ref.scale.Scale = if on then 1 else 0.95
+		end
+	end
+
+	local upgradePage = makePage("upgrades")
+	local rebirthPage = makePage("rebirth")
+
 	-- ─── Kartlar ────────────────────────────────────────────────────────────
 
 	local list = Instance.new("ScrollingFrame")
-	list.Position = UDim2.fromOffset(14, 10)
-	list.Size = UDim2.new(1, -20, 1, -40)
+	list.Position = UDim2.fromOffset(14, 0)
+	list.Size = UDim2.new(1, -20, 1, -30)
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
 	list.ScrollBarThickness = 8
@@ -189,7 +283,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.ScrollingDirection = Enum.ScrollingDirection.Y
 	list.ZIndex = Z + 1
-	list.Parent = skin.body
+	list.Parent = upgradePage
 
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -302,11 +396,111 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		end
 	end)
 
-	local foot = CardKit.bold(skin.body, "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more",
+	local foot = CardKit.bold(upgradePage, "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more",
 		15, Color3.fromRGB(190, 200, 220), Z + 2, 2)
 	foot.AnchorPoint = Vector2.new(0.5, 1)
 	foot.Position = UDim2.new(0.5, 0, 1, -6)
 	foot.Size = UDim2.new(1, -30, 0, 20)
+
+	-- ─── Rebirth sayfası ────────────────────────────────────────────────────
+	--[[
+		Mağaza dilinde: üstte büyük kahraman kart (kaçıncı rebirth, kalıcı
+		gelir çarpanı şimdi → sonra), altında iki kart yan yana: KAYBEDİLEN
+		(kırmızı) ve KAZANILAN (yeşil), en altta tıknaz REBIRTH düğmesi.
+		Doğrulama sunucuda (RebirthBuy → RebirthService.TryRebirth).
+	]]
+	local RB_W = CARD_W
+	local hero = CardKit.hero(rebirthPage, REBIRTH_TINT, UDim2.fromOffset(RB_W, 150), Z + 2, UDim2.fromScale(0.12, 0.5), 320)
+	hero.Position = UDim2.fromOffset(14, 0)
+	local heroBadge = CardKit.badge(hero, 104, REBIRTH_TINT, Z + 4)
+	heroBadge.AnchorPoint = Vector2.new(0, 0.5)
+	heroBadge.Position = UDim2.new(0, 16, 0.5, 0)
+	UiKit.Icon(heroBadge:FindFirstChild("Slot") :: Frame, "rebirth", 76, CardKit.WHITE)
+	local rbTitle = CardKit.bold(hero, "", 34, CardKit.WHITE, Z + 5, 4)
+	rbTitle.TextXAlignment = Enum.TextXAlignment.Left
+	rbTitle.Position = UDim2.fromOffset(136, 18)
+	rbTitle.Size = UDim2.new(1, -150, 0, 40)
+	CardKit.fit(rbTitle, 34, 18)
+	local rbMult = CardKit.bold(hero, "", 22, CardKit.YELLOW, Z + 5, 2.6)
+	rbMult.TextXAlignment = Enum.TextXAlignment.Left
+	rbMult.Position = UDim2.fromOffset(136, 64)
+	rbMult.Size = UDim2.new(1, -150, 0, 28)
+	CardKit.fit(rbMult, 22, 12)
+	local rbSub = CardKit.bold(hero, "Reset your base for a PERMANENT income boost", 16, Color3.fromRGB(255, 235, 215), Z + 5, 2)
+	rbSub.TextXAlignment = Enum.TextXAlignment.Left
+	rbSub.Position = UDim2.fromOffset(136, 100)
+	rbSub.Size = UDim2.new(1, -150, 0, 22)
+	CardKit.fit(rbSub, 16, 10)
+
+	local function ledger(x: number, tint: Color3, head: string, lines: { string }): { TextLabel }
+		local w = (RB_W - 12) / 2
+		local c = CardKit.card(rebirthPage, tint, UDim2.fromOffset(w, 176), Z + 2, UDim2.fromScale(0.5, 0.2), 220)
+		c.Position = UDim2.fromOffset(14 + x * (w + 12), 162)
+		local h = CardKit.bold(c, head, 22, CardKit.WHITE, Z + 5, 3)
+		h.Position = UDim2.fromOffset(0, 8)
+		h.Size = UDim2.new(1, 0, 0, 28)
+		local out = {}
+		for i, text in lines do
+			local l = CardKit.bold(c, text, 16, CardKit.WHITE, Z + 5, 2)
+			l.TextXAlignment = Enum.TextXAlignment.Left
+			l.Position = UDim2.fromOffset(18, 42 + (i - 1) * 30)
+			l.Size = UDim2.new(1, -30, 0, 24)
+			l.RichText = true
+			CardKit.fit(l, 16, 10)
+			table.insert(out, l)
+		end
+		return out
+	end
+	ledger(0, Color3.fromRGB(200, 60, 70), "YOU LOSE", {
+		'<font color="#FF9A9A">-</font>  Crewmates on your podiums',
+		'<font color="#FF9A9A">-</font>  Every upgrade level',
+		'<font color="#FF9A9A">-</font>  Your cash',
+	})
+	local gains = ledger(1, Color3.fromRGB(50, 160, 80), "YOU GET", {
+		"",
+		'<font color="#9CFFA0">+</font>  Unlocks the next floor to buy',
+		'<font color="#9CFFA0">+</font>  Titles and rebirth badges',
+	})
+
+	local rbBuy = CardKit.button(rebirthPage, UDim2.fromOffset(RB_W, 66), Z + 3, 30)
+	rbBuy.holder.Position = UDim2.fromOffset(14, 352)
+	local rbNote = CardKit.bold(rebirthPage, "This cannot be undone.", 15, Color3.fromRGB(200, 205, 225), Z + 2, 2)
+	rbNote.Position = UDim2.fromOffset(14, 424)
+	rbNote.Size = UDim2.fromOffset(RB_W, 20)
+	local rebirthRemote = Net.Get("RebirthBuy")
+	rbBuy.button.MouseButton1Click:Connect(function()
+		if rbBuy.button.Active then
+			rebirthRemote:FireServer()
+		end
+	end)
+
+	local function refreshRebirth(cash: number)
+		local rebirths = player:GetAttribute("Rebirths")
+		rebirths = if typeof(rebirths) == "number" then rebirths else 0
+		rbTitle.Text = if rebirths > 0 then string.format("REBIRTH %d", rebirths) else "REBIRTH"
+		local now = Config.GetIncomeMultiplier(rebirths)
+		-- Tavan: son kat açıldıktan sonra rebirth'ün verecek bir şeyi kalmıyor (sunucuyla aynı kural)
+		if rebirths >= Config.MaxFloors - 1 then
+			rbMult.Text = string.format("Income x%.1f  ·  every rebirth done", now)
+			gains[1].Text = '<font color="#9CFFA0">+</font>  Nothing left to unlock'
+			rbBuy.set("MAXED", nil)
+			rbNote.Text = "You have every rebirth."
+			return
+		end
+		local nextMul = Config.GetIncomeMultiplier(rebirths + 1)
+		rbMult.Text = string.format('Income x%.1f  <font color="#7CFF5B">→ x%.1f</font>', now, nextMul)
+		rbMult.RichText = true
+		gains[1].Text = string.format('<font color="#9CFFA0">+</font>  <font color="#FFE13C">+%d%% income</font> forever', math.floor(Config.RebirthIncomeBonus * 100 + 0.5))
+		local cost = player:GetAttribute("RebirthCost")
+		cost = if typeof(cost) == "number" then cost else Config.GetRebirthCost(rebirths)
+		if cash >= cost then
+			rbBuy.set("REBIRTH  ·  $" .. Config.FormatCash(cost), CardKit.GREEN)
+		else
+			-- Yetmiyor: gri ama tıklanabilir (sunucu fiyatı söylüyor)
+			rbBuy.set(string.format("$%s / $%s", Config.FormatCash(cash), Config.FormatCash(cost)), CardKit.GREY)
+		end
+		rbNote.Text = "This cannot be undone."
+	end
 
 	-- ─── Güncelleme ─────────────────────────────────────────────────────────
 
@@ -318,6 +512,8 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local function refresh()
 		local floors = number("UpgradeFloors", 1)
 		local cash = number("Cash", 0)
+		paintTabs()
+		refreshRebirth(cash)
 
 		for _, row in rows do
 			local lvl = number("Upg_" .. row.def.id, 0)
@@ -399,8 +595,11 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local shown = false
 	-- X'e basıldı: kulübeden uzaklaşıp dönene kadar açılmasın
 	local dismissed = false
+	-- Kulübeden uzakta açıldı (hedef kartı → REBIRTH): X'e basılana kadar açık
+	local forced = false
 	skin.close.MouseButton1Click:Connect(function()
 		dismissed = true
+		forced = false
 	end)
 
 	local function update()
@@ -408,7 +607,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		if not inside then
 			dismissed = false
 		end
-		local near = inside and not dismissed
+		local near = (inside and not dismissed) or forced
 		if near ~= shown then
 			shown = near
 			root.Visible = near
@@ -426,6 +625,13 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 	return {
 		Update = update,
+		OpenRebirth = function()
+			forced = true
+			dismissed = false
+			current = if tutorialFinished() then "rebirth" else "upgrades"
+			update()
+			paintTabs()
+		end,
 		Destroy = function()
 			root:Destroy()
 		end,
