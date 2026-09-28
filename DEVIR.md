@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (47) — Batur (Yusuf'un şeridine yazıldı: çark)
+
+**Şans çarkı mağazanın dilinde.** Studio'ya aktarıldı; yalnızca istemci, mantık/uzak olaylar aynı.
+
+- **Çark yüzü tek resim** (`tools/ui_wheel.py` → `ui_art/wheel_face.png`, `wheel_pointer.png`): dilimlerde 3B ikonlar (para, crewmate, mutasyon, kupa). Dilim sırası `Config.SpinWheelSlices` ile aynı olmalı — sırayı değiştirirsen betiği yeniden çalıştırıp yükle.
+- Yeni ikonlar: `Crewmate`, `Jackpot`; yeni doku `rays` (UiArt).
+- **FancyKit** eklendi: `shell` (pencere kabuğu: renkli başlık şeridi + jöle başlık + kırmızı X), `button` (tıknaz düğme, `set(text, color?)`; renk nil = pasif gri), `card` (dönen ışınlı renkli kart), `corner/border/gradient`. `jelly` boşlukları artık doğru bırakıyor. Diğer pencereler bunlarla hızlı çevrilebilir.
+- **SpinPanel**: altın çember + yanıp sönen ampuller, arkada dönen ışınlar, tıklanabilir altın göbek, damla işaretçi, alt sıra +5 SPINS · SPIN · +1 SPIN (fiyat etiketi GetProductInfo'dan), köşede SUPER / jeton sayısı, ödül kartı 3B ikonlu.
+
+---
+
 ## 2026-09-28 (46) — Batur (Yusuf'un şeridine yazıldı: mağaza)
 
 **Mağaza "videodaki gibi kaliteli" (ilk pencere).** Studio'ya aktarıldı; yalnızca istemci.

@@ -1,19 +1,19 @@
 --!strict
 --[[
 	Şans çarkı penceresi. Salondaki çarkın promptuna ("SpinPrompt") basınca
-	açılıyor; Yusuf'un attığı referans gibi: ortada renkli dilimli çark,
-	tepede işaretçi, altta büyük SPIN düğmesi, "+1 spin in 05:59" geri
-	sayımı ve Robux'la ekstra çevirme.
+	açılıyor: ortada 3B ikonlu dilimli çark, tepede kırmızı işaretçi, altta
+	büyük SPIN düğmesi, iki yanında Robux'la ekstra çevirme, en altta
+	"+1 free spin in 05:59" geri sayımı.
 
 	Akış: SPIN → "SpinRequest" (sunucu SpinService.TrySpin) → sunucu ödülü
-	seçip "SpinResult" (rewardId, ad, süre, dilim, sapma) gönderiyor → çark
-	o dilimde yavaşlayarak duruyor → ödül kartı. Ödülü sunucu tam o anda
-	veriyor. Robux'la alınan çevirmede de aynı sonuç geliyor; pencere
+	seçip "SpinResult" (rewardId, ad, süre, dilim, sapma, süper) gönderiyor
+	→ çark o dilimde yavaşlayarak duruyor → ödül kartı. Ödülü sunucu tam o
+	anda veriyor. Robux'la alınan çevirmede de aynı sonuç geliyor; pencere
 	kapalıysa açılıyor.
 
-	Çizim: dilimler UI'da kama olmadığı için dönük ince çubuklardan
-	(merkezden dışa), daire kırpması CanvasGroup + UICorner. Dönüş
-	CanvasGroup'un Rotation'ı (saat yönü).
+	Görünüş (2026-09-28, mağazanın dili — FancyKit): çarkın yüzü tek resim
+	(tools/ui_wheel.py; dilim sırası Config.SpinWheelSlices, dilim i tepeden
+	saat yönünde (i-1)*30..i*30). Dönüş resmin Rotation'ı (saat yönü).
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -27,60 +27,93 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local FancyKit = require(script.Parent.FancyKit)
 local SoundFX = require(script.Parent.SoundFX)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local SpinPanel = {}
 
 local player = Players.LocalPlayer
 
-local ACCENT = Color3.fromRGB(255, 196, 40)
 local Z = 50
-local R = 165              -- çark yarıçapı (piksel)
-local BAR_STEP = 3         -- dilimi dolduran çubuklar arası açı (derece)
+local W, H = 500, 640
+local HEADER = 70
+local R = 190              -- çark yarıçapı (piksel)
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+local WHITE = Color3.new(1, 1, 1)
+local GREEN = Color3.fromRGB(70, 200, 70)
+local BLUE = Color3.fromRGB(40, 150, 235)
+local PURPLE = Color3.fromRGB(150, 80, 235)
+local GOLD = Color3.fromRGB(255, 186, 30)
+local ROBUX_ICON = "rbxasset://textures/ui/common/robux@3x.png"
+
+-- Ödül kartındaki 3B ikon (çarktaki dilimlerle aynı)
+local PRIZE_ICON: { [string]: string } = {
+	SmallCash = "Cash100K",
+	MedCash = "Cash1M",
+	HugeCash = "Cash10M",
+	Spawn = "Crewmate",
+	Mutation = "LuckyRoll",
+	FreeUnit = "Jackpot",
+}
 
 export type Panel = {
 	Open: () -> (),
 	Destroy: () -> (),
 }
 
-local function text(parent: Instance, value: string, font: Enum.Font, size: number, color: Color3, z: number): TextLabel
+local function text(parent: Instance, value: string, size: number, color: Color3, z: number, stroke: number?): TextLabel
 	local l = Instance.new("TextLabel")
 	l.BackgroundTransparency = 1
-	l.Font = font
+	l.Font = Enum.Font.FredokaOne
 	l.TextSize = size
 	l.TextColor3 = color
 	l.Text = value
 	l.ZIndex = z
 	l.Parent = parent
+	local s = Instance.new("UIStroke")
+	s.Color = OUTLINE
+	s.Thickness = stroke or math.max(2, size / 9)
+	s.LineJoinMode = Enum.LineJoinMode.Round
+	s.Parent = l
 	return l
 end
 
-local function outline(obj: Instance, thickness: number, color: Color3?)
-	local s = Instance.new("UIStroke")
-	s.Thickness = thickness
-	s.Color = color or Color3.fromRGB(20, 16, 30)
-	s.Parent = obj
-end
-
---[[ Merkezden `angle` (tepeden saat yönünde, derece) yönüne uzanan çubuk. ]]
-local function ray(parent: Instance, angle: number, length: number, thickness: number, color: Color3, z: number, from: number?)
-	local holder = Instance.new("Frame")
-	holder.AnchorPoint = Vector2.new(0.5, 0.5)
-	holder.Position = UDim2.fromScale(0.5, 0.5)
-	holder.Size = UDim2.fromOffset(length * 2, thickness)
-	holder.Rotation = angle - 90
-	holder.BackgroundTransparency = 1
-	holder.ZIndex = z
-	holder.Parent = parent
-	local bar = Instance.new("Frame")
-	local start = from or 0
-	bar.Position = UDim2.new(0.5, start, 0, 0)
-	bar.Size = UDim2.new(0.5, -start, 1, 0)
-	bar.BackgroundColor3 = color
-	bar.BorderSizePixel = 0
-	bar.ZIndex = z
-	bar.Parent = holder
+--[[ Düğmenin sağ üst köşesine yapışık fiyat etiketi (Robux simgesi + fiyat). ]]
+local function priceTag(holder: Frame, z: number): TextLabel
+	local tag = Instance.new("Frame")
+	tag.AnchorPoint = Vector2.new(1, 0.5)
+	tag.Position = UDim2.new(1, 8, 0, 0)
+	tag.AutomaticSize = Enum.AutomaticSize.X
+	tag.Size = UDim2.fromOffset(0, 26)
+	tag.BackgroundColor3 = WHITE
+	tag.BorderSizePixel = 0
+	tag.ZIndex = z
+	tag.Parent = holder
+	FancyKit.corner(tag, 13)
+	FancyKit.border(tag, OUTLINE, 3)
+	FancyKit.gradient(tag, { Color3.fromRGB(70, 76, 100), Color3.fromRGB(34, 36, 52) }, 90)
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 6)
+	pad.PaddingRight = UDim.new(0, 8)
+	pad.Parent = tag
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Padding = UDim.new(0, 4)
+	list.Parent = tag
+	local icon = Instance.new("ImageLabel")
+	icon.Size = UDim2.fromOffset(16, 16)
+	icon.BackgroundTransparency = 1
+	icon.Image = ROBUX_ICON
+	icon.ZIndex = z + 1
+	icon.Parent = tag
+	local l = text(tag, "", 16, WHITE, z + 1, 2)
+	l.LayoutOrder = 2
+	l.AutomaticSize = Enum.AutomaticSize.X
+	l.Size = UDim2.fromOffset(0, 22)
+	return l
 end
 
 function SpinPanel.Create(screen: ScreenGui): Panel
@@ -88,193 +121,194 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	local n = #slices
 	local width = 360 / n
 
-	local root = UiKit.Window(screen, "SpinPanel", ACCENT)
+	local root = UiKit.Window(screen, "SpinPanel", GOLD)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(470, 590)
+	root.Size = UDim2.fromOffset(W, H)
 	root.Visible = false
 	root.ZIndex = Z
-
-	local title = text(root, "SPIN THE WHEEL", Enum.Font.FredokaOne, 34, ACCENT, Z + 3)
-	title.AnchorPoint = Vector2.new(0.5, 0)
-	title.Position = UDim2.new(0.5, 0, 0, 8)
-	title.Size = UDim2.new(1, -80, 0, 44)
-	outline(title, 3.5)
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 150, 30))
-	grad.Rotation = 90
-	grad.Parent = title
-
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 5
+	local driver = FancyKit.driver(root)
+	local shell = FancyKit.shell(root, "LUCKY SPIN", {
+		Color3.fromRGB(255, 80, 170), Color3.fromRGB(170, 70, 240), Color3.fromRGB(255, 140, 40),
+	}, HEADER, Z, driver, 50)
 
 	-- ─── Çark ────────────────────────────────────────────────────────────
 	local stage = Instance.new("Frame")
 	stage.AnchorPoint = Vector2.new(0.5, 0)
-	stage.Position = UDim2.new(0.5, 0, 0, 62)
-	stage.Size = UDim2.fromOffset(R * 2 + 40, R * 2 + 40)
+	stage.Position = UDim2.new(0.5, 0, 0, HEADER + 8)
+	stage.Size = UDim2.fromOffset(R * 2 + 60, R * 2 + 60)
 	stage.BackgroundTransparency = 1
 	stage.ZIndex = Z + 1
 	stage.Parent = root
+
+	-- Arkada ağır dönen ışınlar ve sıcak hale
+	local rays = Instance.new("ImageLabel")
+	rays.AnchorPoint = Vector2.new(0.5, 0.5)
+	rays.Position = UDim2.fromScale(0.5, 0.5)
+	rays.Size = UDim2.fromOffset(R * 2 + 120, R * 2 + 120)
+	rays.BackgroundTransparency = 1
+	rays.Image = UiArt.Image("Texture", "rays")
+	rays.ImageColor3 = Color3.fromRGB(255, 220, 140)
+	rays.ImageTransparency = 0.72
+	rays.ZIndex = Z + 1
+	rays.Parent = stage
+	FancyKit.spin(rays, driver, 8)
+	local halo = FancyKit.glow(stage, Color3.fromRGB(255, 190, 80), 1.05, 0.45, Z + 1)
 
 	-- Altın çember ve ampuller
 	local rim = Instance.new("Frame")
 	rim.AnchorPoint = Vector2.new(0.5, 0.5)
 	rim.Position = UDim2.fromScale(0.5, 0.5)
-	rim.Size = UDim2.fromOffset(R * 2 + 28, R * 2 + 28)
-	rim.BackgroundColor3 = Color3.fromRGB(255, 190, 40)
-	rim.ZIndex = Z + 1
+	rim.Size = UDim2.fromOffset(R * 2 + 36, R * 2 + 36)
+	rim.BackgroundColor3 = WHITE
+	rim.ZIndex = Z + 2
 	rim.Parent = stage
-	UiKit.Corner(rim, R + 14)
-	outline(rim, 4)
-	local rimGrad = Instance.new("UIGradient")
-	rimGrad.Color = ColorSequence.new(Color3.fromRGB(255, 236, 140), Color3.fromRGB(214, 120, 20))
-	rimGrad.Rotation = 90
-	rimGrad.Parent = rim
+	FancyKit.corner(rim, R + 18)
+	FancyKit.border(rim, OUTLINE, 5)
+	local rimGrad = FancyKit.gradient(rim, { Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 180, 30), Color3.fromRGB(200, 100, 10) }, 90)
 	local bulbs: { Frame } = {}
 	for i = 1, 24 do
 		local a = math.rad((i - 1) * 15)
 		local b = Instance.new("Frame")
 		b.AnchorPoint = Vector2.new(0.5, 0.5)
-		b.Position = UDim2.new(0.5, math.sin(a) * (R + 7), 0.5, -math.cos(a) * (R + 7))
-		b.Size = UDim2.fromOffset(8, 8)
-		b.BackgroundColor3 = Color3.new(1, 1, 1)
+		b.Position = UDim2.new(0.5, math.sin(a) * (R + 10), 0.5, -math.cos(a) * (R + 10))
+		b.Size = UDim2.fromOffset(11, 11)
+		b.BackgroundColor3 = WHITE
 		b.BorderSizePixel = 0
-		b.ZIndex = Z + 2
+		b.ZIndex = Z + 3
 		b.Parent = stage
-		UiKit.Corner(b, 4)
+		FancyKit.corner(b, 6)
+		FancyKit.border(b, OUTLINE, 2)
 		table.insert(bulbs, b)
 	end
 
-	local disc = Instance.new("CanvasGroup")
+	local disc = Instance.new("ImageLabel")
 	disc.AnchorPoint = Vector2.new(0.5, 0.5)
 	disc.Position = UDim2.fromScale(0.5, 0.5)
 	disc.Size = UDim2.fromOffset(R * 2, R * 2)
-	disc.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-	disc.ZIndex = Z + 3
+	disc.BackgroundTransparency = 1
+	disc.Image = UiArt.Image("Texture", "wheel_face")
+	disc.ZIndex = Z + 4
 	disc.Parent = stage
-	UiKit.Corner(disc, R)
 
-	for i, id in slices do
-		local look = Config.SpinSliceLook[id]
-		local color = if look then look.color else Color3.fromRGB(120, 120, 140)
-		local a0 = (i - 1) * width
-		--[[ Dilimin içi: dilim içinde BAR_STEP arayla çubuklar; her çubuk
-		     halkalara bölünmüş, içteki halkalar ince (komşu dilime taşmasın).
-		     Dış halka biraz koyu: iki tonlu görünüş. ]]
-		local dark = color:Lerp(Color3.new(0, 0, 0), 0.2)
-		local rings = { { 0, R * 0.35, color }, { R * 0.35, R * 0.7, color }, { R * 0.7, R * 0.8, color }, { R * 0.8, R + 4, dark } }
-		local a = a0 + BAR_STEP / 2
-		while a < a0 + width do
-			for _, ring in rings do
-				local outer = ring[2] :: number
-				local thick = math.ceil(outer * math.rad(BAR_STEP) * 1.2) + 1
-				ray(disc, a, outer, thick, ring[3] :: Color3, Z + 3, ring[1] :: number)
-			end
-			a += BAR_STEP
-		end
-		-- Dilim yazısı ve ikonu (merkezden dışa doğru okunuyor)
-		local mid = math.rad(a0 + width / 2)
-		local label = text(disc, if look then look.text else id, Enum.Font.FredokaOne, 15, Color3.new(1, 1, 1), Z + 5)
-		label.AnchorPoint = Vector2.new(0.5, 0.5)
-		label.Position = UDim2.new(0.5, math.sin(mid) * R * 0.56, 0.5, -math.cos(mid) * R * 0.56)
-		label.Size = UDim2.fromOffset(96, 20)
-		label.Rotation = a0 + width / 2 - 90
-		outline(label, 2)
-		local icon = text(disc, if look then look.icon else "?", Enum.Font.GothamBlack, 22, Color3.new(1, 1, 1), Z + 5)
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.Position = UDim2.new(0.5, math.sin(mid) * R * 0.86, 0.5, -math.cos(mid) * R * 0.86)
-		icon.Size = UDim2.fromOffset(30, 30)
-		icon.Rotation = a0 + width / 2
-	end
-	-- Dilim ayırıcıları
-	for i = 1, n do
-		ray(disc, (i - 1) * width, R + 4, 3, Color3.fromRGB(255, 244, 210), Z + 4)
-	end
-
-	-- Göbek
-	local hub = Instance.new("Frame")
+	-- Göbek: altın düğme (basınca da çeviriyor)
+	local hub = Instance.new("TextButton")
 	hub.AnchorPoint = Vector2.new(0.5, 0.5)
 	hub.Position = UDim2.fromScale(0.5, 0.5)
-	hub.Size = UDim2.fromOffset(62, 62)
-	hub.BackgroundColor3 = Color3.fromRGB(255, 206, 60)
+	hub.Size = UDim2.fromOffset(78, 78)
+	hub.BackgroundColor3 = WHITE
+	hub.AutoButtonColor = false
+	hub.Text = ""
 	hub.ZIndex = Z + 6
 	hub.Parent = stage
-	UiKit.Corner(hub, 31)
-	outline(hub, 4)
-	local hubText = text(hub, "SPIN", Enum.Font.FredokaOne, 17, Color3.new(1, 1, 1), Z + 7)
+	FancyKit.corner(hub, 39)
+	FancyKit.border(hub, OUTLINE, 4)
+	FancyKit.gradient(hub, { Color3.fromRGB(255, 244, 160), Color3.fromRGB(255, 190, 30), Color3.fromRGB(220, 120, 10) }, 90)
+	local hubGloss = Instance.new("Frame")
+	hubGloss.AnchorPoint = Vector2.new(0.5, 0)
+	hubGloss.Position = UDim2.new(0.5, 0, 0, 7)
+	hubGloss.Size = UDim2.fromOffset(52, 22)
+	hubGloss.BackgroundColor3 = WHITE
+	hubGloss.BackgroundTransparency = 0.6
+	hubGloss.BorderSizePixel = 0
+	hubGloss.ZIndex = Z + 7
+	hubGloss.Parent = hub
+	FancyKit.corner(hubGloss, 11)
+	local hubText = FancyKit.title(hub, "SPIN", 22, WHITE, Color3.fromRGB(255, 236, 190), Z + 7, driver)
 	hubText.Size = UDim2.fromScale(1, 1)
-	outline(hubText, 2)
+	FancyKit.juicy(hub, hub, 1.1, 0)
 
-	-- İşaretçi (tepede, aşağı bakan)
-	local pointer = text(stage, "▼", Enum.Font.GothamBlack, 46, Color3.fromRGB(235, 50, 60), Z + 8)
+	-- İşaretçi (tepede, aşağı bakan kırmızı damla)
+	local pointer = Instance.new("ImageLabel")
 	pointer.AnchorPoint = Vector2.new(0.5, 0.5)
-	pointer.Position = UDim2.new(0.5, 0, 0, 10)
-	pointer.Size = UDim2.fromOffset(50, 50)
-	outline(pointer, 3)
+	pointer.Position = UDim2.new(0.5, 0, 0.5, -R - 12)
+	pointer.Size = UDim2.fromOffset(62, 62)
+	pointer.BackgroundTransparency = 1
+	pointer.Image = UiArt.Image("Texture", "wheel_pointer")
+	pointer.ZIndex = Z + 8
+	pointer.Parent = stage
 
-	-- ─── Alt kısım ───────────────────────────────────────────────────────
-	local spinHolder, spinButton = UiKit.Raised(root, "Spin", UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.3), UDim2.fromOffset(200, 58), 14)
-	spinHolder.AnchorPoint = Vector2.new(0.5, 1)
-	spinHolder.Position = UDim2.new(0.5, 0, 1, -44)
-	spinHolder.ZIndex = Z + 3
-	local spinLabel = text(spinButton, "SPIN!", Enum.Font.FredokaOne, 30, Color3.new(1, 1, 1), Z + 8)
-	spinLabel.Size = UDim2.fromScale(1, 1)
-	outline(spinLabel, 2.5)
+	-- ─── Köşeler: süper çark ve jeton sayısı ─────────────────────────────
+	local superBtn = FancyKit.button(root, UDim2.fromOffset(128, 62), GOLD, 18, Z + 10, driver, 0.8)
+	superBtn.holder.Position = UDim2.fromOffset(14, HEADER + 14)
+	local superTag = text(superBtn.holder, "", 15, Color3.fromRGB(255, 244, 170), Z + 16, 2.5)
+	superTag.AnchorPoint = Vector2.new(0.5, 0.5)
+	superTag.Position = UDim2.new(0.5, 0, 0, -2)
+	superTag.Size = UDim2.fromOffset(120, 18)
+	superTag.Rotation = -4
 
-	local buyHolder, buyButton = UiKit.Raised(root, "BuySpin", Color3.fromRGB(40, 150, 230), UDim2.fromOffset(110, 46), 12)
-	buyHolder.AnchorPoint = Vector2.new(1, 1)
-	buyHolder.Position = UDim2.new(1, -18, 1, -50)
-	buyHolder.ZIndex = Z + 3
-	local buyLabel = text(buyButton, "+1 SPIN\nR$", Enum.Font.FredokaOne, 15, Color3.new(1, 1, 1), Z + 8)
-	buyLabel.Size = UDim2.fromScale(1, 1)
-	outline(buyLabel, 2)
+	local tokenPill = Instance.new("Frame")
+	tokenPill.AnchorPoint = Vector2.new(1, 0)
+	tokenPill.Position = UDim2.new(1, -14, 0, HEADER + 18)
+	tokenPill.Size = UDim2.fromOffset(112, 40)
+	tokenPill.BackgroundColor3 = WHITE
+	tokenPill.ZIndex = Z + 10
+	tokenPill.Parent = root
+	FancyKit.corner(tokenPill, 20)
+	FancyKit.border(tokenPill, OUTLINE, 3)
+	FancyKit.gradient(tokenPill, { Color3.fromRGB(90, 190, 255), Color3.fromRGB(40, 110, 220) }, 90)
+	FancyKit.gleam(tokenPill, driver, 4.4, 1.6, 0.4)
+	local tokenText = text(tokenPill, "", 19, WHITE, Z + 12, 2.5)
+	tokenText.Size = UDim2.fromScale(1, 1)
 
-	-- 5'li paket (Config.SpinPack; kimlik 0 iken SOON)
-	local packHolder, packButton = UiKit.Raised(root, "BuyPack", Color3.fromRGB(60, 190, 110), UDim2.fromOffset(110, 46), 12)
-	packHolder.AnchorPoint = Vector2.new(1, 1)
-	packHolder.Position = UDim2.new(1, -18, 1, -102)
-	packHolder.ZIndex = Z + 3
-	local packLabel = text(packButton, "", Enum.Font.FredokaOne, 15, Color3.new(1, 1, 1), Z + 8)
-	packLabel.Size = UDim2.fromScale(1, 1)
-	outline(packLabel, 2)
-	packLabel.Text = if Config.SpinPack.id > 0 then string.format("+%d SPINS\nR$ %d", Config.SpinPack.count, Config.SpinPack.robux) else string.format("+%d SPINS\nSOON", Config.SpinPack.count)
+	-- ─── Alt kısım: +5 · SPIN · +1 ───────────────────────────────────────
+	local ROW_BOTTOM = H - 46
+	local spinBtn = FancyKit.button(root, UDim2.fromOffset(190, 76), GREEN, 34, Z + 10, driver, 0)
+	spinBtn.holder.AnchorPoint = Vector2.new(0.5, 1)
+	spinBtn.holder.Position = UDim2.fromOffset(W / 2, ROW_BOTTOM)
 
-	-- Süper çark (günlük serinin 7. günü, sezon ödülü): altın düğme, solda
-	local superHolder, superButton = UiKit.Raised(root, "SuperSpin", Color3.fromRGB(255, 190, 40), UDim2.fromOffset(120, 58), 14)
-	superHolder.AnchorPoint = Vector2.new(0, 1)
-	superHolder.Position = UDim2.new(0, 18, 1, -44)
-	superHolder.ZIndex = Z + 3
-	local superLabel = text(superButton, "", Enum.Font.FredokaOne, 16, Color3.new(1, 1, 1), Z + 8)
-	superLabel.Size = UDim2.fromScale(1, 1)
-	outline(superLabel, 2.2)
+	local packBtn = FancyKit.button(root, UDim2.fromOffset(132, 62), PURPLE, 22, Z + 10, driver, 1.2)
+	packBtn.holder.AnchorPoint = Vector2.new(0.5, 1)
+	packBtn.holder.Position = UDim2.fromOffset(W / 2 - 173, ROW_BOTTOM)
+	local packPrice = priceTag(packBtn.holder, Z + 14)
 
-	local timer = text(root, "", Enum.Font.GothamBlack, 15, Color3.new(1, 1, 1), Z + 3)
-	timer.AnchorPoint = Vector2.new(0.5, 1)
-	timer.Position = UDim2.new(0.5, 0, 1, -14)
-	timer.Size = UDim2.new(1, -40, 0, 22)
-	outline(timer, 2)
+	local buyBtn = FancyKit.button(root, UDim2.fromOffset(132, 62), BLUE, 22, Z + 10, driver, 2.2)
+	buyBtn.holder.AnchorPoint = Vector2.new(0.5, 1)
+	buyBtn.holder.Position = UDim2.fromOffset(W / 2 + 173, ROW_BOTTOM)
+	local buyPrice = priceTag(buyBtn.holder, Z + 14)
+	buyPrice.Text = "..."
 
-	-- Ödül kartı
-	local prize = Instance.new("Frame")
-	prize.AnchorPoint = Vector2.new(0.5, 0.5)
-	prize.Position = UDim2.new(0.5, 0, 0, 62 + R + 20)
-	prize.Size = UDim2.fromOffset(300, 120)
-	prize.BackgroundColor3 = Color3.fromRGB(28, 22, 50)
-	prize.Visible = false
-	prize.ZIndex = Z + 20
-	prize.Parent = root
-	UiKit.Corner(prize, 18)
-	UiKit.Stroke(prize, ACCENT, 4, 0)
-	local prizeTop = text(prize, "YOU WON", Enum.Font.FredokaOne, 20, ACCENT, Z + 21)
-	prizeTop.Position = UDim2.fromOffset(0, 8)
-	prizeTop.Size = UDim2.new(1, 0, 0, 24)
-	outline(prizeTop, 2)
-	local prizeName = text(prize, "", Enum.Font.FredokaOne, 30, Color3.new(1, 1, 1), Z + 21)
-	prizeName.Position = UDim2.fromOffset(10, 36)
-	prizeName.Size = UDim2.new(1, -20, 0, 70)
-	prizeName.TextWrapped = true
-	outline(prizeName, 3)
+	local packLive = Config.SpinPack.id > 0
+	packBtn.set(string.format("+%d SPINS", Config.SpinPack.count), if packLive then PURPLE else nil)
+	packPrice.Text = if packLive then tostring(Config.SpinPack.robux) else "SOON"
+	buyBtn.set("+1 SPIN", BLUE)
+	task.spawn(function()
+		local product = Config.Products.ExtraSpin
+		if not product or product.id <= 0 then
+			buyPrice.Text = "SOON"
+			return
+		end
+		local ok, info = pcall(function()
+			return MarketplaceService:GetProductInfo(product.id, Enum.InfoType.Product)
+		end)
+		buyPrice.Text = if ok and info and info.PriceInRobux then tostring(info.PriceInRobux) else "R$"
+	end)
+
+	local timerPill = Instance.new("Frame")
+	timerPill.AnchorPoint = Vector2.new(0.5, 1)
+	timerPill.Position = UDim2.new(0.5, 0, 1, -10)
+	timerPill.Size = UDim2.fromOffset(W - 60, 28)
+	timerPill.BackgroundColor3 = Color3.new(0, 0, 0)
+	timerPill.BackgroundTransparency = 0.65
+	timerPill.ZIndex = Z + 2
+	timerPill.Parent = root
+	FancyKit.corner(timerPill, 14)
+	local timer = text(timerPill, "", 17, WHITE, Z + 3, 2)
+	timer.Size = UDim2.fromScale(1, 1)
+	timer.RichText = true
+
+	-- ─── Ödül kartı ──────────────────────────────────────────────────────
+	local prizeHolder = Instance.new("Frame")
+	prizeHolder.AnchorPoint = Vector2.new(0.5, 0.5)
+	prizeHolder.Position = UDim2.new(0.5, 0, 0, HEADER + 8 + R + 30)
+	prizeHolder.Size = UDim2.fromOffset(370, 190)
+	prizeHolder.BackgroundTransparency = 1
+	prizeHolder.Visible = false
+	prizeHolder.ZIndex = Z + 30
+	prizeHolder.Parent = root
+	local prizeScale = Instance.new("UIScale")
+	prizeScale.Parent = prizeHolder
+	local prizeCard: Frame? = nil
 
 	-- ─── Durum ───────────────────────────────────────────────────────────
 	local requestRemote = Net.Get("SpinRequest")
@@ -282,6 +316,7 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	local spinning = false
 	local angle = 0          -- çarkın dönüşü (derece, saat yönü)
 	local idle = true
+	local superLook = false
 
 	local function readyIn(): number
 		local at = player:GetAttribute("SpinReadyAt")
@@ -306,43 +341,79 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 		local tokens = count("SpinTokens")
 		local supers = count("SuperSpins")
 		local ready = (left <= 0 or tokens > 0) and not spinning
-		spinButton.Active = ready
-		superHolder.Visible = supers > 0
-		superButton.Active = supers > 0 and not spinning
-		superLabel.Text = string.format("👑 SUPER\nSPIN x%d", supers)
-		local base = if ready then UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.3) else UiKit.DIM
-		spinButton.BackgroundColor3 = base
-		local g = spinButton:FindFirstChildOfClass("UIGradient")
-		if g then
-			g.Color = ColorSequence.new(base:Lerp(Color3.new(1, 1, 1), 0.22), base:Lerp(Color3.new(0, 0, 0), 0.18))
-		end
-		spinLabel.Text = if spinning then "SPINNING..." elseif left <= 0 then "FREE SPIN!" elseif tokens > 0 then string.format("SPIN (x%d)", tokens) else "SPIN!"
-		timer.Text = (if left <= 0 then "Free spin ready!" else "+1 free spin in " .. clockText(left))
-			.. (if tokens > 0 then string.format("  ·  %d spin%s left", tokens, if tokens == 1 then "" else "s") else "")
+		spinBtn.set(if spinning then "..." elseif left <= 0 then "FREE!" else "SPIN!", if ready then GREEN else nil)
+		superBtn.holder.Visible = supers > 0
+		superBtn.set("SUPER", if spinning then nil else GOLD)
+		superTag.Text = string.format("x%d", supers)
+		tokenPill.Visible = tokens > 0
+		tokenText.Text = string.format("%d SPIN%s", tokens, if tokens == 1 then "" else "S")
+		timer.Text = if left <= 0
+			then '<font color="#7CFF6B">FREE SPIN READY!</font>'
+			else 'Free spin in <font color="#FFD84A">' .. clockText(left) .. "</font>"
 	end
 
 	local function showPrize(rewardId: string, name: string, super: boolean?)
 		local look = Config.SpinSliceLook[rewardId]
-		prizeTop.Text = if super then "SUPER PRIZE!" else "YOU WON"
-		prizeName.Text = (if look then look.icon .. " " else "") .. name
-		prize.Visible = true
-		prize.Size = UDim2.fromOffset(150, 60)
-		TweenService:Create(prize, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Size = UDim2.fromOffset(300, 120) }):Play()
+		local tint = if super then GOLD elseif look then look.color else PURPLE
+		if prizeCard then
+			prizeCard:Destroy()
+		end
+		local card = FancyKit.card(prizeHolder, tint, UDim2.fromScale(1, 1), Z + 30, driver, UDim2.fromScale(0.24, 0.5))
+		prizeCard = card
+		local iconName = PRIZE_ICON[rewardId]
+		local icon = Instance.new("ImageLabel")
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.24, 0.5)
+		icon.Size = UDim2.fromOffset(150, 150)
+		icon.BackgroundTransparency = 1
+		icon.Image = if iconName then UiArt.Image("Icon", iconName) else ""
+		icon.ZIndex = Z + 33
+		icon.Parent = card
+		FancyKit.bob(icon, driver, 4, 2, 0, 5)
+		local top = FancyKit.title(card, if super then "SUPER PRIZE!" else "YOU WON!", 32, Color3.fromRGB(255, 236, 90), Color3.fromRGB(255, 150, 20), Z + 33, driver)
+		top.Position = UDim2.new(0.46, 0, 0, 24)
+		top.Size = UDim2.new(0.52, 0, 0, 40)
+		local body = FancyKit.title(card, name, 28, WHITE, Color3.fromRGB(230, 236, 255), Z + 33)
+		body.Position = UDim2.new(0.46, 0, 0, 76)
+		body.Size = UDim2.new(0.52, 0, 0, 80)
+		for _, l in body:GetChildren() do
+			if l:IsA("TextLabel") then
+				l.TextWrapped = true
+			end
+		end
+		prizeHolder.Visible = true
+		prizeScale.Scale = 0.3
+		TweenService:Create(prizeScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		SoundFX.Success()
-		task.delay(2.6, function()
-			prize.Visible = false
+		task.delay(2.8, function()
+			if prizeCard == card then
+				TweenService:Create(prizeScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0 }):Play()
+				task.wait(0.2)
+				if prizeCard == card then
+					prizeHolder.Visible = false
+				end
+			end
 		end)
+	end
+
+	local function paintRim(super: boolean)
+		superLook = super
+		rimGrad.Color = if super
+			then ColorSequence.new(Color3.fromRGB(255, 255, 220), Color3.fromRGB(255, 220, 90))
+			else ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 150)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 30)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 100, 10)),
+			})
+		halo.ImageTransparency = if super then 0.15 else 0.45
 	end
 
 	--[[ Sunucunun seçtiği dilime, en az 5 tur dönüp yavaşlayarak. ]]
 	local function spinTo(rewardId: string, name: string, duration: number, index: number, jitter: number, super: boolean?)
 		spinning = true
-		-- Süper çarkta çember altın parlıyor, başlık değişiyor
-		rim.BackgroundColor3 = if super then Color3.fromRGB(255, 240, 150) else Color3.fromRGB(255, 190, 40)
-		title.Text = if super then "👑 SUPER SPIN!" else "SPIN THE WHEEL"
+		paintRim(super == true)
 		idle = false
-		prize.Visible = false
+		prizeHolder.Visible = false
 		paintButton()
 		local center = (index - 0.5) * width + jitter * width
 		local target = (-center) % 360
@@ -361,7 +432,7 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 			local under = math.floor(((-angle) % 360) / width)
 			if under ~= lastSlice then
 				lastSlice = under
-				pointer.Rotation = -18
+				pointer.Rotation = -20
 				TweenService:Create(pointer, TweenInfo.new(0.12), { Rotation = 0 }):Play()
 			end
 			if u >= 1 and conn then
@@ -369,10 +440,12 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 				spinning = false
 				paintButton()
 				showPrize(rewardId, name, super)
-				title.Text = "SPIN THE WHEEL"
 				task.delay(3, function()
 					if not spinning then
 						idle = true
+						if superLook then
+							paintRim(false)
+						end
 					end
 				end)
 			end
@@ -389,7 +462,7 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 			if typeof(jitter) == "number" then jitter else 0, super == true)
 	end))
 
-	spinButton.MouseButton1Click:Connect(function()
+	local function trySpin()
 		if spinning then
 			return
 		end
@@ -399,27 +472,29 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 		elseif count("SpinTokens") > 0 then
 			requestRemote:FireServer("token")
 		end
-	end)
-	superButton.MouseButton1Click:Connect(function()
+	end
+	spinBtn.button.MouseButton1Click:Connect(trySpin)
+	hub.MouseButton1Click:Connect(trySpin)
+	superBtn.button.MouseButton1Click:Connect(function()
 		if not spinning and count("SuperSpins") > 0 then
 			requestRemote:FireServer("super")
 		end
 	end)
-	packButton.MouseButton1Click:Connect(function()
+	packBtn.button.MouseButton1Click:Connect(function()
 		if Config.SpinPack.id > 0 and not spinning then
 			MarketplaceService:PromptProductPurchase(player, Config.SpinPack.id)
 		end
 	end)
-	for _, attr in { "SpinTokens", "SuperSpins" } do
-		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(paintButton))
-	end
-	buyButton.MouseButton1Click:Connect(function()
+	buyBtn.button.MouseButton1Click:Connect(function()
 		local product = Config.Products.ExtraSpin
 		if product and product.id > 0 and not spinning then
 			MarketplaceService:PromptProductPurchase(player, product.id)
 		end
 	end)
-	close.Activated:Connect(function()
+	for _, attr in { "SpinTokens", "SuperSpins" } do
+		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(paintButton))
+	end
+	shell.close.Activated:Connect(function()
 		root.Visible = false
 	end)
 
@@ -431,26 +506,22 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	end))
 
 	-- Boştayken ağır dönüş, ampuller sırayla yanıyor, geri sayım saniyede bir
-	local clock = 0
 	local lastPaint = 0
-	table.insert(conns, RunService.RenderStepped:Connect(function(dt)
-		if not root.Visible then
-			return
-		end
-		clock += dt
+	driver.add(function(t, dt)
 		if idle then
 			angle += dt * 12
 			disc.Rotation = angle
 		end
+		local step = math.floor(t * (if spinning then 14 else 3))
 		for i, b in bulbs do
-			local on = (math.floor(clock * (if spinning then 14 else 3)) + i) % 2 == 0
-			b.BackgroundColor3 = if on then Color3.fromRGB(255, 255, 220) else Color3.fromRGB(255, 120, 40)
+			local on = (step + i) % 2 == 0
+			b.BackgroundColor3 = if on then Color3.fromRGB(255, 255, 220) else Color3.fromRGB(255, 110, 40)
 		end
-		if clock - lastPaint > 0.5 then
-			lastPaint = clock
+		if t - lastPaint > 0.5 then
+			lastPaint = t
 			paintButton()
 		end
-	end))
+	end)
 
 	return {
 		Open = function()
@@ -461,6 +532,7 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 			for _, c in conns do
 				c:Disconnect()
 			end
+			driver.destroy()
 			root:Destroy()
 		end,
 	}

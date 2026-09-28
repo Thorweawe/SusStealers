@@ -25,6 +25,9 @@ UiArt.Texture = {
 	sparkle = 96494736086101,
 	glow = 105820443796981,
 	stripes = 127645580329632,
+	rays = 121213630524182,
+	wheel_face = 139605001347962,
+	wheel_pointer = 118581784688287,
 }
 
 UiArt.Icon = {
@@ -44,6 +47,8 @@ UiArt.Icon = {
 	Potion_FastSteal = 131791620825008,
 	Potion_StrongLock = 91791015797563,
 	Gift = 139278632459793,
+	Crewmate = 103077116178309,
+	Jackpot = 140269949452609,
 }
 
 function UiArt.Image(kind: string, name: string): string

@@ -218,6 +218,10 @@ function FancyKit.jelly(parent: GuiObject, text: string, size: number, top: Colo
 	local cells: { Cell } = {}
 	for i = 1, #text do
 		local ch = string.sub(text, i, i)
+		if ch == " " then
+			x += math.floor(size * 0.32)
+			continue
+		end
 		local w = TextService:GetTextSize(ch, size, FONT, Vector2.new(1000, 1000)).X
 		local cell = FancyKit.title(holder, ch, size, top, bottom, z, driver)
 		cell.Size = UDim2.new(0, w + 8, 1, 0)
@@ -328,6 +332,302 @@ function FancyKit.juicy(target: GuiObject, hit: GuiButton, grow: number?, lean: 
 	hit.MouseButton1Up:Connect(function()
 		to(g, -l, 0.22)
 	end)
+end
+
+-- ─── Pencere parçaları (mağazanın dili; bütün pencereler) ────────────────────
+
+local function corner(parent: Instance, r: number)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, r)
+	c.Parent = parent
+end
+
+local function border(parent: Instance, color: Color3, thickness: number)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thickness
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = parent
+end
+
+local function gradient(parent: Instance, colors: { Color3 }, rotation: number): UIGradient
+	local g = Instance.new("UIGradient")
+	g.Rotation = rotation
+	local keys = {}
+	for i, c in colors do
+		table.insert(keys, ColorSequenceKeypoint.new((i - 1) / math.max(1, #colors - 1), c))
+	end
+	g.Color = ColorSequence.new(keys)
+	g.Parent = parent
+	return g
+end
+FancyKit.corner = corner
+FancyKit.border = border
+FancyKit.gradient = gradient
+
+--[[
+	Pencere kabuğu: koyu lacivert gövde (gradyan + kalın kenar), soluk nokta
+	dokusu, yükselen parıltılar; üstte renkli başlık şeridi (yatay gradyan,
+	kayan çapraz şeritler, noktalar, parıltı), harf harf zıplayan başlık ve
+	kırmızı kare X. Döner: header, close, body (başlığın altındaki alan).
+]]
+export type Shell = { header: Frame, close: TextButton, body: Frame }
+function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH: number, z: number, driver: Driver, titleSize: number?): Shell
+	for _, child in root:GetChildren() do
+		if child:IsA("UIGradient") or child:IsA("UIStroke") or child.Name == "ModernRim" then
+			child:Destroy()
+		end
+	end
+	root.BackgroundColor3 = WHITE
+	gradient(root, { Color3.fromRGB(34, 38, 56), Color3.fromRGB(20, 22, 36) }, 90)
+	border(root, OUTLINE, 5)
+	if not root:FindFirstChildOfClass("UICorner") then
+		corner(root, 16)
+	end
+
+	local body = Instance.new("Frame")
+	body.Name = "FancyBody"
+	body.Position = UDim2.fromOffset(0, headerH)
+	body.Size = UDim2.new(1, 0, 1, -headerH)
+	body.BackgroundTransparency = 1
+	body.ClipsDescendants = true
+	body.ZIndex = z
+	body.Parent = root
+	FancyKit.halftone(body, Color3.fromRGB(120, 140, 220), 0.9, z)
+	FancyKit.particles(body, driver, 12, Color3.fromRGB(255, 230, 150), z)
+
+	local header = Instance.new("Frame")
+	header.Name = "Header"
+	header.Size = UDim2.new(1, 0, 0, headerH)
+	header.BackgroundColor3 = WHITE
+	header.BorderSizePixel = 0
+	header.ClipsDescendants = true
+	header.ZIndex = z + 1
+	header.Parent = root
+	corner(header, 16)
+	local hg = gradient(header, colors, 0)
+	local foot = Instance.new("Frame")
+	foot.Position = UDim2.new(0, 0, 1, -16)
+	foot.Size = UDim2.new(1, 0, 0, 16)
+	foot.BackgroundColor3 = WHITE
+	foot.BorderSizePixel = 0
+	foot.ZIndex = z + 1
+	foot.Parent = header
+	hg:Clone().Parent = foot
+	local stripes = Instance.new("ImageLabel")
+	stripes.BackgroundTransparency = 1
+	stripes.Size = UDim2.new(1, 64, 1, 0)
+	stripes.Image = UiArt.Image("Texture", "stripes")
+	stripes.ScaleType = Enum.ScaleType.Tile
+	stripes.TileSize = UDim2.fromOffset(64, 64)
+	stripes.ImageTransparency = 0.88
+	stripes.ZIndex = z + 2
+	stripes.Parent = header
+	driver.add(function(t)
+		stripes.Position = UDim2.fromOffset(-((t * 18) % 64), 0)
+	end)
+	FancyKit.halftone(header, WHITE, 0.86, z + 2, true)
+	FancyKit.gleam(header, driver, 5, 1, 0.35)
+	local rule = Instance.new("Frame")
+	rule.Position = UDim2.new(0, 0, 0, headerH - 2)
+	rule.Size = UDim2.new(1, 0, 0, 4)
+	rule.BackgroundColor3 = OUTLINE
+	rule.BorderSizePixel = 0
+	rule.ZIndex = z + 3
+	rule.Parent = root
+
+	local size = titleSize or math.floor(headerH * 0.7)
+	local jelly = FancyKit.jelly(header, title, size, Color3.fromRGB(255, 226, 60), Color3.fromRGB(255, 140, 20), z + 4, driver)
+	jelly.Position = UDim2.fromOffset(22, math.floor((headerH - size - 14) / 2))
+
+	local close = Instance.new("TextButton")
+	close.Name = "Close"
+	close.AnchorPoint = Vector2.new(1, 0.5)
+	close.Position = UDim2.new(1, -10, 0, headerH / 2)
+	close.Size = UDim2.fromOffset(headerH - 16, headerH - 16)
+	close.BackgroundColor3 = WHITE
+	close.BorderSizePixel = 0
+	close.AutoButtonColor = false
+	close.Text = ""
+	close.ZIndex = z + 5
+	close.Parent = root
+	corner(close, 8)
+	border(close, OUTLINE, 3)
+	gradient(close, { Color3.fromRGB(250, 70, 70), Color3.fromRGB(190, 20, 30) }, 90)
+	local x = Instance.new("TextLabel")
+	x.BackgroundTransparency = 1
+	x.Size = UDim2.fromScale(1, 1)
+	x.Font = FONT
+	x.Text = "X"
+	x.TextSize = math.floor((headerH - 16) * 0.72)
+	x.TextColor3 = WHITE
+	x.ZIndex = z + 6
+	x.Parent = close
+	local xs = Instance.new("UIStroke")
+	xs.Color = OUTLINE
+	xs.Thickness = 4
+	xs.Parent = x
+	FancyKit.gleam(close, driver, 4.2, 2, 0.4)
+	FancyKit.juicy(close, close, 1.1, -8)
+	return { header = header, close = close, body = body }
+end
+
+--[[
+	Tıknaz düğme (mağazanın satın alma düğmesi): alt gölge, gradyan, üst
+	parlak şerit, kalın kenar, isteğe bağlı Robux simgesi, parıltı ve tepki.
+	set(text, color?, robux?): color nil ise gri ve pasif.
+]]
+export type Button = {
+	holder: Frame,
+	button: TextButton,
+	label: TextLabel,
+	set: (text: string, color: Color3?, robux: boolean?) -> (),
+}
+local ROBUX_ICON = "rbxasset://textures/ui/common/robux@3x.png"
+function FancyKit.button(parent: Instance, size: UDim2, color: Color3, textSize: number, z: number, driver: Driver?, gleamDelay: number?): Button
+	local holder = Instance.new("Frame")
+	holder.Size = size
+	holder.BackgroundTransparency = 1
+	holder.ZIndex = z
+	holder.Parent = parent
+	local shadow = Instance.new("Frame")
+	shadow.Position = UDim2.fromOffset(0, 5)
+	shadow.Size = UDim2.new(1, 0, 1, -5)
+	shadow.BorderSizePixel = 0
+	shadow.ZIndex = z
+	shadow.Parent = holder
+	corner(shadow, 12)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 1, -5)
+	button.BackgroundColor3 = WHITE
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	button.Text = ""
+	button.ZIndex = z + 1
+	button.Parent = holder
+	corner(button, 12)
+	border(button, OUTLINE, 3)
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Parent = button
+	local gloss = Instance.new("Frame")
+	gloss.Position = UDim2.fromOffset(5, 4)
+	gloss.Size = UDim2.new(1, -10, 0.36, 0)
+	gloss.BackgroundColor3 = WHITE
+	gloss.BackgroundTransparency = 0.72
+	gloss.BorderSizePixel = 0
+	gloss.ZIndex = z + 2
+	gloss.Parent = button
+	corner(gloss, 8)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.fromScale(1, 1)
+	row.BackgroundTransparency = 1
+	row.ZIndex = z + 3
+	row.Parent = button
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Padding = UDim.new(0, 6)
+	list.Parent = row
+	local icon = Instance.new("ImageLabel")
+	icon.LayoutOrder = 1
+	icon.Size = UDim2.fromOffset(textSize, textSize)
+	icon.BackgroundTransparency = 1
+	icon.Image = ROBUX_ICON
+	icon.ZIndex = z + 4
+	icon.Visible = false
+	icon.Parent = row
+	local label = Instance.new("TextLabel")
+	label.LayoutOrder = 2
+	label.BackgroundTransparency = 1
+	label.AutomaticSize = Enum.AutomaticSize.X
+	label.Size = UDim2.fromOffset(0, textSize + 4)
+	label.Font = FONT
+	label.TextSize = textSize
+	label.TextColor3 = WHITE
+	label.RichText = true
+	label.ZIndex = z + 4
+	label.Parent = row
+	local ls = Instance.new("UIStroke")
+	ls.Color = OUTLINE
+	ls.Thickness = math.max(2, textSize / 10)
+	ls.LineJoinMode = Enum.LineJoinMode.Round
+	ls.Parent = label
+	local GREY = Color3.fromRGB(120, 128, 146)
+	local function set(text: string, tone: Color3?, robux: boolean?)
+		local c = tone or GREY
+		shadow.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.55)
+		grad.Color = ColorSequence.new(c:Lerp(WHITE, 0.25), c:Lerp(Color3.new(0, 0, 0), 0.12))
+		label.Text = text
+		icon.Visible = robux == true
+		button.Active = tone ~= nil
+	end
+	set("", color)
+	button.MouseButton1Down:Connect(function()
+		button.Position = UDim2.fromOffset(0, 4)
+	end)
+	local function release()
+		button.Position = UDim2.fromOffset(0, 0)
+	end
+	button.MouseButton1Up:Connect(release)
+	button.MouseLeave:Connect(release)
+	if driver then
+		FancyKit.gleam(button, driver, 3.4, gleamDelay or 0, 0.55)
+		FancyKit.juicy(holder, button, 1.05, 2)
+	end
+	return { holder = holder, button = button, label = label, set = set }
+end
+
+--[[
+	Renkli kart zemini (mağaza kartları): rengin gradyanı, dönen ışınlar,
+	üstte büyük aşağı küçülen noktalar, kalın kenar + içte açık kenar.
+]]
+function FancyKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, driver: Driver?, raysAt: UDim2?): Frame
+	local card = Instance.new("Frame")
+	card.Size = size
+	card.BackgroundColor3 = WHITE
+	card.BorderSizePixel = 0
+	card.ClipsDescendants = true
+	card.ZIndex = z
+	card.Parent = parent
+	corner(card, 14)
+	gradient(card, { tint:Lerp(WHITE, 0.28), tint:Lerp(Color3.new(0, 0, 0), 0.25) }, 90)
+	local rays = Instance.new("ImageLabel")
+	rays.Name = "Rays"
+	rays.AnchorPoint = Vector2.new(0.5, 0.5)
+	rays.Position = raysAt or UDim2.fromScale(0.5, 0.45)
+	rays.Size = UDim2.fromOffset(460, 460)
+	rays.BackgroundTransparency = 1
+	rays.Image = UiArt.Image("Texture", "rays")
+	rays.ImageColor3 = tint:Lerp(WHITE, 0.75)
+	rays.ImageTransparency = 0.35
+	rays.ZIndex = z
+	rays.Parent = card
+	if driver then
+		FancyKit.spin(rays, driver, 10)
+	end
+	FancyKit.halftone(card, WHITE, 0.8, z, true)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundTransparency = 1
+	frame.ZIndex = z + 1
+	frame.Parent = card
+	corner(frame, 14)
+	border(frame, OUTLINE, 4)
+	local inner = Instance.new("Frame")
+	inner.Position = UDim2.fromOffset(3, 3)
+	inner.Size = UDim2.new(1, -6, 1, -6)
+	inner.BackgroundTransparency = 1
+	inner.ZIndex = z + 1
+	inner.Parent = card
+	corner(inner, 11)
+	local is = Instance.new("UIStroke")
+	is.Color = tint:Lerp(WHITE, 0.55)
+	is.Thickness = 2
+	is.Transparency = 0.3
+	is.Parent = inner
+	return card
 end
 
 --[[ Yalnızca üstüne gelince büyüme (tıklanmayan kartlar için; düğmeyi örtmüyor). ]]
