@@ -138,18 +138,21 @@ function CrewAura.Start(): Handle
 
 		-- Işıltılar
 		local emitterHost = part(folder, "AuraEmitter", Vector3.new(radius * 1.6, 0.1, radius * 1.6), base * CFrame.new(0, 0.2, 0), tone, 1)
-		if order >= 2 then
-			sparkles(emitterHost, tone, 2 + order * 2, 0.35 + order * 0.05, 12)
+		--[[ 2026-09-28: "her şey aynı derecede parlak" — efektler seyreltildi:
+		     Common/Uncommon yalnızca disk ve halka; ışıltı Rare'den, küreler
+		     Epic'ten, ışık sütunu Mythic'ten. Nadir olan gerçekten öne çıksın. ]]
+		if order >= 3 then
+			sparkles(emitterHost, tone, 1 + order, 0.35 + order * 0.05, 12)
 		end
 		if mutation then
 			local mc = mutation.tint or Color3.fromRGB(255, 255, 200)
-			sparkles(emitterHost, mc, 6, 0.5, 30)
+			sparkles(emitterHost, mc, 4, 0.5, 30)
 		end
 
 		-- Dönen küreler ve ışık
 		local orbs: { Part } = {}
-		if order >= 3 then
-			local count = if order >= 5 then 4 else 3
+		if order >= 4 then
+			local count = if order >= 6 then 4 else 2
 			for _ = 1, count do
 				local orb = part(folder, "AuraOrb", Vector3.one * (0.45 + order * 0.04), base, tone, 0, Enum.PartType.Ball)
 				local trail = Instance.new("Trail")
@@ -178,7 +181,7 @@ function CrewAura.Start(): Handle
 
 		-- Işık sütunu ve yıldız patlaması
 		local burst: ParticleEmitter? = nil
-		if order >= 5 then
+		if order >= 6 then
 			local height = 26 + (order - 5) * 10
 			part(folder, "AuraBeam", Vector3.new(height, radius * 0.9, radius * 0.9), base * CFrame.new(0, height / 2, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, 0.86, Enum.PartType.Cylinder)
 			local e = sparkles(emitterHost, tone, 0, 0.9, 180)

@@ -5,13 +5,11 @@
 	:15'te toplantı var" diye oyuna giriyor.
 
 	  Emergency Meeting  — 2 dk herkese 2x gelir
-	  Lights Sabotage    — ışıklar kararıyor, uzaydaki canavarlar yarı kör
 	  Reactor Meltdown   — uzaya enerji çekirdekleri savruluyor, ilk dokunan
 	                       alıyor (nakit / nadiren karakter)
 	  Mutation Storm     — uzaydaki bütün mürettebat mutasyonlu
 	  Golden Comet       — sürpriz: uzaydan altın kuyruklu yıldız geçiyor, ilk
 	                       dokunan mutasyonlu mürettebat + para (SpaceBonusService)
-	  Solar Wind         — uzayda herkes (taşırken de) daha hızlı uçuyor
 	  Meteor Shower      — göktaşı yağmuru: çarpan savruluyor, yıldız parçaları
 	  Nebula Blackout    — uzay kararıyor: canavarlar yarı kör, mürettebat bir kademe iyi
 
@@ -118,17 +116,6 @@ local function beginMeeting(): () -> ()
 	end
 end
 
--- ─── Lights Sabotage ────────────────────────────────────────────────────────
-
-local function beginLights(): () -> ()
-	-- Canavarlar karanlıkta geç fark edip yavaş kovalıyor
-	SpaceService.SetEventMods({ wakeMul = Config.LightsOutWakeMul, chaseMul = Config.LightsOutChaseMul })
-	notifyAll("LIGHTS SABOTAGED! Space monsters are half blind - perfect time for a heist!")
-	return function()
-		SpaceService.SetEventMods({})
-	end
-end
-
 -- ─── Golden Comet ─────────────────────────────────────────────────────────────
 
 local function beginComet(): () -> ()
@@ -138,15 +125,6 @@ local function beginComet(): () -> ()
 end
 
 -- ─── Uzay istasyonu olayları (2026-09-28) ─────────────────────────────────────
-
-local function beginSolarWind(): () -> ()
-	workspace:SetAttribute("EventFlightMul", Config.SolarWindFlightMul)
-	notifyAll(string.format("SOLAR WIND! Everyone flies %d%% faster in space - even carrying crew!",
-		math.floor((Config.SolarWindFlightMul - 1) * 100 + 0.5)))
-	return function()
-		workspace:SetAttribute("EventFlightMul", 1)
-	end
-end
 
 local function beginMeteors(): () -> ()
 	local def = Config.GetEvent("Meteors")
@@ -326,11 +304,9 @@ end
 
 local BEGIN: { [string]: () -> (() -> ())? } = {
 	Meeting = beginMeeting,
-	LightsOut = beginLights,
 	Meltdown = beginMeltdown,
 	Storm = beginStorm,
 	Comet = beginComet,
-	SolarWind = beginSolarWind,
 	Meteors = beginMeteors,
 	Blackout = beginBlackout,
 }
@@ -414,7 +390,9 @@ function EventService.Start()
 					local hour = now - now % 3600
 					local plan = plans[def.id]
 					if not plan or plan.hour ~= hour then
-						plan = { hour = hour, starts = Config.PlanRandomEvent(def, hour, rng), done = {} }
+						-- `chance`: bu saat hiç gelmeyebilir (sürpriz seyrek kalsın)
+						local starts = if def.chance and rng:NextNumber() > def.chance then {} else Config.PlanRandomEvent(def, hour, rng)
+						plan = { hour = hour, starts = starts, done = {} }
 						plans[def.id] = plan
 					end
 					for _, at in plan.starts do

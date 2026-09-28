@@ -634,8 +634,8 @@ Config.Tutorial = {
 		adımına pay bırakıyor (yükseltmeler pahalandı).
 	]]
 	{
-		id = "Heist", title = "Your first heist", hint = "SpaceGate",
-		text = "Go through the Launch Bay gate, fly to Glorp's planet and grab a crewmate. Fly back to the SAFE deck before Glorp catches you!",
+		id = "Heist", title = "Rescue your first crewmate", hint = "SpaceGate",
+		text = "Glorp is hoarding stolen crewmates! Go through the Launch Bay gate, grab one and fly back to the SAFE deck before Glorp catches you.",
 		check = "units", goal = 1, reward = 500,
 	},
 	{
@@ -675,7 +675,7 @@ Config.Tutorial = {
 	},
 	{
 		id = "Hatch", title = "Hatch a pet", hint = "Hatchery",
-		text = "Eggs in the Hatchery hold pets that boost your cash and flight speed.",
+		text = "Eggs in the Hatchery hold pets. Every pet you equip boosts your cash!",
 		check = "pets", goal = 1, reward = 220000,
 	},
 	{
@@ -933,51 +933,53 @@ export type EventDef = {
 	duration: number,
 	random: boolean?,
 	perHour: number?,
+	chance: number?,   -- rastgele olay: o saat hiç gelmeme ihtimali için (0..1)
 }
 
 Config.Events = {
-	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 15 * 60, duration = 120 },
-	{ id = "LightsOut", name = "Lights Sabotage",   every = 3600,     offset = 45 * 60, duration = 90 },
-	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 3 * 3600, offset = 30 * 60, duration = 60 },
-	-- Uzay soygunu olayı: iki saatte bir, gezegenlerdeki her mürettebat mutasyonlu
-	{ id = "Storm",     name = "Mutation Storm",    every = 2 * 3600, offset = 5 * 60,  duration = 120 },
-	-- 2026-09-28: sürpriz (rastgele), saatte bir; kalkan Impostor Hunt'ın yerine
-	{ id = "Comet",     name = "Golden Comet",      every = 3600, offset = 0, duration = 75, random = true, perHour = 1 },
-	--[[ 2026-09-28 (Yusuf): uzay istasyonu olayları. Dakikalar diğerleriyle
-	     çakışmıyor (uyarı dahil): :25 rüzgâr, tek saatlerde :10 göktaşı ve
-	     :52 karartma. ]]
-	{ id = "SolarWind", name = "Solar Wind",        every = 3600,     offset = 25 * 60, duration = 90 },
-	{ id = "Meteors",   name = "Meteor Shower",     every = 2 * 3600, offset = 70 * 60, duration = 90 },
-	{ id = "Blackout",  name = "Nebula Blackout",   every = 2 * 3600, offset = 112 * 60, duration = 120 },
+	--[[
+		2026-09-28 (Yusuf): "olaylar çok, özel an gibi hissettirmiyor". Saatte
+		8'e yakın olay vardı; şimdi saatte iki sabit an + ara sıra sürpriz:
+
+		  :30   Emergency Meeting — her saat (2x gelir, oyuncunun "saati")
+		  :00   UZAY OLAYI — dört saatlik döngü, her saat başka biri:
+		        Meteor Shower → Mutation Storm → Nebula Blackout → Reactor Meltdown
+		  ???   Golden Comet — sürpriz, saatte %50 ihtimalle
+
+		Böylece her olay dört saatte bir geliyor: beklenen, konuşulan bir an.
+		Lights Sabotage (Blackout'la aynı işi yapıyordu) ve Solar Wind (fazladan
+		hız kaynağı) kalktı.
+	]]
+	{ id = "Meeting",   name = "Emergency Meeting", every = 3600,     offset = 30 * 60,  duration = 120 },
+	{ id = "Meteors",   name = "Meteor Shower",     every = 4 * 3600, offset = 0,        duration = 120 },
+	{ id = "Storm",     name = "Mutation Storm",    every = 4 * 3600, offset = 3600,     duration = 120 },
+	{ id = "Blackout",  name = "Nebula Blackout",   every = 4 * 3600, offset = 2 * 3600, duration = 120 },
+	{ id = "Meltdown",  name = "Reactor Meltdown",  every = 4 * 3600, offset = 3 * 3600, duration = 90 },
+	{ id = "Comet",     name = "Golden Comet",      every = 3600, offset = 0, duration = 75, random = true, perHour = 1, chance = 0.5 },
 } :: { EventDef }
 
 -- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
 Config.RandomEventGap = 90
 Config.RandomEventSpacing = 15 * 60
 
--- Başlamadan kaç saniye önce haber verilsin
-Config.EventWarning = 30
+-- Başlamadan kaç saniye önce haber verilsin (özel an: bir dakika önceden geri sayım)
+Config.EventWarning = 60
 
 -- Emergency Meeting: herkese gelir çarpanı
 Config.MeetingIncomeMul = 2
 
 --[[
 	Uzay istasyonu olayları (2026-09-28):
-	  Solar Wind      — güneş rüzgârı: uzayda herkes (taşırken de) daha hızlı uçuyor
 	  Meteor Shower   — göktaşı yağmuru: çarpan savruluyor, düştükleri yerde
 	                    parlayan yıldız parçası (ilk dokunan alıyor)
 	  Nebula Blackout — uzay kararıyor: canavarlar yarı kör, mürettebat bir kademe iyi
 ]]
-Config.SolarWindFlightMul = 1.35
 Config.BlackoutWakeMul = 1.8
 Config.BlackoutChaseMul = 0.9
 Config.BlackoutTierBonus = 1
 Config.MeteorShardSeconds = 12      -- yıldız parçası = saniyelik gelir × bu
 Config.MeteorShardMin = 2000
 Config.MeteorKnock = 55             -- çarpan göktaşının savurma hızı
--- Lights Sabotage: uzaydaki canavarlar yarı kör: geç uyanıyor, yavaş kovalıyor
-Config.LightsOutWakeMul = 2.5
-Config.LightsOutChaseMul = 0.85
 
 --[[
 	Reactor Meltdown: reaktör enerji çekirdeklerini UZAYA savuruyor (güverte
@@ -1306,8 +1308,9 @@ Config.Upgrades = {
 	  blurb = "Makes the capsule mini game easier" },
 	{ id = "QuickHands",      name = "Quick Hands",      category = "heist",    baseMaxLevel = 5, baseCost = 200000, costGrowth = 2.9,
 	  blurb = "Grab lost crewmates faster" },
-	{ id = "JetBoost",        name = "Jet Boost",        category = "heist",    baseMaxLevel = 5, baseCost = 500000, costGrowth = 3.0,
-	  blurb = "Dash in space (Q). More power, less cooldown" },
+	-- Adı "Escape Dash": hız değil, canavardan kaçış hamlesi (kimlik aynı: kayıtlar bozulmasın)
+	{ id = "JetBoost",        name = "Escape Dash",      category = "heist",    baseMaxLevel = 5, baseCost = 500000, costGrowth = 3.0,
+	  blurb = "Press Q in space to dash away from monsters" },
 	{ id = "StealthSuit",     name = "Stealth Suit",     category = "heist",    baseMaxLevel = 5, baseCost = 1500000, costGrowth = 3.0,
 	  blurb = "Monsters wake up later and reach less far" },
 	{ id = "LuckyScanner",    name = "Lucky Scanner",    category = "heist",    baseMaxLevel = 5, baseCost = 4000000, costGrowth = 3.1,
@@ -1837,13 +1840,14 @@ export type PetDef = {
 	Denge değiştirmek isteyen iki küçük tabloya bakıyor.
 ]]
 local PET_TIER = {
-	Common    = { income = 0.02, speed = 0.05 },
-	Uncommon  = { income = 0.04, speed = 0.09 },
-	Rare      = { income = 0.07, speed = 0.15 },
-	Epic      = { income = 0.12, speed = 0.24 },
-	Legendary = { income = 0.20, speed = 0.36 },
-	Mythic    = { income = 0.32, speed = 0.50 },
-	Secret    = { income = 0.50, speed = 0.70 },
+	-- Uçuş bonusu kalkınca gelir bonusu ~%25 arttı (petin değeri düşmesin)
+	Common    = { income = 0.025, speed = 0.05 },
+	Uncommon  = { income = 0.05,  speed = 0.09 },
+	Rare      = { income = 0.09,  speed = 0.15 },
+	Epic      = { income = 0.15,  speed = 0.24 },
+	Legendary = { income = 0.25,  speed = 0.36 },
+	Mythic    = { income = 0.40,  speed = 0.50 },
+	Secret    = { income = 0.62,  speed = 0.70 },
 }
 
 local EGG_TIER = {
@@ -2934,7 +2938,10 @@ Config.Capsule = {
 	taşıma kalkınca uzaydaki uçuşa geçti. Canavara erişim eşiği (need) yine
 	kapsül hızına bakıyor; pet yalnızca kaçarken fark yaratıyor.
 ]]
-Config.PetFlightMul = 1
+-- 2026-09-28 (Yusuf): "hız kaynakları çok" — petler artık UÇUŞ HIZI VERMİYOR,
+-- yalnızca gelir. Uzayda hız = kapsül hızı (+ gidişte jetpack). Kademe
+-- tablosundaki `speed` alanları duruyor ama çarpan 0.
+Config.PetFlightMul = 0
 
 function Config.GetFlightSpeed(spaceSpeed: number, petBonus: number?): number
 	return spaceSpeed + math.max(0, petBonus or 0) * Config.PetFlightMul

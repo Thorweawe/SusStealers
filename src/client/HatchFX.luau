@@ -507,7 +507,7 @@ function HatchFX.Create(screen: ScreenGui): Handle
 			slot.tier.TextColor3 = Color3.new(1, 1, 1)
 			slot.tier.BackgroundColor3 = tone:Lerp(Color3.new(0, 0, 0), 0.15)
 			local income, speed = Config.GetPetKeyBonus(keys[i])
-			slot.stat.Text = string.format("+%d%% cash  ·  +%.2f flight", math.floor(income * 100 + 0.5), speed)
+			slot.stat.Text = string.format("+%d%% cash", math.floor(income * 100 + 0.5))
 			slot.stat.TextColor3 = Color3.fromRGB(200, 255, 190)
 			for _, t in { slot.name, slot.tier, slot.stat } do
 				fadeText(t, true, 0.25)

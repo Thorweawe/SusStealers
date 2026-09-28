@@ -41,7 +41,8 @@ local ROW_H = 46
 	küçük ekranda sağdaki düğme rayına iniyordu. Oyuncu ilk altıda değilse
 	son satır ONUN satırı oluyor (gerçek sırasıyla): kendini her zaman görüyor.
 ]]
-local MAX_ROWS = 6
+-- 2026-09-28: 6 → 4 (üçüncül öğe: ekranda az yer kaplasın)
+local MAX_ROWS = 4
 local HEADER_COLOR = Color3.fromRGB(30, 160, 200)
 
 -- İlk üçün sıra rozeti: altın, gümüş, bronz
@@ -169,7 +170,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	weekly.Name = "Weekly"
 	weekly.AnchorPoint = Vector2.new(1, 0.5)
 	weekly.Position = UDim2.new(1, -62, 0.5, 0)
-	weekly.Size = UDim2.fromOffset(82, 24)
+	weekly.Size = UDim2.fromOffset(88, 28)
 	weekly.BackgroundColor3 = Color3.fromRGB(255, 196, 50)
 	weekly.AutoButtonColor = true
 	weekly.Text = ""
@@ -182,6 +183,13 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	weekly.Activated:Connect(function()
 		Leaderboard.OpenWeekly:Fire()
 	end)
+	-- Kademeli açılma: öğretici bitince (yeni oyuncuya ilk dakikada gereksiz)
+	local function weeklyUnlock()
+		local step = player:GetAttribute("TutorialStep")
+		weekly.Visible = typeof(step) == "number" and (step < 0 or step >= #Config.Tutorial)
+	end
+	player:GetAttributeChangedSignal("TutorialStep"):Connect(weeklyUnlock)
+	weeklyUnlock()
 
 	local count = CardKit.bold(head, "", 16, CardKit.WHITE, 3, 2)
 	count.AnchorPoint = Vector2.new(1, 0)

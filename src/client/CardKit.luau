@@ -86,8 +86,83 @@ function CardKit.fit(label: TextLabel, maxSize: number, minSize: number?)
 	c.Parent = label
 end
 
---[[ Kart zemini: rengin açık-koyu gradyanı, boyanmış ışınlar, kabartma çerçeve. ]]
+--[[
+	═══ TEK GÖRSEL DİL (2026-09-28) ════════════════════════════════════════
+
+	Yusuf: "her şey aynı derecede parlak ve renkli, hiçbir şey öne çıkmıyor;
+	iki arayüz stili yan yana duruyor". Eskiden her kart kendi renginde tam
+	doygun + ışınlıydı; pencereler (UiKit.Window) ise lacivert. Şimdi:
+
+	  card  — SIRADAN yüzey: lacivert gövde (renge çok hafif çalan), üstte
+	          ince renkli şerit ve renkli iç kenar. Renk yalnızca VURGU;
+	          pencerelerle aynı gövde. Ekrandakilerin %90'ı bu.
+	  hero  — ÖNE ÇIKAN tek şey: tam renk + ışın (hedef kartı, süren olay,
+	          büyük ödül). Az kullanıldığı için göz önce ona gidiyor.
+
+	İmzalar aynı: eski çağrılar değişmeden yeni görünüşü alıyor.
+]]
+local function paintCard(card: Frame, tint: Color3)
+	card.BackgroundColor3 = Color3.new(1, 1, 1)
+	local g = card:FindFirstChild("Body")
+	if g and g:IsA("UIGradient") then
+		g.Color = ColorSequence.new(CardKit.BODY:Lerp(tint, 0.2), CardKit.BODY_DEEP:Lerp(tint, 0.08))
+	end
+	local strip = card:FindFirstChild("Accent")
+	if strip and strip:IsA("Frame") then
+		strip.BackgroundColor3 = tint
+	end
+	local inner = card:FindFirstChild("Inner")
+	local stroke = inner and inner:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = tint:Lerp(WHITE, 0.25)
+	end
+end
+
 function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, raysAt: UDim2?, raysSize: number?): Frame
+	local _ = raysAt
+	local _2 = raysSize
+	local card = Instance.new("Frame")
+	card.Size = size
+	card.BorderSizePixel = 0
+	card.ClipsDescendants = true
+	card.ZIndex = z
+	card.Parent = parent
+	card:SetAttribute("CardStyle", "surface")
+	CardKit.corner(card, 14)
+	local g = CardKit.gradient(card, CardKit.BODY, CardKit.BODY_DEEP)
+	g.Name = "Body"
+
+	-- Üstte ince vurgu şeridi
+	local strip = Instance.new("Frame")
+	strip.Name = "Accent"
+	strip.Size = UDim2.new(1, 0, 0, 4)
+	strip.BorderSizePixel = 0
+	strip.ZIndex = z
+	strip.Parent = card
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Frame"
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundTransparency = 1
+	frame.ZIndex = z + 1
+	frame.Parent = card
+	CardKit.corner(frame, 14)
+	CardKit.border(frame, OUTLINE, 3)
+	local inner = Instance.new("Frame")
+	inner.Name = "Inner"
+	inner.Position = UDim2.fromOffset(3, 3)
+	inner.Size = UDim2.new(1, -6, 1, -6)
+	inner.BackgroundTransparency = 1
+	inner.ZIndex = z + 1
+	inner.Parent = card
+	CardKit.corner(inner, 11)
+	CardKit.border(inner, tint, 1.5, 0.55)
+	paintCard(card, tint)
+	return card
+end
+
+--[[ Öne çıkan kart: tam renk gradyan + ışınlar (eski kart). Az kullan. ]]
+function CardKit.hero(parent: Instance, tint: Color3, size: UDim2, z: number, raysAt: UDim2?, raysSize: number?): Frame
 	local card = Instance.new("Frame")
 	card.Size = size
 	card.BackgroundColor3 = tint
@@ -95,6 +170,7 @@ function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	card.ClipsDescendants = true
 	card.ZIndex = z
 	card.Parent = parent
+	card:SetAttribute("CardStyle", "hero")
 	CardKit.corner(card, 14)
 	CardKit.gradient(card, tint:Lerp(WHITE, 0.28), tint:Lerp(BLACK, 0.25))
 
@@ -131,6 +207,10 @@ end
 
 --[[ Kartın rengini sonradan değiştirir (tamamlanan görev, kilitli satır). ]]
 function CardKit.tintCard(card: Frame, tint: Color3)
+	if card:GetAttribute("CardStyle") == "surface" then
+		paintCard(card, tint)
+		return
+	end
 	card.BackgroundColor3 = tint
 	local g = card:FindFirstChildOfClass("UIGradient")
 	if g then

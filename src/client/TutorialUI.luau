@@ -128,7 +128,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	local frameScale = Instance.new("UIScale")
 	frameScale.Parent = frame
 
-	local card = CardKit.card(frame, CARD_TINT, UDim2.new(1, 0, 1, -14), Z, UDim2.fromScale(0.15, 0.4), 360)
+	-- Öğretici = oyuncunun hedefi: tam renkli (hero) kart, ekranın en belirgin öğesi
+	local card = CardKit.hero(frame, CARD_TINT, UDim2.new(1, 0, 1, -14), Z, UDim2.fromScale(0.15, 0.4), 360)
 	card.Position = UDim2.fromOffset(0, 14)
 
 	-- ── Rehber: Kaptan ────────────────────────────────────────────────────

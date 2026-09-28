@@ -40,11 +40,9 @@ export type Handle = {
 
 local ACCENT: { [string]: Color3 } = {
 	Meeting = Color3.fromRGB(255, 80, 80),
-	LightsOut = Color3.fromRGB(255, 214, 60),
 	Meltdown = Color3.fromRGB(90, 255, 170),
 	Storm = Color3.fromRGB(200, 110, 255),
 	Comet = Color3.fromRGB(255, 205, 60),
-	SolarWind = Color3.fromRGB(255, 170, 40),
 	Meteors = Color3.fromRGB(255, 120, 50),
 	Blackout = Color3.fromRGB(110, 70, 200),
 }
@@ -53,11 +51,9 @@ local ACCENT: { [string]: Color3 } = {
 	Olay ikonları — Frame'den (UiKit'in "hazır görsel yok" kuralı):
 
 	  Meeting    kırmızı acil durum düğmesi, cam kubbesiyle (kafeteryadaki masa)
-	  LightsOut  üstü çizili ampul
 	  Meltdown   sarı-siyah reaktör uyarı işareti, ortada yeşil çekirdek
 	  Storm      mor mürettebat, etrafında ışıltılar
 	  Comet      altın kuyruklu yıldız: parlak baş, arkasında sönen kuyruk
-	  SolarWind  turuncu güneş ve önünden akan rüzgâr çizgileri
 	  Meteors    iki alevli göktaşı
 	  Blackout   mor hilal ay ve sönük yıldızlar
 ]]
@@ -72,13 +68,6 @@ local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 		S(h, 0.5, 0.52, 0.52, 0.38, Color3.fromRGB(226, 44, 44), 3, 0.5)
 		S(h, 0.42, 0.44, 0.12, 0.1, WHITE, 4, 0.5).BackgroundTransparency = 0.3
 		UiKit.Ring(h, 0.5, 0.5, 0.78, 0.62, Color3.fromRGB(170, 220, 250), math.max(1.5, size * 0.05), 4)
-	elseif id == "LightsOut" then
-		S(h, 0.5, 0.4, 0.6, 0.6, Color3.fromRGB(255, 214, 60), 1, 0.5)
-		S(h, 0.5, 0.74, 0.3, 0.12, Color3.fromRGB(150, 160, 172), 2, 0.2)
-		S(h, 0.5, 0.84, 0.24, 0.08, Color3.fromRGB(110, 118, 128), 2, 0.3)
-		S(h, 0.4, 0.3, 0.12, 0.14, WHITE, 3, 0.5).BackgroundTransparency = 0.35
-		S(h, 0.5, 0.5, 1.0, 0.11, Color3.fromRGB(40, 36, 60), 4, 0.5, -45)
-		S(h, 0.5, 0.5, 0.94, 0.06, Color3.fromRGB(226, 60, 60), 5, 0.5, -45)
 	elseif id == "Meltdown" then
 		S(h, 0.5, 0.5, 0.92, 0.92, Color3.fromRGB(252, 204, 48), 1, 0.5)
 		for k = 0, 2 do
@@ -108,13 +97,6 @@ local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 		S(h, 0.64, 0.36, 0.32, 0.32, Color3.fromRGB(255, 244, 190), 5, 0.5)
 		S(h, 0.58, 0.3, 0.1, 0.1, WHITE, 6, 0.5)
 		S(h, 0.9, 0.12, 0.1, 0.1, Color3.fromRGB(255, 240, 150), 6, 0.5, 45)
-	elseif id == "SolarWind" then
-		S(h, 0.36, 0.5, 0.6, 0.6, Color3.fromRGB(255, 170, 40), 1, 0.5)
-		S(h, 0.36, 0.5, 0.42, 0.42, Color3.fromRGB(255, 230, 120), 2, 0.5)
-		for k = 0, 2 do
-			local line = S(h, 0.74, 0.3 + k * 0.2, 0.44 - k * 0.08, 0.07, WHITE, 3, 0.5)
-			line.BackgroundTransparency = 0.15 + k * 0.2
-		end
 	elseif id == "Meteors" then
 		for k = 0, 1 do
 			local x, y, r = 0.62 - k * 0.3, 0.38 + k * 0.3, 0.34 - k * 0.1
@@ -157,7 +139,8 @@ function EventFX.Create(screen: ScreenGui): Handle
 	bar.BackgroundTransparency = 1
 	bar.Visible = false
 	bar.Parent = screen
-	local barCard = CardKit.card(bar, UiKit.CREW.RED, UDim2.fromScale(1, 1), 1, UDim2.fromScale(0.12, 0.5), 320)
+	-- Süren olay "özel an": ekrandaki az sayıdaki tam renkli (hero) karttan biri
+	local barCard = CardKit.hero(bar, UiKit.CREW.RED, UDim2.fromScale(1, 1), 1, UDim2.fromScale(0.12, 0.5), 320)
 
 	local barBadge = CardKit.badge(bar, 58, UiKit.CREW.RED, 4)
 	barBadge.AnchorPoint = Vector2.new(0, 0.5)
@@ -182,11 +165,9 @@ function EventFX.Create(screen: ScreenGui): Handle
 
 	local SUBTEXT: { [string]: string } = {
 		Meeting = "2x income for everyone",
-		LightsOut = "Space monsters are half blind: sneak in!",
 		Meltdown = "Reactor cores are floating in space!",
 		Storm = "Every crewmate in space is mutated!",
 		Comet = "First to touch it wins a mutated crewmate!",
-		SolarWind = "Everyone flies 35% faster in space!",
 		Meteors = "Dodge the rocks, grab the star shards!",
 		Blackout = "Monsters can barely see - rarer crew!",
 	}
@@ -208,6 +189,15 @@ function EventFX.Create(screen: ScreenGui): Handle
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
 	panel.Parent = screen
+	--[[ 2026-09-28: sağ alttaki çizelge KALKTI (ekran kalabalığı; saatte iki
+	     olay var). Sıradaki olay artık hedef kartının altında küçük bir
+	     satır (Objective). Panel kuruluyor ama hiç görünmüyor. ]]
+	panel.Visible = false
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if panel.Visible then
+			panel.Visible = false
+		end
+	end)
 	CardKit.corner(panel, 14)
 	CardKit.gradient(panel, CardKit.BODY, CardKit.BODY_DEEP)
 	CardKit.border(panel, CardKit.OUTLINE, 3)
@@ -465,7 +455,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 			title.Text = string.upper(tostring(name)) .. "  " .. clock((endsAt or now) - now)
 			sub.Text = SUBTEXT[id] or ""
 			bar.Visible = not hidden
-			setDark(id == "LightsOut")
+			setDark(false)
 		else
 			bar.Visible = false
 			setDark(false)

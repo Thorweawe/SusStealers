@@ -70,6 +70,8 @@ local CrewAura = require(script.CrewAura)
 local WeeklyPanel = require(script.WeeklyPanel)
 local SeasonPanel = require(script.SeasonPanel)
 local SpaceEventsFX = require(script.SpaceEventsFX)
+local Objective = require(script.Objective)
+local Intro = require(script.Intro)
 local Summons = require(script.Summons)
 local Hotbar = require(script.Hotbar)
 local AsteroidGame = require(script.AsteroidGame)
@@ -91,7 +93,12 @@ playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
 	yarım kurulmuş arayüzü hiç görmesin. HUD arkasında kurulmaya devam
 	ediyor; PLAY'e basınca perde açılıyor.
 ]]
-TitleScreen.Show()
+TitleScreen.Show({
+	-- Yeni oyuncuya hikâye girişi (Intro kendisi karar veriyor: öğretici başlamamışsa)
+	onPlay = function()
+		Intro.PlayIfNew()
+	end,
+})
 
 local INK = Color3.fromRGB(235, 240, 250)
 local MUTED = Color3.fromRGB(150, 163, 184)
@@ -477,28 +484,13 @@ mountPanel("CapsuleFX", function()
 end)
 
 --[[
-	Rebirth arayuzu. Sag ortadaki dock'a (Envanter kuruyor) REBIRTH
-	dugmesi ekliyor; panelin kendisi ekranin ortasinda aciliyor.
+	Rebirth arayüzü: panel ekranın ortasında açılıyor. Düğmesi sol menüde
+	(SideRail, öğretici bitince); sağ ortadaki dizi 2026-09-28'de kalktı.
 ]]
 mountPanel("RebirthPanel", function()
 	local panel = RebirthPanel.Create(screen)
 	rebirthPanel = panel
 	previews.Rebirth = panel.Toggle
-
-	local dock = screen:WaitForChild("MenuDock", 10)
-	if not dock then
-		return
-	end
-
-	-- ENVANTER düğmesinin hemen altında, aynı boyutta (Inventory.luau: sağ orta)
-	local holder, button, slot =
-		UiKit.IconButton(dock, "Rebirth", UiKit.CREW.ORANGE, "REBIRTH", Vector2.new(72, 78))
-	holder.LayoutOrder = 2
-	UiKit.Rebirth(slot, 34, Color3.fromRGB(255, 236, 190))
-
-	button.MouseButton1Click:Connect(function()
-		panel.Toggle()
-	end)
 end)
 
 --[[
@@ -666,6 +658,7 @@ mountPanel("Inventory", function()
 	previews.Inventory = function()
 		inventory.Open(nil)
 	end
+	previews.InventoryToggle = inventory.Toggle
 end)
 
 --[[
@@ -688,6 +681,20 @@ mountPanel("SideRail", function()
 	-- Sezon Kartı: sol rayda PASS (rozet = toplanacak ödül)
 	local seasonPass = SeasonPanel.Create(screen)
 	previews.Season = seasonPass.Open
+	--[[
+		Sol menü: bütün pencereler tek yerde (SideRail). `unlockAt` = kaç
+		öğretici adımı bitince görünüyor (kademeli açılma): ilk soygundan
+		sonra SHOP ve INDEX, ikinciden sonra QUESTS, pet adımında INVENTORY,
+		öğretici bitince PASS ve REBIRTH.
+	]]
+	local function call(key: string)
+		return function()
+			local f = previews[key]
+			if f then
+				f()
+			end
+		end
+	end
 	local rail = SideRail.Create(screen, "SideRail", {
 		{
 			name = "Shop",
@@ -695,13 +702,15 @@ mountPanel("SideRail", function()
 			tint = UiKit.CREW.LIME,
 			icon = "bag",
 			onClick = shop.Toggle,
+			unlockAt = 1,
 		},
 		{
-			name = "Index",
-			label = "INDEX",
-			tint = UiKit.CREW.CYAN,
-			icon = "book",
-			onClick = catalog.Toggle,
+			name = "Inventory",
+			label = "ITEMS",
+			tint = Color3.fromRGB(64, 150, 214),
+			icon = "backpack",
+			onClick = call("InventoryToggle"),
+			unlockAt = 8,
 		},
 		{
 			name = "Quests",
@@ -713,6 +722,15 @@ mountPanel("SideRail", function()
 					quests.Toggle()
 				end
 			end,
+			unlockAt = 2,
+		},
+		{
+			name = "Index",
+			label = "INDEX",
+			tint = UiKit.CREW.CYAN,
+			icon = "book",
+			onClick = catalog.Toggle,
+			unlockAt = 1,
 		},
 		{
 			name = "Pass",
@@ -720,8 +738,20 @@ mountPanel("SideRail", function()
 			tint = Color3.fromRGB(170, 100, 255),
 			icon = "crown",
 			onClick = seasonPass.Toggle,
+			unlockAt = #Config.Tutorial,
+		},
+		{
+			name = "Rebirth",
+			label = "REBIRTH",
+			tint = UiKit.CREW.ORANGE,
+			icon = "rebirth",
+			onClick = call("Rebirth"),
+			unlockAt = #Config.Tutorial,
 		},
 	})
+	Inventory.BadgeChanged.Event:Connect(function(total: number)
+		rail.SetBadge("Inventory", total)
+	end)
 	local function passBadge()
 		rail.SetBadge("Pass", SeasonPanel.Claimable())
 	end
@@ -855,6 +885,24 @@ end)
 -- Gezegenlerdeki mürettebatın nadirlik aurası (ışıltı, küre, ışık sütunu)
 mountPanel("CrewAura", function()
 	CrewAura.Start()
+end)
+
+-- Tek hedef kartı (üst orta): öğretici bitince "şimdi ne yapmalıyım"
+mountPanel("Objective", function()
+	Objective.Start(screen, {
+		Inventory = function()
+			local f = previews.Inventory
+			if f then
+				f()
+			end
+		end,
+		Rebirth = function()
+			local f = previews.Rebirth
+			if f then
+				f()
+			end
+		end,
+	})
 end)
 
 -- Uzay istasyonu olaylarının görünüşü (göktaşları, karartma, güneş rüzgârı)

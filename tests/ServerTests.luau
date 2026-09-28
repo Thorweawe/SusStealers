@@ -3160,9 +3160,17 @@ case("Olay: takvim tutarlı ve olaylar çakışmıyor", function()
 		ok(def.id .. " offset periyot içinde", def.offset >= 0 and def.offset < def.every)
 		ids[def.id] = true
 	end
-	for _, id in { "Meeting", "LightsOut", "Meltdown", "Storm" } do
+	for _, id in { "Meeting", "Meteors", "Storm", "Blackout", "Meltdown", "Comet" } do
 		ok(id .. " tanımlı", ids[id] == true)
 	end
+	-- "Özel an": saatte en fazla iki sabit olay (+ ara sıra sürpriz)
+	local perHour = 0
+	for _, def in Config.Events do
+		if not def.random then
+			perHour += 3600 / def.every
+		end
+	end
+	ok("saatte en fazla iki sabit olay", perHour <= 2, tostring(perHour))
 
 	-- 24 saat boyunca her olayın penceresi (uyarı dahil) başka bir olayınkiyle kesişmesin
 	local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
@@ -3205,20 +3213,11 @@ case("Olay: Emergency Meeting geliri katlıyor, bitince dönüyor", function(ctx
 	ok("başladı", EventService.Begin("Meeting"))
 	eq("süren olay", EventService.GetActiveId(), "Meeting")
 	near("gelir katlandı", EconomyService.GetIncome(ctx.player), base * Config.MeetingIncomeMul, 2)
-	eq("ikinci olay başlamıyor", EventService.Begin("LightsOut"), false)
+	eq("ikinci olay başlamıyor", EventService.Begin("Storm"), false)
 	EventService.End()
 	eq("bitince normal", EconomyService.GetIncome(ctx.player), base)
 	eq("yayın temizlendi", workspace:GetAttribute("EventId"), "")
 	clearPlot(ctx.plot)
-end)
-
-case("Olay: Lights Sabotage canavarları yarı kör yapıyor", function(ctx)
-	ok("uyanma yavaşlıyor", Config.LightsOutWakeMul > 1)
-	ok("kovalama yavaşlıyor", Config.LightsOutChaseMul < 1)
-	ok("başladı", EventService.Begin("LightsOut"))
-	eq("etkin olay", EventService.GetActiveId(), "LightsOut")
-	EventService.End()
-	eq("bitti", EventService.GetActiveId(), nil)
 end)
 
 case("Olay: Reactor Meltdown çekirdekleri üslerin dışında, ödül veriyor", function(ctx)
@@ -4301,13 +4300,8 @@ case("Çark: jeton ve süper çark haklarını harcıyor, 7. gün süper çark",
 	ctx.profile.superSpins = 0
 end)
 
-case("Uzay olayları: güneş rüzgârı, karartma, göktaşı yağmuru", function()
+case("Uzay olayları: karartma, göktaşı yağmuru", function()
 	EventService.End()
-	ok("Solar Wind başladı", EventService.Begin("SolarWind"))
-	eq("uçuş çarpanı", workspace:GetAttribute("EventFlightMul"), Config.SolarWindFlightMul)
-	EventService.End()
-	eq("çarpan döndü", workspace:GetAttribute("EventFlightMul"), 1)
-
 	ok("Blackout başladı", EventService.Begin("Blackout"))
 	EventService.End()
 

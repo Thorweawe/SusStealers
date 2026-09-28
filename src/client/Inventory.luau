@@ -51,6 +51,9 @@ local UiKit = require(script.Parent.UiKit)
 
 local Inventory = {}
 
+--[[ Bütün sekmelerin rozet toplamı değişti (sol menüdeki INVENTORY düğmesi dinliyor). ]]
+Inventory.BadgeChanged = Instance.new("BindableEvent")
+
 export type TabDef = {
 	id: string,
 	label: string,
@@ -116,6 +119,9 @@ function Inventory.Create(screen: ScreenGui): Inventory
 	dock.Size = UDim2.fromOffset(DOCK_BUTTON.X, DOCK_BUTTON.Y * 2 + 8)
 	dock.BackgroundTransparency = 1
 	dock.Parent = screen
+	-- 2026-09-28: sağ ortadaki düğme dizisi KALKTI; ENVANTER ve REBIRTH sol
+	-- menüde (SideRail). Dizi kuruluyor (eski kod ona bağlanıyor) ama görünmüyor.
+	dock.Visible = false
 
 	local dockLayout = Instance.new("UIListLayout")
 	dockLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -470,6 +476,7 @@ function Inventory.Create(screen: ScreenGui): Inventory
 			end
 			bagBadge.Text = tostring(total)
 			bagBadge.Visible = total > 0
+			Inventory.BadgeChanged:Fire(total)
 		end,
 		Open = open,
 		Toggle = toggle,

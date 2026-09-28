@@ -209,7 +209,15 @@ end
 	  - düz düğmeler → koyu kenar
 	Zaten konturlu/gradyanlı öğelere dokunmuyor (CardKit parçaları).
 ]]
+--[[ Erişilebilirlik (2026-09-28): ölçeklenmeyen yazı 12 pikselden küçük
+     olmasın. Telefonda HUD ~0.6'ya küçülüyor; 10'luk yazı 6 piksele
+     iniyor, okunmuyordu. ]]
+local MIN_TEXT = 12
+
 local function modernizeText(d: Instance)
+	if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and not d.TextScaled and d.TextSize < MIN_TEXT then
+		d.TextSize = MIN_TEXT
+	end
 	if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and GOTHAM[d.Font] then
 		d.Font = Enum.Font.FredokaOne
 		-- Koyu yazı (açık düğme üstünde) konturla okunmaz hale geliyor: yalnız açık yazılar
@@ -1603,6 +1611,8 @@ function UiKit.Icon(parent: Instance, kind: string, size: number, tint: Color3):
 		return UiKit.Gift(parent, size, tint)
 	elseif kind == "backpack" then
 		return UiKit.Backpack(parent, size, tint)
+	elseif kind == "rebirth" then
+		return UiKit.Rebirth(parent, size, tint)
 	end
 	return UiKit.Flame(parent, size, tint)
 end

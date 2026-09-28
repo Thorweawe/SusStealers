@@ -13,6 +13,20 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (43) — Yusuf (iki şeridi de ilgilendirir)
+
+**Sadeleştirme: daha az hız kaynağı, daha az olay, tek görsel dil, tek hedef, kademeli açılma, hikâye girişi.** Studio'ya aktarıldı (Studio–disk karşılaştırıldı, çakışma yoktu). Testler temiz (Top Crew isim plakası testi bir kez canlı global panoyla yarıştı; önceki koşuda geçiyordu).
+
+- **Hız kaynakları:** petler artık uçuş hızı VERMİYOR (`Config.PetFlightMul = 0`; pet gelir bonusu ~%25 arttı). Solar Wind olayı kalktı. Jet Boost'un adı **Escape Dash** (kimlik aynı). Uzayda hız = kapsül hızı (+ gidişte jetpack).
+- **Olaylar (`Config.Events`):** saatte iki sabit an: :30 Emergency Meeting, :00 dört saatlik döngüde Meteor Shower → Mutation Storm → Nebula Blackout → Reactor Meltdown. Golden Comet saatte %50 (`chance`). Lights Sabotage kalktı (Blackout aynı işi yapıyordu). Uyarı 60 sn. Sağ alttaki olay çizelgesi gizli; sıradaki olay hedef kartının altında küçük satır.
+- **Tek görsel dil (`CardKit`):** `CardKit.card` artık lacivert gövde + ince renkli şerit/kenar (pencerelerle aynı). Tam renk + ışın yalnızca `CardKit.hero`: öğretici kartı, süren olay şeridi, hedef kartı.
+- **Görsel hiyerarşi:** 1) üst orta: olay şeridi + HEDEF kartı (`client/Objective`, öğretici bitince), sol alt: nakit + hız; 2) sol menü ızgarası; 3) CREW tablosu (4 satır), üst şerit.
+- **Sol menü (`SideRail`):** 2 sütun kare düğme: SHOP, ITEMS (envanter), QUESTS, INDEX, PASS, REBIRTH. Sağ ortadaki Envanter/Rebirth dizisi kalktı (MenuDock gizli). **Kademeli açılma** `TutorialStep`'e göre (SHOP/INDEX 1, QUESTS 2, ITEMS 8, PASS/REBIRTH/WEEKLY bitince), yeni açılan düğmede "NEW".
+- **Hikâye girişi (`client/Intro`):** yeni oyuncuya (TutorialStep 0) PLAY'den sonra ~20 sn sinematik: istasyon → canavarlar → üs → Launch Bay → "MISSION 1". SKIP var.
+- **Erişilebilirlik:** ölçeklenmeyen yazılar en az 12 px (UiKit.modernizeText). Uzaydaki mürettebat auraları seyreltildi (ışıltı Rare'den, küre Epic'ten, sütun Mythic'ten).
+
+---
+
 ## 2026-09-28 (42) — Yusuf (iki şeridi de ilgilendirir)
 
 **Jetpack alevleri, haftalık sıralama, uzay olayları, Sezon Kartı, çark jetonu/süper çark.** Studio'ya aktarıldı (önce Studio–disk karşılaştırıldı, çakışma yoktu), **178/178 test temiz**.

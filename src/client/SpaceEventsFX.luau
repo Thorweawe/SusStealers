@@ -9,8 +9,6 @@
 	  Nebula Blackout — uzaydayken ekran kararıp mora çalıyor, karakterin
 	                    başında el feneri (SpotLight) yanıyor; mürettebat
 	                    auraları ve canavar gözleri karanlıkta öne çıkıyor.
-	  Solar Wind      — uzaydayken kameranın önünden akan altın rüzgâr
-	                    çizgileri ve sıcak renk tonu.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -152,24 +150,6 @@ function SpaceEventsFX.Start(): Handle
 		end
 	end
 
-	-- ─── Güneş rüzgârı çizgileri ─────────────────────────────────────────
-	local windHost = part("SolarWindHost", Vector3.one, Color3.new(1, 1, 1))
-	windHost.Transparency = 1
-	windHost.Parent = folder
-	local wind = Instance.new("ParticleEmitter")
-	wind.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	wind.Color = ColorSequence.new(Color3.fromRGB(255, 240, 170), Color3.fromRGB(255, 160, 40))
-	wind.LightEmission = 1
-	wind.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 0) })
-	wind.Squash = NumberSequence.new(3)
-	wind.Lifetime = NumberRange.new(0.6, 1)
-	wind.Speed = NumberRange.new(60, 90)
-	wind.SpreadAngle = Vector2.new(25, 25)
-	wind.Rate = 0
-	wind.Shape = Enum.ParticleEmitterShape.Box
-	wind.Parent = windHost
-	windHost.Size = Vector3.new(60, 30, 2)
-
 	table.insert(conns, RunService.RenderStepped:Connect(function()
 		local eventId = workspace:GetAttribute("EventId")
 		local inSpace = player:GetAttribute("InSpace") == true or player:GetAttribute("SpaceGrabbed") ~= nil
@@ -179,20 +159,10 @@ function SpaceEventsFX.Start(): Handle
 		-- Ton
 		if eventId == "Blackout" and inSpace then
 			setGrade("blackout", { Brightness = -0.28, Contrast = 0.15, Saturation = -0.35, TintColor = Color3.fromRGB(190, 170, 255) })
-		elseif eventId == "SolarWind" and inSpace then
-			setGrade("solar", { Brightness = 0.04, Contrast = 0.05, Saturation = 0.15, TintColor = Color3.fromRGB(255, 236, 205) })
 		else
 			setGrade("none", { Brightness = 0, Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) })
 		end
 		setTorch(eventId == "Blackout" and inSpace)
-
-		-- Rüzgâr: kameranın önünden ona doğru akıyor
-		if eventId == "SolarWind" and inSpace then
-			windHost.CFrame = camCf * CFrame.new(0, 0, -45) * CFrame.Angles(0, math.rad(180), 0)
-			wind.Rate = 90
-		else
-			wind.Rate = 0
-		end
 
 		-- Göktaşları
 		local seed = workspace:GetAttribute("MeteorSeed")
