@@ -22,6 +22,7 @@ Kayıt kalıbı:
 - `FancyKit.driver` kök yok edilince kendini kapatıyor.
 - **Leaderboard (CREW kutusu)**: kayan şerit, parıltı, 3B mürettebat ikonu, WEEKLY düğmesi altın.
 - **Envanter**: sekme ikonları 3B (`Tab_Pets`, `Tab_Potion`, `Tab_Style`, `Nav_Pass`; `UiKit.ArtIcon`), pet kartları (`PetPanel`) ve şapka/iz kartları (`CosmeticPanel`) renkli ışınlı.
+- Üst şeritte göz ikonu çizgi film gözü (eskisi korkutucuydu), ayar çarkı beyaz + altın göbek (mavi zeminde sönüktü).
 - **Sol alt haplar** (`UiKit.StatPill`): renkli gradyan, kalın kenar, 3B roket (SPACE SPEED) ve para ikonu.
 
 ---
