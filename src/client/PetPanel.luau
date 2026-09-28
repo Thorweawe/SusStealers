@@ -27,6 +27,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 local AutoHatch = require(script.Parent.AutoHatch)
 
@@ -38,6 +39,8 @@ local INK = UiKit.INK
 local MUTED = UiKit.MUTED
 local ACCENT = UiKit.CREW.PINK
 local GOOD = UiKit.GOOD
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+local GOLD_EDGE = Color3.fromRGB(255, 214, 60)
 
 export type Panel = {
 	Toggle: () -> (),
@@ -236,6 +239,15 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 
 	local rows: { Instance } = {}
 
+	-- Çizgi roman yazısı: koyu kalın kontur
+	local function ink(label: TextLabel, thickness: number)
+		local st = Instance.new("UIStroke")
+		st.Color = OUTLINE
+		st.Thickness = thickness
+		st.LineJoinMode = Enum.LineJoinMode.Round
+		st.Parent = label
+	end
+
 	local function makeCard(parent: Instance, orderIndex: number, def: Config.PetDef, key: string?, count: number)
 		local info = Config.Rarities[def.rarity]
 		-- Aynı petten birkaç kopya takılı olabilir (PetService.TryEquip)
@@ -268,18 +280,33 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		card.LayoutOrder = orderIndex
 		-- Sahip olunan kart kademe rengine hafifçe boyanıyor: panel renkli
 		-- bir koleksiyon gibi okunuyor, gri bir tablo gibi değil
-		card.BackgroundColor3 = if key then info.color:Lerp(UiKit.ROW, 0.8) else UiKit.ROW
-		card.BackgroundTransparency = if key then 0 else 0.45
+		-- 2026-09-28 mağaza dili: kademe renginin doygun gradyanı + noktalar,
+		-- kalın koyu kenar; takılı olan altın, mutasyonlu kendi renginde
+		card.BackgroundColor3 = Color3.new(1, 1, 1)
+		card.BackgroundTransparency = if key then 0 else 0.4
 		card.BorderSizePixel = 0
 		card.AutoButtonColor = false
 		card.Text = ""
 		card.ZIndex = 43
 		card.Parent = parent
-		UiKit.Corner(card, 10)
-		local stroke = UiKit.Stroke(card,
-			if mutation then mutation.tint else info.color,
-			if mutation then 2 else 1.4,
-			if mutation then 0.2 else 0.75)
+		UiKit.Corner(card, 12)
+		local tone = if key then info.color else Color3.fromRGB(90, 96, 120)
+		local grad = Instance.new("UIGradient")
+		grad.Rotation = 90
+		grad.Color = ColorSequence.new(tone:Lerp(Color3.new(1, 1, 1), 0.06), tone:Lerp(Color3.new(0, 0, 0), 0.6))
+		grad.Parent = card
+		local dots = Instance.new("ImageLabel")
+		dots.BackgroundTransparency = 1
+		dots.Size = UDim2.fromScale(1, 1)
+		dots.Image = UiArt.Image("Texture", "halftone_fade")
+		dots.ScaleType = Enum.ScaleType.Crop
+		dots.ImageTransparency = 0.84
+		dots.ZIndex = 43
+		dots.Parent = card
+		UiKit.Corner(dots, 12)
+		local restColor = if isOn then GOLD_EDGE elseif mutation then mutation.tint else OUTLINE
+		local restThick = if isOn then 4 elseif mutation then 3 else 2.5
+		local stroke = UiKit.Stroke(card, restColor, restThick, 0)
 
 		--[[
 			Figür: petin sahadaki biçimi (küre, robot, yengeç...) kendi
@@ -300,10 +327,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		name.Position = UDim2.new(0, 4, 0, 70)
 		name.Size = UDim2.new(1, -8, 0, 18)
 		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBlack
-		name.TextSize = 14
+		name.Font = Enum.Font.FredokaOne
+		name.TextSize = 16
 		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.TextColor3 = if key then UiKit.INK else UiKit.DIM
+		name.TextColor3 = if key then Color3.new(1, 1, 1) else UiKit.DIM
+		ink(name, 2)
 		name.Text = if key then def.name else "???"
 		name.ZIndex = 44
 		name.Parent = card
@@ -313,14 +341,15 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		tag.Position = UDim2.new(0, 4, 0, 89)
 		tag.Size = UDim2.new(1, -8, 0, 14)
 		tag.BackgroundTransparency = 1
-		tag.Font = Enum.Font.GothamBlack
-		tag.TextSize = 12
+		tag.Font = Enum.Font.FredokaOne
+		tag.TextSize = 13
+		ink(tag, 1.6)
 		--[[
 			Mutasyonsuz kartta KADEME yazıyor: koleksiyon artık yumurtaya
 			göre gruplu, kademe başlıktan okunmuyor. Secret'ın rengi siyah;
 			koyu kartta mora çekiliyor.
 		]]
-		local rarityTone = if def.rarity == "Secret" then Color3.fromRGB(190, 150, 255) else info.color
+		local rarityTone = if def.rarity == "Secret" then Color3.fromRGB(190, 150, 255) else info.color:Lerp(Color3.new(1, 1, 1), 0.35)
 		tag.TextColor3 = if mutation then mutation.tint elseif key then rarityTone else UiKit.DIM
 		tag.Text = if mutation then string.upper(mutation.name) .. string.format(" x%.1f", mutation.multiplier) else string.upper(def.rarity)
 		tag.ZIndex = 44
@@ -355,10 +384,11 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		stat.Position = UDim2.new(0, 4, 0, 105)
 		stat.Size = UDim2.new(1, -8, 0, 32)
 		stat.BackgroundTransparency = 1
-		stat.Font = Enum.Font.GothamBold
-		stat.TextSize = 12
+		stat.Font = Enum.Font.FredokaOne
+		stat.TextSize = 14
 		-- Soluk gri koyu kartta okunmuyordu: açık ton
-		stat.TextColor3 = if key then UiKit.INK:Lerp(UiKit.MUTED, 0.35) else UiKit.DIM
+		stat.TextColor3 = if key then Color3.fromRGB(150, 255, 120) else UiKit.DIM
+		ink(stat, 1.6)
 		stat.Text = string.format("+%d%% cash", math.floor(income * 100 + 0.5))
 		stat.ZIndex = 44
 		stat.Parent = card
@@ -373,8 +403,9 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		countLabel.Position = UDim2.new(1, -6, 0, 6)
 		countLabel.Size = UDim2.fromOffset(36, 16)
 		countLabel.BackgroundTransparency = 1
-		countLabel.Font = Enum.Font.GothamBlack
-		countLabel.TextSize = 13
+		countLabel.Font = Enum.Font.FredokaOne
+		countLabel.TextSize = 15
+		ink(countLabel, 1.8)
 		countLabel.TextXAlignment = Enum.TextXAlignment.Right
 		countLabel.TextColor3 = if isOn then GOOD else MUTED
 		-- Takılıysa "takılı/adet" (2/3), değilse adet (x3)
@@ -462,10 +493,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			end)
 		end
 		card.MouseEnter:Connect(function()
-			stroke.Transparency = 0.1
+			stroke.Color = Color3.new(1, 1, 1)
 		end)
 		card.MouseLeave:Connect(function()
-			stroke.Transparency = if mutation then 0.2 else 0.75
+			stroke.Color = restColor
 		end)
 	end
 

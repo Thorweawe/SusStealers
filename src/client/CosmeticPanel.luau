@@ -21,7 +21,21 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local CosmeticModel = require(Shared.CosmeticModel)
 
+local CardKit = require(script.Parent.CardKit)
+local FancyKit = require(script.Parent.FancyKit)
 local UiKit = require(script.Parent.UiKit)
+
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+
+-- Çizgi roman yazısı: koyu kalın kontur (2026-09-28 mağaza dili)
+local function ink(label: TextLabel, thickness: number)
+	label.Font = Enum.Font.FredokaOne
+	local st = Instance.new("UIStroke")
+	st.Color = OUTLINE
+	st.Thickness = thickness
+	st.LineJoinMode = Enum.LineJoinMode.Round
+	st.Parent = label
+end
 
 local CosmeticPanel = {}
 
@@ -126,7 +140,7 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 		local vp = Instance.new("ViewportFrame")
 		vp.Position = UDim2.fromOffset(8, 8)
 		vp.Size = UDim2.new(1, -16, 0, 96)
-		vp.BackgroundColor3 = UiKit.SHELL_DEEP
+		vp.BackgroundTransparency = 1
 		vp.BorderSizePixel = 0
 		vp.Ambient = Color3.fromRGB(180, 180, 190)
 		vp.LightColor = Color3.new(1, 1, 1)
@@ -198,15 +212,21 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 			local rarity = Config.Rarities[def.rarity]
 			local rarityColor = if rarity then rarity.color else UiKit.MUTED
 
-			local card = Instance.new("Frame")
-			card.Name = def.id
-			card.LayoutOrder = order
-			card.BackgroundColor3 = UiKit.ROW
-			card.BorderSizePixel = 0
-			card.ZIndex = Z + 2
-			card.Parent = list
-			UiKit.Corner(card, 12)
-			UiKit.Stroke(card, rarityColor, 2, 0.2)
+			-- Mağaza dili: kademe renginin ışınlı kartı, figürün arkasında hale
+			local slot = Instance.new("Frame")
+			slot.Name = def.id
+			slot.LayoutOrder = order
+			slot.BackgroundTransparency = 1
+			slot.ZIndex = Z + 2
+			slot.Parent = list
+			local card = FancyKit.card(slot, rarityColor:Lerp(Color3.fromRGB(60, 66, 100), if def.rarity == "Secret" then 0.3 else 0.15), UDim2.fromScale(1, 1), Z + 2, nil, UDim2.new(0.5, 0, 0, 56))
+			local glowSlot = Instance.new("Frame")
+			glowSlot.Position = UDim2.fromOffset(8, 8)
+			glowSlot.Size = UDim2.new(1, -16, 0, 96)
+			glowSlot.BackgroundTransparency = 1
+			glowSlot.ZIndex = Z + 2
+			glowSlot.Parent = card
+			FancyKit.glow(glowSlot, Color3.new(1, 1, 1), 1, 0.55, Z + 2)
 
 			preview(card, def)
 
@@ -214,25 +234,25 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 			name.Position = UDim2.fromOffset(8, 108)
 			name.Size = UDim2.new(1, -16, 0, 20)
 			name.BackgroundTransparency = 1
-			name.Font = Enum.Font.GothamBlack
-			name.TextSize = 14
+			name.TextSize = 17
 			name.TextColor3 = Color3.new(1, 1, 1)
 			name.TextScaled = false
 			name.TextTruncate = Enum.TextTruncate.AtEnd
 			name.Text = def.name
 			name.ZIndex = Z + 3
 			name.Parent = card
+			ink(name, 2)
 
 			local tag = Instance.new("TextLabel")
 			tag.Position = UDim2.fromOffset(8, 127)
 			tag.Size = UDim2.new(1, -16, 0, 14)
 			tag.BackgroundTransparency = 1
-			tag.Font = Enum.Font.GothamBold
-			tag.TextSize = 12
-			tag.TextColor3 = rarityColor
+			tag.TextSize = 14
+			tag.TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.45)
 			tag.Text = string.upper(def.rarity)
 			tag.ZIndex = Z + 3
 			tag.Parent = card
+			ink(tag, 1.6)
 
 			local isOwned = have[def.id] == true
 			local isEquipped = equipped == def.id
@@ -247,20 +267,11 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 				text = "$" .. Config.FormatCash(def.price)
 			end
 
-			local button = Instance.new("TextButton")
-			button.AnchorPoint = Vector2.new(0.5, 1)
-			button.Position = UDim2.new(0.5, 0, 1, -8)
-			button.Size = UDim2.new(1, -16, 0, 36)
-			button.BackgroundColor3 = color
-			button.BorderSizePixel = 0
-			button.Font = Enum.Font.GothamBlack
-			button.TextSize = 15
-			button.TextColor3 = Color3.new(1, 1, 1)
-			button.TextStrokeTransparency = 0.5
-			button.Text = text
-			button.ZIndex = Z + 4
-			button.Parent = card
-			UiKit.Corner(button, 10)
+			local buy = CardKit.button(card, UDim2.new(1, -16, 0, 42), Z + 4, 17, color)
+			buy.holder.AnchorPoint = Vector2.new(0.5, 1)
+			buy.holder.Position = UDim2.new(0.5, 0, 1, -8)
+			buy.set(text, color)
+			local button = buy.button
 
 			button.MouseButton1Click:Connect(function()
 				if isEquipped then

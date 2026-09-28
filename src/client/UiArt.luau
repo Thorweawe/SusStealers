@@ -61,6 +61,11 @@ UiArt.Icon = {
 	Gear_SpeedCoil = 106848659288772,
 	Gear_StunGun = 111727037136617,
 	Gear_EmergencyButton = 120840718417896,
+	-- Envanter sekmeleri, sol alt haplar
+	Tab_Pets = 105447129249807,
+	Tab_Potion = 105612339081576,
+	Tab_Style = 91214765132761,
+	Stat_Speed = 99403146956988,
 }
 
 function UiArt.Image(kind: string, name: string): string

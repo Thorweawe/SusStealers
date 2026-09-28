@@ -4,7 +4,8 @@
 	(prompt "GearPrompt"; istemci kendi tetiklemesini görüyor).
 
 	Her alet bir kart: ikon, ad, ne yaptığı, sayısı (hız / zıplama /
-	bekleme), fiyat ve BUY ya da OWNED. Satın alma GearBuy remote'uyla;
+	bekleme), fiyat ve BUY ya da OWNED. 2026-09-28'den beri mağazanın
+	dilinde (FancyKit: renkli kart, dönen ışın, süzülen 3B ikon). Satın alma GearBuy remote'uyla;
 	fiyat ve sahiplik sunucuda (GearService). Sahip olunanlar "GearOwned"
 	niteliğinden okunuyor.
 ]]
@@ -16,6 +17,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local FancyKit = require(script.Parent.FancyKit)
 local UiKit = require(script.Parent.UiKit)
 
 local GearPanel = {}
@@ -24,6 +26,15 @@ local player = Players.LocalPlayer
 
 local ACCENT = UiKit.CREW.ORANGE
 local Z = 45
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+local GREEN = Color3.fromRGB(70, 200, 70)
+-- Kart rengi (2026-09-28 mağaza dili)
+local TINT: { [string]: Color3 } = {
+	SlapGlove = Color3.fromRGB(230, 70, 80),
+	SpeedCoil = Color3.fromRGB(50, 140, 240),
+	StunGun = Color3.fromRGB(240, 180, 30),
+	EmergencyButton = Color3.fromRGB(160, 80, 235),
+}
 
 export type Panel = {
 	Open: () -> (),
@@ -51,161 +62,127 @@ local function statLine(def: Config.GearDef): string
 end
 
 function GearPanel.Create(screen: ScreenGui): Panel
+	local W, H, HEADER = 40 + #Config.Gear * 172, 450, 66
 	local root = UiKit.Window(screen, "GearPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(40 + #Config.Gear * 146, 372)
+	root.Size = UDim2.fromOffset(W, H)
 	root.Visible = false
 	root.ZIndex = Z
-
-	local band = Instance.new("Frame")
-	band.Size = UDim2.new(1, 0, 0, 52)
-	band.BackgroundColor3 = ACCENT:Lerp(Color3.new(0, 0, 0), 0.6)
-	band.BorderSizePixel = 0
-	band.ZIndex = Z + 1
-	band.Parent = root
-	UiKit.Corner(band, 14)
-	local bandFoot = Instance.new("Frame")
-	bandFoot.Position = UDim2.new(0, 0, 1, -14)
-	bandFoot.Size = UDim2.new(1, 0, 0, 14)
-	bandFoot.BackgroundColor3 = band.BackgroundColor3
-	bandFoot.BorderSizePixel = 0
-	bandFoot.ZIndex = Z + 1
-	bandFoot.Parent = band
-
-	local badge = Instance.new("Frame")
-	badge.Position = UDim2.fromOffset(14, 10)
-	badge.Size = UDim2.fromOffset(32, 32)
-	badge.BackgroundTransparency = 1
-	badge.ZIndex = Z + 2
-	badge.Parent = band
-	UiKit.Crewmate(badge, 30, ACCENT)
-
-	local title = Instance.new("TextLabel")
-	title.Position = UDim2.fromOffset(56, 6)
-	title.Size = UDim2.new(1, -100, 0, 26)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBlack
-	title.TextSize = 22
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = Color3.new(1, 1, 1)
-	title.TextStrokeTransparency = 0.5
-	title.Text = "GEAR SHOP"
-	title.ZIndex = Z + 2
-	title.Parent = band
+	local driver = FancyKit.driver(root)
+	local shell = FancyKit.shell(root, "GEAR SHOP", {
+		Color3.fromRGB(255, 120, 40), Color3.fromRGB(240, 60, 70), Color3.fromRGB(255, 190, 40),
+	}, HEADER, Z, driver, 46)
+	local close = shell.close
 
 	local hint = Instance.new("TextLabel")
-	hint.Position = UDim2.fromOffset(56, 30)
-	hint.Size = UDim2.new(1, -100, 0, 16)
+	hint.Position = UDim2.fromOffset(0, HEADER + 6)
+	hint.Size = UDim2.new(1, 0, 0, 22)
 	hint.BackgroundTransparency = 1
-	hint.Font = Enum.Font.GothamMedium
-	hint.TextSize = 12
-	hint.TextXAlignment = Enum.TextXAlignment.Left
-	hint.TextColor3 = UiKit.MUTED
+	hint.Font = Enum.Font.FredokaOne
+	hint.TextSize = 16
+	hint.TextColor3 = Color3.fromRGB(220, 228, 255)
 	hint.Text = string.format("Bought once, yours forever. Equip from your hotbar (1-%d), click to use.", #Config.Gear)
 	hint.ZIndex = Z + 2
-	hint.Parent = band
-
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 3
+	hint.Parent = root
+	local hs = Instance.new("UIStroke")
+	hs.Color = OUTLINE
+	hs.Thickness = 2
+	hs.Parent = hint
 
 	local row = Instance.new("Frame")
-	row.Position = UDim2.fromOffset(14, 64)
-	row.Size = UDim2.new(1, -28, 1, -78)
+	row.Position = UDim2.fromOffset(16, HEADER + 36)
+	row.Size = UDim2.new(1, -32, 1, -(HEADER + 50))
 	row.BackgroundTransparency = 1
 	row.ZIndex = Z + 1
 	row.Parent = root
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection = Enum.FillDirection.Horizontal
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.Padding = UDim.new(0, 10)
+	layout.Padding = UDim.new(0, 12)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = row
 
 	local buyRemote = Net.Get("GearBuy")
 
-	type Card = { def: Config.GearDef, button: TextButton, price: TextLabel }
+	type Card = { def: Config.GearDef, buy: FancyKit.Button, tint: Color3 }
 	local cards: { Card } = {}
 
 	for index, def in Config.Gear do
-		local card = Instance.new("Frame")
-		card.LayoutOrder = index
-		card.Size = UDim2.new(1 / #Config.Gear, -7, 1, 0)
-		card.BackgroundColor3 = ACCENT:Lerp(UiKit.ROW, 0.85)
-		card.BorderSizePixel = 0
-		card.ZIndex = Z + 2
-		card.Parent = row
-		UiKit.Corner(card, 12)
-		UiKit.Stroke(card, ACCENT, 1.4, 0.55)
+		local tint = TINT[def.id] or ACCENT
+		local slot = Instance.new("Frame")
+		slot.LayoutOrder = index
+		slot.Size = UDim2.new(1 / #Config.Gear, -9, 1, 0)
+		slot.BackgroundTransparency = 1
+		slot.ZIndex = Z + 2
+		slot.Parent = row
+		local card = FancyKit.card(slot, tint, UDim2.fromScale(1, 1), Z + 2, driver, UDim2.new(0.5, 0, 0, 74))
+		FancyKit.hover(slot, 1.03)
 
 		local stage = Instance.new("Frame")
 		stage.AnchorPoint = Vector2.new(0.5, 0)
 		stage.Position = UDim2.new(0.5, 0, 0, 12)
-		stage.Size = UDim2.fromOffset(76, 76)
-		stage.BackgroundColor3 = UiKit.SHELL_DEEP
-		stage.BorderSizePixel = 0
-		stage.ZIndex = Z + 3
+		stage.Size = UDim2.fromOffset(120, 120)
+		stage.BackgroundTransparency = 1
+		stage.ZIndex = Z + 4
 		stage.Parent = card
-		UiKit.Corner(stage, 38)
-		UiKit.GearIcon(stage, 56, def.id)
+		FancyKit.glow(stage, tint:Lerp(Color3.new(1, 1, 1), 0.5), 1.25, 0.35, Z + 3)
+		local icon = UiKit.GearIcon(stage, 100, def.id)
+		FancyKit.bob(icon, driver, 4, 2.4, index * 1.1, 5)
 
-		local name = Instance.new("TextLabel")
-		name.Position = UDim2.fromOffset(6, 94)
-		name.Size = UDim2.new(1, -12, 0, 20)
-		name.BackgroundTransparency = 1
-		name.Font = Enum.Font.GothamBlack
-		name.TextSize = 15
-		name.TextColor3 = UiKit.INK
-		name.Text = def.name
-		name.ZIndex = Z + 3
-		name.Parent = card
+		local name = FancyKit.title(card, def.name, 22, Color3.new(1, 1, 1), Color3.fromRGB(255, 236, 190), Z + 5, driver)
+		name.Position = UDim2.fromOffset(4, 138)
+		name.Size = UDim2.new(1, -8, 0, 28)
 
 		local blurb = Instance.new("TextLabel")
-		blurb.Position = UDim2.fromOffset(8, 116)
-		blurb.Size = UDim2.new(1, -16, 0, 56)
+		blurb.Position = UDim2.fromOffset(10, 172)
+		blurb.Size = UDim2.new(1, -20, 0, 64)
 		blurb.BackgroundTransparency = 1
-		blurb.Font = Enum.Font.GothamMedium
-		blurb.TextSize = 11
+		blurb.Font = Enum.Font.FredokaOne
+		blurb.TextSize = 14
 		blurb.TextWrapped = true
 		blurb.TextYAlignment = Enum.TextYAlignment.Top
-		blurb.TextColor3 = UiKit.MUTED
+		blurb.TextColor3 = Color3.new(1, 1, 1)
 		blurb.Text = def.blurb
-		blurb.ZIndex = Z + 3
+		blurb.ZIndex = Z + 5
 		blurb.Parent = card
+		local bs = Instance.new("UIStroke")
+		bs.Color = OUTLINE
+		bs.Thickness = 1.6
+		bs.Parent = blurb
 
+		local chip = Instance.new("Frame")
+		chip.AnchorPoint = Vector2.new(0.5, 0)
+		chip.Position = UDim2.new(0.5, 0, 0, 240)
+		chip.Size = UDim2.new(1, -18, 0, 36)
+		chip.BackgroundColor3 = Color3.new(0, 0, 0)
+		chip.BackgroundTransparency = 0.55
+		chip.ZIndex = Z + 5
+		chip.Parent = card
+		FancyKit.corner(chip, 10)
 		local stat = Instance.new("TextLabel")
-		stat.Position = UDim2.fromOffset(6, 176)
+		stat.Position = UDim2.fromOffset(6, 0)
+		stat.Size = UDim2.new(1, -12, 1, 0)
 		stat.BackgroundTransparency = 1
-		stat.Font = Enum.Font.GothamBold
-		stat.TextSize = 11
+		stat.Font = Enum.Font.FredokaOne
+		stat.TextSize = 13
 		stat.TextWrapped = true
-		stat.Size = UDim2.new(1, -12, 0, 28)
-		stat.TextColor3 = ACCENT:Lerp(Color3.new(1, 1, 1), 0.3)
+		stat.TextColor3 = Color3.fromRGB(255, 236, 150)
 		stat.Text = statLine(def)
-		stat.ZIndex = Z + 3
-		stat.Parent = card
+		stat.ZIndex = Z + 6
+		stat.Parent = chip
 
-		local holder, button = UiKit.Raised(card, "Buy", UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), UDim2.new(1, -16, 0, 40), 10)
-		holder.AnchorPoint = Vector2.new(0.5, 1)
-		holder.Position = UDim2.new(0.5, 0, 1, -8)
-		holder.ZIndex = Z + 3
-		local price = Instance.new("TextLabel")
-		price.Size = UDim2.fromScale(1, 1)
-		price.BackgroundTransparency = 1
-		price.Font = Enum.Font.GothamBlack
-		price.TextSize = 15
-		price.TextColor3 = Color3.new(1, 1, 1)
-		price.TextStrokeTransparency = 0.5
-		price.ZIndex = Z + 7
-		price.Parent = button
+		local buy = FancyKit.button(card, UDim2.new(1, -18, 0, 50), GREEN, 22, Z + 6, driver, index * 0.6)
+		buy.holder.AnchorPoint = Vector2.new(0.5, 1)
+		buy.holder.Position = UDim2.new(0.5, 0, 1, -10)
 
 		local id = def.id
-		button.MouseButton1Click:Connect(function()
-			if button.Active then
+		buy.button.MouseButton1Click:Connect(function()
+			if buy.button.Active then
 				buyRemote:FireServer(id)
 			end
 		end)
-		table.insert(cards, { def = def, button = button, price = price })
+		table.insert(cards, { def = def, buy = buy, tint = tint })
 	end
 
 	local function refresh()
@@ -220,14 +197,11 @@ function GearPanel.Create(screen: ScreenGui): Panel
 		local cash = if typeof(cashValue) == "number" then cashValue else 0
 		for _, card in cards do
 			local has = owned[card.def.id] == true
-			card.button.Active = not has
-			card.price.Text = if has then "OWNED" else "$" .. Config.FormatCash(card.def.price)
-			local base = if has then UiKit.DIM else UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35)
-			card.button.BackgroundColor3 = base
-			card.button.BackgroundTransparency = if not has and cash < card.def.price then 0.35 else 0
-			local grad = card.button:FindFirstChildOfClass("UIGradient")
-			if grad then
-				grad.Color = ColorSequence.new(base:Lerp(Color3.new(1, 1, 1), 0.22), base:Lerp(Color3.new(0, 0, 0), 0.18))
+			if has then
+				card.buy.set("OWNED", nil)
+			else
+				-- Parası yetmiyorsa soluk yeşil ama yine basılabilir (sunucu reddediyor)
+				card.buy.set("$" .. Config.FormatCash(card.def.price), if cash >= card.def.price then GREEN else GREEN:Lerp(Color3.fromRGB(90, 96, 110), 0.55))
 			end
 		end
 	end

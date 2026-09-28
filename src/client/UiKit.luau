@@ -695,56 +695,94 @@ end
 	bilgisi; farklı kutularda dursalar göz ikisini ayrı ayrı arardı.
 ]]
 function UiKit.StatPill(parent: Instance, name: string, tint: Color3): (Frame, Frame, TextLabel, TextLabel)
+	-- 2026-09-28 mağaza dili: rengin koyu gradyanı, kalın koyu kenar, nokta
+	-- dokusu, soldan taşan 3B ikon (disk şeffaf; ikonu çağıran koyuyor),
+	-- çizgi roman yazısı
 	local pill = Instance.new("Frame")
 	pill.Name = name
 	pill.Size = UDim2.fromOffset(232, 50)
-	pill.BackgroundColor3 = UiKit.SHELL_DEEP
-	pill.BackgroundTransparency = 0.12
+	pill.BackgroundColor3 = Color3.new(1, 1, 1)
 	pill.BorderSizePixel = 0
 	pill.ZIndex = 2
 	pill.Parent = parent
 	UiKit.Corner(pill, 25)
-	UiKit.Stroke(pill, tint, 1.6, 0.55)
+	UiKit.Stroke(pill, MODERN_OUTLINE, 3, 0)
+	local g = Instance.new("UIGradient")
+	g.Rotation = 90
+	g.Color = ColorSequence.new(tint:Lerp(MODERN_BODY, 0.62), tint:Lerp(MODERN_DEEP, 0.85))
+	g.Parent = pill
+	local dots = Instance.new("ImageLabel")
+	dots.Name = "Halftone"
+	dots.BackgroundTransparency = 1
+	dots.Size = UDim2.fromScale(1, 1)
+	dots.Image = UiArt.Image("Texture", "halftone_fade")
+	dots.ScaleType = Enum.ScaleType.Crop
+	dots.ImageTransparency = 0.86
+	dots.ZIndex = 2
+	dots.Parent = pill
+	UiKit.Corner(dots, 25)
 
 	local disc = Instance.new("Frame")
 	disc.Name = "Disc"
 	disc.AnchorPoint = Vector2.new(0, 0.5)
-	disc.Position = UDim2.new(0, 5, 0.5, 0)
-	disc.Size = UDim2.fromOffset(40, 40)
-	disc.BackgroundColor3 = tint:Lerp(Color3.new(0, 0, 0), 0.62)
+	disc.Position = UDim2.new(0, 2, 0.5, 0)
+	disc.Size = UDim2.fromOffset(46, 46)
+	disc.BackgroundTransparency = 1
 	disc.BorderSizePixel = 0
 	disc.ZIndex = 3
 	disc.Parent = pill
-	UiKit.Corner(disc, 20)
 
 	local value = Instance.new("TextLabel")
 	value.Name = "Value"
-	value.Position = UDim2.new(0, 54, 0, 5)
-	value.Size = UDim2.new(1, -64, 0, 26)
+	value.Position = UDim2.new(0, 54, 0, 3)
+	value.Size = UDim2.new(1, -64, 0, 28)
 	value.BackgroundTransparency = 1
-	value.Font = Enum.Font.GothamBlack
-	value.TextSize = 22
+	value.Font = Enum.Font.FredokaOne
+	value.TextSize = 25
 	value.TextXAlignment = Enum.TextXAlignment.Left
-	value.TextColor3 = tint
-	value.TextStrokeTransparency = 0.5
+	value.TextColor3 = tint:Lerp(Color3.new(1, 1, 1), 0.15)
 	value.Text = "—"
-	value.ZIndex = 3
+	value.ZIndex = 4
 	value.Parent = pill
+	local vs = Instance.new("UIStroke")
+	vs.Color = MODERN_OUTLINE
+	vs.Thickness = 2.5
+	vs.LineJoinMode = Enum.LineJoinMode.Round
+	vs.Parent = value
 
 	local sub = Instance.new("TextLabel")
 	sub.Name = "Sub"
-	sub.Position = UDim2.new(0, 54, 0, 29)
+	sub.Position = UDim2.new(0, 55, 0, 30)
 	sub.Size = UDim2.new(1, -64, 0, 15)
 	sub.BackgroundTransparency = 1
-	sub.Font = Enum.Font.GothamBold
-	sub.TextSize = 12
+	sub.Font = Enum.Font.FredokaOne
+	sub.TextSize = 13
 	sub.TextXAlignment = Enum.TextXAlignment.Left
-	sub.TextColor3 = UiKit.MUTED
+	sub.TextColor3 = Color3.fromRGB(215, 222, 245)
 	sub.Text = ""
-	sub.ZIndex = 3
+	sub.ZIndex = 4
 	sub.Parent = pill
+	local ss = Instance.new("UIStroke")
+	ss.Color = MODERN_OUTLINE
+	ss.Thickness = 1.6
+	ss.Parent = sub
 
 	return pill, disc, value, sub
+end
+
+--[[ 3B render ikon (UiArt.Icon) yuvanın ortasında; `scale` yuvaya göre (taşabilir). ]]
+function UiKit.ArtIcon(slot: Instance, size: number, name: string, scale: number?): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Art"
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.fromScale(0.5, 0.5)
+	local s = math.floor(size * (scale or 1.3))
+	img.Size = UDim2.fromOffset(s, s)
+	img.BackgroundTransparency = 1
+	img.Image = UiArt.Image("Icon", name)
+	img.ZIndex = baseZ(slot) + 2
+	img.Parent = slot
+	return img
 end
 
 -- ─── İkonlar ────────────────────────────────────────────────────────────────

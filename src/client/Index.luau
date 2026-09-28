@@ -26,6 +26,10 @@
 	Keşfedilmemiş kartın NADİRLİĞİ görünüyor, adı ve figürü görünmüyor:
 	"bu satırda bir şey eksik" bilgisi hedef veriyor, neyin eksik olduğu
 	sürpriz kalıyor.
+
+	2026-09-28: mağazanın dilinde (FancyKit kabuğu + jöle başlık, renkli
+	kalın kenarlı kartlar, ayrıntıda dönen ışınlar ve hale, renkli
+	sekmeler). Düzen ve mantık aynı.
 ]]
 
 local Players = game:GetService("Players")
@@ -37,6 +41,8 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
+local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 local OwnPlot = require(script.Parent.OwnPlot)
 
@@ -56,9 +62,10 @@ export type Catalog = {
 
 local Z = 50
 local ACCENT = UiKit.CREW.CYAN
+local SELECTED = Color3.fromRGB(255, 226, 60)
 local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
 
-local CARD_W, CARD_H = 96, 118
+local CARD_W, CARD_H = 100, 124
 local ROW_H = CARD_H + 30
 
 --[[
@@ -147,62 +154,37 @@ local function tint(button: GuiObject, tone: Color3)
 	button.BackgroundColor3 = Color3.new(1, 1, 1)
 	local g = Instance.new("UIGradient")
 	g.Name = "Tint"
-	g.Color = ColorSequence.new(tone:Lerp(UiKit.ROW, 0.45), UiKit.ROW:Lerp(Color3.new(0, 0, 0), 0.25))
+	g.Color = ColorSequence.new(tone:Lerp(Color3.new(1, 1, 1), 0.08), tone:Lerp(Color3.new(0, 0, 0), 0.55))
 	g.Rotation = 90
 	g.Parent = button
+	FancyKit.halftone(button, Color3.new(1, 1, 1), 0.82, button.ZIndex, true)
 end
 
 function Index.Create(screen: ScreenGui): Catalog
 	local root = UiKit.Window(screen, "UnitIndex", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(780, 480)
+	root.Size = UDim2.fromOffset(820, 540)
 	root.Visible = false
 	root.ZIndex = Z
 
-	-- ─── Başlık bandı ───────────────────────────────────────────────────────
+	-- ─── Başlık şeridi (FancyKit) ───────────────────────────────────────────
 
-	local band = Instance.new("Frame")
-	band.Size = UDim2.new(1, 0, 0, 48)
-	band.BackgroundColor3 = ACCENT:Lerp(Color3.new(0, 0, 0), 0.6)
-	band.BorderSizePixel = 0
-	band.ZIndex = Z + 1
-	band.Parent = root
-	UiKit.Corner(band, 14)
-	local bandFoot = Instance.new("Frame")
-	bandFoot.Position = UDim2.new(0, 0, 1, -14)
-	bandFoot.Size = UDim2.new(1, 0, 0, 14)
-	bandFoot.BackgroundColor3 = band.BackgroundColor3
-	bandFoot.BorderSizePixel = 0
-	bandFoot.ZIndex = Z + 1
-	bandFoot.Parent = band
-
-	local badge = Instance.new("Frame")
-	badge.Position = UDim2.fromOffset(16, 10)
-	badge.Size = UDim2.fromOffset(28, 28)
-	badge.BackgroundTransparency = 1
-	badge.ZIndex = Z + 2
-	badge.Parent = band
-	UiKit.Book(badge, 28, ACCENT)
-
-	local titleLabel = label(band, {
-		Position = UDim2.fromOffset(52, 0), Size = UDim2.new(0, 300, 1, 0),
-		Font = Enum.Font.GothamBlack, TextSize = 22, Text = "CREW INDEX",
-		ZIndex = Z + 2,
-	})
-	pop(titleLabel, 28, 2.5)
-
-	local close = UiKit.CloseButton(root)
-	close.Position = UDim2.new(1, -10, 0, 10)
-	close.ZIndex = Z + 3
+	local HEADER = 66
+	local driver = FancyKit.driver(root)
+	local shell = FancyKit.shell(root, "INDEX", {
+		Color3.fromRGB(40, 200, 200), Color3.fromRGB(60, 150, 255), Color3.fromRGB(120, 230, 120),
+	}, HEADER, Z, driver, 46)
+	local band = shell.header
+	local close = shell.close
 
 	-- ─── Sol: ilerleme, sekmeler, liste ─────────────────────────────────────
 
 	local LEFT_W = 520
 
 	local left = Instance.new("Frame")
-	left.Position = UDim2.fromOffset(14, 58)
-	left.Size = UDim2.new(0, LEFT_W, 1, -72)
+	left.Position = UDim2.fromOffset(16, HEADER + 12)
+	left.Size = UDim2.new(0, LEFT_W, 1, -(HEADER + 26))
 	left.BackgroundTransparency = 1
 	left.ZIndex = Z + 1
 	left.Parent = root
@@ -211,12 +193,13 @@ function Index.Create(screen: ScreenGui): Catalog
 		Size = UDim2.new(0.6, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack,
 		Text = "Discovered 0 / " .. #Config.Units, TextColor3 = UiKit.CREW.LIME, ZIndex = Z + 2,
 	})
-	pop(discovered, 17)
+	pop(discovered, 20, 2.2)
 	local percent = label(left, {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0),
 		Size = UDim2.new(0.4, 0, 0, 20), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right,
 		TextColor3 = UiKit.MUTED, Text = "0% complete", ZIndex = Z + 2,
 	})
+	pop(percent, 16, 1.8)
 
 	local barHolder = Instance.new("Frame")
 	barHolder.Position = UDim2.fromOffset(0, 24)
@@ -272,71 +255,92 @@ function Index.Create(screen: ScreenGui): Catalog
 
 	local detail = Instance.new("Frame")
 	detail.AnchorPoint = Vector2.new(1, 0)
-	detail.Position = UDim2.new(1, -14, 0, 58)
-	detail.Size = UDim2.new(1, -LEFT_W - 42, 1, -72)
-	detail.BackgroundColor3 = UiKit.SHELL_DEEP
+	detail.Position = UDim2.new(1, -16, 0, HEADER + 12)
+	detail.Size = UDim2.new(1, -LEFT_W - 46, 1, -(HEADER + 26))
+	detail.BackgroundColor3 = Color3.new(1, 1, 1)
 	detail.BorderSizePixel = 0
+	detail.ClipsDescendants = true
 	detail.ZIndex = Z + 1
 	detail.Parent = root
-	UiKit.Corner(detail, 12)
-	local detailStroke = UiKit.Stroke(detail, ACCENT, 1.6, 0.4)
+	UiKit.Corner(detail, 14)
+	local detailGrad = FancyKit.gradient(detail, { Color3.fromRGB(40, 46, 72), Color3.fromRGB(18, 20, 34) }, 90)
+	local detailStroke = UiKit.Stroke(detail, OUTLINE, 3, 0)
+	-- Figürün arkasında ağır dönen ışınlar (nadirlik renginde)
+	local detailRays = Instance.new("ImageLabel")
+	detailRays.AnchorPoint = Vector2.new(0.5, 0.5)
+	detailRays.Position = UDim2.new(0.5, 0, 0, 112)
+	detailRays.Size = UDim2.fromOffset(360, 360)
+	detailRays.BackgroundTransparency = 1
+	detailRays.Image = UiArt.Image("Texture", "rays")
+	detailRays.ImageTransparency = 0.55
+	detailRays.ZIndex = Z + 1
+	detailRays.Parent = detail
+	FancyKit.spin(detailRays, driver, 9)
+	FancyKit.halftone(detail, Color3.new(1, 1, 1), 0.88, Z + 1, true)
 
 	local detailName = label(detail, {
 		Position = UDim2.fromOffset(6, 8), Size = UDim2.new(1, -12, 0, 28),
 		TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBlack, TextSize = 18,
 		TextScaled = false, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 2,
 	})
-	pop(detailName, 22, 2)
+	pop(detailName, 26, 2.6)
 
 	local stage = Instance.new("Frame")
 	stage.AnchorPoint = Vector2.new(0.5, 0)
-	stage.Position = UDim2.new(0.5, 0, 0, 42)
-	stage.Size = UDim2.fromOffset(130, 130)
-	stage.BackgroundColor3 = UiKit.ROW
+	stage.Position = UDim2.new(0.5, 0, 0, 44)
+	stage.Size = UDim2.fromOffset(136, 136)
+	stage.BackgroundTransparency = 1
 	stage.BorderSizePixel = 0
 	stage.ZIndex = Z + 2
 	stage.Parent = detail
-	UiKit.Corner(stage, 65)
-	local stageStroke = UiKit.Stroke(stage, ACCENT, 3, 0.2)
+	local stageGlow = FancyKit.glow(stage, ACCENT, 1.5, 0.25, Z + 2)
+	-- Seçilenin nadirlik rengi: figürün arkasındaki hâle ve ışınlar
+	local function paintStage(tone: Color3)
+		stageGlow.ImageColor3 = tone
+		detailRays.ImageColor3 = tone:Lerp(Color3.new(1, 1, 1), 0.4)
+	end
+	paintStage(ACCENT)
 
 	local figureSlot = Instance.new("Frame")
 	figureSlot.AnchorPoint = Vector2.new(0.5, 0.5)
 	figureSlot.Position = UDim2.fromScale(0.5, 0.5)
-	figureSlot.Size = UDim2.fromOffset(90, 90)
+	figureSlot.Size = UDim2.fromOffset(100, 100)
 	figureSlot.BackgroundTransparency = 1
 	figureSlot.ZIndex = Z + 3
 	figureSlot.Parent = stage
 
 	local statRows: { { key: TextLabel, value: TextLabel } } = {}
 	for i = 1, 5 do
-		local y = 184 + (i - 1) * 26
+		local y = 196 + (i - 1) * 30
 		local bg = Instance.new("Frame")
 		bg.Position = UDim2.fromOffset(8, y - 1)
-		bg.Size = UDim2.new(1, -16, 0, 24)
-		bg.BackgroundColor3 = UiKit.ROW
-		bg.BackgroundTransparency = if i % 2 == 1 then 0.2 else 0.6
+		bg.Size = UDim2.new(1, -16, 0, 26)
+		bg.BackgroundColor3 = Color3.new(0, 0, 0)
+		bg.BackgroundTransparency = if i % 2 == 1 then 0.45 else 0.65
 		bg.BorderSizePixel = 0
 		bg.ZIndex = Z + 1
 		bg.Parent = detail
 		UiKit.Corner(bg, 8)
 		local key = label(detail, {
-			Position = UDim2.fromOffset(16, y), Size = UDim2.new(0.5, -16, 0, 22),
-			Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = UiKit.MUTED, ZIndex = Z + 2,
+			Position = UDim2.fromOffset(16, y), Size = UDim2.new(0.5, -16, 0, 24),
+			TextColor3 = Color3.fromRGB(200, 208, 235), ZIndex = Z + 2,
 		})
+		pop(key, 15, 1.6)
 		local value = label(detail, {
 			AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, y),
-			Size = UDim2.new(0.5, 0, 0, 22), TextSize = 13, Font = Enum.Font.GothamBlack,
+			Size = UDim2.new(0.5, 0, 0, 24),
 			TextXAlignment = Enum.TextXAlignment.Right, ZIndex = Z + 2,
 		})
+		pop(value, 16, 1.8)
 		table.insert(statRows, { key = key, value = value })
 	end
 
 	local hint = label(detail, {
 		AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 14, 1, -10),
-		Size = UDim2.new(1, -28, 0, 34), TextSize = 11, Font = Enum.Font.GothamMedium,
-		TextColor3 = UiKit.DIM, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center,
-		ZIndex = Z + 2,
+		Size = UDim2.new(1, -28, 0, 40), TextColor3 = UiKit.DIM, TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Center, ZIndex = Z + 2,
 	})
+	pop(hint, 14, 1.6)
 
 	-- ─── Kartlar ────────────────────────────────────────────────────────────
 
@@ -411,7 +415,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		local tone = tierColor(def.rarity)
 
 		detailStroke.Color = tone
-		stageStroke.Color = tone
+		paintStage(tone)
 		detailName.Text = if isKnown then def.name else "???"
 		detailName.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
 		drawFigure(figureSlot, def, isKnown, 80)
@@ -446,8 +450,8 @@ function Index.Create(screen: ScreenGui): Catalog
 		hint.TextColor3 = if have > 0 then UiKit.GOOD else UiKit.DIM
 
 		for _, other in cards do
-			other.stroke.Transparency = if other == card then 0 else 0.7
-			other.stroke.Thickness = if other == card then 2.4 else 1.2
+			other.stroke.Color = if other == card then SELECTED else OUTLINE
+			other.stroke.Thickness = if other == card then 4 else 2.5
 		end
 	end
 
@@ -546,7 +550,7 @@ function Index.Create(screen: ScreenGui): Catalog
 			button.Parent = strip
 			UiKit.Corner(button, 10)
 			tint(button, tone)
-			local stroke = UiKit.Stroke(button, tone, 1.2, 0.7)
+			local stroke = UiKit.Stroke(button, OUTLINE, 2.5, 0)
 
 			-- Üstte nadirlik rengi şerit: satırı taramadan kademe okunuyor
 			local cap = Instance.new("Frame")
@@ -570,7 +574,7 @@ function Index.Create(screen: ScreenGui): Catalog
 				TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center,
 				TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 5,
 			})
-			pop(name, 13, 1.4)
+			pop(name, 15, 1.8)
 
 			label(button, {
 				Position = UDim2.fromOffset(8, 94), Size = UDim2.new(0.5, 0, 0, 16),
@@ -607,9 +611,10 @@ function Index.Create(screen: ScreenGui): Catalog
 		end
 		for id, tab in tabs do
 			local on = id == filter
-			tab.button.BackgroundColor3 = if on then tab.tone:Lerp(UiKit.ROW, 0.55) else UiKit.ROW
-			tab.stroke.Transparency = if on then 0 else 0.6
-			tab.text.TextColor3 = if on then Color3.new(1, 1, 1) else tab.tone
+			tab.button.BackgroundColor3 = if on then tab.tone else tab.tone:Lerp(Color3.fromRGB(30, 34, 52), 0.72)
+			tab.stroke.Color = if on then Color3.new(1, 1, 1) else OUTLINE
+			tab.stroke.Thickness = if on then 2.5 else 2
+			tab.text.TextColor3 = Color3.new(1, 1, 1)
 		end
 		list.CanvasPosition = Vector2.zero
 	end
@@ -631,16 +636,16 @@ function Index.Create(screen: ScreenGui): Catalog
 		button.ZIndex = Z + 3
 		button.Parent = tabStrip
 		UiKit.Corner(button, 8)
-		local stroke = UiKit.Stroke(button, tone, 1.4, 0.6)
+		local stroke = UiKit.Stroke(button, OUTLINE, 2, 0)
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 12)
 		pad.PaddingRight = UDim.new(0, 12)
 		pad.Parent = button
 		local text = label(button, {
 			Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X,
-			Font = Enum.Font.GothamBlack, TextSize = 11, TextColor3 = tone,
-			Text = string.upper(id), ZIndex = Z + 4,
+			TextColor3 = Color3.new(1, 1, 1), Text = string.upper(id), ZIndex = Z + 4,
 		})
+		pop(text, 14, 1.8)
 		tabs[id] = { button = button, stroke = stroke, tone = tone, text = text }
 		button.MouseButton1Click:Connect(function()
 			filter = id
@@ -768,12 +773,13 @@ function Index.Create(screen: ScreenGui): Catalog
 		Size = UDim2.new(0.6, 0, 0, 20), TextSize = 15, Font = Enum.Font.GothamBlack,
 		Text = "Discovered 0 / " .. #Config.Pets, TextColor3 = UiKit.CREW.PINK, ZIndex = Z + 2,
 	})
-	pop(petDiscovered, 17)
+	pop(petDiscovered, 20, 2.2)
 	local petPercent = label(petLeft, {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 0),
 		Size = UDim2.new(0.4, 0, 0, 20), TextSize = 13, TextXAlignment = Enum.TextXAlignment.Right,
 		TextColor3 = UiKit.MUTED, Text = "0% complete", ZIndex = Z + 2,
 	})
+	pop(petPercent, 16, 1.8)
 	local petBarHolder = Instance.new("Frame")
 	petBarHolder.Position = UDim2.fromOffset(0, 24)
 	petBarHolder.Size = UDim2.new(1, 0, 0, 8)
@@ -834,7 +840,7 @@ function Index.Create(screen: ScreenGui): Catalog
 		local isKnown = petsFound[def.id] == true
 		local tone = tierColor(def.rarity)
 		detailStroke.Color = tone
-		stageStroke.Color = tone
+		paintStage(tone)
 		detailName.Text = if isKnown then def.name else "???"
 		detailName.TextColor3 = if isKnown then UiKit.INK else UiKit.DIM
 		drawPetFigure(figureSlot, def, isKnown, 80)
@@ -861,8 +867,8 @@ function Index.Create(screen: ScreenGui): Catalog
 			else "Found before. Hatch another to own it."
 		hint.TextColor3 = if have > 0 then UiKit.GOOD else UiKit.DIM
 		for _, other in petCards do
-			other.stroke.Transparency = if other == card then 0 else 0.7
-			other.stroke.Thickness = if other == card then 2.4 else 1.2
+			other.stroke.Color = if other == card then SELECTED else OUTLINE
+			other.stroke.Thickness = if other == card then 4 else 2.5
 		end
 	end
 
@@ -911,7 +917,7 @@ function Index.Create(screen: ScreenGui): Catalog
 				button.Parent = strip
 				UiKit.Corner(button, 10)
 				tint(button, rtone)
-				local cstroke = UiKit.Stroke(button, rtone, 1.2, 0.7)
+				local cstroke = UiKit.Stroke(button, OUTLINE, 2.5, 0)
 				local cap = Instance.new("Frame")
 				cap.Size = UDim2.new(1, 0, 0, 6)
 				cap.BackgroundColor3 = rtone
@@ -931,7 +937,7 @@ function Index.Create(screen: ScreenGui): Catalog
 					TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center,
 					TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = Z + 5,
 				})
-				pop(name, 13, 1.4)
+				pop(name, 15, 1.8)
 				label(button, {
 					Position = UDim2.fromOffset(8, 94), Size = UDim2.new(0.5, 0, 0, 16),
 					TextSize = 10, Font = Enum.Font.GothamBlack, TextColor3 = rtone,
@@ -1008,22 +1014,24 @@ function Index.Create(screen: ScreenGui): Catalog
 	-- Başlık bandında CREW / PETS anahtarı
 	local switch = Instance.new("Frame")
 	switch.AnchorPoint = Vector2.new(1, 0.5)
-	switch.Position = UDim2.new(1, -56, 0.5, 0)
-	switch.Size = UDim2.fromOffset(176, 30)
-	switch.BackgroundColor3 = UiKit.SHELL_DEEP
-	switch.ZIndex = Z + 2
+	switch.Position = UDim2.new(1, -74, 0.5, 0)
+	switch.Size = UDim2.fromOffset(220, 42)
+	switch.BackgroundColor3 = Color3.fromRGB(16, 18, 30)
+	switch.BackgroundTransparency = 0.25
+	switch.ZIndex = Z + 6
 	switch.Parent = band
-	UiKit.Corner(switch, 15)
+	UiKit.Corner(switch, 21)
+	UiKit.Stroke(switch, OUTLINE, 3, 0)
 	local modeButtons: { [string]: TextButton } = {}
 	local function setMode(m: string)
 		mode = m
 		left.Visible = m == "crew"
 		petLeft.Visible = m == "pets"
-		titleLabel.Text = if m == "crew" then "CREW INDEX" else "PET INDEX"
 		for id, b in modeButtons do
 			local on = id == m
-			b.BackgroundColor3 = if on then (if id == "crew" then ACCENT else UiKit.CREW.PINK) else UiKit.SHELL_DEEP
-			b.TextColor3 = if on then Color3.fromRGB(16, 18, 28) else UiKit.MUTED
+			b.BackgroundColor3 = if on then (if id == "crew" then Color3.fromRGB(60, 200, 90) else UiKit.CREW.PINK) else Color3.fromRGB(16, 18, 30)
+			b.BackgroundTransparency = if on then 0 else 1
+			b.TextColor3 = if on then Color3.new(1, 1, 1) else UiKit.MUTED
 		end
 		if m == "pets" then
 			refreshPets()
@@ -1042,15 +1050,20 @@ function Index.Create(screen: ScreenGui): Catalog
 	end
 	for i, id in { "crew", "pets" } do
 		local b = Instance.new("TextButton")
-		b.Position = UDim2.new((i - 1) * 0.5, 2, 0, 2)
-		b.Size = UDim2.new(0.5, -4, 1, -4)
+		b.Position = UDim2.new((i - 1) * 0.5, 3, 0, 3)
+		b.Size = UDim2.new(0.5, -6, 1, -6)
 		b.AutoButtonColor = false
-		b.Font = Enum.Font.GothamBlack
-		b.TextSize = 13
+		b.Font = Enum.Font.FredokaOne
+		b.TextSize = 20
 		b.Text = string.upper(id)
-		b.ZIndex = Z + 3
+		b.ZIndex = Z + 7
 		b.Parent = switch
-		UiKit.Corner(b, 13)
+		UiKit.Corner(b, 18)
+		local bs = Instance.new("UIStroke")
+		bs.Color = OUTLINE
+		bs.Thickness = 2
+		bs.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+		bs.Parent = b
 		modeButtons[id] = b
 		b.MouseButton1Click:Connect(function()
 			setMode(id)

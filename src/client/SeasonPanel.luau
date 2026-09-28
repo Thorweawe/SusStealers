@@ -9,6 +9,9 @@
 	         ✓ (alındı), kilit (kademe ya da pass yok)
 	  Alt:   XP nereden gelir (soygun, mini oyun, görev, günlük giriş...)
 
+	2026-09-28: mağazanın dilinde (FancyKit kabuğu, renkli kartlar, 3B
+	ödül ikonları, tıknaz düğmeler).
+
 	Ödül toplama "SeasonClaim"(kademe, iz) — hak sunucuda. Durum nitelikleri:
 	SeasonXp, SeasonClaimed ("f3,p3,..."), SeasonPass.
 ]]
@@ -23,6 +26,8 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local EggStyle = require(script.Parent.EggStyle)
+local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local SeasonPanel = {}
@@ -31,9 +36,10 @@ local player = Players.LocalPlayer
 
 local ACCENT = Color3.fromRGB(170, 100, 255)
 local GOLD = Color3.fromRGB(255, 200, 60)
-local OUTLINE = Color3.fromRGB(14, 16, 28)
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+local GREEN = Color3.fromRGB(70, 200, 70)
 local Z = 50
-local COLUMN = 112
+local COLUMN = 118
 
 export type Panel = {
 	Open: () -> (),
@@ -83,7 +89,27 @@ local function describe(reward: Config.SeasonReward): string
 	return "?"
 end
 
+-- Ödülün 3B ikonu (UiArt); yoksa çizim
+local ART: { [string]: string } = {
+	cash = "Cash100K",
+	potion = "Potion_Income2x",
+	spins = "ExtraSpin",
+	superspin = "Jackpot",
+}
+
 local function drawIcon(slot: Frame, reward: Config.SeasonReward, size: number)
+	local art = UiArt.Image("Icon", ART[reward.kind] or "")
+	if art ~= "" then
+		local img = Instance.new("ImageLabel")
+		img.AnchorPoint = Vector2.new(0.5, 0.5)
+		img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromOffset(size * 1.3, size * 1.3)
+		img.BackgroundTransparency = 1
+		img.Image = art
+		img.ZIndex = slot.ZIndex + 1
+		img.Parent = slot
+		return
+	end
 	if reward.kind == "cash" then
 		UiKit.Coin(slot, size, Color3.fromRGB(255, 210, 60))
 	elseif reward.kind == "potion" then
@@ -127,184 +153,179 @@ end
 function SeasonPanel.Create(screen: ScreenGui): Panel
 	local claimRemote = Net.Get("SeasonClaim")
 
+	local W, H, HEADER = 820, 560, 66
 	local root = UiKit.Window(screen, "SeasonPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(780, 500)
+	root.Size = UDim2.fromOffset(W, H)
 	root.Visible = false
 	root.ZIndex = Z
+	local driver = FancyKit.driver(root)
+	local shell = FancyKit.shell(root, "SEASON PASS", {
+		Color3.fromRGB(190, 80, 255), Color3.fromRGB(255, 90, 190), Color3.fromRGB(80, 140, 255),
+	}, HEADER, Z, driver, 46)
+	local close = shell.close
 
-	local title = text(root, "SEASON PASS", 32, Color3.new(1, 1, 1), Z + 3, 3)
-	title.Position = UDim2.fromOffset(20, 8)
-	title.Size = UDim2.new(0.5, 0, 0, 38)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(Color3.fromRGB(255, 170, 240), Color3.fromRGB(150, 130, 255))
-	grad.Parent = title
-	local season = text(root, Config.Season.name, 15, UiKit.MUTED, Z + 3)
-	season.Font = Enum.Font.GothamBold
-	season.Position = UDim2.fromOffset(22, 44)
-	season.Size = UDim2.new(0.5, 0, 0, 18)
-	season.TextXAlignment = Enum.TextXAlignment.Left
-	local ends = text(root, "", 14, Color3.new(1, 1, 1), Z + 3, 1.6)
-	ends.AnchorPoint = Vector2.new(1, 0)
-	ends.Position = UDim2.new(1, -60, 0, 14)
-	ends.Size = UDim2.fromOffset(240, 20)
+	local ends = text(root, "", 16, Color3.new(1, 1, 1), Z + 6, 2)
+	ends.AnchorPoint = Vector2.new(1, 0.5)
+	ends.Position = UDim2.new(1, -74, 0, HEADER / 2)
+	ends.Size = UDim2.fromOffset(240, 22)
 	ends.TextXAlignment = Enum.TextXAlignment.Right
+	local season = text(root, Config.Season.name, 15, Color3.fromRGB(230, 220, 255), Z + 3, 1.8)
+	season.Position = UDim2.fromOffset(22, HEADER + 8)
+	season.Size = UDim2.new(0.5, 0, 0, 20)
+	season.TextXAlignment = Enum.TextXAlignment.Left
 
-	local close = UiKit.CloseButton(root)
-	close.ZIndex = Z + 5
-
-	-- Kademe ve XP çubuğu
+	-- Kademe rozeti, XP çubuğu, PREMIUM düğmesi
 	local tierBadge = Instance.new("Frame")
-	tierBadge.Position = UDim2.fromOffset(20, 72)
-	tierBadge.Size = UDim2.fromOffset(86, 44)
-	tierBadge.BackgroundColor3 = ACCENT
+	tierBadge.Position = UDim2.fromOffset(20, HEADER + 32)
+	tierBadge.Size = UDim2.fromOffset(104, 50)
+	tierBadge.BackgroundColor3 = Color3.new(1, 1, 1)
 	tierBadge.ZIndex = Z + 3
 	tierBadge.Parent = root
-	UiKit.Corner(tierBadge, 12)
-	UiKit.Stroke(tierBadge, OUTLINE, 2.5, 0)
-	local tierText = text(tierBadge, "TIER 0", 18, Color3.new(1, 1, 1), Z + 4, 2)
+	FancyKit.corner(tierBadge, 12)
+	FancyKit.border(tierBadge, OUTLINE, 3)
+	FancyKit.gradient(tierBadge, { Color3.fromRGB(200, 120, 255), Color3.fromRGB(120, 60, 220) }, 90)
+	FancyKit.gleam(tierBadge, driver, 4.5, 0.5, 0.4)
+	local tierText = text(tierBadge, "TIER 0", 22, Color3.new(1, 1, 1), Z + 5, 2.5)
 	tierText.Size = UDim2.fromScale(1, 1)
+
 	local track = Instance.new("Frame")
-	track.Position = UDim2.fromOffset(116, 82)
-	track.Size = UDim2.new(1, -330, 0, 24)
-	track.BackgroundColor3 = UiKit.SHELL_DEEP
+	track.Position = UDim2.fromOffset(136, HEADER + 42)
+	track.Size = UDim2.new(1, -370, 0, 30)
+	track.BackgroundColor3 = Color3.fromRGB(16, 18, 30)
 	track.ZIndex = Z + 3
 	track.Parent = root
-	UiKit.Corner(track, 12)
-	UiKit.Stroke(track, OUTLINE, 2, 0)
+	FancyKit.corner(track, 15)
+	FancyKit.border(track, OUTLINE, 3)
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.fromScale(0, 1)
-	fill.BackgroundColor3 = ACCENT
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
 	fill.ZIndex = Z + 4
 	fill.Parent = track
-	UiKit.Corner(fill, 12)
-	local fillGrad = Instance.new("UIGradient")
-	fillGrad.Color = ColorSequence.new(Color3.fromRGB(255, 150, 240), Color3.fromRGB(140, 110, 255))
-	fillGrad.Parent = fill
-	local xpText = text(track, "", 14, Color3.new(1, 1, 1), Z + 5, 1.6)
+	FancyKit.corner(fill, 15)
+	FancyKit.gradient(fill, { Color3.fromRGB(255, 150, 240), Color3.fromRGB(160, 110, 255), Color3.fromRGB(90, 170, 255) }, 0)
+	FancyKit.gleam(fill, driver, 3, 0, 0.5)
+	local xpText = text(track, "", 16, Color3.new(1, 1, 1), Z + 6, 2)
 	xpText.Size = UDim2.fromScale(1, 1)
 
-	local premiumHolder, premiumButton = UiKit.Raised(root, "Premium", GOLD, UDim2.fromOffset(190, 46), 12)
-	premiumHolder.AnchorPoint = Vector2.new(1, 0)
-	premiumHolder.Position = UDim2.new(1, -20, 0, 70)
-	premiumHolder.ZIndex = Z + 3
-	local premiumText = text(premiumButton, "", 16, Color3.new(1, 1, 1), Z + 8, 2)
-	premiumText.Size = UDim2.fromScale(1, 1)
+	local premium = FancyKit.button(root, UDim2.fromOffset(210, 56), GOLD, 20, Z + 3, driver, 0.3)
+	premium.holder.AnchorPoint = Vector2.new(1, 0)
+	premium.holder.Position = UDim2.new(1, -20, 0, HEADER + 28)
+	local premiumButton = premium.button
 
 	-- Sütunlar
 	local scroller = Instance.new("ScrollingFrame")
-	scroller.Position = UDim2.fromOffset(16, 128)
-	scroller.Size = UDim2.new(1, -32, 1, -178)
-	scroller.BackgroundColor3 = UiKit.SHELL_DEEP
-	scroller.BackgroundTransparency = 0.3
+	scroller.Position = UDim2.fromOffset(16, HEADER + 96)
+	scroller.Size = UDim2.new(1, -32, 1, -(HEADER + 136))
+	scroller.BackgroundColor3 = Color3.fromRGB(12, 14, 26)
+	scroller.BackgroundTransparency = 0.35
 	scroller.BorderSizePixel = 0
 	scroller.ScrollingDirection = Enum.ScrollingDirection.X
-	scroller.ScrollBarThickness = 6
-	scroller.ScrollBarImageColor3 = ACCENT
-	scroller.CanvasSize = UDim2.fromOffset(Config.Season.tiers * (COLUMN + 8) + 70, 0)
+	scroller.ScrollBarThickness = 8
+	scroller.ScrollBarImageColor3 = Color3.fromRGB(200, 140, 255)
+	scroller.CanvasSize = UDim2.fromOffset(Config.Season.tiers * (COLUMN + 10) + 80, 0)
 	scroller.ZIndex = Z + 2
 	scroller.Parent = root
-	UiKit.Corner(scroller, 12)
-	-- İz adları (sol kenarda sabit değil, ilk sütunun önünde)
-	local freeTag = text(scroller, "FREE", 16, Color3.fromRGB(150, 230, 255), Z + 4, 2)
-	freeTag.Position = UDim2.fromOffset(6, 40)
-	freeTag.Size = UDim2.fromOffset(56, 110)
-	freeTag.Rotation = 0
-	local premTag = text(scroller, "PRE-\nMIUM", 15, GOLD, Z + 4, 2)
-	premTag.Position = UDim2.fromOffset(6, 162)
-	premTag.Size = UDim2.fromOffset(56, 110)
+	FancyKit.corner(scroller, 14)
+	FancyKit.border(scroller, OUTLINE, 3)
+	-- İz adları (ilk sütunun önünde)
+	local freeTag = text(scroller, "FREE", 18, Color3.fromRGB(150, 230, 255), Z + 4, 2.5)
+	freeTag.Position = UDim2.fromOffset(8, 40)
+	freeTag.Size = UDim2.fromOffset(60, 130)
+	local premTag = text(scroller, "PRE-\nMIUM", 17, GOLD, Z + 4, 2.5)
+	premTag.Position = UDim2.fromOffset(8, 180)
+	premTag.Size = UDim2.fromOffset(60, 130)
 
-	type Card = { frame: Frame, button: TextButton, label: TextLabel, lock: TextLabel, stroke: UIStroke }
-	type Column = { tier: number, head: TextLabel, free: Card, premium: Card }
+	type Card = { frame: Frame, claim: FancyKit.Button, lock: Frame, done: TextLabel }
+	type Column = { tier: number, head: Frame, free: Card, premium: Card }
 	local columns: { Column } = {}
 
-	local function makeCard(parent: Frame, y: number, reward: Config.SeasonReward, premium: boolean, tier: number): Card
-		local tint = if premium then GOLD else Color3.fromRGB(110, 180, 255)
-		local frame = Instance.new("Frame")
-		frame.Position = UDim2.fromOffset(4, y)
-		frame.Size = UDim2.new(1, -8, 0, 116)
-		frame.BackgroundColor3 = tint:Lerp(UiKit.ROW, 0.78)
-		frame.ZIndex = Z + 3
-		frame.Parent = parent
-		UiKit.Corner(frame, 10)
-		local stroke = UiKit.Stroke(frame, tint, 1.6, 0.4)
+	local function makeCard(parent: Frame, y: number, reward: Config.SeasonReward, isPremium: boolean, tier: number): Card
+		local tint = if isPremium then GOLD else Color3.fromRGB(80, 160, 255)
+		local frame = FancyKit.card(parent, tint, UDim2.new(1, -6, 0, 134), Z + 3, nil, UDim2.new(0.5, 0, 0, 36))
+		frame.Position = UDim2.fromOffset(3, y)
 		local slot = Instance.new("Frame")
 		slot.AnchorPoint = Vector2.new(0.5, 0)
-		slot.Position = UDim2.new(0.5, 0, 0, 6)
-		slot.Size = UDim2.fromOffset(46, 46)
+		slot.Position = UDim2.new(0.5, 0, 0, 8)
+		slot.Size = UDim2.fromOffset(52, 52)
 		slot.BackgroundTransparency = 1
-		slot.ZIndex = Z + 4
+		slot.ZIndex = Z + 5
 		slot.Parent = frame
-		drawIcon(slot, reward, 44)
-		local name = text(frame, describe(reward), 12, UiKit.INK, Z + 4, 1.2)
-		name.Position = UDim2.fromOffset(4, 54)
+		drawIcon(slot, reward, 50)
+		local name = text(frame, describe(reward), 15, Color3.new(1, 1, 1), Z + 6, 2)
+		name.Position = UDim2.fromOffset(4, 64)
 		name.Size = UDim2.new(1, -8, 0, 26)
 		name.TextWrapped = true
-		local button = Instance.new("TextButton")
-		button.AnchorPoint = Vector2.new(0.5, 1)
-		button.Position = UDim2.new(0.5, 0, 1, -6)
-		button.Size = UDim2.new(1, -14, 0, 26)
-		button.AutoButtonColor = true
-		button.Text = ""
-		button.ZIndex = Z + 5
-		button.Parent = frame
-		UiKit.Corner(button, 8)
-		UiKit.Stroke(button, OUTLINE, 1.6, 0)
-		local label = text(button, "", 13, Color3.new(1, 1, 1), Z + 6, 1.4)
-		label.Size = UDim2.fromScale(1, 1)
-		local lock = text(frame, "🔒", 22, Color3.new(1, 1, 1), Z + 7)
-		lock.AnchorPoint = Vector2.new(1, 0)
-		lock.Position = UDim2.new(1, -2, 0, 0)
-		lock.Size = UDim2.fromOffset(26, 26)
-		button.Activated:Connect(function()
-			if button.Active then
-				claimRemote:FireServer(tier, if premium then "premium" else "free")
+		local claim = FancyKit.button(frame, UDim2.new(1, -14, 0, 36), GREEN, 16, Z + 6, nil)
+		claim.holder.AnchorPoint = Vector2.new(0.5, 1)
+		claim.holder.Position = UDim2.new(0.5, 0, 1, -6)
+		-- Kilit: kartı karartan perde + asma kilit
+		local lock = Instance.new("Frame")
+		lock.Size = UDim2.fromScale(1, 1)
+		lock.BackgroundColor3 = Color3.fromRGB(8, 10, 20)
+		lock.BackgroundTransparency = 0.45
+		lock.ZIndex = Z + 9
+		lock.Parent = frame
+		FancyKit.corner(lock, 14)
+		local lockIcon = text(lock, "🔒", 28, Color3.new(1, 1, 1), Z + 10)
+		lockIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+		lockIcon.Position = UDim2.fromScale(0.5, 0.4)
+		lockIcon.Size = UDim2.fromOffset(40, 40)
+		local done = text(frame, "✓", 44, Color3.fromRGB(120, 255, 120), Z + 10, 3)
+		done.AnchorPoint = Vector2.new(0.5, 0.5)
+		done.Position = UDim2.fromScale(0.5, 0.42)
+		done.Size = UDim2.fromOffset(60, 60)
+		claim.button.Activated:Connect(function()
+			if claim.button.Active then
+				claimRemote:FireServer(tier, if isPremium then "premium" else "free")
 			end
 		end)
-		return { frame = frame, button = button, label = label, lock = lock, stroke = stroke }
+		return { frame = frame, claim = claim, lock = lock, done = done }
 	end
 
 	for tier = 1, Config.Season.tiers do
 		local col = Instance.new("Frame")
-		col.Position = UDim2.fromOffset(64 + (tier - 1) * (COLUMN + 8), 6)
+		col.Position = UDim2.fromOffset(72 + (tier - 1) * (COLUMN + 10), 6)
 		col.Size = UDim2.new(0, COLUMN, 1, -18)
 		col.BackgroundTransparency = 1
 		col.ZIndex = Z + 3
 		col.Parent = scroller
 		local milestone = tier % 5 == 0
-		local head = text(col, tostring(tier), if milestone then 22 else 18, if milestone then GOLD else Color3.new(1, 1, 1), Z + 4, 2)
-		head.Size = UDim2.new(1, 0, 0, 26)
-		local free, premium = Config.GetSeasonRewards(tier)
+		local head = Instance.new("Frame")
+		head.AnchorPoint = Vector2.new(0.5, 0)
+		head.Position = UDim2.fromScale(0.5, 0)
+		head.Size = UDim2.fromOffset(if milestone then 52 else 40, 26)
+		head.BackgroundColor3 = Color3.new(1, 1, 1)
+		head.ZIndex = Z + 4
+		head.Parent = col
+		FancyKit.corner(head, 13)
+		FancyKit.border(head, OUTLINE, 2.5)
+		FancyKit.gradient(head, if milestone then { Color3.fromRGB(255, 230, 120), Color3.fromRGB(230, 150, 20) } else { Color3.fromRGB(120, 130, 170), Color3.fromRGB(60, 66, 96) }, 90)
+		local headText = text(head, tostring(tier), 18, Color3.new(1, 1, 1), Z + 5, 2)
+		headText.Size = UDim2.fromScale(1, 1)
+		local free, prem = Config.GetSeasonRewards(tier)
 		table.insert(columns, {
 			tier = tier,
 			head = head,
-			free = makeCard(col, 30, free, false, tier),
-			premium = makeCard(col, 154, premium, true, tier),
+			free = makeCard(col, 32, free, false, tier),
+			premium = makeCard(col, 174, prem, true, tier),
 		})
 	end
 
 	local info = text(root, string.format("Earn XP: heist +%d  ·  capsule game +%d  ·  quest +%d  ·  daily login +%d  ·  spin +%d  ·  room task +%d",
 		Config.Season.xp.salvaged, Config.Season.xp.trainings, Config.Season.xp.questsClaimed, Config.Season.xp.dailyClaims,
-		Config.Season.xp.spins, Config.Season.xp.tasksDone), 13, UiKit.MUTED, Z + 3)
-	info.Font = Enum.Font.GothamBold
+		Config.Season.xp.spins, Config.Season.xp.tasksDone), 15, Color3.fromRGB(210, 216, 240), Z + 3, 1.8)
 	info.AnchorPoint = Vector2.new(0.5, 1)
-	info.Position = UDim2.new(0.5, 0, 1, -16)
+	info.Position = UDim2.new(0.5, 0, 1, -12)
 	info.Size = UDim2.new(1, -40, 0, 20)
 
 	-- ─── Durum ───────────────────────────────────────────────────────────
 	local function paint(card: Card, state: string)
 		card.lock.Visible = state == "locked" or state == "pass"
-		card.button.Active = state == "ready"
-		local color = if state == "ready" then UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.3)
-			elseif state == "done" then UiKit.DIM
-			else Color3.fromRGB(70, 74, 90)
-		card.button.BackgroundColor3 = color
-		card.label.Text = if state == "ready" then "CLAIM" elseif state == "done" then "✓" elseif state == "pass" then "PREMIUM" else "LOCKED"
-		card.stroke.Transparency = if state == "ready" then 0 else 0.4
-		card.stroke.Thickness = if state == "ready" then 2.6 else 1.6
-		card.frame.BackgroundTransparency = if state == "done" then 0.45 else 0
+		card.done.Visible = state == "done"
+		card.claim.set(if state == "ready" then "CLAIM" elseif state == "done" then "CLAIMED" elseif state == "pass" then "PREMIUM" else "LOCKED",
+			if state == "ready" then GREEN else nil)
 	end
 
 	local function refresh()
@@ -328,18 +349,15 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 			xpText.Text = "MAX TIER!"
 		end
 		if hasPass then
-			premiumText.Text = "✓ PREMIUM"
-			premiumButton.Active = false
+			premium.set("PREMIUM ✓", nil)
 		elseif Config.Season.pass.id > 0 then
-			premiumText.Text = string.format("👑 PREMIUM  R$ %d", Config.Season.pass.robux)
-			premiumButton.Active = true
+			premium.set("PREMIUM " .. Config.Season.pass.robux, GOLD, true)
 		else
-			premiumText.Text = "👑 PREMIUM (SOON)"
-			premiumButton.Active = false
+			premium.set("PREMIUM SOON", GOLD:Lerp(Color3.fromRGB(110, 110, 120), 0.5))
 		end
 		for _, col in columns do
 			local reached = col.tier <= tier
-			col.head.TextTransparency = if reached then 0 else 0.4
+			col.head.BackgroundTransparency = if reached then 0 else 0.35
 			paint(col.free, if claimed["f" .. col.tier] then "done" elseif reached then "ready" else "locked")
 			paint(col.premium, if claimed["p" .. col.tier] then "done" elseif not hasPass then "pass" elseif reached then "ready" else "locked")
 		end
@@ -379,7 +397,7 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 		-- Açılışta şu anki kademeye kaydır
 		local xpRaw = player:GetAttribute("SeasonXp")
 		local tier = Config.SeasonProgress(if typeof(xpRaw) == "number" then xpRaw else 0)
-		scroller.CanvasPosition = Vector2.new(math.max(0, (tier - 2) * (COLUMN + 8)), 0)
+		scroller.CanvasPosition = Vector2.new(math.max(0, (tier - 2) * (COLUMN + 10)), 0)
 	end
 	close.Activated:Connect(function()
 		root.Visible = false
@@ -398,6 +416,7 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 			for _, c in conns do
 				c:Disconnect()
 			end
+			driver.destroy()
 			root:Destroy()
 		end,
 	}

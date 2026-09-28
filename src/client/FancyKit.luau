@@ -40,7 +40,13 @@ export type Driver = {
 function FancyKit.driver(root: GuiObject): Driver
 	local fns: { (number, number) -> () } = {}
 	local t = 0
-	local conn = RunService.RenderStepped:Connect(function(dt)
+	local conn: RBXScriptConnection
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if not root.Parent then
+			-- Pencere yok edildi (Destroy çağrılmadan): sürücü de dursun
+			conn:Disconnect()
+			return
+		end
 		if not root.Visible then
 			return
 		end

@@ -11,9 +11,15 @@
 
 	ShopPanel kendi kopyasını kullanmaya devam ediyor (Yusuf'un dosyası);
 	değerler birebir aynı.
+
+	2026-09-28 (mağazanın yeni dili, FancyKit): kabukta nokta dokusu +
+	yükselen parıltılar, başlıkta kayan şeritler + parıltı + sarı-turuncu
+	3B yazı, X'te parıltı; kartlar rengin daha doygun gradyanı + noktalar;
+	düğmeler üstüne gelince şişiyor. Çağrı imzaları aynı.
 ]]
 
-local TweenService = game:GetService("TweenService")
+
+local FancyKit = require(script.Parent.FancyKit)
 
 local CardKit = {}
 
@@ -105,7 +111,7 @@ local function paintCard(card: Frame, tint: Color3)
 	card.BackgroundColor3 = Color3.new(1, 1, 1)
 	local g = card:FindFirstChild("Body")
 	if g and g:IsA("UIGradient") then
-		g.Color = ColorSequence.new(CardKit.BODY:Lerp(tint, 0.2), CardKit.BODY_DEEP:Lerp(tint, 0.08))
+		g.Color = ColorSequence.new(CardKit.BODY:Lerp(tint, 0.42), CardKit.BODY_DEEP:Lerp(tint, 0.16))
 	end
 	local strip = card:FindFirstChild("Accent")
 	if strip and strip:IsA("Frame") then
@@ -131,6 +137,7 @@ function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	CardKit.corner(card, 14)
 	local g = CardKit.gradient(card, CardKit.BODY, CardKit.BODY_DEEP)
 	g.Name = "Body"
+	FancyKit.halftone(card, WHITE, 0.9, z, true)
 
 	-- Üstte ince vurgu şeridi
 	local strip = Instance.new("Frame")
@@ -173,6 +180,7 @@ function CardKit.hero(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	card:SetAttribute("CardStyle", "hero")
 	CardKit.corner(card, 14)
 	CardKit.gradient(card, tint:Lerp(WHITE, 0.28), tint:Lerp(BLACK, 0.25))
+	FancyKit.halftone(card, WHITE, 0.8, z, true)
 
 	local rays = Instance.new("ImageLabel")
 	rays.Name = "Rays"
@@ -314,14 +322,7 @@ function CardKit.button(parent: Instance, size: UDim2, z: number, textSize: numb
 	end
 	button.MouseButton1Up:Connect(release)
 	button.MouseLeave:Connect(release)
-	button.MouseEnter:Connect(function()
-		if button.Active then
-			TweenService:Create(holder, TweenInfo.new(0.08), { Rotation = -2 }):Play()
-		end
-	end)
-	button.MouseLeave:Connect(function()
-		TweenService:Create(holder, TweenInfo.new(0.1), { Rotation = 0 }):Play()
-	end)
+	FancyKit.juicy(holder, button, 1.05, 2)
 
 	return { holder = holder, button = button, label = label, set = set }
 end
@@ -346,6 +347,15 @@ function CardKit.bar(parent: Instance, size: UDim2, color: Color3, z: number, te
 	fill.Parent = frame
 	CardKit.corner(fill, 8)
 	CardKit.gradient(fill, color:Lerp(WHITE, 0.3), color:Lerp(BLACK, 0.15))
+	local shine = Instance.new("Frame")
+	shine.Position = UDim2.new(0, 4, 0, 3)
+	shine.Size = UDim2.new(1, -8, 0.3, 0)
+	shine.BackgroundColor3 = WHITE
+	shine.BackgroundTransparency = 0.65
+	shine.BorderSizePixel = 0
+	shine.ZIndex = z + 1
+	shine.Parent = fill
+	CardKit.corner(shine, 4)
 	local label = CardKit.bold(frame, "", textSize or 16, WHITE, z + 2, 2)
 	label.Size = UDim2.fromScale(1, 1)
 	local function set(ratio: number, text: string)
@@ -372,11 +382,12 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	end
 	root.BackgroundColor3 = CardKit.BODY
 	CardKit.gradient(root, CardKit.BODY, CardKit.BODY_DEEP)
-	CardKit.border(root, OUTLINE, 4)
+	CardKit.border(root, OUTLINE, 5)
 
 	local size = root.Size
 	local w, h = size.X.Offset, size.Y.Offset
 
+	local driver = FancyKit.driver(root)
 	local dots = Instance.new("Frame")
 	dots.Name = "Dots"
 	dots.Position = UDim2.fromOffset(0, headerH)
@@ -385,19 +396,10 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	dots.ClipsDescendants = true
 	dots.ZIndex = z
 	dots.Parent = root
-	for y = 0, math.floor((h - headerH) / 28) do
-		for x = 0, math.floor(w / 28) do
-			local d = Instance.new("Frame")
-			d.Position = UDim2.fromOffset(x * 28 + (y % 2) * 14 + 8, y * 28 + 10)
-			d.Size = UDim2.fromOffset(4, 4)
-			d.BackgroundColor3 = BLACK
-			d.BackgroundTransparency = 0.72
-			d.BorderSizePixel = 0
-			d.ZIndex = z
-			d.Parent = dots
-			CardKit.corner(d, 2)
-		end
-	end
+	FancyKit.halftone(dots, Color3.fromRGB(120, 140, 220), 0.9, z)
+	FancyKit.particles(dots, driver, 12, Color3.fromRGB(255, 230, 150), z)
+	local _ = w
+	local _2 = h
 
 	local header = Instance.new("Frame")
 	header.Name = "Header"
@@ -416,18 +418,22 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	foot.BorderSizePixel = 0
 	foot.ZIndex = z + 1
 	foot.Parent = header
-	for i, x in { 0.52, 0.6, 0.66 } do
-		local stripe = Instance.new("Frame")
-		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
-		stripe.Position = UDim2.fromScale(x, 0.5)
-		stripe.Size = UDim2.fromOffset(if i == 1 then 46 else 18, 180)
-		stripe.Rotation = 30
-		stripe.BackgroundColor3 = WHITE
-		stripe.BackgroundTransparency = 0.8
-		stripe.BorderSizePixel = 0
-		stripe.ZIndex = z + 2
-		stripe.Parent = header
-	end
+	-- Kayan çapraz şeritler, noktalar ve periyodik parıltı (mağaza başlığı)
+	local stripes = Instance.new("ImageLabel")
+	stripes.Name = "Stripes"
+	stripes.BackgroundTransparency = 1
+	stripes.Size = UDim2.new(1, 64, 1, 0)
+	stripes.Image = "rbxassetid://127645580329632"
+	stripes.ScaleType = Enum.ScaleType.Tile
+	stripes.TileSize = UDim2.fromOffset(64, 64)
+	stripes.ImageTransparency = 0.86
+	stripes.ZIndex = z + 2
+	stripes.Parent = header
+	driver.add(function(t)
+		stripes.Position = UDim2.fromOffset(-((t * 18) % 64), 0)
+	end)
+	FancyKit.halftone(header, WHITE, 0.86, z + 2, true)
+	FancyKit.gleam(header, driver, 5, 1, 0.3)
 	local rule = Instance.new("Frame")
 	rule.Position = UDim2.new(0, 0, 0, headerH - 2)
 	rule.Size = UDim2.new(1, 0, 0, 4)
@@ -438,6 +444,16 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 
 	local title = CardKit.bold(header, titleText, math.floor(headerH * 0.62), WHITE, z + 4, 5)
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	-- Sarı → turuncu 3B başlık (FancyKit.title gibi; burada tek katman çünkü
+	-- çağıranlar title.Text'i değiştiriyor)
+	local tg = Instance.new("UIGradient")
+	tg.Rotation = 90
+	tg.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 244, 170)),
+		ColorSequenceKeypoint.new(0.45, Color3.fromRGB(255, 226, 60)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 140, 20)),
+	})
+	tg.Parent = title
 	title.Position = UDim2.fromOffset(22, 4)
 	title.Size = UDim2.new(1, -110, 1, -8)
 
@@ -458,12 +474,8 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	CardKit.gradient(close, Color3.fromRGB(250, 70, 70), Color3.fromRGB(190, 20, 30))
 	local x = CardKit.bold(close, "X", math.floor(closeSize * 0.72), WHITE, z + 6, 4)
 	x.Size = UDim2.fromScale(1, 1)
-	close.MouseEnter:Connect(function()
-		TweenService:Create(close, TweenInfo.new(0.08), { Rotation = 8 }):Play()
-	end)
-	close.MouseLeave:Connect(function()
-		TweenService:Create(close, TweenInfo.new(0.1), { Rotation = 0 }):Play()
-	end)
+	FancyKit.gleam(close, driver, 4.2, 2, 0.4)
+	FancyKit.juicy(close, close, 1.1, -8)
 
 	local body = Instance.new("Frame")
 	body.Name = "Body"

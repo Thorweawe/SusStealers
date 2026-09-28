@@ -24,6 +24,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local CardKit = require(script.Parent.CardKit)
+local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local Leaderboard = {}
@@ -123,7 +125,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	holder.Parent = screen
 	CardKit.corner(holder, 14)
 	CardKit.gradient(holder, CardKit.BODY, CardKit.BODY_DEEP)
-	CardKit.border(holder, CardKit.OUTLINE, 3)
+	CardKit.border(holder, CardKit.OUTLINE, 4)
 
 	-- ─── Başlık şeridi ──────────────────────────────────────────────────────
 
@@ -141,29 +143,40 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	foot.BackgroundColor3 = HEADER_COLOR:Lerp(Color3.new(0, 0, 0), 0.12)
 	foot.BorderSizePixel = 0
 	foot.Parent = head
-	for i, x in { 0.62, 0.7 } do
-		local stripe = Instance.new("Frame")
-		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
-		stripe.Position = UDim2.fromScale(x, 0.5)
-		stripe.Size = UDim2.fromOffset(if i == 1 then 22 else 9, 90)
-		stripe.Rotation = 30
-		stripe.BackgroundColor3 = CardKit.WHITE
-		stripe.BackgroundTransparency = 0.8
-		stripe.BorderSizePixel = 0
-		stripe.Parent = head
-	end
-	local icon = Instance.new("Frame")
+	-- 2026-09-28 mağaza dili: kayan şeritler, noktalar, parıltı, 3B ikon
+	local driver = FancyKit.driver(holder)
+	local stripes = Instance.new("ImageLabel")
+	stripes.BackgroundTransparency = 1
+	stripes.Size = UDim2.new(1, 64, 1, 0)
+	stripes.Image = UiArt.Image("Texture", "stripes")
+	stripes.ScaleType = Enum.ScaleType.Tile
+	stripes.TileSize = UDim2.fromOffset(48, 48)
+	stripes.ImageTransparency = 0.86
+	stripes.ZIndex = 2
+	stripes.Parent = head
+	driver.add(function(t)
+		stripes.Position = UDim2.fromOffset(-((t * 14) % 48), 0)
+	end)
+	FancyKit.halftone(head, CardKit.WHITE, 0.86, 2, true)
+	FancyKit.gleam(head, driver, 6, 2, 0.3)
+	local icon = Instance.new("ImageLabel")
 	icon.AnchorPoint = Vector2.new(0, 0.5)
-	icon.Position = UDim2.new(0, 10, 0.5, 0)
-	icon.Size = UDim2.fromOffset(24, 24)
+	icon.Position = UDim2.new(0, 4, 0.5, 0)
+	icon.Size = UDim2.fromOffset(34, 34)
 	icon.BackgroundTransparency = 1
+	icon.Image = UiArt.Image("Icon", "Crewmate")
+	icon.ZIndex = 4
 	icon.Parent = head
-	UiKit.Crewmate(icon, 22, Color3.fromRGB(230, 250, 255))
+	FancyKit.bob(icon, driver, 1.5, 2.8, 0, 6)
 
-	local title = CardKit.bold(head, "CREW", 22, CardKit.WHITE, 3, 2.5)
+	local title = CardKit.bold(head, "CREW", 24, CardKit.WHITE, 3, 3)
 	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Position = UDim2.fromOffset(40, 0)
+	title.Position = UDim2.fromOffset(42, 0)
 	title.Size = UDim2.new(1, -170, 1, 0)
+	local tg = Instance.new("UIGradient")
+	tg.Rotation = 90
+	tg.Color = ColorSequence.new(Color3.fromRGB(255, 244, 170), Color3.fromRGB(255, 170, 30))
+	tg.Parent = title
 
 	-- Haftalık sıralama (WeeklyPanel): tablonun kendisi bu sunucu, düğme bütün oyun
 	local weekly = Instance.new("TextButton")
@@ -171,13 +184,16 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	weekly.AnchorPoint = Vector2.new(1, 0.5)
 	weekly.Position = UDim2.new(1, -62, 0.5, 0)
 	weekly.Size = UDim2.fromOffset(88, 28)
-	weekly.BackgroundColor3 = Color3.fromRGB(255, 196, 50)
-	weekly.AutoButtonColor = true
+	weekly.BackgroundColor3 = CardKit.WHITE
+	weekly.AutoButtonColor = false
 	weekly.Text = ""
 	weekly.ZIndex = 4
 	weekly.Parent = head
 	CardKit.corner(weekly, 8)
-	CardKit.border(weekly, CardKit.OUTLINE, 2)
+	CardKit.border(weekly, CardKit.OUTLINE, 2.5)
+	CardKit.gradient(weekly, Color3.fromRGB(255, 226, 90), Color3.fromRGB(240, 150, 20))
+	FancyKit.gleam(weekly, driver, 3.6, 0.5, 0.5)
+	FancyKit.juicy(weekly, weekly, 1.08, 3)
 	local weeklyText = CardKit.bold(weekly, "WEEKLY", 14, CardKit.WHITE, 5, 1.8)
 	weeklyText.Size = UDim2.fromScale(1, 1)
 	weekly.Activated:Connect(function()

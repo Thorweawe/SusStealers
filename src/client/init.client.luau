@@ -149,12 +149,12 @@ statLayout.Parent = statBar
 
 local speedPill, speedDisc, speedValue, speedSub = UiKit.StatPill(statBar, "SpeedPill", UiKit.CREW.CYAN)
 speedPill.LayoutOrder = 1
-UiKit.Boot(speedDisc, 26, UiKit.CREW.CYAN)
+UiKit.ArtIcon(speedDisc, 46, "Stat_Speed", 1.25)
 speedSub.Text = "SPACE SPEED"
 
 local cashPill, cashDisc, cashValue, cashSub = UiKit.StatPill(statBar, "CashPill", UiKit.CREW.LIME)
 cashPill.LayoutOrder = 2
-UiKit.Coin(cashDisc, 26, UiKit.CREW.LIME)
+UiKit.ArtIcon(cashDisc, 46, "Cash100K", 1.3)
 
 --[[
 	Eskiden burada sağ üstte "Podiums / Lock / Carrying" paneli vardı.
@@ -522,7 +522,7 @@ mountPanel("Inventory", function()
 			tint = UiKit.CREW.PINK,
 			order = 1,
 			icon = function(slot, size, tint)
-				UiKit.Paw(slot, size, tint)
+				UiKit.ArtIcon(slot, size, "Tab_Pets", 1.5)
 			end,
 		}, content:WaitForChild("PetPanel") :: GuiObject, panel.Toggle)
 
@@ -577,7 +577,7 @@ mountPanel("Inventory", function()
 			tint = Color3.fromRGB(110, 206, 120),
 			order = 2,
 			icon = function(slot, size, tint)
-				UiKit.Vial(slot, size, Color3.fromRGB(170, 255, 120), 0.8, true)
+				UiKit.ArtIcon(slot, size, "Tab_Potion", 1.5)
 			end,
 		}, root, function()
 			menu.Open("potions")
@@ -588,7 +588,7 @@ mountPanel("Inventory", function()
 			tint = Color3.fromRGB(214, 164, 40),
 			order = 4,
 			icon = function(slot, size, tint)
-				UiKit.Crown(slot, size, Color3.fromRGB(255, 214, 90))
+				UiKit.ArtIcon(slot, size, "Nav_Pass", 1.5)
 			end,
 		}, root, function()
 			menu.Open("titles")
@@ -610,17 +610,7 @@ mountPanel("Inventory", function()
 			tint = UiKit.CREW.PURPLE:Lerp(UiKit.CREW.PINK, 0.4),
 			order = 3,
 			icon = function(slot, size, tint)
-				-- Şapkalı mürettebat: kozmetiğin ne olduğu ikondan okunsun
-				local body = UiKit.Crewmate(slot, size * 0.74, UiKit.CREW.PINK:Lerp(Color3.new(1, 1, 1), 0.3))
-				local hat = Instance.new("Frame")
-				hat.AnchorPoint = Vector2.new(0.5, 1)
-				hat.Position = UDim2.fromScale(0.45, 0.12)
-				hat.Size = UDim2.fromScale(0.62, 0.3)
-				hat.BackgroundColor3 = UiKit.CREW.YELLOW
-				hat.BorderSizePixel = 0
-				hat.ZIndex = body.ZIndex + 2
-				hat.Parent = body
-				UiKit.Corner(hat, 4)
+				UiKit.ArtIcon(slot, size, "Tab_Style", 1.5)
 			end,
 		}, content:WaitForChild("CosmeticPanel") :: GuiObject, panel.Toggle)
 		previews.Style = function()

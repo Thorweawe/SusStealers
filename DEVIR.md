@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (49) — Batur (Yusuf'un şeridine yazıldı: pencereler)
+
+**Pencereler mağazanın diline çevrildi.** Studio'ya aktarıldı; yalnızca istemci, mantık/uzak olaylar aynı.
+
+- **FancyKit kabuğu** (`shell` + `button` + `card`): `GearPanel`, `SeasonPanel` (PASS; ödüller 3B ikonlu), `Index` (CREW/PETS; kalın kenarlı renkli kartlar, ayrıntıda dönen ışın + hale), `JetpackPanel` (PACKS/FLAMES; takılı olana sarı çerçeve), `WeeklyPanel`.
+- **`CardKit` yükseltildi** → Inventory, Rewards, Quests, Upgrade vb. hepsi: kayan şeritli başlık, sarı-turuncu başlık yazısı, nokta dokusu + yükselen parıltılar, X'te parıltı, düğmeler şişiyor. İmzalar aynı.
+- `FancyKit.driver` kök yok edilince kendini kapatıyor.
+- **Leaderboard (CREW kutusu)**: kayan şerit, parıltı, 3B mürettebat ikonu, WEEKLY düğmesi altın.
+- **Envanter**: sekme ikonları 3B (`Tab_Pets`, `Tab_Potion`, `Tab_Style`, `Nav_Pass`; `UiKit.ArtIcon`), pet kartları (`PetPanel`) ve şapka/iz kartları (`CosmeticPanel`) renkli ışınlı.
+- **Sol alt haplar** (`UiKit.StatPill`): renkli gradyan, kalın kenar, 3B roket (SPACE SPEED) ve para ikonu.
+
+---
+
 ## 2026-09-28 (48) — Batur (Yusuf'un şeridine de yazıldı: ikonlar)
 
 Studio'ya aktarıldı, **177/177 test temiz**.
