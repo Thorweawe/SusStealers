@@ -90,6 +90,14 @@ return {
 			p.Material = Enum.Material.SmoothPlastic
 			p.Size = size
 			p.CFrame = cf
+			--[[
+				Union'ın CFrame'i kesilmemiş şeklin (kürenin/silindirin) merkezinde
+				kalıyor; geometri ölçeklenince ondan uzaklaşıyor (pruvanın yarısı
+				kokpitin içindeydi). Gerçek geometri merkezini (ExtentsCFrame)
+				istenen yere kaydır.
+			]]
+			local delta = cf.Position - p.ExtentsCFrame.Position
+			p.CFrame = cf + delta
 			p.Parent = parent
 			return p
 		end
@@ -118,7 +126,7 @@ return {
 			local flame = seg("Flame", -x0 + 77, -x0 + 91, 24, rgb(90, 190, 255), { emit = "Fixture", transparency = 0.25, ghost = true })
 			flame.CastShadow = false
 			flame:SetAttribute("PulsePeriod", 0.5)
-			local inner = seg("FlameCore", -x0 + 77, -x0 + 101, 14, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1, ghost = true })
+			local inner = seg("FlameCore", -x0 + 77.15, -x0 + 101, 14, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1, ghost = true })
 			inner.CastShadow = false
 			local tip = K.ball(f, "FlameTip", x0 - 101, cy, z, 14, rgb(150, 220, 255), { emit = "Fixture", transparency = 0.35, ghost = true })
 			tip.CastShadow = false
@@ -147,9 +155,9 @@ return {
 			local czn = M.centerZ
 			local width = (M.Z1 - M.Z0) + T + 1
 			local depth = 27
-			curved(f, "Prow", "ball", { Vector3.new(-1, 0, 0), Vector3.new(0, 1, 0) },
+			curved(f, "Prow", "ball", { Vector3.new(1, 0, 0), Vector3.new(0, -1, 0) },
 				Vector3.new(L, depth, width), CFrame.new(xw + L / 2 - 0.05, 8 - depth / 2, czn), rgb(132, 142, 158))
-			curved(f, "ProwDeck", "ball", { Vector3.new(-1, 0, 0), Vector3.new(0, -1, 0) },
+			curved(f, "ProwDeck", "ball", { Vector3.new(1, 0, 0), Vector3.new(0, -1, 0) },
 				Vector3.new(L - 14, 1.2, width - 20), CFrame.new(xw + (L - 14) / 2 - 0.05, 8 + 0.55, czn), rgb(96, 106, 122))
 			K.box(f, "ProwStripe", xw + 50, 9.3, czn, 80, 0.2, 3, C.hazard, { ghost = true })
 			-- Burun topları: pruvanın üstünden ileri uzanan üç uzun namlu
@@ -289,13 +297,18 @@ return {
 				kademe ortadan başlayıp daha dik yükseliyor. Kırılma çizgisinde
 				koyu bir kaburga. Doğu ucunda kalça (burna doğru inen kama).
 			]]
-			slope("ArmorNorth", xa, xb, nLow, nHigh, top, H1, armor)
-			slope("ArmorSouth", xa, xb, sLow, sHigh, top, H1, armor)
+			--[[
+				Çakışan yüz yok: alt kademenin hendek yüzü üst kademenin 0.4
+				gerisinde (aynı düzlemde titriyordu), üst kademe batı ucundan
+				0.3 içeride (uç yüzler ve kule tabanıyla aynı düzlemdeydi).
+			]]
+			slope("ArmorNorth", xa, xb, nLow, nHigh - 0.4, top, H1, armor)
+			slope("ArmorSouth", xa, xb, sLow, sHigh + 0.4, top, H1, armor)
 			local nMid, sMid = (nLow + nHigh) / 2, (sLow + sHigh) / 2
-			slope("ArmorNorthUpper", xa, xb - 8, nMid, nHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
-			slope("ArmorSouthUpper", xa, xb - 8, sMid, sHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
+			slope("ArmorNorthUpper", xa + 0.3, xb - 8, nMid, nHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
+			slope("ArmorSouthUpper", xa + 0.3, xb - 8, sMid, sHigh, top + H1 / 2, H2, armorDark:Lerp(armor, 0.55))
 			for _, z in { nMid, sMid } do
-				K.box(sup, "ArmorRib", (xa + xb) / 2 - 4, top + H1 / 2 + 0.35, z, xb - xa - 8, 0.9, 1.6, panel, { ghost = true })
+				K.box(sup, "ArmorRib", (xa + xb) / 2 - 4, top + H1 / 2 + 0.35, z, xb - xa - 8.8, 0.9, 1.6, panel, { ghost = true })
 			end
 			-- Doğu kalçası: hendek bitince (cam şeridin doğusu) burna doğru inen kama
 			do
@@ -309,8 +322,9 @@ return {
 				w.Material = Enum.Material.SmoothPlastic
 				w.Color = armor
 				local height = H1 / 2 + H2
-				w.Size = Vector3.new(sLow - nLow, height, hx1 - hx0)
-				local center = Vector3.new((hx0 + hx1) / 2, top + height / 2, (nLow + sLow) / 2)
+				w.Size = Vector3.new(sLow - nLow - 0.3, height, hx1 - hx0)
+				-- Alt yüzü zırh kamalarının alt yüzüyle aynı düzlemde olmasın
+				local center = Vector3.new((hx0 + hx1) / 2, top + 0.06 + height / 2, (nLow + sLow) / 2)
 				w.CFrame = CFrame.lookAt(center, center + Vector3.xAxis)
 				w.Parent = sup
 			end
@@ -362,7 +376,7 @@ return {
 			end
 
 			-- ── Komuta kulesi (batı ucu, cam şeridin dışında) ───────────────
-			local tx0, tx1 = xa, M.X0 + 46
+			local tx0, tx1 = xa - 0.5, M.X0 + 46
 			local tz = M.centerZ
 			K.box(sup, "TowerBase", (tx0 + tx1) / 2, top + 16, tz, tx1 - tx0, 32, 96, armor, { ghost = true })
 			K.box(sup, "TowerMid", (tx0 + tx1) / 2 + 1, top + 37.8, tz, 38, 12, 70, armor, { ghost = true })
@@ -402,17 +416,16 @@ return {
 			local ox0, ox1 = M.X0 - T / 2, M.X1 + T / 2
 			local oz0, oz1 = M.Z0 - T / 2, M.Z1 + T / 2
 			local cornerR = 7
-			for _, c in { { ox0, oz0, 1, 1 }, { ox1, oz0, -1, 1 }, { ox0, oz1, 1, -1 }, { ox1, oz1, -1, -1 } } do
-				-- Tutulan yön: dışarı bakan üç çeyrek = içe bakan çeyreği kes.
-				-- Silindir tek kesimle: iç çeyreği iki yarı-uzayın kesişimi yapamıyoruz;
-				-- bunun yerine iki dışa bakan yarı silindir üst üste.
-				local h = hullTop - hullBottom
-				local center = Vector3.new(c[1] + c[3] * 1.2, (hullTop + hullBottom) / 2, c[2] + c[4] * 1.2)
-				local axisUp = CFrame.Angles(0, 0, math.rad(90))
-				curved(sup, "CornerRound", "cyl", { Vector3.new(0, 0, -c[4]) }, Vector3.new(h, cornerR * 2, cornerR * 2),
-					CFrame.new(center - Vector3.new(0, 0, c[4] * cornerR / 2)) * axisUp, armorDark)
-				curved(sup, "CornerRound", "cyl", { Vector3.new(0, 0, -c[3]) }, Vector3.new(h, cornerR * 2, cornerR * 2),
-					CFrame.new(center - Vector3.new(c[3] * cornerR / 2, 0, 0)) * axisUp * CFrame.Angles(math.rad(90), 0, 0), armorDark)
+			--[[
+				Köşe kolonu: köşenin dışında tam silindir. Merkez dış köşeden
+				çapraz dışarıda; en fazla duvarın içine giriyor, iç köşeye
+				(merkezden ~10 stud) hiç erişemiyor. (Önceki yarım silindirler
+				içeri taşıyordu.)
+			]]
+			for _, c in { { ox0, oz0, -1, -1 }, { ox1, oz0, 1, -1 }, { ox0, oz1, -1, 1 }, { ox1, oz1, 1, 1 } } do
+				local cx = c[1] + c[3] * (cornerR - 2.2)
+				local czc = c[2] + c[4] * (cornerR - 2.2)
+				K.vcyl(sup, "CornerRound", cx, (hullTop + hullBottom) / 2, czc, hullTop - hullBottom, cornerR * 2, armorDark, { ghost = true })
 			end
 			-- Kuzey karın kavisi: duvarın altından dışarı-yukarı kıvrılan çeyrek (güverte önü hariç)
 			local gate = K.Config.Space and K.Config.Space.GateX or M.centerX
@@ -421,7 +434,7 @@ return {
 			for _, span in { { ox0 + cornerR, gate - deckHalf }, { gate + deckHalf, ox1 - cornerR } } do
 				local len = span[2] - span[1]
 				if len > 4 then
-					curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, 1) },
+					curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, -1) },
 						Vector3.new(len, bellyH, bellyOut),
 						CFrame.new((span[1] + span[2]) / 2, hullBottom + bellyH / 2, oz0 - bellyOut / 2 + 0.05), armorDark)
 				end
@@ -429,7 +442,7 @@ return {
 			-- Güney duvarında aynı kavis (ek bina ve köprünün olmadığı uçlarda)
 			for _, span in { { ox0 + cornerR, M.X0 + 90 }, { M.X1 - 90, ox1 - cornerR } } do
 				local len = span[2] - span[1]
-				curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, -1) },
+				curved(sup, "BellyCurve", "cyl", { Vector3.new(0, -1, 0), Vector3.new(0, 0, 1) },
 					Vector3.new(len, bellyH, bellyOut),
 					CFrame.new((span[1] + span[2]) / 2, hullBottom + bellyH / 2, oz1 + bellyOut / 2 - 0.05), armorDark)
 			end
@@ -538,7 +551,7 @@ return {
 			local flame = eseg("MainFlame", 53, 66, 20, rgb(90, 190, 255), { emit = "Fixture", transparency = 0.25 })
 			flame.CastShadow = false
 			flame:SetAttribute("PulsePeriod", 0.5)
-			local core = eseg("MainFlameCore", 53, 76, 11, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1 })
+			local core = eseg("MainFlameCore", 53.15, 76, 11, rgb(210, 245, 255), { emit = "Fixture", transparency = 0.1 })
 			core.CastShadow = false
 			K.light(flame, rgb(110, 190, 255), 60, 2)
 		end

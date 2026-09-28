@@ -26,9 +26,11 @@ return {
 		local FLOOR = M.TILE_TOP
 		local f = K.folder("InteriorCurves")
 
-		local shell = rgb(206, 214, 224)
-		local rib = rgb(160, 172, 188)
-		local neon = rgb(70, 220, 255)
+		-- Renkler haritanın duvar paletinden (kit C): kavis duvarın orta
+		-- tonuyla, kaburgalar koyu bantla aynı; neon haritanın camgöbeği
+		local shell = C.wallMid
+		local rib = C.wallHigh
+		local neon = C.cyan
 
 		local ceilY = M.WALL_H          -- tavanın alt yüzü (duvar tepesi)
 		local R = 13                    -- üst kavis yarıçapı
@@ -91,6 +93,29 @@ return {
 			local strip = K.boxAt(f, "WestCurveNeon", cf * CFrame.new(0, ceilY - R + 0.25, 0.35), Vector3.new(lenZ - 2, 0.5, 0.7), neon,
 				{ ghost = true, emit = "Fixture" })
 			strip.CastShadow = false
+		end
+
+		--[[
+			Doğu duvarı (kokpit): köşelerde kuzey/güney kavisiyle aynı R 13
+			(köşede birleşsin); kokpitin ön camının üstünde (cam y 42'ye kadar)
+			daha küçük R 9. İki yarıçap cam çerçevesinin hizasında değişiyor.
+		]]
+		do
+			local RE = 9
+			local cf0 = CFrame.new(M.IX1, 0, 0) * CFrame.Angles(0, math.rad(-90), 0)
+			local nav = M.NAV_RECT
+			local w0, w1 = nav[2] - 6, nav[4] + 6        -- camın z aralığı
+			local segs = { { M.IZ0, w0, R }, { w0, w1, RE }, { w1, M.IZ1, R } }
+			for _, sg in segs do
+				local len = sg[2] - sg[1]
+				-- Yerel X = dünya -Z (Y çevresinde -90°): merkez dünya z'sine göre
+				local at = CFrame.new(M.IX1, ceilY, (sg[1] + sg[2]) / 2) * CFrame.Angles(0, math.rad(-90), 0)
+				fillet("EastHullCurve", len, sg[3], true, at, shell)
+				local strip = K.boxAt(f, "EastCurveNeon", at * CFrame.new(0, -sg[3] + 0.75, 0.35), Vector3.new(len - 0.6, 0.5, 0.7), neon,
+					{ ghost = true, emit = "Fixture" })
+				strip.CastShadow = false
+			end
+			local _ = cf0
 		end
 
 		-- Tavan: cam şeridin iki kenarı boyunca camgöbeği neon hat

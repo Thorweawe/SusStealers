@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (41) — Batur (harita)
+
+Harita tam kuruldu: denetim 0/0; ayrıca iki yeni tarama temiz (dış parçalardan iç mekâna taşan 0, kama/silindirlerde aynı yöne bakan çakışan yüz 0).
+
+- `exterior.luau` `curved`: ölçeklenen union'ın CFrame'i kesilmemiş şeklin merkezinde kalıyordu → pruvanın yarısı kokpitin içindeydi, karın kavisleri duvara girmişti. Artık ExtentsCFrame'e göre yerleştiriliyor; pruva/karın kesim yönleri düzeltildi (pruva: üstü düz, altı ve ucu kavisli).
+- Köşe kolonları içeri taşıyordu → köşenin dışında tam silindir.
+- Titreyen yüzler: zırh kamaları / kule tabanı / kalça / kaburga / alev çekirdekleri aynı düzlemdeydi → küçük kaydırmalar.
+- İç kavis renkleri harita paletinden (duvar orta tonu, koyu bant, camgöbeği). Doğu (kokpit) duvarında da kavis: köşelerde R 13, ön camın üstünde R 9.
+
+---
+
 ## 2026-09-28 (40) — Batur (harita)
 
 - **Koridor kemerleri KALKTI** ("gereksiz"). `tools/map/arches.luau` artık **iç gövde kavisi**: kuzey, güney ve batı duvarının tavanla birleştiği köşede büyük içbükey kavis (R 13, CSG kutu − silindir), 36 stud'da bir kaburga, alt kenarında camgöbeği neon; tavan cam şeridi kenarında neon hat. Lombozların üstünde başlıyor.
