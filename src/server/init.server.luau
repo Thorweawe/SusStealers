@@ -42,6 +42,8 @@ local CapsuleService = require(script.CapsuleService)
 local JetpackService = require(script.JetpackService)
 local WeeklyService = require(script.WeeklyService)
 local SeasonService = require(script.SeasonService)
+local ServerBoostService = require(script.ServerBoostService)
+local FunnelService = require(script.FunnelService)
 
 local started = os.clock()
 
@@ -92,5 +94,9 @@ CapsuleService.Start()
 JetpackService.Start()
 WeeklyService.Start()
 SeasonService.Start()
+-- Robux: sunucu şansı ve troller (MonetizationService granter'ları)
+ServerBoostService.Start()
+-- Yeni oyuncunun ilk dakikaları (AnalyticsService hunisi)
+FunnelService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

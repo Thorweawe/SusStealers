@@ -1498,6 +1498,19 @@ Config.Rarities = {
 	Secret    = { order = 7, color = Color3.fromRGB( 30,  30,  40) },
 }
 
+--[[
+	Şanslı ağırlık: Rare ve üstü `luck` katı sık (sunucu şansı x2 = nadirler
+	iki kat sık). Common/Uncommon aynı; toplam büyüdüğü için onlar biraz
+	seyrekleşiyor.
+]]
+function Config.LuckWeight(rarity: string, weight: number, luck: number?): number
+	local info = Config.Rarities[rarity]
+	if luck and luck > 1 and info and info.order >= 3 then
+		return weight * luck
+	end
+	return weight
+end
+
 -- ─── Karakterler ────────────────────────────────────────────────────────────
 -- weight: aynı nadirlikteki karakterler arasında çıkma ağırlığı (büyük = sık;
 --         nadirliği canavarın odds'u seçiyor, Config.RollSpaceUnit)
@@ -1789,9 +1802,11 @@ end
 ]]
 
 --[[ Mutasyon çeker, çıkmazsa nil döner. ]]
-function Config.RollMutation(rng: Random): MutationDef?
+function Config.RollMutation(rng: Random, luck: number?): MutationDef?
+	-- luck: sunucu şansı (Config.GetServerLuck); her mutasyonun şansı bu kat
+	local mul = math.max(1, luck or 1)
 	for _, mutation in Config.Mutations do
-		if rng:NextNumber() < mutation.chance then
+		if rng:NextNumber() < math.min(0.95, mutation.chance * mul) then
 			return mutation
 		end
 	end
@@ -2014,9 +2029,10 @@ function Config.GetPetMutation(id: string?): PetMutationDef?
 	return nil
 end
 
-function Config.RollPetMutation(rng: Random): PetMutationDef?
+function Config.RollPetMutation(rng: Random, luck: number?): PetMutationDef?
+	local mul = math.max(1, luck or 1)
 	for _, def in Config.PetMutations do
-		if rng:NextNumber() < def.chance then
+		if rng:NextNumber() < math.min(0.95, def.chance * mul) then
 			return def
 		end
 	end
@@ -2278,15 +2294,15 @@ end
 	üç pet olması o kademeyi üç kat sık yapardı — yani yeni bir pet eklemek
 	dengeyi sessizce bozardı.
 ]]
-function Config.RollPet(rng: Random, eggId: string): PetDef?
+function Config.RollPet(rng: Random, eggId: string, luck: number?): PetDef?
 	local egg = Config.GetEgg(eggId)
 	if not egg then
 		return nil
 	end
 
 	local total = 0
-	for _, weight in egg.weights do
-		total += weight
+	for rarity, weight in egg.weights do
+		total += Config.LuckWeight(rarity, weight, luck)
 	end
 	if total <= 0 then
 		return nil
@@ -2295,7 +2311,7 @@ function Config.RollPet(rng: Random, eggId: string): PetDef?
 	local roll = rng:NextNumber(0, total)
 	local chosen: string? = nil
 	for rarity, weight in egg.weights do
-		roll -= weight
+		roll -= Config.LuckWeight(rarity, weight, luck)
 		if roll <= 0 then
 			chosen = rarity
 			break
@@ -2724,6 +2740,7 @@ Config.Space = {
 	CrewRotate = 300,
 	CrewRespawn = 60,
 	GrabHold = 1.0,
+	CarryScale = 0.6,           -- elde taşınan crewmate'in boyu (SpaceService, CarryPose)
 	GrabDistance = 12,
 
 	--[[
@@ -2864,10 +2881,10 @@ local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Myth
 	Canavarın havuzundan karakter çeker: önce nadirlik (odds ağırlığıyla),
 	sonra o nadirlikteki karakterler kendi weight'leriyle.
 ]]
-function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef): UnitDef
+function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef, luck: number?): UnitDef
 	local total = 0
-	for _, w in def.odds do
-		total += w
+	for name, w in def.odds do
+		total += Config.LuckWeight(name, w, luck)
 	end
 	local roll = rng:NextNumber(0, total)
 	local rarity = "Common"
@@ -2875,7 +2892,7 @@ function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef): UnitDef
 		local w = def.odds[name]
 		if w then
 			rarity = name
-			roll -= w
+			roll -= Config.LuckWeight(name, w, luck)
 			if roll <= 0 then
 				break
 			end
@@ -3217,5 +3234,45 @@ Config.SuperSpin = {
 	kimlik buraya; Config.Products'a taşınmıyor çünkü orada kimlik 0 olamaz).
 ]]
 Config.SpinPack = { id = 0, count = 5, robux = 199, name = "5 Spins" }
+
+-- ─── Sunucu şansı ve troller (Robux; bütün sunucuya) ───────────────────────
+--[[
+	2026-09-28 (Batur: "sunucu şans artışı olsun ve trolleme özelliği de
+	gelsin robuxla satılan"). ServerBoostService veriyor.
+
+	SUNUCU ŞANSI: 15 dk boyunca herkes için Rare+ doğuşlar/yumurtalar ve
+	mutasyonlar x2 sık (Config.LuckWeight, Roll* fonksiyonlarının `luck`u).
+	Tekrar alınırsa süre uzuyor (en fazla 1 saat). Alanın adı duyuruluyor.
+
+	TROLLER: zararsız, kısa, alanın adıyla duyurulan şakalar. Alan
+	etkilenmiyor (Moon hariç: yerçekimi herkes için).
+	  Tiny  — diğer herkes küçülüyor (uzaydakiler hariç)
+	  Moon  — gemide yerçekimi düşüyor, herkes ay gibi zıplıyor
+	  Alarm — diğerlerinin ekranında kırmızı "IMPOSTOR ALERT" + siren + sarsıntı
+
+	Kimlikler Creator Dashboard'da ürün açılınca buraya (0 = mağazada SOON).
+]]
+Config.ServerLuck = { multiplier = 2, seconds = 900, maxSeconds = 3600 }
+Config.Trolls = {
+	Tiny = { name = "Shrink Everyone", seconds = 20, scale = 0.45 },
+	Moon = { name = "Moon Gravity", seconds = 25, gravity = 45 },
+	Alarm = { name = "Impostor Alarm", seconds = 8 },
+} :: { [string]: { name: string, seconds: number, scale: number?, gravity: number? } }
+Config.ServerProducts = {
+	ServerLuck = { id = 0, robux = 149, name = "Server Luck x2", kind = "serverluck" },
+	TrollTiny = { id = 0, robux = 49, name = "Shrink Everyone", kind = "troll", troll = "Tiny" },
+	TrollMoon = { id = 0, robux = 49, name = "Moon Gravity", kind = "troll", troll = "Moon" },
+	TrollAlarm = { id = 0, robux = 25, name = "Impostor Alarm", kind = "troll", troll = "Alarm" },
+} :: { [string]: { id: number, robux: number, name: string, kind: string, troll: string? } }
+
+--[[ Şu anki sunucu şansı çarpanı (yoksa 1). İki tarafta da çalışıyor. ]]
+function Config.GetServerLuck(): number
+	local ends = workspace:GetAttribute("ServerLuckEndsAt")
+	if typeof(ends) == "number" and ends > workspace:GetServerTimeNow() then
+		local m = workspace:GetAttribute("ServerLuck")
+		return if typeof(m) == "number" then math.max(1, m) else 1
+	end
+	return 1
+end
 
 return Config

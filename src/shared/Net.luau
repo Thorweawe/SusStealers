@@ -49,6 +49,7 @@ local EVENTS = {
 	"SpinRequest",  -- client -> server (mode: nil | "token" | "super") — çark penceresindeki SPIN düğmeleri
 	"SpinResult",   -- server -> client (rewardId, text, duration, sliceIndex, jitter, super) — çark sonucu
 	"SeasonClaim",  -- client -> server (tier, "free" | "premium") — Sezon Kartı ödülü
+	"ServerFX",     -- server -> client ("luck", by, endsAt) | ("troll", kind, by, seconds) — ServerBoostService
 }
 
 --[[

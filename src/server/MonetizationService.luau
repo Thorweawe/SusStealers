@@ -252,6 +252,12 @@ local function findProduct(productId: number): Config.ProductDef?
 	if Config.SpinPack.id > 0 and Config.SpinPack.id == productId then
 		return { id = Config.SpinPack.id, name = Config.SpinPack.name, kind = "spinpack" } :: any
 	end
+	-- Sunucu şansı ve troller (Config.ServerProducts; ServerBoostService veriyor)
+	for _, def in Config.ServerProducts do
+		if def.id > 0 and def.id == productId then
+			return def :: any
+		end
+	end
 	return nil
 end
 

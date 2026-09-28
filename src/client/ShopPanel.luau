@@ -124,7 +124,7 @@ local FONT = Enum.Font.FredokaOne
 
 type Entry = {
 	key: string,          -- Config.GamePasses / Config.Products anahtarı
-	kind: string,         -- pass | product
+	kind: string,         -- pass | product | server (Config.ServerProducts)
 	title: string,        -- kartta kocaman yazan ad
 	blurb: string,        -- RichText: vurgulu kelime renkli
 	art: string,          -- shop_art/<art>.png
@@ -183,9 +183,26 @@ local BOOSTS: { Entry } = {
 		tint = Color3.fromRGB(236, 120, 30), blurb = "Rebirth " .. hi("now", "#FFE13C") .. ", skip the cost" },
 }
 
+--[[
+	SERVER (2026-09-28): bütün sunucuya etki eden ürünler — sunucu şansı ve
+	troller (Config.ServerProducts, sunucusu ServerBoostService).
+]]
+local SERVER: { Entry } = {
+	{ key = "ServerLuck", kind = "server", title = "Server Luck", art = "ServerLuck", icon = "wheel",
+		tint = Color3.fromRGB(56, 180, 70), blurb = hi("x2 luck", "#FFE13C") .. " for everyone, 15 min!" },
+	{ key = "TrollTiny", kind = "server", title = "Shrink All", art = "Troll_Tiny", icon = "crewmate",
+		tint = Color3.fromRGB(226, 70, 150), blurb = "Everyone else goes " .. hi("tiny", "#FFE13C") .. "!" },
+	{ key = "TrollMoon", kind = "server", title = "Moon Gravity", art = "Troll_Moon", icon = "crewmate",
+		tint = Color3.fromRGB(90, 110, 220), blurb = "The whole ship " .. hi("moon-jumps", "#FFE13C") .. "!" },
+	{ key = "TrollAlarm", kind = "server", title = "Impostor Alarm", art = "Troll_Alarm", icon = "crewmate",
+		tint = Color3.fromRGB(220, 50, 60), blurb = hi("Sirens", "#FFE13C") .. " on everyone's screen!" },
+}
+
 local function defOf(entry: Entry): { id: number, name: string }?
 	if entry.kind == "pass" then
 		return Config.GamePasses[entry.key]
+	elseif entry.kind == "server" then
+		return Config.ServerProducts[entry.key]
 	end
 	return Config.Products[entry.key]
 end
@@ -757,6 +774,33 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		end
 	end
 
+	-- ── SERVER: dört sütun (sunucu şansı + troller) ─────────────────────────
+	sectionTitle("server", "SERVER", Color3.fromRGB(255, 120, 200))
+	do
+		local cellW = math.floor((CONTENT_W - 36) / 4)
+		local g = grid(cellW, 262, #SERVER, 4)
+		for i, entry in SERVER do
+			local card = cardBase(g, entry.tint, UDim2.fromOffset(cellW, 262), Z + 2, UDim2.fromScale(0.5, 0.34))
+			card.LayoutOrder = i
+			local a = art(card, entry, 124, Z + 4)
+			a.AnchorPoint = Vector2.new(0.5, 0)
+			a.Position = UDim2.new(0.5, 0, 0, 8)
+			local name = FancyKit.title(card, entry.title, 22, WHITE, entry.tint:Lerp(WHITE, 0.55), Z + 5, driver)
+			name.AnchorPoint = Vector2.new(0.5, 0)
+			name.Position = UDim2.new(0.5, 0, 0, 130)
+			name.Size = UDim2.new(1, -12, 0, 30)
+			local blurb = bold(card, entry.blurb, 16, WHITE, Z + 5, 2)
+			blurb.AnchorPoint = Vector2.new(0.5, 0)
+			blurb.Position = UDim2.new(0.5, 0, 0, 160)
+			blurb.Size = UDim2.new(1, -14, 0, 38)
+			blurb.TextWrapped = true
+			local buy = buyButton(card, UDim2.new(1, -24, 0, 52), Z + 5, 28)
+			buy.holder.AnchorPoint = Vector2.new(0.5, 1)
+			buy.holder.Position = UDim2.new(0.5, 0, 1, -10)
+			wireBuy(entry, buy)
+		end
+	end
+
 	-- ── MONEY: üç sütun ────────────────────────────────────────────────────
 	sectionTitle("money", "MONEY", Color3.fromRGB(110, 240, 90))
 	do
@@ -987,6 +1031,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	local RAIL: { { id: string, text: string, entry: Entry, color: Color3 } } = {
 		{ id = "featured", text = "Featured", entry = PASSES[1], color = TITLE_YELLOW },
 		{ id = "passes", text = "Passes", entry = PASSES[2], color = Color3.fromRGB(220, 170, 255) },
+		{ id = "server", text = "Server", entry = SERVER[1], color = Color3.fromRGB(255, 150, 220) },
 		{ id = "money", text = "Money", entry = MONEY[2], color = Color3.fromRGB(120, 240, 100) },
 		{ id = "potions", text = "Potions", entry = POTIONS[1], color = Color3.fromRGB(120, 255, 200) },
 		{ id = "boosts", text = "Boosts", entry = BOOSTS[2], color = Color3.fromRGB(120, 200, 255) },
@@ -996,15 +1041,15 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	for i, spec in RAIL do
 		local b = Instance.new("TextButton")
 		b.LayoutOrder = i
-		b.Size = UDim2.fromOffset(130, 92)
+		b.Size = UDim2.fromOffset(130, 78)
 		b.BackgroundTransparency = 1
 		b.Text = ""
 		b.ZIndex = Z + 1
 		b.Parent = rail
-		local a = art(b, spec.entry, 70, Z + 2)
+		local a = art(b, spec.entry, 58, Z + 2)
 		a.AnchorPoint = Vector2.new(0.5, 0)
 		a.Position = UDim2.new(0.5, 0, 0, 0)
-		local l = bold(b, spec.text, 26, spec.color, Z + 4, 3.5)
+		local l = bold(b, spec.text, 23, spec.color, Z + 4, 3.2)
 		FancyKit.juicy(b, b, 1.08, -4)
 		l.AnchorPoint = Vector2.new(0.5, 1)
 		l.Position = UDim2.new(0.5, 0, 1, -2)

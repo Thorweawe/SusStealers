@@ -62,6 +62,7 @@ local SpaceBonusService = require(Server.SpaceBonusService)
 local JetpackService = require(Server.JetpackService)
 local WeeklyService = require(Server.WeeklyService)
 local SeasonService = require(Server.SeasonService)
+local ServerBoostService = require(Server.ServerBoostService)
 local MeteorShower = require(ReplicatedStorage.Shared.MeteorShower)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
@@ -4247,6 +4248,49 @@ case("Haftalık sıralama: hafta sayacı, ödül girişte bir kez", function(ctx
 	ctx.player:SetAttribute("WeeklyResult", nil)
 	JetpackService.Publish(ctx.player)
 	TitleService.Publish(ctx.player)
+end)
+
+case("Sunucu şansı: nadirler sıklaşıyor, süre uzuyor ve bitiyor", function(ctx)
+	-- Aynı zar dizisiyle şanslı ve şanssız çekiliş: şanslıda Rare+ daha çok
+	local monster = Config.SpaceMonsters[2]
+	local function rares(luck: number): number
+		local rng = Random.new(42)
+		local n = 0
+		for _ = 1, 3000 do
+			local unit = Config.RollSpaceUnit(rng, monster, luck)
+			if Config.Rarities[unit.rarity].order >= 3 then
+				n += 1
+			end
+		end
+		return n
+	end
+	ok("şansla Rare+ artıyor", rares(2) > rares(1), string.format("%d vs %d", rares(2), rares(1)))
+	eq("şans yokken ağırlık aynı", Config.LuckWeight("Rare", 10, nil), 10)
+	eq("Common'a şans yok", Config.LuckWeight("Common", 10, 2), 10)
+	eq("Rare x2", Config.LuckWeight("Rare", 10, 2), 20)
+
+	ServerBoostService.Expire(true)
+	eq("başta şans 1", Config.GetServerLuck(), 1)
+	ok("şans verildi", ServerBoostService.GrantLuck(ctx.player))
+	eq("şans x2", Config.GetServerLuck(), Config.ServerLuck.multiplier)
+	local first = workspace:GetAttribute("ServerLuckEndsAt") :: number
+	ServerBoostService.GrantLuck(ctx.player)
+	local second = workspace:GetAttribute("ServerLuckEndsAt") :: number
+	ok("tekrar alınca uzuyor", second > first + Config.ServerLuck.seconds - 5)
+	ok("tavan 1 saat", second <= workspace:GetServerTimeNow() + Config.ServerLuck.maxSeconds + 1)
+	ServerBoostService.Expire(true)
+	eq("bitince 1", Config.GetServerLuck(), 1)
+
+	-- Troller: bilinmeyen tür reddediliyor; ay yerçekimi geri geliyor
+	ok("bilinmeyen trol yok", not ServerBoostService.Troll(ctx.player, "Nope"))
+	local g = workspace.Gravity
+	ok("ay trolü", ServerBoostService.Troll(ctx.player, "Moon"))
+	ok("yerçekimi düştü", workspace.Gravity < g)
+	ServerBoostService.Expire(true)
+	eq("yerçekimi geri", workspace.Gravity, g)
+	for key, def in Config.ServerProducts do
+		ok(key .. " türü tanınıyor", def.kind == "serverluck" or (def.kind == "troll" and Config.Trolls[def.troll or ""] ~= nil))
+	end
 end)
 
 case("Sezon Kartı: XP kademesi, bedava ve premium ödül", function(ctx)

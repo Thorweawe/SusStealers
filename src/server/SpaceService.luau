@@ -499,11 +499,13 @@ local crewFolder: Folder? = nil
 local function rollSpot(spot: Spot)
 	-- Nebula Blackout: bir üst canavarın havuzu
 	local def = Config.SpaceMonsters[math.min(#Config.SpaceMonsters, spot.planet + eventMods.tierBonus)]
-	local unit = Config.RollSpaceUnit(rng, def)
-	local mutation = Config.RollMutation(rng)
+	-- Sunucu şansı (Robux, ServerBoostService): nadirler ve mutasyonlar sık
+	local luck = Config.GetServerLuck()
+	local unit = Config.RollSpaceUnit(rng, def, luck)
+	local mutation = Config.RollMutation(rng, luck)
 	if eventMods.mutated then
 		while not mutation do
-			mutation = Config.RollMutation(rng)
+			mutation = Config.RollMutation(rng, luck)
 		end
 	end
 	placeSpot(spot, unit.id, if mutation then mutation.id else nil, crewFolder :: Folder)
@@ -511,7 +513,15 @@ end
 
 -- ─── Taşıma ─────────────────────────────────────────────────────────────────
 
-local function attachToBack(player: Player, unitId: string, mutationId: string?): Model?
+--[[
+	2026-09-28 ("crewmate üstümüzde uçuyor, elimizle tutmuyoruz"): karakter
+	başının ÜSTÜNDE iki eliyle taşıyor. Kaynak bir Weld ("CarryWeld"):
+	C0 başın üstü. İstemci (CarryPose) kolları yukarı kaldırıyor, kapma
+	anında crewmate'i yerinden ellere uçuruyor (GrabFrom / GrabAt) ve
+	taşırken çırpındırıyor (C0'ı yerelde oynatıyor; herkes kendi
+	ekranında aynısını hesaplıyor).
+]]
+local function attachToBack(player: Player, unitId: string, mutationId: string?, from: Vector3?): Model?
 	local character = player.Character
 	local root = rootOf(player)
 	if not (character and root) then
@@ -520,8 +530,15 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 	local model = UnitModel.Build(unitId, mutationId)
 	-- "CarriedUnit" DEĞİL: o adı gemideki çalma sistemi (alarm, iz, rehber) izliyor
 	model.Name = "SpaceCarry"
-	model:PivotTo(root.CFrame * CFrame.new(0, 2.2, 1.6) * CFrame.Angles(0, math.rad(180), 0))
+	-- Elde taşınan boy: oyuncudan küçük (tam boyda başın üstünde dev duruyordu)
+	model:ScaleTo(Config.Space.CarryScale)
 	local primary = model.PrimaryPart :: BasePart
+	-- Modelin alt yüzü başın üstünde: kutu merkezi ile ana parça arasındaki fark hesaba katılıyor
+	local box, size = model:GetBoundingBox()
+	local offset = primary.CFrame:ToObjectSpace(box)
+	local holdY = 2.55 + size.Y / 2
+	local c0 = CFrame.new(0, holdY, -0.25) * CFrame.Angles(math.rad(-8), 0, 0) * offset:Inverse()
+	model:PivotTo(root.CFrame * c0 * primary.CFrame:ToObjectSpace(model:GetPivot()))
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = false
@@ -536,10 +553,16 @@ local function attachToBack(player: Player, unitId: string, mutationId: string?)
 			end
 		end
 	end
-	local weld = Instance.new("WeldConstraint")
+	local weld = Instance.new("Weld")
+	weld.Name = "CarryWeld"
 	weld.Part0 = root
 	weld.Part1 = primary
+	weld.C0 = c0
 	weld.Parent = primary
+	if from then
+		model:SetAttribute("GrabFrom", from)
+		model:SetAttribute("GrabAt", workspace:GetServerTimeNow())
+	end
 	model.Parent = character
 	return model
 end
@@ -598,7 +621,7 @@ function onGrab(player: Player, spot: Spot)
 		Hangi mutasyon olacağı mutasyonların kendi nadirliğiyle (chance).
 	]]
 	local lucky = false
-	if not mutationId and luckRng:NextNumber() < Config.GetLuckyChance(UpgradeService.GetLevel(player, "LuckyScanner")) then
+	if not mutationId and luckRng:NextNumber() < Config.GetLuckyChance(UpgradeService.GetLevel(player, "LuckyScanner")) * Config.GetServerLuck() then
 		local total = 0
 		for _, m in Config.Mutations do
 			total += m.chance
@@ -613,7 +636,7 @@ function onGrab(player: Player, spot: Spot)
 			end
 		end
 	end
-	local model = attachToBack(player, unitId, mutationId)
+	local model = attachToBack(player, unitId, mutationId, spot.position)
 	if not model then
 		return
 	end

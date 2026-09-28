@@ -425,12 +425,13 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 	local deleted: { boolean } = {}
 	local pending: { [string]: number } = {}
 	for _ = 1, amount do
-		local def = Config.RollPet(rng, eggId)
+		local luck = Config.GetServerLuck()
+		local def = Config.RollPet(rng, eggId, luck)
 		if not def then
 			notify(player, "That egg is empty", true)
 			return nil
 		end
-		local mutation = Config.RollPetMutation(rng)
+		local mutation = Config.RollPetMutation(rng, luck)
 		local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
 		local drop = autoDelete[def.rarity] == true and mutation == nil
 		if not drop then
@@ -493,11 +494,12 @@ function PetService.GiveEggRoll(player: Player, eggId: string): string?
 	if not (egg and profile) then
 		return nil
 	end
-	local def = Config.RollPet(rng, eggId)
+	local luck = Config.GetServerLuck()
+	local def = Config.RollPet(rng, eggId, luck)
 	if not def then
 		return nil
 	end
-	local mutation = Config.RollPetMutation(rng)
+	local mutation = Config.RollPetMutation(rng, luck)
 	local key = Config.PetKey(def.id, if mutation then mutation.id else nil)
 	if not grant(player, key) then
 		return nil

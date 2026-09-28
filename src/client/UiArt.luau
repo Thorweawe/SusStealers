@@ -66,6 +66,11 @@ UiArt.Icon = {
 	Tab_Potion = 105612339081576,
 	Tab_Style = 91214765132761,
 	Stat_Speed = 99403146956988,
+	-- Sunucu şansı ve troller (mağaza SERVER bölümü, şans hapı)
+	ServerLuck = 79817173307828,
+	Troll_Tiny = 109290408619292,
+	Troll_Moon = 86179954993615,
+	Troll_Alarm = 115282988948591,
 }
 
 function UiArt.Image(kind: string, name: string): string

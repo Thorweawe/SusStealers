@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (50) — Batur (Yusuf'un şeridine de yazıldı: mağaza, HUD, taşıma)
+
+Studio'ya aktarıldı, **178/178 test temiz**.
+
+- **Sunucu şansı (Robux)** — `server/ServerBoostService`, `Config.ServerLuck`, `Config.ServerProducts`: 15 dk herkes için Rare+ doğuş/yumurta ve mutasyonlar x2 (`Config.LuckWeight`, `Roll*` fonksiyonlarına `luck`; `Config.GetServerLuck()` workspace niteliklerinden). Tekrar alınca süre uzuyor (en çok 1 saat). Sol üstte sayaçlı hap (alanın avatarı + adı), üstte büyük afiş, sohbette duyuru.
+- **Troller (Robux)**: Shrink Everyone (alan hariç herkes küçülüyor), Moon Gravity (yerçekimi düşüyor), Impostor Alarm (diğerlerinde kırmızı ekran + siren + sarsıntı). Alanın adı ve avatarı afişte. İstemci: `client/ServerBoostFX`, remote `ServerFX`.
+- **Mağaza**: yeni SERVER bölümü (4 kart, 3B ikonlar). Ürün kimlikleri 0 → kartlarda SOON; Dashboard'da açılınca `Config.ServerProducts`'a yazılacak.
+- **Taşıma animasyonu** — `client/CarryPose`: taşıyan iki kolunu kaldırıp crewmate'i başının üstünde tutuyor; kapınca crewmate yerinden ellere uçuyor, taşırken çırpınıyor. Sunucu (`SpaceService.attachToBack`) artık `Weld` ("CarryWeld") + `GrabFrom/GrabAt`, crewmate `Config.Space.CarryScale` boyunda. **Not:** yeni avatar eklemleri `AnimationConstraint` (Motor6D değil) — poz kodunda ikisini de kabul et.
+- **Ölçüm** — `server/FunnelService`: yeni oyuncular için AnalyticsService onboarding hunisi (Joined + öğretici adımları), `NewPlayerMinute` (1/2/3/5/7/10. dk'da hangi adımda), `NewPlayerLeft` (kaç dk kaldı, hangi adımda bıraktı), `TutorialSkipped`. Creator Dashboard > Analytics'te görünüyor.
+
+---
+
 ## 2026-09-28 (49) — Batur (Yusuf'un şeridine yazıldı: pencereler)
 
 **Pencereler mağazanın diline çevrildi.** Studio'ya aktarıldı; yalnızca istemci, mantık/uzak olaylar aynı.
