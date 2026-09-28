@@ -112,7 +112,7 @@ end
 ]]
 local function grantReward(player: Player, reward: Config.SpinReward, super: boolean?): string?
 	if reward.kind == "cash" then
-		local amount = Config.GetSpinCash(reward, EconomyService.GetIncome(player))
+		local amount = Config.GetSpinCash(reward, EconomyService.GetIncome(player), EconomyService.GetCash(player))
 		if super then
 			amount = math.floor(amount * Config.SuperSpin.cashMul)
 		end

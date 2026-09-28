@@ -481,16 +481,16 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local now = Config.GetIncomeMultiplier(rebirths)
 		-- Tavan: son kat açıldıktan sonra rebirth'ün verecek bir şeyi kalmıyor (sunucuyla aynı kural)
 		if rebirths >= Config.MaxFloors - 1 then
-			rbMult.Text = string.format("Income x%.1f  ·  every rebirth done", now)
+			rbMult.Text = string.format("Income x%.2f  ·  every rebirth done", now)
 			gains[1].Text = '<font color="#9CFFA0">+</font>  Nothing left to unlock'
 			rbBuy.set("MAXED", nil)
 			rbNote.Text = "You have every rebirth."
 			return
 		end
 		local nextMul = Config.GetIncomeMultiplier(rebirths + 1)
-		rbMult.Text = string.format('Income x%.1f  <font color="#7CFF5B">→ x%.1f</font>', now, nextMul)
+		rbMult.Text = string.format('Income x%.2f  <font color="#7CFF5B">→ x%.2f</font>', now, nextMul)
 		rbMult.RichText = true
-		gains[1].Text = string.format('<font color="#9CFFA0">+</font>  <font color="#FFE13C">+%d%% income</font> forever', math.floor(Config.RebirthIncomeBonus * 100 + 0.5))
+		gains[1].Text = string.format('<font color="#9CFFA0">+</font>  <font color="#FFE13C">+%d%% income</font> forever', math.floor(Config.GetRebirthBonus(rebirths + 1) * 100 + 0.5))
 		local cost = player:GetAttribute("RebirthCost")
 		cost = if typeof(cost) == "number" then cost else Config.GetRebirthCost(rebirths)
 		if cash >= cost then

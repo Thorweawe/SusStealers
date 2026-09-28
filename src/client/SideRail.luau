@@ -40,9 +40,11 @@ export type Rail = {
 	Destroy: () -> (),
 }
 
-local BUTTON = Vector2.new(78, 80)
-local GAP = 8
-local COLUMNS = 2
+-- 2026-09-28: tek sütun, yukarıdan aşağı (SHOP, ITEMS, PASS, INDEX). Düğmeler
+-- biraz küçük: telefonda (joystick bandı kaldırması dahil) üst şeride değmesin
+local BUTTON = Vector2.new(64, 66)
+local GAP = 6
+local COLUMNS = 1
 local BODY = Color3.fromRGB(40, 46, 68)
 
 local player = Players.LocalPlayer
@@ -85,8 +87,8 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 		local holder, button, slot = UiKit.IconButton(rail, spec.name, body, spec.label, BUTTON)
 		holder.LayoutOrder = index
 		UiKit.ClearSlot(slot)
-		slot.Size = UDim2.fromOffset(40, 40)
-		UiKit.Icon(slot, spec.icon, 38, spec.tint:Lerp(Color3.new(1, 1, 1), 0.25))
+		slot.Size = UDim2.fromOffset(34, 34)
+		UiKit.Icon(slot, spec.icon, 32, spec.tint:Lerp(Color3.new(1, 1, 1), 0.25))
 		local badge = UiKit.Badge(button)
 
 		local newTag = Instance.new("TextLabel")
@@ -134,7 +136,8 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 				entry.holder.Visible = want
 				if want and not first then
 					-- Yeni açıldı: büyüyerek gel, "NEW" yazısı
-					entry.newTag.Visible = true
+					-- 2026-09-28: "NEW yazıları kalksın" — büyüme animasyonu yeterli
+					entry.newTag.Visible = false
 					local scale = entry.holder:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 					scale.Parent = entry.holder
 					scale.Scale = 0.3

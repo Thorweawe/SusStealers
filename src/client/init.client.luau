@@ -668,7 +668,7 @@ mountPanel("SideRail", function()
 	local seasonPass = SeasonPanel.Create(screen)
 	previews.Season = seasonPass.Open
 	--[[
-		Sol menü: 2×2 dört düğme (SideRail). `unlockAt` = kaç öğretici adımı
+		Sol menü: tek sütun, yukarıdan aşağı SHOP, ITEMS, PASS, INDEX (SideRail). `unlockAt` = kaç öğretici adımı
 		bitince görünüyor (kademeli açılma): ilk soygundan sonra SHOP ve
 		INDEX, pet adımında ITEMS, öğretici bitince PASS.
 		2026-09-28: QUESTS ödül penceresinin sekmesi (üst şeritteki hediye,
@@ -701,20 +701,20 @@ mountPanel("SideRail", function()
 			unlockAt = 8,
 		},
 		{
-			name = "Index",
-			label = "INDEX",
-			tint = UiKit.CREW.CYAN,
-			icon = "book",
-			onClick = catalog.Toggle,
-			unlockAt = 1,
-		},
-		{
 			name = "Pass",
 			label = "PASS",
 			tint = Color3.fromRGB(170, 100, 255),
 			icon = "crown",
 			onClick = seasonPass.Toggle,
 			unlockAt = #Config.Tutorial,
+		},
+		{
+			name = "Index",
+			label = "INDEX",
+			tint = UiKit.CREW.CYAN,
+			icon = "book",
+			onClick = catalog.Toggle,
+			unlockAt = 1,
 		},
 	})
 	Inventory.BadgeChanged.Event:Connect(function(total: number)

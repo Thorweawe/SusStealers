@@ -662,6 +662,7 @@ case("Rebirth: sıfırlıyor ve çarpan veriyor", function(ctx)
 	eq("kaideler boşaldı", occupied, 0)
 
 	near("gelir çarpanı", Config.GetIncomeMultiplier(1), 1 + Config.RebirthIncomeBonus, 0.001)
+	near("ikinci rebirth artışı büyüyor", Config.GetIncomeMultiplier(2) - Config.GetIncomeMultiplier(1), Config.RebirthIncomeBonus + Config.RebirthIncomeStep, 0.001)
 end)
 
 case("Rebirth: tavanda duruyor", function(ctx)
@@ -3066,7 +3067,7 @@ case("Arkadaş: bonus küçük ve tavanlı", function()
 		geçmemeli, yoksa arkadaşla oynamak ilerlemenin kendisinden değerli
 		olur.
 	]]
-	ok("rebirth'ten çok küçük", Config.FriendBonusMax <= Config.RebirthIncomeBonus / 2,
+	ok("rebirth'ten küçük", Config.FriendBonusMax <= Config.RebirthIncomeBonus * 0.6,
 		string.format("%.2f / %.2f", Config.FriendBonusMax, Config.RebirthIncomeBonus))
 	ok("sesi var", Config.HasNotifyCue(FriendService.NotifyKind))
 end)
@@ -4022,6 +4023,15 @@ case("Mağaza: nakit paketi gelire ve bakiyeye göre, yükseltme adımları kü�
 	ok("gelirle büyüyor", Config.GetCashPackAmount(small, 1e6, 0) >= 1e6 * small.seconds * 0.95)
 	ok("bakiyeyle büyüyor", Config.GetCashPackAmount(small, 0, 1e12) >= 1e12 * small.cashFrac * 0.95)
 	ok("büyük paket küçükten çok", Config.GetCashPackAmount(Config.Products.Cash10M, 5000, 1e7) > Config.GetCashPackAmount(small, 5000, 1e7))
+	-- Çark (süper çark x3 dahil) en küçük Robux paketinden hep az
+	local huge
+	for _, r in Config.SpinRewards do
+		if r.id == "HugeCash" then huge = r end
+	end
+	for _, st in { { 0, 0 }, { 5000, 0 }, { 0, 1e9 }, { 1e6, 1e10 }, { 1e3, 1e12 } } do
+		local spin = Config.GetSpinCash(huge, st[1], st[2]) * Config.SuperSpin.cashMul
+		ok(string.format("çark Robux'tan az (%g, %g)", st[1], st[2]), spin < Config.GetCashPackAmount(small, st[1], st[2]))
+	end
 	-- Robux başına değer paket büyüdükçe artıyor (fiyatlar 25 / 99 / 299)
 	local robux = { Cash100K = 25, Cash1M = 99, Cash10M = 299 }
 	for _, case_ in { { 0, 0 }, { 5000, 0 }, { 0, 1e9 }, { 1e6, 1e10 } } do

@@ -192,16 +192,23 @@ export type SpinReward = {
 	weight: number,
 	kind: string,            -- cash | spawn | mutation | unit
 	incomeSeconds: number?,  -- cash: kaç saniyelik gelir
+	cashFrac: number?,       -- cash: bakiyenin bu kadarı (gelir düşük, bakiye büyükse)
 	minimum: number?,        -- cash: taban tutar
 }
 
 Config.SpinRewards = {
-	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  40, minimum =   1000 },
-	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 150, minimum =   8000 },
+	--[[
+		2026-09-28: nakit dilimleri gelire VE bakiyeye göre (büyüğü), ama
+		Robux paketlerinden hep az: süper çarkın en büyüğü (Huge x3 =
+		1260 sn gelir / bakiyenin %9'u) bile en küçük Robux paketinin
+		(1800 sn / %15) altında kalıyor (test var).
+	]]
+	{ id = "SmallCash",  name = "Cash",              weight = 40, kind = "cash",     incomeSeconds =  40, cashFrac = 0.003, minimum =   1000 },
+	{ id = "MedCash",    name = "Big Cash",          weight = 25, kind = "cash",     incomeSeconds = 150, cashFrac = 0.01,  minimum =   8000 },
 	-- spawn/mutation/unit: karakter doğrudan kaideye (SpaceService.GrantUnit)
 	{ id = "Spawn",      name = "Free Crewmate",     weight = 15, kind = "spawn" },
 	{ id = "Mutation",   name = "Mutated Crewmate",  weight = 12, kind = "mutation" },
-	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 420, minimum =  60000 },
+	{ id = "HugeCash",   name = "Huge Cash",         weight =  6, kind = "cash",     incomeSeconds = 420, cashFrac = 0.03,  minimum =  60000 },
 	-- Jackpot: bir üst canavarın havuzundan
 	{ id = "FreeUnit",   name = "Jackpot Crewmate",  weight =  2, kind = "unit" },
 } :: { SpinReward }
@@ -249,9 +256,10 @@ function Config.RollSpinReward(rng: Random, weights: { [string]: number }?): Spi
 end
 
 --[[ Nakit ödülünün tutarı. Gelir düşükse taban değer geçerli. ]]
-function Config.GetSpinCash(reward: SpinReward, incomePerSecond: number): number
+function Config.GetSpinCash(reward: SpinReward, incomePerSecond: number, cash: number?): number
 	local scaled = incomePerSecond * (reward.incomeSeconds or 0)
-	return math.floor(math.max(reward.minimum or 0, scaled))
+	local byCash = math.max(0, cash or 0) * (reward.cashFrac or 0)
+	return math.floor(math.max(reward.minimum or 0, scaled, byCash))
 end
 
 -- ─── Unvanlar ───────────────────────────────────────────────────────────────
@@ -843,7 +851,13 @@ Config.FloorHeight = 18        -- katlar arası yükseklik (stud)
 -- kazançtı, hiçbir şey ifade etmiyordu.
 Config.RebirthBaseCost = 1000000000
 Config.RebirthCostGrowth = 8   -- her seviyede maliyet bu kat artar
-Config.RebirthIncomeBonus = 0.5 -- seviye başına kalıcı gelir artışı (+%50)
+--[[
+	Rebirth başına kalıcı gelir artışı (2026-09-28: "%50 çok fazla"):
+	ilki +%25, sonraki her biri öncekinden +%5 fazla (+%30, +%35...).
+	Çarpan toplamsal: 1 rebirth x1.25, 2 x1.55, 3 x1.90.
+]]
+Config.RebirthIncomeBonus = 0.25 -- ilk rebirth'ün artışı
+Config.RebirthIncomeStep = 0.05  -- her sonraki rebirth'te artışa eklenen
 
 --[[
 	Üst katlar: rebirth AÇIYOR, para SATIN ALIYOR.
@@ -1223,11 +1237,14 @@ Config.Products = {
 
 		Robux fiyatları 25 / 99 / 299. Büyük paket Robux başına daha
 		kârlı olmalı ("küçük paket daha ucuza geliyordu"): Robux başına
-		değer küçüğe göre Orta ~×1.35, Büyük ~×1.65 (üç terimin her birinde).
+		değer küçüğe göre Orta ~x1.35, Büyük ~x1.65.
+		2026-09-28: çarktan hep fazla ("çark Robux kadar vermesin") — en
+		küçük paket bile süper çarkın en büyük diliminin üstünde (yeni oyuncuda
+		da: tabanlar 250K / 3M / 15M, süper Huge tabanı 180K).
 	]]
-	Cash100K       = { id = 3714873855, name = "Small Cash Pack",  kind = "cash", amount =   100000, seconds =   900, cashFrac = 0.1 },
-	Cash1M         = { id = 3714873899, name = "Medium Cash Pack", kind = "cash", amount =  1000000, seconds =  4800, cashFrac = 0.55 },
-	Cash10M        = { id = 3714873959, name = "Huge Cash Pack",   kind = "cash", amount = 10000000, seconds = 18000, cashFrac = 2 },
+	Cash100K       = { id = 3714873855, name = "Small Cash Pack",  kind = "cash", amount =   250000, seconds =  1800, cashFrac = 0.15 },
+	Cash1M         = { id = 3714873899, name = "Medium Cash Pack", kind = "cash", amount =  3000000, seconds =  9600, cashFrac = 0.8 },
+	Cash10M        = { id = 3714873959, name = "Huge Cash Pack",   kind = "cash", amount = 15000000, seconds = 36000, cashFrac = 3 },
 	-- Instant Spawn (3714873580, kind "conveyor") mağazadan kaldırıldı. Konveyör de
 	-- kalktı; "conveyor" ödülü artık SpaceService'te (kaideye bir karakter).
 	LuckyRoll      = { id = 3714873797, name = "Guaranteed Mutation", kind = "lucky" },
@@ -1722,7 +1739,16 @@ end
 
 --[[ Rebirth sayısının getirdiği kalıcı gelir çarpanı. 0 -> 1.0 ]]
 function Config.GetIncomeMultiplier(rebirths: number): number
-	return 1 + rebirths * Config.RebirthIncomeBonus
+	local total = 1
+	for k = 1, math.max(0, math.floor(rebirths)) do
+		total += Config.GetRebirthBonus(k)
+	end
+	return total
+end
+
+--[[ k'ıncı rebirth'ün getirdiği artış (1 -> 0.25, 2 -> 0.30...). ]]
+function Config.GetRebirthBonus(k: number): number
+	return Config.RebirthIncomeBonus + (math.max(1, k) - 1) * Config.RebirthIncomeStep
 end
 
 --[[ Kaç kat açık. İlk kat bedava, her rebirth bir kat daha açar. ]]

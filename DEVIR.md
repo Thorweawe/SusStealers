@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (45) — Batur (Yusuf'un şeridine de yazıldı)
+
+Studio'ya aktarıldı, **177/177 test temiz**.
+
+- **Çark nakdi** gelire VE bakiyeye göre (`SpinReward.cashFrac`: 0.3% / 1% / 3%; `Config.GetSpinCash(reward, income, cash)`), ama Robux'tan hep az: süper çarkın en büyüğü (Huge ×3) bile en küçük Robux paketinin altında (test).
+- **Robux nakit paketleri büyüdü**: taban 250K / 3M / 15M, 1800 / 9600 / 36000 sn gelir, bakiyenin %15 / %80 / ×3. Robux başına değer yine paket büyüdükçe artıyor.
+- **Rebirth artışı kademeli**: ilki +%25, sonra +%30, +%35... (`Config.RebirthIncomeBonus` 0.25, `RebirthIncomeStep` 0.05, `Config.GetRebirthBonus(k)`); çarpan 1.25 / 1.55 / 1.90. Arkadaş bonusu testi "rebirth'in 0.6'sı" oldu (0.15 ≤ 0.15).
+- **Sol menü tek sütun**, yukarıdan: SHOP, ITEMS, PASS, INDEX (düğmeler 64×66). **"NEW" etiketi kalktı** (açılış animasyonu duruyor).
+
+---
+
 ## 2026-09-28 (44) — Batur (Yusuf'un şeridine yazıldı: arayüz)
 
 Studio'ya aktarıldı (önce Studio–HEAD karşılaştırıldı, aynıydı), **177/177 test temiz**.
