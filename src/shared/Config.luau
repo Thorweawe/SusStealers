@@ -396,11 +396,13 @@ export type QuestTier = {
 	iki oturumda bitirilebilir bir hedef bırakıyor.
 ]]
 Config.QuestTiers = {
-	-- 2026-09-28 dengesi: günlük görev 1 SAATLİK gelir veriyordu (bir oyuncu 62M aldı).
-	-- Ödüller artık birkaç dakikalık gelir: görev hedefe yönlendiriyor, para basmıyor.
-	{ id = "short",  name = "30 Minutes", seconds =  1800, slots = 2, goalMul =  1, rewardSeconds =   45, rewardMinimum =   2000 },
-	{ id = "medium", name = "3 Hours",    seconds = 10800, slots = 2, goalMul =  4, rewardSeconds =  180, rewardMinimum =  12000 },
-	{ id = "daily",  name = "Daily",      seconds = 86400, slots = 2, goalMul = 12, rewardSeconds =  480, rewardMinimum =  50000 },
+	--[[ 2026-09-28 (2. ayar) ödül merdiveni, hepsi "kaç saniyelik ANLIK gelir":
+	     çark 40/150/420 · görev 90/300/900 · sezon bedava 70..350, premium
+	     175..875 · en küçük Robux paketi 1800. Bedava hiçbir şey en küçük
+	     Robux paketine yetişmiyor; 45 sn'lik görev ödülü de hissedilmiyordu. ]]
+	{ id = "short",  name = "30 Minutes", seconds =  1800, slots = 2, goalMul =  1, rewardSeconds =   90, rewardMinimum =   3000 },
+	{ id = "medium", name = "3 Hours",    seconds = 10800, slots = 2, goalMul =  4, rewardSeconds =  300, rewardMinimum =  15000 },
+	{ id = "daily",  name = "Daily",      seconds = 86400, slots = 2, goalMul = 12, rewardSeconds =  900, rewardMinimum =  60000 },
 } :: { QuestTier }
 
 export type QuestDef = {
@@ -3182,7 +3184,7 @@ function Config.GetSeasonRewards(tier: number): (SeasonReward, SeasonReward)
 		premium = { kind = "superspin", count = 2 }
 	elseif tier == 30 then
 		free = { kind = "superspin", count = 1 }
-		premium = { kind = "cash", seconds = 7200, minimum = 5_000_000 }
+		premium = { kind = "cash", seconds = 3600, minimum = 500_000 }
 	elseif tier % 5 == 0 then
 		free = { kind = "spins", count = 1 }
 		premium = { kind = "superspin", count = 1 }
@@ -3190,8 +3192,9 @@ function Config.GetSeasonRewards(tier: number): (SeasonReward, SeasonReward)
 		free = { kind = "potion", count = 1 }
 		premium = { kind = "potion", count = 2 }
 	else
-		free = { kind = "cash", seconds = 60 + tier * 12, minimum = 2000 * tier }
-		premium = { kind = "cash", seconds = 180 + tier * 30, minimum = 6000 * tier }
+		-- Gelirle ölçekli (Config.QuestTiers'taki merdiven): bedava 70..350 sn, premium 175..875 sn
+		free = { kind = "cash", seconds = 60 + tier * 10, minimum = 1500 * tier }
+		premium = { kind = "cash", seconds = 150 + tier * 25, minimum = 4000 * tier }
 	end
 	return free, premium
 end

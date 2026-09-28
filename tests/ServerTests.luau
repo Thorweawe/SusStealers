@@ -1768,6 +1768,8 @@ case("Görev: ödül gelirle ölçekleniyor ve tabanı var", function()
 
 		eq(tier.id .. " tabanı", poor, tier.rewardMinimum)
 		ok(tier.id .. " gelirle büyüyor", rich > poor)
+		-- Bedava ödül en küçük Robux nakit paketine yetişmiyor
+		ok(tier.id .. " Robux paketinden az", tier.rewardSeconds < (Config.Products.Cash100K :: any).seconds)
 	end
 end)
 

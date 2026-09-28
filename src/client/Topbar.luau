@@ -39,6 +39,7 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local Topbar = {}
@@ -68,8 +69,28 @@ local CLUTTER = {
 
 local BUTTON = 44
 local GAP = 12
--- Üç düğmede aynı ikon boyu (eskiden 24 / 30 / 28: asimetrik görünüyordu)
-local ICON = 28
+
+--[[
+	2026-09-28 (mağaza dili): ikonlar 3B render (UiArt "Top_*", "Gift"),
+	düğmenin kenarından biraz taşıyor; düğme kenarı kalın ve koyu.
+]]
+local function art(button: GuiObject, name: string): ImageLabel
+	local stroke = button:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = Color3.fromRGB(22, 20, 34)
+		stroke.Thickness = 2.5
+	end
+	local img = Instance.new("ImageLabel")
+	img.Name = "Art"
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.fromScale(0.5, 0.5)
+	img.Size = UDim2.fromScale(1.08, 1.08)
+	img.BackgroundTransparency = 1
+	img.Image = UiArt.Image("Icon", name)
+	img.ZIndex = 6
+	img.Parent = button
+	return img
+end
 
 export type Bar = {
 	SetGiftBadge: (count: number) -> (),
@@ -117,22 +138,8 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 		sola kaymış duruyordu; üç düğmenin ikonları aynı boyda ve ortada
 		olmalı), artı köşede küçük bir rozet.
 	]]
-	local crew = UiKit.Crewmate(inviteSlot, ICON, UiKit.CREW.LIME:Lerp(Color3.new(1, 1, 1), 0.35))
-	-- Sırt çantası sağa taşıyor: görsel merkez ortada kalsın diye biraz sola
-	crew.Position = UDim2.new(0.5, -math.floor(ICON * 0.06 + 0.5), 0.5, 0)
-	local plus = Instance.new("TextLabel")
-	plus.AnchorPoint = Vector2.new(0.5, 0.5)
-	plus.Position = UDim2.new(1, -7, 0, 7)
-	plus.Size = UDim2.fromOffset(14, 14)
-	plus.BackgroundColor3 = Color3.fromRGB(30, 120, 50)
-	plus.BorderSizePixel = 0
-	plus.Font = Enum.Font.FredokaOne
-	plus.TextSize = 14
-	plus.TextColor3 = Color3.new(1, 1, 1)
-	plus.Text = "+"
-	plus.ZIndex = crew.ZIndex + 4
-	plus.Parent = inviteSlot
-	UiKit.Corner(plus, 7)
+	-- 3B mürettebat, "+" rozeti resmin içinde (tools/ui_icons.py)
+	art(inviteButton, "Top_Invite")
 
 	local inviteTip = Instance.new("TextLabel")
 	inviteTip.AnchorPoint = Vector2.new(0.5, 0)
@@ -179,7 +186,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 	giftSlot.BackgroundTransparency = 1
 	giftSlot.ZIndex = 5
 	giftSlot.Parent = giftButton
-	UiKit.Gift(giftSlot, ICON, Color3.fromRGB(255, 120, 170))
+	art(giftButton, "Gift")
 	local giftBadge = UiKit.Badge(giftButton)
 	giftButton.MouseButton1Click:Connect(onGift)
 
@@ -206,6 +213,21 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 	tip.TextTransparency = 1
 	tip.ZIndex = 6
 	tip.Parent = eyeHolder
+
+	local eyeArt = art(eyeButton, "Top_Eye")
+	-- Gizliyken gözün üstünde kırmızı çapraz çizgi
+	local slash = Instance.new("Frame")
+	slash.AnchorPoint = Vector2.new(0.5, 0.5)
+	slash.Position = UDim2.fromScale(0.5, 0.5)
+	slash.Size = UDim2.new(0.95, 0, 0, 5)
+	slash.Rotation = -45
+	slash.BackgroundColor3 = Color3.fromRGB(240, 50, 60)
+	slash.BorderSizePixel = 0
+	slash.ZIndex = 7
+	slash.Visible = false
+	slash.Parent = eyeButton
+	UiKit.Corner(slash, 3)
+	UiKit.Stroke(slash, Color3.fromRGB(22, 20, 34), 1.5, 0)
 
 	local hidden = false
 	--[[
@@ -234,8 +256,8 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 		end
 		-- Kendini yeniden çizen parçalar (ekipman çubuğu) gizliyken görünmesin
 		screen:SetAttribute("UiHidden", hidden)
-		UiKit.ClearSlot(eyeSlot)
-		UiKit.EyeIcon(eyeSlot, ICON, hidden)
+		eyeArt.ImageTransparency = if hidden then 0.35 else 0
+		slash.Visible = hidden
 		tip.Text = if hidden then "Show UI  (H)" else "Hide UI  (H)"
 	end
 	apply()
@@ -255,19 +277,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 
 	local gearHolder, gearButton = UiKit.Raised(row, "Settings", Color3.fromRGB(46, 110, 200), UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
 	gearHolder.LayoutOrder = 3
-	local gearGlyph = Instance.new("TextLabel")
-	gearGlyph.Size = UDim2.fromScale(1, 1)
-	gearGlyph.BackgroundTransparency = 1
-	gearGlyph.Font = Enum.Font.GothamBlack
-	gearGlyph.TextScaled = true
-	gearGlyph.Text = "⚙"
-	gearGlyph.TextColor3 = Color3.new(1, 1, 1)
-	gearGlyph.ZIndex = 6
-	gearGlyph.Parent = gearButton
-	local gearPad = Instance.new("UIPadding")
-	gearPad.PaddingTop = UDim.new(0.16, 0)
-	gearPad.PaddingBottom = UDim.new(0.16, 0)
-	gearPad.Parent = gearGlyph
+	art(gearButton, "Top_Settings")
 	gearButton.MouseButton1Click:Connect(function()
 		if onSettings then
 			onSettings()

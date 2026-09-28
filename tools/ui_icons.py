@@ -22,6 +22,7 @@ BADGE = {
     "ExtraSpin": ("+1", T.gold_fill),
     "Potion_Income2x": ("2X", T.money_fill),
     "Potion_Income3x": ("3X", T.gold_fill),
+    "Top_Invite": ("+", T.money_fill),
 }
 
 
@@ -60,4 +61,6 @@ if __name__ == "__main__":
     folder = sys.argv[1]
     for f in sorted(os.listdir(folder)):
         if f.startswith("icon_") and f.endswith(".png") and "_subj" not in f:
+            if len(sys.argv) > 2 and f[5:-4] not in sys.argv[2:]:
+                continue
             make(os.path.join(folder, f), f[5:-4])

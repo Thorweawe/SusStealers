@@ -49,6 +49,18 @@ UiArt.Icon = {
 	Gift = 139278632459793,
 	Crewmate = 103077116178309,
 	Jackpot = 140269949452609,
+	-- Sol menü, üst şerit, gear (2026-09-28)
+	Nav_Shop = 97169877415725,
+	Nav_Items = 100732446466588,
+	Nav_Pass = 101823903298869,
+	Nav_Index = 101101085972157,
+	Top_Invite = 79813361359000,
+	Top_Eye = 106720959783532,
+	Top_Settings = 133207074182030,
+	Gear_SlapGlove = 132543684529943,
+	Gear_SpeedCoil = 106848659288772,
+	Gear_StunGun = 111727037136617,
+	Gear_EmergencyButton = 120840718417896,
 }
 
 function UiArt.Image(kind: string, name: string): string

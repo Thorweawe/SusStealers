@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (48) — Batur (Yusuf'un şeridine de yazıldı: ikonlar)
+
+Studio'ya aktarıldı, **177/177 test temiz**.
+
+- **Ödül merdiveni** (`Config.QuestTiers`, `Config.GetSeasonRewards`): hepsi "kaç saniyelik anlık gelir". Görev 90/300/900 sn (eskiden 45/180/480, hissedilmiyordu), sezon bedava 70..350 sn, premium 175..875 sn, 30. kademe premium 1 saat (eskiden 2). Bedava hiçbir şey en küçük Robux paketine (1800 sn) yetişmiyor — testte de kontrol var.
+- **3B ikonlar** (UiArt `Nav_*`, `Top_*`, `Gear_*`; sahneler render betiğinde, son işlem `tools/ui_icons.py <klasör> [adlar]`): sol menü (renkli gradyan gövde, taşan süzülen ikon, parıltı — `SideRail`), üst şerit (`Topbar`: davet/hediye/göz/ayar; göz gizliyken kırmızı çizgi), gear'lar (`UiKit.GearIcon` resim varsa onu kullanıyor → hotbar + gear mağazası).
+
+---
+
 ## 2026-09-28 (47) — Batur (Yusuf'un şeridine yazıldı: çark)
 
 **Şans çarkı mağazanın dilinde.** Studio'ya aktarıldı; yalnızca istemci, mantık/uzak olaylar aynı.

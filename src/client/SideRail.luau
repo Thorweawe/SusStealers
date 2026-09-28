@@ -14,6 +14,10 @@
 	    ilk basışta kayboluyor. Öğreticiyi atlayan / bitiren her şeyi görüyor.
 
 	Ray alt sola, nakit haplarının üstüne yaslı; yukarı doğru büyüyor.
+
+	2026-09-28 (mağaza dili): düğmeler renkli gradyan + kalın koyu kenar,
+	ikonlar 3B render (UiArt "Nav_*"), düğmenin üstünden taşıyor ve hafifçe
+	süzülüyor; ara ara üstlerinden parıltı geçiyor.
 ]]
 
 local Players = game:GetService("Players")
@@ -22,7 +26,18 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
+local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
+
+-- Düğme adı → 3B ikon (UiArt.Icon)
+local ART: { [string]: string } = {
+	Shop = "Nav_Shop",
+	Inventory = "Nav_Items",
+	Pass = "Nav_Pass",
+	Index = "Nav_Index",
+}
+local OUTLINE = Color3.fromRGB(22, 20, 34)
 
 local SideRail = {}
 
@@ -67,6 +82,7 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 	rail.Size = UDim2.fromOffset(COLUMNS * BUTTON.X + (COLUMNS - 1) * GAP, rows * BUTTON.Y + (rows - 1) * GAP)
 	rail.BackgroundTransparency = 1
 	rail.Parent = screen
+	local driver = FancyKit.driver(rail)
 
 	local layout = Instance.new("UIGridLayout")
 	layout.CellSize = UDim2.fromOffset(BUTTON.X, BUTTON.Y)
@@ -88,7 +104,44 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 		holder.LayoutOrder = index
 		UiKit.ClearSlot(slot)
 		slot.Size = UDim2.fromOffset(34, 34)
-		UiKit.Icon(slot, spec.icon, 32, spec.tint:Lerp(Color3.new(1, 1, 1), 0.25))
+		local art = UiArt.Image("Icon", ART[spec.name] or "")
+		if art ~= "" then
+			-- Mağaza dili: renkli gövde, kalın kenar, taşan 3B ikon, parıltı
+			button.BackgroundColor3 = Color3.new(1, 1, 1)
+			local grad = button:FindFirstChildOfClass("UIGradient")
+			if grad then
+				grad.Color = ColorSequence.new(spec.tint:Lerp(Color3.new(1, 1, 1), 0.2), spec.tint:Lerp(Color3.new(0, 0, 0), 0.35))
+			end
+			local stroke = button:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = OUTLINE
+				stroke.Thickness = 3
+			end
+			FancyKit.halftone(button, Color3.new(1, 1, 1), 0.85, button.ZIndex, true)
+			FancyKit.gleam(button, driver, 5, index * 0.7, 0.45)
+			local img = Instance.new("ImageLabel")
+			img.Name = "Art"
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.new(0.5, 0, 0.5, -3)
+			img.Size = UDim2.fromOffset(50, 50)
+			img.BackgroundTransparency = 1
+			img.Image = art
+			img.ZIndex = slot.ZIndex + 2
+			img.Parent = slot
+			FancyKit.bob(img, driver, 2, 2.6, index * 1.3, 4)
+			local label = button:FindFirstChild("Label")
+			if label and label:IsA("TextLabel") then
+				label.Font = Enum.Font.FredokaOne
+				label.ZIndex = slot.ZIndex + 3
+				label.TextStrokeTransparency = 1
+				local ls = Instance.new("UIStroke")
+				ls.Color = OUTLINE
+				ls.Thickness = 2
+				ls.Parent = label
+			end
+		else
+			UiKit.Icon(slot, spec.icon, 32, spec.tint:Lerp(Color3.new(1, 1, 1), 0.25))
+		end
 		local badge = UiKit.Badge(button)
 
 		local newTag = Instance.new("TextLabel")
@@ -163,6 +216,7 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 		end,
 		Destroy = function()
 			conn:Disconnect()
+			driver.destroy()
 			rail:Destroy()
 		end,
 	}

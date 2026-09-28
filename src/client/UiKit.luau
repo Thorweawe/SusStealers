@@ -27,6 +27,8 @@
 	kendisi: kapsül + vizör oranı. Oyun zaten baştan sona bu dilde.
 ]]
 
+local UiArt = require(script.Parent.UiArt)
+
 local UiKit = {}
 
 -- ─── Palet ──────────────────────────────────────────────────────────────────
@@ -1323,6 +1325,20 @@ function UiKit.GearIcon(parent: Instance, size: number, id: string): Frame
 	holder.BackgroundTransparency = 1
 	holder.ZIndex = z
 	holder.Parent = parent
+
+	-- 2026-09-28: gear'ın 3B render ikonu (UiArt) varsa çizim yerine o
+	local art = UiArt.Image("Icon", "Gear_" .. id)
+	if art ~= "" then
+		local img = Instance.new("ImageLabel")
+		img.AnchorPoint = Vector2.new(0.5, 0.5)
+		img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromScale(1.25, 1.25)
+		img.BackgroundTransparency = 1
+		img.Image = art
+		img.ZIndex = z + 1
+		img.Parent = holder
+		return holder
+	end
 
 	local function blob(pos: UDim2, sz: UDim2, color: Color3, zOff: number, rot: number?): Frame
 		local f = Instance.new("Frame")
