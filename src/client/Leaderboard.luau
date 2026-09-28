@@ -47,6 +47,7 @@ local ROW_H = 46
 -- Telefonda 3: hız/para hapları tablonun altında (DeviceLayout); 4 satırda
 -- dolu sunucuda küçük telefonlarda zıplama tuşunun bölgesine iniyorlardı
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local MAX_ROWS = if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then 3 else 4
 local HEADER_COLOR = Color3.fromRGB(30, 160, 200)
 
@@ -212,9 +213,41 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 	local count = CardKit.bold(head, "", 16, CardKit.WHITE, 3, 2)
 	count.AnchorPoint = Vector2.new(1, 0)
-	count.Position = UDim2.new(1, -12, 0, 0)
-	count.Size = UDim2.fromOffset(70, HEADER)
+	count.Position = UDim2.new(1, -30, 0, 0)
+	count.Size = UDim2.fromOffset(56, HEADER)
 	count.TextXAlignment = Enum.TextXAlignment.Right
+
+	--[[
+		Küçült / aç (2026-09-28, Batur): başlığa dokununca tablo yalnızca
+		başlık şeridine iniyor; sağdaki ok hangi durumda olduğunu gösteriyor.
+		WEEKLY düğmesi başlığın üstünde, ona basmak tabloyu küçültmüyor.
+	]]
+	local collapsed = false
+	local shownRows = 1
+	local chevron = CardKit.bold(head, "▲", 14, CardKit.WHITE, 4, 2)
+	chevron.AnchorPoint = Vector2.new(1, 0.5)
+	chevron.Position = UDim2.new(1, -8, 0.5, 0)
+	chevron.Size = UDim2.fromOffset(18, 18)
+	local toggle = Instance.new("TextButton")
+	toggle.Name = "Collapse"
+	toggle.Size = UDim2.fromScale(1, 1)
+	toggle.BackgroundTransparency = 1
+	toggle.Text = ""
+	toggle.ZIndex = 3
+	toggle.Parent = head
+	local function applySize(animate: boolean)
+		local goal = UDim2.fromOffset(WIDTH, if collapsed then HEADER else HEADER + 8 + shownRows * ROW_H)
+		chevron.Text = if collapsed then "▼" else "▲"
+		if animate then
+			TweenService:Create(holder, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = goal }):Play()
+		else
+			holder.Size = goal
+		end
+	end
+	toggle.Activated:Connect(function()
+		collapsed = not collapsed
+		applySize(true)
+	end)
 
 	local rule = Instance.new("Frame")
 	rule.Position = UDim2.fromOffset(0, HEADER - 2)
@@ -358,7 +391,10 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		end
 
 		local shown = math.clamp(#list, 1, MAX_ROWS)
-		holder.Size = UDim2.fromOffset(WIDTH, HEADER + 8 + shown * ROW_H)
+		if shown ~= shownRows then
+			shownRows = shown
+			applySize(false)
+		end
 	end
 
 	return { Update = update }

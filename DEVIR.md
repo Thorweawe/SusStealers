@@ -18,7 +18,7 @@ Kayıt kalıbı:
 Studio'ya aktarıldı; yalnızca istemci (+ Config'te iki metin). iPhone XR emülatöründe bakıldı.
 
 - **Yatay kilit** en başta (`init.client`): require'lar beklerken dikey kalabiliyordu. StarterGui zaten LandscapeSensor.
-- **Telefon yerleşimi** (`DeviceLayout`): hız + para hapları sağ üstte, CREW tablosunun altında (tablo uzayınca kendini yeniden yerleştiriyor, `TOUCH_PLACE beside = "leaderboard"`); sol ray aşağı indi (`TOUCH_BASE`). Studio'da telefon düzenini denemek için LocalPlayer'a `DebugTouch = true` niteliği (emülatör klavyeyi açık saydığı için).
+- **Telefon yerleşimi** (`DeviceLayout`): hız + para hapları sağ üstte, CREW tablosu onların altında (`TOUCH_PLACE`), telefonda tablo en fazla 3 satır; sol ray aşağı indi (`TOUCH_BASE`). **CREW küçült/aç** (bütün cihazlarda): başlığa dokununca yalnızca başlık kalıyor (sağda ▲/▼). Studio'da telefon düzenini denemek için LocalPlayer'a `DebugTouch = true` niteliği (emülatör klavyeyi açık saydığı için).
 - **Uzayda yukarı/aşağı** (`SpaceFX`): telefonda ▲ / ▼ tuşları (sağ altta, Return to Station'ın solunda; basılı tuttukça). Eskiden yukarı yalnızca zıplama tuşu, aşağı hiç yoktu.
 - **Kapsül mini oyunu** (`CapsuleFX`): telefonda pistin üstünde parmağı sürükleyerek yönlendirme.
 - **Tam ekran perdeler**: `SusStealersHud.ClipToDeviceSafeArea = false`, yumurta açılışının karartması dört yöne taşıyor (çentik/alt çubuk boş kalıyordu); TitleScreen / Intro / SecurityCams `ScreenInsets = None`.
