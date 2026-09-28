@@ -35,6 +35,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local SpaceField = require(Shared.SpaceField)
+local MeteorShower = require(Shared.MeteorShower)
 local UnitModel = require(Shared.UnitModel)
 
 local AnnounceService = require(script.Parent.AnnounceService)
@@ -124,8 +125,11 @@ local rotateAt = math.huge
 	  wakeMul   — kükreme süresi çarpanı (Lights Sabotage: canavar geç fark ediyor)
 	  chaseMul  — kovalama hızı çarpanı (Lights Sabotage: yarı kör, yavaş)
 	  mutated   — Mutation Storm: gezegenlerdeki her mürettebat mutasyonlu
+	  tierBonus — Nebula Blackout: mürettebat bir üst canavarın havuzundan
+	Uçuş hızı çarpanı (Solar Wind) workspace "EventFlightMul"da; teslim
+	toleransı ona da bakıyor.
 ]]
-local eventMods = { wakeMul = 1, chaseMul = 1, mutated = false }
+local eventMods = { wakeMul = 1, chaseMul = 1, mutated = false, tierBonus = 0 }
 
 -- Gemi çıkışı nadir karakterleri herkese duyurulsun (eski konveyör kuralı)
 local ANNOUNCE_RARITIES = { Mythic = true, Secret = true }
@@ -493,7 +497,8 @@ end
 local crewFolder: Folder? = nil
 
 local function rollSpot(spot: Spot)
-	local def = Config.SpaceMonsters[spot.planet]
+	-- Nebula Blackout: bir üst canavarın havuzu
+	local def = Config.SpaceMonsters[math.min(#Config.SpaceMonsters, spot.planet + eventMods.tierBonus)]
 	local unit = Config.RollSpaceUnit(rng, def)
 	local mutation = Config.RollMutation(rng)
 	if eventMods.mutated then
@@ -682,6 +687,9 @@ local function deliver(player: Player, root: BasePart)
 	-- Jet Boost payda; halkalar 2026-09-28'de kalktı ama çarpanı ek pay olarak duruyor.
 	-- Jetpack bonusu taşırken yok (Config.GetJetpackBoost), payda gerekmiyor.
 	local boost = (if jet then jet.mul else 1) * Config.SpaceBonus.RingBoostMul
+	-- Solar Wind da hızlandırıyor: payda
+	local eventMul = workspace:GetAttribute("EventFlightMul")
+	boost *= if typeof(eventMul) == "number" then math.max(1, eventMul) else 1
 	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * boost) - 1
 	if os.clock() - carry.grabbedAt < minTime then
 		drop(player)
@@ -1220,13 +1228,18 @@ function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTie
 end
 
 --[[ Olayların uzaya etkisi (bkz. eventMods). Verilmeyen alan varsayılana döner. ]]
-function SpaceService.SetEventMods(mods: { wakeMul: number?, chaseMul: number?, mutated: boolean? })
-	local wasMutated = eventMods.mutated
+function SpaceService.SetEventMods(mods: { wakeMul: number?, chaseMul: number?, mutated: boolean?, tierBonus: number? })
+	local was = table.clone(eventMods)
 	eventMods.wakeMul = mods.wakeMul or 1
 	eventMods.chaseMul = mods.chaseMul or 1
 	eventMods.mutated = mods.mutated == true
-	-- Mutation Storm başlayınca gezegenlerdeki (taşınmayan) herkes yeniden çekiliyor
-	if eventMods.mutated and not wasMutated and crewFolder then
+	eventMods.tierBonus = mods.tierBonus or 0
+	if not crewFolder then
+		return
+	end
+	-- Havuzu değiştiren olay başlayınca / bitince gezegenlerdeki (taşınmayan) herkes yeniden çekiliyor
+	local reroll = (eventMods.mutated and not was.mutated) or eventMods.tierBonus ~= was.tierBonus
+	if reroll then
 		for _, list in spots do
 			for _, spot in list do
 				if spot.unitId and not spot.held then
@@ -1234,6 +1247,106 @@ function SpaceService.SetEventMods(mods: { wakeMul: number?, chaseMul: number?, 
 				end
 			end
 		end
+	end
+end
+
+-- ─── Meteor Shower ──────────────────────────────────────────────────────────
+
+--[[
+	Göktaşı yağmuru (EventService başlatıyor). Liste shared/MeteorShower'dan
+	(istemciyle aynı tohum): çarpan oyuncu savruluyor (istemciye "meteor"),
+	her ShardEvery'inci göktaşı söndüğü yerde YILDIZ PARÇASI bırakıyor.
+	Dönen fonksiyon olayı bitiriyor (kalan parçalar da kalkıyor).
+]]
+function SpaceService.StartMeteors(duration: number): () -> ()
+	local seed = rng:NextInteger(1, 1e8)
+	local startAt = workspace:GetServerTimeNow() + 2
+	workspace:SetAttribute("MeteorSeed", seed)
+	workspace:SetAttribute("MeteorStart", startAt)
+	local meteors = MeteorShower.Build(seed, startAt, duration)
+	local folder = Instance.new("Folder")
+	folder.Name = "StarShards"
+	folder.Parent = workspace
+	local hitAt: { [Player]: number } = {}
+	local spawned: { [number]: boolean } = {}
+	local running = true
+
+	local function spawnShard(position: Vector3)
+		local shard = Instance.new("Part")
+		shard.Name = "StarShard"
+		shard.Size = Vector3.new(2.6, 2.6, 2.6)
+		shard.Material = Enum.Material.Neon
+		shard.Color = Color3.fromRGB(255, 225, 110)
+		shard.Anchored = true
+		shard.CanCollide = false
+		shard.CanQuery = false
+		shard.CastShadow = false
+		shard.CFrame = CFrame.new(position) * CFrame.Angles(math.rad(45), 0, math.rad(45))
+		local light = Instance.new("PointLight")
+		light.Color = shard.Color
+		light.Range = 16
+		light.Brightness = 2
+		light.Parent = shard
+		shard.Parent = folder
+		local taken = false
+		shard.Touched:Connect(function(hit)
+			if taken then
+				return
+			end
+			local character = hit.Parent
+			local player = character and Players:GetPlayerFromCharacter(character)
+			if not player then
+				return
+			end
+			taken = true
+			shard:Destroy()
+			local amount = math.max(Config.MeteorShardMin, math.floor(EconomyService.GetIncome(player) * Config.MeteorShardSeconds))
+			EconomyService.AddCash(player, amount)
+			notify(player, string.format("Star shard! +$%s", Config.FormatCash(amount)), false, "deposit")
+			fx(player, "bonus", "shard", amount, position)
+		end)
+	end
+
+	task.spawn(function()
+		while running do
+			task.wait(0.1)
+			local t = workspace:GetServerTimeNow()
+			for _, m in meteors do
+				if t < m.t0 or (t > m.t1 + 0.2 and spawned[m.index]) then
+					continue
+				end
+				if t > m.t1 then
+					if m.shard and not spawned[m.index] then
+						spawned[m.index] = true
+						spawnShard(m.to)
+					end
+					spawned[m.index] = true
+					continue
+				end
+				local p = MeteorShower.PositionAt(m, t)
+				if not p then
+					continue
+				end
+				for _, player in Players:GetPlayers() do
+					local root = rootOf(player)
+					if root and player:GetAttribute("InSpace") == true and not grabbedBy[player]
+						and (root.Position - p).Magnitude <= MeteorShower.HitRadius + m.size / 2
+						and os.clock() - (hitAt[player] or 0) > 1.5 then
+						hitAt[player] = os.clock()
+						local dir = (root.Position - p)
+						dir = if dir.Magnitude > 0.1 then dir.Unit else Vector3.yAxis
+						fx(player, "meteor", dir * Config.MeteorKnock)
+					end
+				end
+			end
+		end
+	end)
+
+	return function()
+		running = false
+		workspace:SetAttribute("MeteorSeed", nil)
+		workspace:SetAttribute("MeteorStart", nil)
+		folder:Destroy()
 	end
 end
 

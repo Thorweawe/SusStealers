@@ -228,15 +228,19 @@ Config.SpinSliceLook = {
 } :: { [string]: { color: Color3, text: string, icon: string } }
 
 --[[ Çarkta ağırlıklı ödül seçer. ]]
-function Config.RollSpinReward(rng: Random): SpinReward
+function Config.RollSpinReward(rng: Random, weights: { [string]: number }?): SpinReward
+	-- `weights` verilirse (süper çark) ağırlıklar oradan
+	local function weightOf(reward: SpinReward): number
+		return if weights then (weights[reward.id] or 0) else reward.weight
+	end
 	local total = 0
 	for _, reward in Config.SpinRewards do
-		total += reward.weight
+		total += weightOf(reward)
 	end
 
 	local roll = rng:NextNumber(0, total)
 	for _, reward in Config.SpinRewards do
-		roll -= reward.weight
+		roll -= weightOf(reward)
 		if roll <= 0 then
 			return reward
 		end
@@ -305,12 +309,16 @@ Config.Titles = {
 	{ id = "VoidRaider",    name = "Void Raider",        rarity = "Epic",      stat = "salvaged",      threshold = 750,   order = 11, incomeSeconds = 900, minimum = 500000,  hint = "Steal 750 crewmates from space monsters" },
 	{ id = "MutantHunter",  name = "Mutant Hunter",      rarity = "Epic",      stat = "mutatedSteals", threshold = 75,    order = 12, incomeSeconds = 900, minimum = 500000,  hint = "Steal 75 mutated crewmates" },
 	{ id = "Engineer",      name = "Engineer",           rarity = "Epic",      stat = "maxedUpgrades", threshold = 5,     order = 13, incomeSeconds = 900, minimum = 500000,  hint = "Max out 5 upgrades" },
+	-- Haftalık sıralama (WeeklyService): weeklyBest 1 = ilk 10, 2 = ilk 3, 3 = birinci
+	{ id = "WeeklyTop10",   name = "Weekly Top 10",      rarity = "Epic",      stat = "weeklyBest",    threshold = 1,     order = 13.5, incomeSeconds = 900, minimum = 500000, hint = "Finish a week in the Top 10 heisters" },
 	{ id = "Lightspeed",    name = "Lightspeed",         rarity = "Legendary", stat = "spaceSpeed",    threshold = 120,   order = 14, incomeSeconds = 1800, minimum = 2500000,  hint = "Reach 120 space speed" },
 	{ id = "GalaxyBandit",  name = "Galaxy Bandit",      rarity = "Legendary", stat = "salvaged",      threshold = 2500,  order = 15, incomeSeconds = 1800, minimum = 2500000,  hint = "Steal 2,500 crewmates from space monsters" },
 	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 1800, minimum = 2500000,  hint = "Discover all 25 crewmates in the Index" },
 	{ id = "Admiral",       name = "Admiral",            rarity = "Legendary", stat = "rebirths",      threshold = 5,     order = 17, incomeSeconds = 1800, minimum = 2500000,  hint = "Rebirth 5 times" },
+	{ id = "WeeklyTop3",    name = "Weekly Top 3",       rarity = "Legendary", stat = "weeklyBest",    threshold = 2,     order = 17.5, incomeSeconds = 1800, minimum = 2500000, hint = "Finish a week in the Top 3 heisters" },
 	{ id = "LeviathanRobber", name = "Leviathan Robber", rarity = "Mythic",    stat = "bossSteals",    threshold = 50,    order = 18, incomeSeconds = 3600, minimum = 12500000, hint = "Steal 50 crewmates from the Void Leviathan" },
 	{ id = "AmogusPrime",   name = "Amogus Prime",       rarity = "Mythic",    stat = "secrets",       threshold = 1,     order = 19, incomeSeconds = 3600, minimum = 12500000, hint = "Own a Secret crewmate" },
+	{ id = "WeeklyChampion", name = "Weekly Champion",   rarity = "Mythic",    stat = "weeklyBest",    threshold = 3,     order = 19.5, incomeSeconds = 3600, minimum = 12500000, hint = "Finish a week as the #1 heister" },
 	{ id = "MonstersNightmare", name = "Monsters' Nightmare", rarity = "Secret", stat = "salvaged",   threshold = 10000, order = 20, incomeSeconds = 7200, minimum = 50000000, hint = "Steal 10,000 crewmates from space monsters" },
 } :: { TitleDef }
 
@@ -935,6 +943,12 @@ Config.Events = {
 	{ id = "Storm",     name = "Mutation Storm",    every = 2 * 3600, offset = 5 * 60,  duration = 120 },
 	-- 2026-09-28: sürpriz (rastgele), saatte bir; kalkan Impostor Hunt'ın yerine
 	{ id = "Comet",     name = "Golden Comet",      every = 3600, offset = 0, duration = 75, random = true, perHour = 1 },
+	--[[ 2026-09-28 (Yusuf): uzay istasyonu olayları. Dakikalar diğerleriyle
+	     çakışmıyor (uyarı dahil): :25 rüzgâr, tek saatlerde :10 göktaşı ve
+	     :52 karartma. ]]
+	{ id = "SolarWind", name = "Solar Wind",        every = 3600,     offset = 25 * 60, duration = 90 },
+	{ id = "Meteors",   name = "Meteor Shower",     every = 2 * 3600, offset = 70 * 60, duration = 90 },
+	{ id = "Blackout",  name = "Nebula Blackout",   every = 2 * 3600, offset = 112 * 60, duration = 120 },
 } :: { EventDef }
 
 -- Rastgele olayın sabit olaylardan ve kendi kopyalarından en az uzaklığı
@@ -946,6 +960,21 @@ Config.EventWarning = 30
 
 -- Emergency Meeting: herkese gelir çarpanı
 Config.MeetingIncomeMul = 2
+
+--[[
+	Uzay istasyonu olayları (2026-09-28):
+	  Solar Wind      — güneş rüzgârı: uzayda herkes (taşırken de) daha hızlı uçuyor
+	  Meteor Shower   — göktaşı yağmuru: çarpan savruluyor, düştükleri yerde
+	                    parlayan yıldız parçası (ilk dokunan alıyor)
+	  Nebula Blackout — uzay kararıyor: canavarlar yarı kör, mürettebat bir kademe iyi
+]]
+Config.SolarWindFlightMul = 1.35
+Config.BlackoutWakeMul = 1.8
+Config.BlackoutChaseMul = 0.9
+Config.BlackoutTierBonus = 1
+Config.MeteorShardSeconds = 12      -- yıldız parçası = saniyelik gelir × bu
+Config.MeteorShardMin = 2000
+Config.MeteorKnock = 55             -- çarpan göktaşının savurma hızı
 -- Lights Sabotage: uzaydaki canavarlar yarı kör: geç uyanıyor, yavaş kovalıyor
 Config.LightsOutWakeMul = 2.5
 Config.LightsOutChaseMul = 0.85
@@ -2453,6 +2482,7 @@ end
 ]]
 export type RewardDef = {
 	kind: string,
+	flame: string?,     -- "flame": alev kozmetiği (Config.JetFlames)
 	seconds: number?,
 	minimum: number?,
 	count: number?,
@@ -2466,9 +2496,9 @@ Config.DailyRewards = {
 	{ kind = "cash",   seconds = 150, minimum = 15000 },
 	{ kind = "egg",    egg = "SupplyEgg" },
 	{ kind = "cash",   seconds = 400, minimum = 60000 },
-	{ kind = "potion", count = 2 },
-	-- Yedinci gün büyük: seriyi tamamlamanın hedefi bu
 	{ kind = "egg",    egg = "SkeldEgg" },
+	-- Yedinci gün büyük: SÜPER ÇARK (altın çark, ödüller büyük; SpinService)
+	{ kind = "superspin", count = 1 },
 } :: { RewardDef }
 
 --[[
@@ -2915,5 +2945,241 @@ function Config.GetCapsuleGain(level: number, speed: number): number
 	local falloff = (c.Ref / (math.max(speed, Config.Space.BaseSpeed) + c.Ref - Config.Space.BaseSpeed)) ^ c.Pow
 	return c.Rate * c.Growth ^ upgradeStep(level) * falloff
 end
+
+-- ─── Jetpack alevleri (kozmetik) ────────────────────────────────────────────
+--[[
+	2026-09-28 (Yusuf): jetpack kozmetikleri. Alev hangi jetpack takılı olursa
+	olsun onun memelerinden çıkıyor (JetpackModel.AddFlames): renk, çekirdek,
+	duman, ışıltı, kıvılcım ve arkada iz. Güç VERMİYOR, yalnızca görünüş.
+
+	  price  — oyun parası (0 ve pass/source yoksa herkeste)
+	  pass   — Robux gamepass kimliği; 0 iken "SOON"
+	  source — "season" (Sezon Kartı ödülü) ya da "weekly" (haftalık birinci)
+]]
+export type JetFlameDef = {
+	id: string,
+	name: string,
+	price: number,
+	pass: number?,
+	robux: number?,
+	source: string?,
+	flame: Color3,
+	flame2: Color3,
+	core: Color3?,
+	smoke: Color3?,
+	sparkle: Color3?,
+	embers: boolean?,
+	rainbow: boolean?,
+	trail: Color3?,
+	trail2: Color3?,
+	size: number?,
+	blurb: string,
+}
+
+Config.JetFlames = {
+	{ id = "Classic",  name = "Classic Burn",   price = 0,
+		flame = Color3.fromRGB(255, 190, 70), flame2 = Color3.fromRGB(255, 80, 30),
+		blurb = "Standard issue orange burn." },
+	{ id = "Cryo",     name = "Cryo Jet",       price = 250_000,
+		flame = Color3.fromRGB(190, 240, 255), flame2 = Color3.fromRGB(60, 150, 255), core = Color3.new(1, 1, 1),
+		smoke = Color3.fromRGB(215, 240, 255), sparkle = Color3.fromRGB(200, 240, 255), trail = Color3.fromRGB(150, 220, 255),
+		blurb = "Frosty blue thrust that sheds ice sparkles." },
+	{ id = "Toxic",    name = "Toxic Vent",     price = 2_500_000,
+		flame = Color3.fromRGB(190, 255, 90), flame2 = Color3.fromRGB(40, 180, 60), smoke = Color3.fromRGB(110, 190, 80),
+		embers = true, trail = Color3.fromRGB(140, 255, 90),
+		blurb = "Bubbling green reactor waste." },
+	{ id = "Inferno",  name = "Inferno",        price = 40_000_000,
+		flame = Color3.fromRGB(255, 225, 90), flame2 = Color3.fromRGB(255, 40, 20), smoke = Color3.fromRGB(70, 55, 55),
+		embers = true, size = 1.35, trail = Color3.fromRGB(255, 120, 40), trail2 = Color3.fromRGB(255, 40, 20),
+		blurb = "A roaring fire that spits embers." },
+	{ id = "Void",     name = "Void Rift",      price = 900_000_000,
+		flame = Color3.fromRGB(205, 130, 255), flame2 = Color3.fromRGB(60, 10, 120), core = Color3.fromRGB(30, 0, 50),
+		smoke = Color3.fromRGB(45, 25, 70), sparkle = Color3.fromRGB(220, 160, 255), trail = Color3.fromRGB(130, 50, 230),
+		blurb = "Dark purple flames torn out of the void." },
+	{ id = "Solar",    name = "Solar Gold",     price = 30_000_000_000,
+		flame = Color3.fromRGB(255, 248, 180), flame2 = Color3.fromRGB(255, 180, 30), sparkle = Color3.fromRGB(255, 230, 120),
+		size = 1.2, trail = Color3.fromRGB(255, 215, 70), trail2 = Color3.fromRGB(255, 150, 20),
+		blurb = "Pure golden sunfire with glitter." },
+	{ id = "Rainbow",  name = "Rainbow Rocket", price = 0, pass = 0, robux = 149,
+		flame = Color3.fromRGB(255, 90, 90), flame2 = Color3.fromRGB(90, 120, 255), sparkle = Color3.new(1, 1, 1),
+		rainbow = true, trail = Color3.new(1, 1, 1),
+		blurb = "Cycles through every color. Robux exclusive." },
+	{ id = "Nebula",   name = "Nebula Drift",   price = 0, source = "season",
+		flame = Color3.fromRGB(255, 130, 225), flame2 = Color3.fromRGB(90, 80, 255), sparkle = Color3.fromRGB(255, 200, 255),
+		trail = Color3.fromRGB(255, 120, 220), trail2 = Color3.fromRGB(90, 80, 255),
+		blurb = "Season Pass reward: pink and blue star dust." },
+	{ id = "Champion", name = "Champion Blaze", price = 0, source = "weekly",
+		flame = Color3.new(1, 1, 1), flame2 = Color3.fromRGB(255, 200, 60), core = Color3.new(1, 1, 1),
+		sparkle = Color3.fromRGB(255, 225, 100), embers = true, size = 1.25,
+		trail = Color3.fromRGB(255, 220, 90), trail2 = Color3.fromRGB(255, 160, 30),
+		blurb = "Only for a weekly #1 heister." },
+} :: { JetFlameDef }
+
+function Config.GetJetFlame(id: string?): JetFlameDef?
+	for _, def in Config.JetFlames do
+		if def.id == id then
+			return def
+		end
+	end
+	return nil
+end
+
+--[[ Gökkuşağı alevinin o anki rengi (zaman saniye). ]]
+function Config.RainbowColor(t: number, offset: number?): Color3
+	return Color3.fromHSV(((t * 0.35) + (offset or 0)) % 1, 0.75, 1)
+end
+
+-- ─── Haftalık sıralama ──────────────────────────────────────────────────────
+--[[
+	Haftalık "en çok soygun" (WeeklyService). Hafta Pazartesi 00:00 UTC'de
+	başlıyor (Epoch bir Pazartesi). Hafta bitince ilk 10 ödül alıyor —
+	oyuncu o an oyunda olmasa bile bir sonraki girişinde (profilde hangi
+	haftanın ödülünün alındığı tutuluyor).
+
+	  rank  — bu sıraya kadar (1, 3, 10)
+	  best  — weeklyBest unvan sayacı (3 birinci, 2 ilk üç, 1 ilk on)
+	  seconds/minimum — nakit (gelir × seconds, en az minimum)
+	  flame — alev kozmetiği (yalnızca birinciye)
+]]
+Config.Weekly = {
+	Epoch = 1704067200,     -- 2024-01-01 Pazartesi 00:00 UTC
+	Length = 7 * 86400,
+	Rows = 10,
+	Rewards = {
+		{ rank = 1,  best = 3, seconds = 3600, minimum = 500_000, flame = "Champion", label = "#1" },
+		{ rank = 3,  best = 2, seconds = 1800, minimum = 200_000, label = "#2 - #3" },
+		{ rank = 10, best = 1, seconds = 600,  minimum = 50_000,  label = "#4 - #10" },
+	},
+}
+
+function Config.WeekIndex(t: number): number
+	return (t - Config.Weekly.Epoch) // Config.Weekly.Length
+end
+
+function Config.WeekEndsAt(t: number): number
+	return Config.Weekly.Epoch + (Config.WeekIndex(t) + 1) * Config.Weekly.Length
+end
+
+--[[ Sıraya göre haftalık ödül (ilk 10 dışıysa nil). ]]
+function Config.GetWeeklyReward(rank: number): { rank: number, best: number, seconds: number, minimum: number, flame: string?, label: string }?
+	if rank < 1 then
+		return nil
+	end
+	for _, reward in Config.Weekly.Rewards do
+		if rank <= reward.rank then
+			return reward
+		end
+	end
+	return nil
+end
+
+-- ─── Sezon Kartı ────────────────────────────────────────────────────────────
+--[[
+	Sezon Kartı (SeasonService): oynadıkça XP, XP ile kademe. Her kademede
+	bir BEDAVA ödül, Sezon Kartı gamepass'i olana bir de PREMIUM ödül.
+	Ödüller elle toplanıyor (pencere, "SeasonClaim"). Sezon bitince yeni
+	sezon için `id`, `startsAt` ve ödüller değişiyor; eski ilerleme sıfırlanıyor.
+
+	XP kaynakları (DataService sayaçları artınca):
+	  soygun 12 (Void Leviathan'dan +30), mini oyun 4, çark 6, görev 25,
+	  günlük giriş 20, oda görevi 5
+]]
+export type SeasonReward = {
+	kind: string,           -- cash | potion | egg | superspin | spins | flame
+	seconds: number?,
+	minimum: number?,
+	count: number?,
+	egg: string?,
+	flame: string?,
+}
+
+Config.Season = {
+	id = "S1",
+	name = "Season 1: Nebula Heist",
+	startsAt = 1790553600,   -- 2026-09-28 00:00 UTC
+	days = 30,
+	tiers = 30,
+	xpBase = 120,            -- 1. kademe
+	xpGrowth = 14,           -- her kademede bu kadar fazla
+	pass = { id = 0, robux = 399, name = "Season Pass" },
+	xp = {
+		salvaged = 12, bossSteals = 30, trainings = 4, spins = 6,
+		questsClaimed = 25, dailyClaims = 20, tasksDone = 5,
+	} :: { [string]: number },
+}
+
+function Config.SeasonTierXp(tier: number): number
+	return Config.Season.xpBase + Config.Season.xpGrowth * (tier - 1)
+end
+
+--[[ Toplam XP'den (kademe, bu kademedeki XP, bu kademenin istediği). ]]
+function Config.SeasonProgress(xp: number): (number, number, number)
+	local tier = 0
+	local left = xp
+	while tier < Config.Season.tiers do
+		local need = Config.SeasonTierXp(tier + 1)
+		if left < need then
+			return tier, left, need
+		end
+		left -= need
+		tier += 1
+	end
+	return tier, 0, 0
+end
+
+function Config.SeasonEndsAt(): number
+	return Config.Season.startsAt + Config.Season.days * 86400
+end
+
+--[[ Kademe ödülleri: bedava ve premium. Kilometre taşları büyük. ]]
+function Config.GetSeasonRewards(tier: number): (SeasonReward, SeasonReward)
+	local free: SeasonReward
+	local premium: SeasonReward
+	if tier == 10 then
+		free = { kind = "egg", egg = "SupplyEgg" }
+		premium = { kind = "superspin", count = 1 }
+	elseif tier == 15 then
+		free = { kind = "superspin", count = 1 }
+		premium = { kind = "egg", egg = "SkeldEgg" }
+	elseif tier == 20 then
+		free = { kind = "egg", egg = "SkeldEgg" }
+		premium = { kind = "flame", flame = "Nebula" }
+	elseif tier == 25 then
+		free = { kind = "spins", count = 2 }
+		premium = { kind = "superspin", count = 2 }
+	elseif tier == 30 then
+		free = { kind = "superspin", count = 1 }
+		premium = { kind = "cash", seconds = 7200, minimum = 5_000_000 }
+	elseif tier % 5 == 0 then
+		free = { kind = "spins", count = 1 }
+		premium = { kind = "superspin", count = 1 }
+	elseif tier % 3 == 0 then
+		free = { kind = "potion", count = 1 }
+		premium = { kind = "potion", count = 2 }
+	else
+		free = { kind = "cash", seconds = 60 + tier * 12, minimum = 2000 * tier }
+		premium = { kind = "cash", seconds = 180 + tier * 30, minimum = 6000 * tier }
+	end
+	return free, premium
+end
+
+-- ─── Çark jetonları ve süper çark ──────────────────────────────────────────
+--[[
+	Çark jetonu (profile.spinTokens): bekleme olmadan bir çevirme. Sezon
+	ödülü ve 5'li Robux paketi veriyor. SÜPER ÇARK (profile.superSpins):
+	günlük serinin 7. günü ve sezon ödülü; aynı dilimler ama ağırlıklar
+	büyük ödüllere kayık, nakit ×3, karakterler bir kademe üstten.
+]]
+Config.SuperSpin = {
+	cashMul = 3,
+	bonusTier = 1,
+	weights = { SmallCash = 18, MedCash = 26, Spawn = 16, Mutation = 20, HugeCash = 14, FreeUnit = 6 } :: { [string]: number },
+}
+
+--[[
+	Henüz kimliği olmayan Robux ürünleri (Creator Dashboard'da açılınca
+	kimlik buraya; Config.Products'a taşınmıyor çünkü orada kimlik 0 olamaz).
+]]
+Config.SpinPack = { id = 0, count = 5, robux = 199, name = "5 Spins" }
 
 return Config

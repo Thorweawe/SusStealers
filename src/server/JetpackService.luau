@@ -13,7 +13,12 @@
 	  Jetpack        — kuşanılan jetpack kimliği (herkes görsün diye)
 	  JetpacksOwned  — sahip olunanlar, virgülle (arayüz için)
 
-	Remote "JetpackAction" (client -> server): ("buy" | "equip", id).
+	Remote "JetpackAction" (client -> server): ("buy" | "equip", id) ya da
+	alevler için ("flamebuy" | "flameequip", id).
+
+	ALEVLER (2026-09-28, Config.JetFlames): jetpack'ten bağımsız kozmetik.
+	Parayla, Robux pass'iyle ya da ödülle (Sezon Kartı, haftalık birinci —
+	`source`) açılıyor. Nitelikler: JetFlame (takılı), FlamesOwned.
 	Bedava bir şey VERMİYOR: satın alma oyuncunun KENDİ parasını
 	harcıyor (fiyat Config'te, sunucuda), kuşanma yalnızca sahip olunanı.
 ]]
@@ -83,11 +88,37 @@ function JetpackService.Owns(player: Player, id: string): boolean
 	return profile ~= nil and profile.jetpacks[id] == true
 end
 
+function JetpackService.OwnsFlame(player: Player, id: string): boolean
+	local def = Config.GetJetFlame(id)
+	if not def then
+		return false
+	end
+	local profile = DataService.Get(player)
+	if profile and profile.flames[id] == true then
+		return true
+	end
+	if def.pass ~= nil then
+		return ownsPass(player, def.pass)
+	end
+	return def.price <= 0 and def.source == nil
+end
+
 function JetpackService.Publish(player: Player)
 	local profile = DataService.Get(player)
 	if not profile then
 		return
 	end
+	if not JetpackService.OwnsFlame(player, profile.flame) then
+		profile.flame = "Classic"
+	end
+	local flames = {}
+	for _, def in Config.JetFlames do
+		if JetpackService.OwnsFlame(player, def.id) then
+			table.insert(flames, def.id)
+		end
+	end
+	player:SetAttribute("JetFlame", profile.flame)
+	player:SetAttribute("FlamesOwned", table.concat(flames, ","))
 	-- Kuşanılan artık sahip olunmuyorsa (pass iadesi vb.) başlangıca dön
 	if not JetpackService.Owns(player, profile.jetpack) then
 		profile.jetpack = "Starter"
@@ -132,6 +163,40 @@ function JetpackService.Equip(player: Player, id: string): boolean
 		return false
 	end
 	profile.jetpack = id
+	JetpackService.Publish(player)
+	return true
+end
+
+function JetpackService.BuyFlame(player: Player, id: string): boolean
+	local def = Config.GetJetFlame(id)
+	local profile = DataService.Get(player)
+	if not (def and profile) then
+		return false
+	end
+	if JetpackService.OwnsFlame(player, id) then
+		return JetpackService.EquipFlame(player, id)
+	end
+	if def.pass ~= nil or def.source ~= nil then
+		-- Robux (istemci pencereyi açıyor) ya da ödülle açılan
+		return false
+	end
+	if not EconomyService.TrySpend(player, def.price) then
+		notify(player, string.format("%s costs $%s", def.name, Config.FormatCash(def.price)), true)
+		return false
+	end
+	profile.flames[id] = true
+	profile.flame = id
+	JetpackService.Publish(player)
+	notify(player, string.format("%s flame equipped!", def.name), false)
+	return true
+end
+
+function JetpackService.EquipFlame(player: Player, id: string): boolean
+	local profile = DataService.Get(player)
+	if not profile or not JetpackService.OwnsFlame(player, id) then
+		return false
+	end
+	profile.flame = id
 	JetpackService.Publish(player)
 	return true
 end
@@ -268,6 +333,10 @@ function JetpackService.Start()
 			JetpackService.Buy(player, id)
 		elseif action == "equip" then
 			JetpackService.Equip(player, id)
+		elseif action == "flamebuy" then
+			JetpackService.BuyFlame(player, id)
+		elseif action == "flameequip" then
+			JetpackService.EquipFlame(player, id)
 		end
 	end)
 
@@ -286,6 +355,19 @@ function JetpackService.Start()
 				end
 				JetpackService.Publish(player)
 				notify(player, string.format("%s unlocked and equipped!", def.name), false)
+			end
+		end
+		for _, def in Config.JetFlames do
+			if def.pass == passId and passId > 0 then
+				local cache = passCache[player] or {}
+				passCache[player] = cache
+				cache[passId] = true
+				local profile = DataService.Get(player)
+				if profile then
+					profile.flame = def.id
+				end
+				JetpackService.Publish(player)
+				notify(player, string.format("%s flame unlocked and equipped!", def.name), false)
 			end
 		end
 	end)

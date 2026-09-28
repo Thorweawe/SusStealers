@@ -11,6 +11,9 @@
 	  Mutation Storm     — uzaydaki bütün mürettebat mutasyonlu
 	  Golden Comet       — sürpriz: uzaydan altın kuyruklu yıldız geçiyor, ilk
 	                       dokunan mutasyonlu mürettebat + para (SpaceBonusService)
+	  Solar Wind         — uzayda herkes (taşırken de) daha hızlı uçuyor
+	  Meteor Shower      — göktaşı yağmuru: çarpan savruluyor, yıldız parçaları
+	  Nebula Blackout    — uzay kararıyor: canavarlar yarı kör, mürettebat bir kademe iyi
 
 	(Impostor Among Us 2026-09-28'de kalktı: oyuncudan çalmaya dayanıyordu.)
 
@@ -132,6 +135,32 @@ local function beginComet(): () -> ()
 	local stop = SpaceBonusService.StartComet()
 	notifyAll("A GOLDEN COMET is crossing space! First to touch it wins a mutated crewmate!")
 	return stop
+end
+
+-- ─── Uzay istasyonu olayları (2026-09-28) ─────────────────────────────────────
+
+local function beginSolarWind(): () -> ()
+	workspace:SetAttribute("EventFlightMul", Config.SolarWindFlightMul)
+	notifyAll(string.format("SOLAR WIND! Everyone flies %d%% faster in space - even carrying crew!",
+		math.floor((Config.SolarWindFlightMul - 1) * 100 + 0.5)))
+	return function()
+		workspace:SetAttribute("EventFlightMul", 1)
+	end
+end
+
+local function beginMeteors(): () -> ()
+	local def = Config.GetEvent("Meteors")
+	local stop = SpaceService.StartMeteors(if def then def.duration else 90)
+	notifyAll("METEOR SHOWER! Dodge the rocks and grab the glowing star shards they leave behind!")
+	return stop
+end
+
+local function beginBlackout(): () -> ()
+	SpaceService.SetEventMods({ tierBonus = Config.BlackoutTierBonus, wakeMul = Config.BlackoutWakeMul, chaseMul = Config.BlackoutChaseMul })
+	notifyAll("NEBULA BLACKOUT! Space goes dark: monsters can barely see and rarer crew drift in!")
+	return function()
+		SpaceService.SetEventMods({})
+	end
 end
 
 -- ─── Mutation Storm ─────────────────────────────────────────────────────────
@@ -301,6 +330,9 @@ local BEGIN: { [string]: () -> (() -> ())? } = {
 	Meltdown = beginMeltdown,
 	Storm = beginStorm,
 	Comet = beginComet,
+	SolarWind = beginSolarWind,
+	Meteors = beginMeteors,
+	Blackout = beginBlackout,
 }
 
 --[[
@@ -349,6 +381,7 @@ end
 function EventService.Start()
 	notifyRemote = Net.Get("Notify")
 	workspace:SetAttribute("EventIncomeMul", 1)
+	workspace:SetAttribute("EventFlightMul", 1)
 	publish()
 
 	-- Takvim: saniyede bir bak. Uyarı ve başlangıç için her olayın bir sonraki slotu.

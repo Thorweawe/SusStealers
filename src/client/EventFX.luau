@@ -44,6 +44,9 @@ local ACCENT: { [string]: Color3 } = {
 	Meltdown = Color3.fromRGB(90, 255, 170),
 	Storm = Color3.fromRGB(200, 110, 255),
 	Comet = Color3.fromRGB(255, 205, 60),
+	SolarWind = Color3.fromRGB(255, 170, 40),
+	Meteors = Color3.fromRGB(255, 120, 50),
+	Blackout = Color3.fromRGB(110, 70, 200),
 }
 
 --[[
@@ -54,6 +57,9 @@ local ACCENT: { [string]: Color3 } = {
 	  Meltdown   sarı-siyah reaktör uyarı işareti, ortada yeşil çekirdek
 	  Storm      mor mürettebat, etrafında ışıltılar
 	  Comet      altın kuyruklu yıldız: parlak baş, arkasında sönen kuyruk
+	  SolarWind  turuncu güneş ve önünden akan rüzgâr çizgileri
+	  Meteors    iki alevli göktaşı
+	  Blackout   mor hilal ay ve sönük yıldızlar
 ]]
 local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 	local h = UiKit.Canvas(parent, "EventIcon", size)
@@ -102,6 +108,27 @@ local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 		S(h, 0.64, 0.36, 0.32, 0.32, Color3.fromRGB(255, 244, 190), 5, 0.5)
 		S(h, 0.58, 0.3, 0.1, 0.1, WHITE, 6, 0.5)
 		S(h, 0.9, 0.12, 0.1, 0.1, Color3.fromRGB(255, 240, 150), 6, 0.5, 45)
+	elseif id == "SolarWind" then
+		S(h, 0.36, 0.5, 0.6, 0.6, Color3.fromRGB(255, 170, 40), 1, 0.5)
+		S(h, 0.36, 0.5, 0.42, 0.42, Color3.fromRGB(255, 230, 120), 2, 0.5)
+		for k = 0, 2 do
+			local line = S(h, 0.74, 0.3 + k * 0.2, 0.44 - k * 0.08, 0.07, WHITE, 3, 0.5)
+			line.BackgroundTransparency = 0.15 + k * 0.2
+		end
+	elseif id == "Meteors" then
+		for k = 0, 1 do
+			local x, y, r = 0.62 - k * 0.3, 0.38 + k * 0.3, 0.34 - k * 0.1
+			local tail = S(h, x + 0.16, y - 0.16, r * 1.4, r * 0.4, Color3.fromRGB(255, 140, 40), 1, 0.5, -45)
+			tail.BackgroundTransparency = 0.25
+			S(h, x, y, r, r, Color3.fromRGB(120, 96, 88), 2, 0.5)
+			S(h, x - r * 0.12, y - r * 0.12, r * 0.3, r * 0.3, Color3.fromRGB(80, 62, 58), 3, 0.5)
+		end
+	elseif id == "Blackout" then
+		S(h, 0.5, 0.5, 0.92, 0.92, Color3.fromRGB(40, 26, 80), 1, 0.5)
+		S(h, 0.46, 0.5, 0.56, 0.56, Color3.fromRGB(200, 170, 255), 2, 0.5)
+		S(h, 0.58, 0.44, 0.52, 0.52, Color3.fromRGB(40, 26, 80), 3, 0.5)
+		S(h, 0.8, 0.22, 0.08, 0.08, WHITE, 4, 0.5, 45)
+		S(h, 0.22, 0.8, 0.06, 0.06, WHITE, 4, 0.5, 45)
 	else
 		S(h, 0.5, 0.5, 0.8, 0.8, UiKit.MUTED, 1, 0.5)
 	end
@@ -159,6 +186,9 @@ function EventFX.Create(screen: ScreenGui): Handle
 		Meltdown = "Reactor cores are floating in space!",
 		Storm = "Every crewmate in space is mutated!",
 		Comet = "First to touch it wins a mutated crewmate!",
+		SolarWind = "Everyone flies 35% faster in space!",
+		Meteors = "Dodge the rocks, grab the star shards!",
+		Blackout = "Monsters can barely see - rarer crew!",
 	}
 
 	-- ─── Çizelge (sağ alt) ───────────────────────────────────────────────

@@ -13,6 +13,22 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (42) — Yusuf (iki şeridi de ilgilendirir)
+
+**Jetpack alevleri, haftalık sıralama, uzay olayları, Sezon Kartı, çark jetonu/süper çark.** Studio'ya aktarıldı (önce Studio–disk karşılaştırıldı, çakışma yoktu), **178/178 test temiz**.
+
+- **Jetpack alevleri** (`Config.JetFlames`, 9 tane): hangi jetpack olursa olsun alev + iz + ışıltı/kıvılcım. Parayla (Cryo…Solar), Robux (Rainbow, pass kimliği 0 → SOON), ödülle (Nebula = Sezon Kartı, Champion = haftalık #1). `JetpackService` flamebuy/flameequip (aynı "JetpackAction"), nitelikler `JetFlame`/`FlamesOwned`, profil `flames`/`flame`. `JetpackModel.AddFlames(model, def, flame)`. Jetpack penceresinde FLAMES sekmesi.
+- **Haftalık sıralama** (`WeeklyService` yeni, `Config.Weekly`): bu haftaki uzay soygunu, OrderedDataStore `Weekly_Heists_<hafta>`, Pazartesi 00:00 UTC sıfırlanıyor. İlk 10 ödül GİRİŞTE (nakit, unvan WeeklyTop10/Top3/Champion — sayaç `weeklyBest`, birinciye Champion alevi). İstemci: `WeeklyPanel` — CREW tablosunda 🏆 WEEKLY düğmesi ve lobideki MOST HEISTS panosunda "Weekly Top" promptu. Remote yok (workspace `WeeklyTop` JSON).
+- **Uzay olayları** (EventService): Solar Wind (:25, uçuş ×1.35, `EventFlightMul`), Meteor Shower (tek saatler :10; `shared/MeteorShower` sunucu–istemci aynı tohum, çarpan savruluyor, yıldız parçaları), Nebula Blackout (tek saatler :52; karanlık + fener, canavar yarı kör, mürettebat bir kademe iyi `tierBonus`). Görünüş `client/SpaceEventsFX`, ikonlar EventFX'te.
+- **Sezon Kartı** (`SeasonService` yeni, `Config.Season`): 30 kademe, XP `DataService.Bumped` sinyalinden (soygun, mini oyun, çark, görev, günlük, oda görevi). Bedava + premium iz; premium pass kimliği 0 → SOON. Remote `SeasonClaim`. İstemci `SeasonPanel`, sol rayda PASS (rozet = toplanacak ödül).
+- **Çark**: jeton (`spinTokens`) ve SÜPER ÇARK (`superSpins`; ağırlıklar büyük ödüle kayık, nakit ×3). Günlük serinin 7. günü artık süper çark (6. gün Skeld Egg). 5'li paket `Config.SpinPack` (ürün kimliği 0 → SOON). `SpinRequest(mode)`.
+- Yeni sayaçlar: `questsClaimed`, `dailyClaims`, `tasksDone` (sezon XP'si). `RewardService.Give` dışa açık; yeni türler superspin/spins/flame.
+- **Yapılmayanlar (Yusuf istemedi):** mürettebat birleştirme, Boss Rush, arkadaşla ortak soygun.
+- İstemciden sunucuya remote sınırı 23 (SeasonClaim).
+- **Roblox'ta açılması gerekenler:** Rainbow alev pass'i, Season Pass pass'i, 5 Spins ürünü → kimlikleri `Config.JetFlames` / `Config.Season.pass` / `Config.SpinPack`.
+
+---
+
 ## 2026-09-28 (41) — Batur (harita)
 
 Harita tam kuruldu: denetim 0/0; ayrıca iki yeni tarama temiz (dış parçalardan iç mekâna taşan 0, kama/silindirlerde aynı yöne bakan çakışan yüz 0).

@@ -143,34 +143,50 @@ end
 --[[
 	Memelere alev ekler (istemci ve vitrin). `strength` 0..1: 0 sönük
 	parıltı, 1 tam itki. Dönen fonksiyon gücü değiştirir.
+
+	`flame` (Config.JetFlames) verilirse alev o kozmetiğin görünüşünde:
+	renkler, beyaz/koyu çekirdek, duman rengi, ışıltı, kıvılcım, boy ve
+	memelerden uzanan iz (Trail). Gökkuşağı alevi her güncellemede rengini
+	kaydırıyor. Verilmezse jetpack'in kendi alev renkleri (Classic).
 ]]
-function JetpackModel.AddFlames(model: Model, def: Config.JetpackDef): (number) -> ()
-	local emitters: { { flame: ParticleEmitter, core: ParticleEmitter, smoke: ParticleEmitter } } = {}
+local EMBER = "rbxasset://textures/particles/fire_sparks_main.dds"
+local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+
+function JetpackModel.AddFlames(model: Model, def: Config.JetpackDef, flame: Config.JetFlameDef?): (number) -> ()
+	local c1 = if flame then flame.flame else def.flame
+	local c2 = if flame then flame.flame2 else def.flame2
+	local coreColor = (flame and flame.core) or Color3.new(1, 1, 1)
+	local smokeColor = (flame and flame.smoke) or Color3.fromRGB(200, 205, 220)
+	local size = (flame and flame.size) or 1
+	local rainbow = flame ~= nil and flame.rainbow == true
+
+	type Set = { flame: ParticleEmitter, core: ParticleEmitter, smoke: ParticleEmitter, extra: { ParticleEmitter }, trail: Trail? }
+	local emitters: { Set } = {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("Attachment") and d.Name:match("^Flame%d") then
-			local flame = Instance.new("ParticleEmitter")
-			flame.Name = "Flame"
-			flame.Texture = "rbxasset://textures/particles/fire_main.dds"
-			flame.Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, def.flame),
-				ColorSequenceKeypoint.new(0.5, def.flame2),
-				ColorSequenceKeypoint.new(1, def.flame2:Lerp(Color3.new(0, 0, 0), 0.5)),
+			local fire = Instance.new("ParticleEmitter")
+			fire.Name = "Flame"
+			fire.Texture = "rbxasset://textures/particles/fire_main.dds"
+			fire.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, c1),
+				ColorSequenceKeypoint.new(0.5, c2),
+				ColorSequenceKeypoint.new(1, c2:Lerp(Color3.new(0, 0, 0), 0.5)),
 			})
-			flame.LightEmission = 1
-			flame.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 0.05) })
-			flame.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(1, 1) })
-			flame.Lifetime = NumberRange.new(0.18, 0.3)
-			flame.Speed = NumberRange.new(9, 13)
-			flame.EmissionDirection = Enum.NormalId.Bottom
-			flame.SpreadAngle = Vector2.new(6, 6)
-			flame.Rate = 0
-			flame.Parent = d
+			fire.LightEmission = 1
+			fire.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55 * size), NumberSequenceKeypoint.new(1, 0.05) })
+			fire.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(1, 1) })
+			fire.Lifetime = NumberRange.new(0.18 * size, 0.3 * size)
+			fire.Speed = NumberRange.new(9, 13)
+			fire.EmissionDirection = Enum.NormalId.Bottom
+			fire.SpreadAngle = Vector2.new(6, 6)
+			fire.Rate = 0
+			fire.Parent = d
 			local core = Instance.new("ParticleEmitter")
 			core.Name = "Core"
-			core.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-			core.Color = ColorSequence.new(Color3.new(1, 1, 1), def.flame)
-			core.LightEmission = 1
-			core.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+			core.Texture = SPARKLE
+			core.Color = ColorSequence.new(coreColor, c1)
+			core.LightEmission = if coreColor.R + coreColor.G + coreColor.B < 0.5 then 0 else 1
+			core.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35 * size), NumberSequenceKeypoint.new(1, 0) })
 			core.Transparency = NumberSequence.new(0, 1)
 			core.Lifetime = NumberRange.new(0.1, 0.16)
 			core.Speed = NumberRange.new(7, 9)
@@ -180,24 +196,111 @@ function JetpackModel.AddFlames(model: Model, def: Config.JetpackDef): (number) 
 			local smoke = Instance.new("ParticleEmitter")
 			smoke.Name = "Smoke"
 			smoke.Texture = "rbxasset://textures/particles/smoke_main.dds"
-			smoke.Color = ColorSequence.new(Color3.fromRGB(200, 205, 220))
-			smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1.4) })
+			smoke.Color = ColorSequence.new(smokeColor)
+			smoke.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1.4 * size) })
 			smoke.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.75), NumberSequenceKeypoint.new(1, 1) })
 			smoke.Lifetime = NumberRange.new(0.5, 0.9)
 			smoke.Speed = NumberRange.new(2, 4)
 			smoke.EmissionDirection = Enum.NormalId.Bottom
 			smoke.Rate = 0
 			smoke.Parent = d
-			table.insert(emitters, { flame = flame, core = core, smoke = smoke })
+
+			local extra: { ParticleEmitter } = {}
+			-- Işıltı: aleve karışan küçük yıldızlar
+			if flame and flame.sparkle then
+				local e = Instance.new("ParticleEmitter")
+				e.Name = "Sparkle"
+				e.Texture = SPARKLE
+				e.Color = ColorSequence.new(flame.sparkle)
+				e.LightEmission = 1
+				e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.3), NumberSequenceKeypoint.new(1, 0) })
+				e.Lifetime = NumberRange.new(0.5, 0.9)
+				e.Speed = NumberRange.new(3, 6)
+				e.SpreadAngle = Vector2.new(30, 30)
+				e.EmissionDirection = Enum.NormalId.Bottom
+				e.RotSpeed = NumberRange.new(-200, 200)
+				e.Drag = 2
+				e.Rate = 0
+				e.Parent = d
+				table.insert(extra, e)
+			end
+			-- Kıvılcım: yerçekimiyle düşen sıcak parçalar
+			if flame and flame.embers then
+				local e = Instance.new("ParticleEmitter")
+				e.Name = "Embers"
+				e.Texture = EMBER
+				e.Color = ColorSequence.new(c1, c2)
+				e.LightEmission = 1
+				e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) })
+				e.Lifetime = NumberRange.new(0.6, 1.1)
+				e.Speed = NumberRange.new(4, 9)
+				e.SpreadAngle = Vector2.new(35, 35)
+				e.Acceleration = Vector3.new(0, -12, 0)
+				e.EmissionDirection = Enum.NormalId.Bottom
+				e.Rate = 0
+				e.Parent = d
+				table.insert(extra, e)
+			end
+			-- İz: memeden geriye uzanan ışık şeridi (uçarken görünür)
+			local trail: Trail? = nil
+			if flame and flame.trail then
+				local host = d.Parent
+				if host and host:IsA("BasePart") then
+					local a0 = Instance.new("Attachment")
+					a0.Name = "TrailA"
+					a0.Position = d.Position + Vector3.new(0.18, 0, 0)
+					a0.Parent = host
+					local a1 = Instance.new("Attachment")
+					a1.Name = "TrailB"
+					a1.Position = d.Position - Vector3.new(0.18, 0, 0)
+					a1.Parent = host
+					local t = Instance.new("Trail")
+					t.Attachment0 = a0
+					t.Attachment1 = a1
+					t.Color = ColorSequence.new(flame.trail, flame.trail2 or flame.trail)
+					t.LightEmission = 1
+					t.FaceCamera = true
+					t.Lifetime = 0.45
+					t.MinLength = 0.1
+					t.WidthScale = NumberSequence.new(1, 0.1)
+					t.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+					t.Enabled = false
+					t.Parent = host
+					trail = t
+				end
+			end
+			table.insert(emitters, { flame = fire, core = core, smoke = smoke, extra = extra, trail = trail })
 		end
 	end
+	local started = os.clock()
+	local lastColorAt = 0
 	local function set(strength: number)
 		local k = math.clamp(strength, 0, 1)
-		for _, e in emitters do
-			e.flame.Rate = 18 + 62 * k
+		local now = os.clock()
+		local recolor = rainbow and now - lastColorAt > 0.1
+		if recolor then
+			lastColorAt = now
+		end
+		for i, e in emitters do
+			e.flame.Rate = (18 + 62 * k) * size
 			e.core.Rate = 10 + 40 * k
 			e.smoke.Rate = 4 + 10 * k
 			e.flame.Speed = NumberRange.new(6 + 8 * k, 9 + 10 * k)
+			for _, x in e.extra do
+				x.Rate = if x.Name == "Embers" then 3 + 22 * k else 2 + 16 * k
+			end
+			if e.trail then
+				e.trail.Enabled = k > 0.35
+			end
+			if recolor then
+				local a = Config.RainbowColor(now - started, i * 0.08)
+				local b = Config.RainbowColor(now - started, 0.33 + i * 0.08)
+				e.flame.Color = ColorSequence.new(a, b)
+				e.core.Color = ColorSequence.new(Color3.new(1, 1, 1), a)
+				if e.trail then
+					e.trail.Color = ColorSequence.new(a, b)
+				end
+			end
 		end
 	end
 	set(0.3)

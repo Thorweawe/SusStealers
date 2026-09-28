@@ -91,6 +91,9 @@ local function statValue(player: Player, stat: string): number
 		return profile.mutatedSteals
 	elseif stat == "bossSteals" then
 		return profile.bossSteals
+	elseif stat == "weeklyBest" then
+		-- Haftalık sıralama derecesi (WeeklyService): 3 birinci, 2 ilk üç, 1 ilk on
+		return profile.weeklyBest
 	elseif stat == "discovered" then
 		-- İndekste keşfedilmiş karakter sayısı
 		local count = 0

@@ -87,6 +87,15 @@ function SpinService.GetCooldown(player: Player): number
 	return math.max(0, total - elapsed)
 end
 
+--[[ Pencereye jeton ve süper çark sayıları. ]]
+local function publishTokens(player: Player)
+	local profile = DataService.Get(player)
+	if profile then
+		player:SetAttribute("SpinTokens", profile.spinTokens)
+		player:SetAttribute("SuperSpins", profile.superSpins)
+	end
+end
+
 --[[ Pencerenin geri sayımı: bedava hakkın geleceği an (os.time). ]]
 local function publishReady(player: Player)
 	local profile = DataService.Get(player)
@@ -101,9 +110,12 @@ end
 	Ödülü uygular ve oyuncuya gösterilecek metni döner.
 	Uygulanamazsa nil döner; çağıran hakkı harcamamalı.
 ]]
-local function grantReward(player: Player, reward: Config.SpinReward): string?
+local function grantReward(player: Player, reward: Config.SpinReward, super: boolean?): string?
 	if reward.kind == "cash" then
 		local amount = Config.GetSpinCash(reward, EconomyService.GetIncome(player))
+		if super then
+			amount = math.floor(amount * Config.SuperSpin.cashMul)
+		end
 		EconomyService.AddCash(player, amount)
 		return string.format("$%s", Config.FormatCash(amount))
 
@@ -115,7 +127,7 @@ local function grantReward(player: Player, reward: Config.SpinReward): string?
 			o havuzdan bir karakterin satış değeri kadar nakit.
 		]]
 		local mutated = reward.kind == "mutation"
-		local bonusTier = if reward.kind == "unit" then 1 else 0
+		local bonusTier = (if reward.kind == "unit" then 1 else 0) + (if super then Config.SuperSpin.bonusTier else 0)
 		local name = SpaceService.GrantUnit(player, mutated, bonusTier)
 		if name then
 			return name
@@ -298,8 +310,12 @@ end
 	Robux ürününden geliyor ve hak kontrolü yapılmıyor. Ödül seçiliyor,
 	dilim oyuncuya gidiyor ("SpinResult"), ödül çark durunca veriliyor.
 	`instant` (testler) beklemeden verir.
+
+	`kind` (free false iken): "token" bir çark jetonu harcar (bekleme yok),
+	"super" bir SÜPER ÇARK hakkı harcar (Config.SuperSpin: ağırlıklar büyük
+	ödüllere kayık, nakit ×3, karakter bir kademe üstten).
 ]]
-function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boolean
+function SpinService.Spin(player: Player, free: boolean, instant: boolean?, kind: string?): boolean
 	local profile = DataService.Get(player)
 	if not profile then
 		return false
@@ -324,8 +340,25 @@ function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boo
 		end
 	end
 
-	local reward = Config.RollSpinReward(rng)
+	local super = not free and kind == "super"
+	local useToken = not free and kind == "token"
+	if super and profile.superSpins <= 0 then
+		notify(player, "No super spins - finish a 7 day streak!", true)
+		return false
+	end
+	if useToken and profile.spinTokens <= 0 then
+		notify(player, "No spins left", true)
+		return false
+	end
+
+	local reward = Config.RollSpinReward(rng, if super then Config.SuperSpin.weights else nil)
 	local index, jitter = pickSlice(reward.id)
+	if super then
+		profile.superSpins -= 1
+	elseif useToken then
+		profile.spinTokens -= 1
+	end
+	publishTokens(player)
 
 	-- Hak şimdi harcanıyor (pencere kapatılıp yeniden açılınca tekrar çevrilmesin)
 	local previousSpinAt = profile.lastSpinAt
@@ -347,12 +380,17 @@ function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boo
 		if not player.Parent then
 			return
 		end
-		local description = grantReward(player, reward)
+		local description = grantReward(player, reward, super)
 		if not description then
 			if free then
 				profile.lastSpinAt = previousSpinAt
 				publishReady(player)
+			elseif super then
+				profile.superSpins += 1
+			elseif useToken then
+				profile.spinTokens += 1
 			end
+			publishTokens(player)
 			notify(player, "Could not grant the prize - try again", true)
 			return
 		end
@@ -360,7 +398,7 @@ function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boo
 		if free then
 			DataService.Save(player)
 		end
-		notify(player, string.format("%s! You won %s", reward.name, description), false)
+		notify(player, string.format("%s%s! You won %s", if super then "SUPER " else "", reward.name, description), false)
 		BadgeService.Award(player, "FirstSpin")
 	end
 
@@ -370,7 +408,7 @@ function SpinService.Spin(player: Player, free: boolean, instant: boolean?): boo
 	end
 	local stopsIn = animate(index, jitter)
 	if resultRemote then
-		resultRemote:FireClient(player, reward.id, reward.name, stopsIn, index, jitter)
+		resultRemote:FireClient(player, reward.id, reward.name, stopsIn, index, jitter, super)
 	end
 	task.delay(stopsIn, finish)
 	return true
@@ -382,8 +420,9 @@ function SpinService._CancelPending(player: Player)
 	busy[player] = nil
 end
 
---[[ Penceredeki SPIN düğmesi: çarkın yanında olmalı, art arda istek yok. ]]
-function SpinService.TrySpin(player: Player): boolean
+--[[ Penceredeki SPIN düğmesi: çarkın yanında olmalı, art arda istek yok.
+     `mode`: nil (günlük bedava), "token", "super". ]]
+function SpinService.TrySpin(player: Player, mode: string?): boolean
 	local now = os.clock()
 	if now - (lastRequest[player] or 0) < 1 then
 		return false
@@ -396,6 +435,9 @@ function SpinService.TrySpin(player: Player): boolean
 	if plinth and plinth:IsA("BasePart") and root and root:IsA("BasePart")
 		and (root.Position - plinth.Position).Magnitude > 40 then
 		return false
+	end
+	if mode == "token" or mode == "super" then
+		return SpinService.Spin(player, false, nil, mode)
 	end
 	return SpinService.Spin(player, true)
 end
@@ -464,13 +506,24 @@ end
 function SpinService.Start()
 	notifyRemote = Net.Get("Notify")
 	resultRemote = Net.Get("SpinResult")
-	Net.Get("SpinRequest").OnServerEvent:Connect(function(player)
-		SpinService.TrySpin(player)
+	Net.Get("SpinRequest").OnServerEvent:Connect(function(player, mode)
+		SpinService.TrySpin(player, if typeof(mode) == "string" then mode else nil)
+	end)
+	-- 5'li çark paketi (Config.SpinPack, kimlik girilince): jeton
+	MonetizationService.RegisterGranter("spinpack", function(player)
+		local profile = DataService.Get(player)
+		if not profile then
+			return false
+		end
+		profile.spinTokens += Config.SpinPack.count
+		publishTokens(player)
+		return true
 	end)
 	local function onPlayer(player: Player)
 		task.spawn(function()
 			if DataService.WaitForProfile(player, 30) and player.Parent then
 				publishReady(player)
+				publishTokens(player)
 			end
 		end)
 	end

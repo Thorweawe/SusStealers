@@ -230,6 +230,25 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	buyLabel.Size = UDim2.fromScale(1, 1)
 	outline(buyLabel, 2)
 
+	-- 5'li paket (Config.SpinPack; kimlik 0 iken SOON)
+	local packHolder, packButton = UiKit.Raised(root, "BuyPack", Color3.fromRGB(60, 190, 110), UDim2.fromOffset(110, 46), 12)
+	packHolder.AnchorPoint = Vector2.new(1, 1)
+	packHolder.Position = UDim2.new(1, -18, 1, -102)
+	packHolder.ZIndex = Z + 3
+	local packLabel = text(packButton, "", Enum.Font.FredokaOne, 15, Color3.new(1, 1, 1), Z + 8)
+	packLabel.Size = UDim2.fromScale(1, 1)
+	outline(packLabel, 2)
+	packLabel.Text = if Config.SpinPack.id > 0 then string.format("+%d SPINS\nR$ %d", Config.SpinPack.count, Config.SpinPack.robux) else string.format("+%d SPINS\nSOON", Config.SpinPack.count)
+
+	-- Süper çark (günlük serinin 7. günü, sezon ödülü): altın düğme, solda
+	local superHolder, superButton = UiKit.Raised(root, "SuperSpin", Color3.fromRGB(255, 190, 40), UDim2.fromOffset(120, 58), 14)
+	superHolder.AnchorPoint = Vector2.new(0, 1)
+	superHolder.Position = UDim2.new(0, 18, 1, -44)
+	superHolder.ZIndex = Z + 3
+	local superLabel = text(superButton, "", Enum.Font.FredokaOne, 16, Color3.new(1, 1, 1), Z + 8)
+	superLabel.Size = UDim2.fromScale(1, 1)
+	outline(superLabel, 2.2)
+
 	local timer = text(root, "", Enum.Font.GothamBlack, 15, Color3.new(1, 1, 1), Z + 3)
 	timer.AnchorPoint = Vector2.new(0.5, 1)
 	timer.Position = UDim2.new(0.5, 0, 1, -14)
@@ -277,22 +296,34 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 		return string.format("%02d:%02d:%02d", t // 3600, (t % 3600) // 60, t % 60)
 	end
 
+	local function count(attr: string): number
+		local v = player:GetAttribute(attr)
+		return if typeof(v) == "number" then v else 0
+	end
+
 	local function paintButton()
 		local left = readyIn()
-		local ready = left <= 0 and not spinning
+		local tokens = count("SpinTokens")
+		local supers = count("SuperSpins")
+		local ready = (left <= 0 or tokens > 0) and not spinning
 		spinButton.Active = ready
+		superHolder.Visible = supers > 0
+		superButton.Active = supers > 0 and not spinning
+		superLabel.Text = string.format("👑 SUPER\nSPIN x%d", supers)
 		local base = if ready then UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.3) else UiKit.DIM
 		spinButton.BackgroundColor3 = base
 		local g = spinButton:FindFirstChildOfClass("UIGradient")
 		if g then
 			g.Color = ColorSequence.new(base:Lerp(Color3.new(1, 1, 1), 0.22), base:Lerp(Color3.new(0, 0, 0), 0.18))
 		end
-		spinLabel.Text = if spinning then "SPINNING..." elseif ready then "FREE SPIN!" else "SPIN!"
-		timer.Text = if left <= 0 then "Free spin ready!" else "+1 free spin in " .. clockText(left)
+		spinLabel.Text = if spinning then "SPINNING..." elseif left <= 0 then "FREE SPIN!" elseif tokens > 0 then string.format("SPIN (x%d)", tokens) else "SPIN!"
+		timer.Text = (if left <= 0 then "Free spin ready!" else "+1 free spin in " .. clockText(left))
+			.. (if tokens > 0 then string.format("  ·  %d spin%s left", tokens, if tokens == 1 then "" else "s") else "")
 	end
 
-	local function showPrize(rewardId: string, name: string)
+	local function showPrize(rewardId: string, name: string, super: boolean?)
 		local look = Config.SpinSliceLook[rewardId]
+		prizeTop.Text = if super then "SUPER PRIZE!" else "YOU WON"
 		prizeName.Text = (if look then look.icon .. " " else "") .. name
 		prize.Visible = true
 		prize.Size = UDim2.fromOffset(150, 60)
@@ -305,8 +336,11 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	end
 
 	--[[ Sunucunun seçtiği dilime, en az 5 tur dönüp yavaşlayarak. ]]
-	local function spinTo(rewardId: string, name: string, duration: number, index: number, jitter: number)
+	local function spinTo(rewardId: string, name: string, duration: number, index: number, jitter: number, super: boolean?)
 		spinning = true
+		-- Süper çarkta çember altın parlıyor, başlık değişiyor
+		rim.BackgroundColor3 = if super then Color3.fromRGB(255, 240, 150) else Color3.fromRGB(255, 190, 40)
+		title.Text = if super then "👑 SUPER SPIN!" else "SPIN THE WHEEL"
 		idle = false
 		prize.Visible = false
 		paintButton()
@@ -334,7 +368,8 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 				conn:Disconnect()
 				spinning = false
 				paintButton()
-				showPrize(rewardId, name)
+				showPrize(rewardId, name, super)
+				title.Text = "SPIN THE WHEEL"
 				task.delay(3, function()
 					if not spinning then
 						idle = true
@@ -345,21 +380,39 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	end
 
 	local conns: { RBXScriptConnection } = {}
-	table.insert(conns, resultRemote.OnClientEvent:Connect(function(rewardId, name, duration, index, jitter)
+	table.insert(conns, resultRemote.OnClientEvent:Connect(function(rewardId, name, duration, index, jitter, super)
 		if typeof(rewardId) ~= "string" or typeof(index) ~= "number" then
 			return
 		end
 		root.Visible = true
 		spinTo(rewardId, tostring(name), if typeof(duration) == "number" then duration else Config.SpinDuration, index,
-			if typeof(jitter) == "number" then jitter else 0)
+			if typeof(jitter) == "number" then jitter else 0, super == true)
 	end))
 
 	spinButton.MouseButton1Click:Connect(function()
-		if spinning or readyIn() > 0 then
+		if spinning then
 			return
 		end
-		requestRemote:FireServer()
+		-- Önce günlük bedava, yoksa jeton
+		if readyIn() <= 0 then
+			requestRemote:FireServer()
+		elseif count("SpinTokens") > 0 then
+			requestRemote:FireServer("token")
+		end
 	end)
+	superButton.MouseButton1Click:Connect(function()
+		if not spinning and count("SuperSpins") > 0 then
+			requestRemote:FireServer("super")
+		end
+	end)
+	packButton.MouseButton1Click:Connect(function()
+		if Config.SpinPack.id > 0 and not spinning then
+			MarketplaceService:PromptProductPurchase(player, Config.SpinPack.id)
+		end
+	end)
+	for _, attr in { "SpinTokens", "SuperSpins" } do
+		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(paintButton))
+	end
 	buyButton.MouseButton1Click:Connect(function()
 		local product = Config.Products.ExtraSpin
 		if product and product.id > 0 and not spinning then

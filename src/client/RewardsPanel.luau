@@ -75,6 +75,10 @@ local function describe(reward: Config.RewardDef): string
 	elseif reward.kind == "egg" and reward.egg then
 		local egg = Config.GetEgg(reward.egg)
 		return if egg then egg.name else "Egg"
+	elseif reward.kind == "superspin" then
+		return "SUPER SPIN"
+	elseif reward.kind == "spins" then
+		return if (reward.count or 1) > 1 then (reward.count :: number) .. " Spins" else "Spin"
 	end
 	return "?"
 end
@@ -88,6 +92,8 @@ local function drawIcon(slot: Frame, reward: Config.RewardDef, dim: boolean)
 		UiKit.Coin(slot, 44, tone(Color3.fromRGB(255, 210, 60)))
 	elseif reward.kind == "potion" then
 		UiKit.Vial(slot, 46, tone(Color3.fromRGB(150, 236, 160)), 0.8, true)
+	elseif reward.kind == "superspin" or reward.kind == "spins" then
+		UiKit.Wheel(slot, 46, tone(if reward.kind == "superspin" then Color3.fromRGB(255, 205, 60) else Color3.fromRGB(120, 200, 255)))
 	elseif dim then
 		UiKit.Egg(slot, 48, tone(Color3.fromRGB(255, 190, 220)))
 	else

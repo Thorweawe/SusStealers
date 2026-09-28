@@ -67,6 +67,9 @@ local JetpackPanel = require(script.JetpackPanel)
 local SettingsPanel = require(script.SettingsPanel)
 local SpinPanel = require(script.SpinPanel)
 local CrewAura = require(script.CrewAura)
+local WeeklyPanel = require(script.WeeklyPanel)
+local SeasonPanel = require(script.SeasonPanel)
+local SpaceEventsFX = require(script.SpaceEventsFX)
 local Summons = require(script.Summons)
 local Hotbar = require(script.Hotbar)
 local AsteroidGame = require(script.AsteroidGame)
@@ -682,6 +685,9 @@ mountPanel("SideRail", function()
 	local shop = ShopPanel.Create(screen)
 
 	local quests: QuestPanel.Panel? = nil
+	-- Sezon Kartı: sol rayda PASS (rozet = toplanacak ödül)
+	local seasonPass = SeasonPanel.Create(screen)
+	previews.Season = seasonPass.Open
 	local rail = SideRail.Create(screen, "SideRail", {
 		{
 			name = "Shop",
@@ -708,7 +714,21 @@ mountPanel("SideRail", function()
 				end
 			end,
 		},
+		{
+			name = "Pass",
+			label = "PASS",
+			tint = Color3.fromRGB(170, 100, 255),
+			icon = "crown",
+			onClick = seasonPass.Toggle,
+		},
 	})
+	local function passBadge()
+		rail.SetBadge("Pass", SeasonPanel.Claimable())
+	end
+	for _, attr in { "SeasonXp", "SeasonClaimed", "SeasonPass" } do
+		player:GetAttributeChangedSignal(attr):Connect(passBadge)
+	end
+	passBadge()
 
 	quests = QuestPanel.Create(screen, function(ready)
 		rail.SetBadge("Quests", ready)
@@ -835,6 +855,18 @@ end)
 -- Gezegenlerdeki mürettebatın nadirlik aurası (ışıltı, küre, ışık sütunu)
 mountPanel("CrewAura", function()
 	CrewAura.Start()
+end)
+
+-- Uzay istasyonu olaylarının görünüşü (göktaşları, karartma, güneş rüzgârı)
+mountPanel("SpaceEventsFX", function()
+	SpaceEventsFX.Start()
+end)
+
+-- Haftalık sıralama: CREW tablosundaki 🏆 düğmesi ve lobideki panonun promptu
+mountPanel("WeeklyPanel", function()
+	local weekly = WeeklyPanel.Create(screen)
+	previews.Weekly = weekly.Open
+	Leaderboard.OpenWeekly.Event:Connect(weekly.Toggle)
 end)
 
 -- Summons sohbet sekmesi (nadir cikislar)

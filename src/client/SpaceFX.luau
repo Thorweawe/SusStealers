@@ -334,10 +334,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		ya da canavarın elindeyken görünüyor; SpaceGrabbed de dinleniyor —
 		eskiden fırlatılıp gemiye inen oyuncunun sırtında kalıyordu.
 	]]
-	type Pack = { model: Model, id: string, setFlame: (number) -> () }
+	type Pack = { model: Model, id: string, flame: string, setFlame: (number) -> () }
 	local jetpacks: { [Player]: Pack } = {}
 
-	local function buildJetpack(character: Model, id: string): Pack?
+	local function buildJetpack(character: Model, id: string, flameId: string): Pack?
 		local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
 		if not (torso and torso:IsA("BasePart")) then
 			return nil
@@ -356,23 +356,27 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			end
 		end
 		model.Parent = character
-		local setFlame = JetpackModel.AddFlames(model, def)
-		return { model = model, id = def.id, setFlame = setFlame }
+		-- Alev kozmetiği (JetFlame niteliği; Classic = jetpack'in kendi rengi)
+		local flameDef = if flameId ~= "Classic" then Config.GetJetFlame(flameId) else nil
+		local setFlame = JetpackModel.AddFlames(model, def, flameDef)
+		return { model = model, id = def.id, flame = flameId, setFlame = setFlame }
 	end
 
 	local function refreshJetpack(other: Player)
 		local want = other:GetAttribute("InSpace") == true or other:GetAttribute("SpaceGrabbed") ~= nil
 		local id = other:GetAttribute("Jetpack")
 		local wantId = if typeof(id) == "string" then id else "Starter"
+		local flameAttr = other:GetAttribute("JetFlame")
+		local wantFlame = if typeof(flameAttr) == "string" then flameAttr else "Classic"
 		local character = other.Character
 		local pack = jetpacks[other]
-		if pack and (not want or pack.model.Parent ~= character or pack.id ~= wantId) then
+		if pack and (not want or pack.model.Parent ~= character or pack.id ~= wantId or pack.flame ~= wantFlame) then
 			pack.model:Destroy()
 			jetpacks[other] = nil
 			pack = nil
 		end
 		if want and not pack and character then
-			local built = buildJetpack(character, wantId)
+			local built = buildJetpack(character, wantId, wantFlame)
 			if built then
 				jetpacks[other] = built
 			end
@@ -380,7 +384,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	end
 
 	local function watchPlayer(other: Player)
-		for _, attr in { "InSpace", "SpaceGrabbed", "Jetpack" } do
+		for _, attr in { "InSpace", "SpaceGrabbed", "Jetpack", "JetFlame" } do
 			table.insert(connections, other:GetAttributeChangedSignal(attr):Connect(function()
 				refreshJetpack(other)
 			end))
@@ -683,6 +687,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		-- Jetpack giderken hızlandırıyor; mürettebat taşırken kendi hızın
 		local carryingNow = player:GetAttribute("SpaceCarry") == true
 		local speed = mySpeed() * Config.GetJetpackBoost(player:GetAttribute("Jetpack") :: string?, carryingNow)
+		-- Olay (Solar Wind): sunucunun teslim toleransı da sayıyor
+		local eventMul = workspace:GetAttribute("EventFlightMul")
+		if typeof(eventMul) == "number" and eventMul > 1 then
+			speed *= eventMul
+		end
 		local boosting = os.clock() < boostUntil
 		if boosting then
 			local jet = jetParams()
@@ -1188,12 +1197,24 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			if a == "crate" then
 				effects.Flash(Color3.fromRGB(255, 210, 90), 0.3, 0.4)
 				SoundFX.Success()
+			elseif a == "shard" then
+				effects.Flash(Color3.fromRGB(255, 230, 120), 0.3, 0.4)
+				SoundFX.Success()
+				yell("STAR SHARD!", Color3.fromRGB(255, 225, 110), 1.6)
 			else
 				effects.Flash(Color3.fromRGB(255, 220, 90), 0.5, 0.7)
 				effects.Shake(1, 0.5)
 				SoundFX.Success()
 				yell("GOLDEN COMET!", Color3.fromRGB(255, 220, 90), 2.4)
 			end
+		elseif kind == "meteor" and typeof(a) == "Vector3" then
+			-- Göktaşı çarptı (Meteor Shower): gear vuruşu gibi dönerek savrulma
+			player:SetAttribute("SpaceKnock", a)
+			player:SetAttribute("SpaceStunUntil", os.clock() + 1.2)
+			effects.Flash(Color3.fromRGB(255, 140, 60), 0.5, 0.5)
+			effects.Shake(1.4, 0.5)
+			SoundFX.RockBreak()
+			yell("METEOR HIT!", Color3.fromRGB(255, 140, 60), 1.4)
 		elseif kind == "delivered" then
 			effects.Flash(Color3.fromRGB(90, 255, 120), 0.45, 0.6)
 			SoundFX.Success()

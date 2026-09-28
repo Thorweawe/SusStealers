@@ -40,6 +40,8 @@ local SpaceService = require(script.SpaceService)
 local SpaceBonusService = require(script.SpaceBonusService)
 local CapsuleService = require(script.CapsuleService)
 local JetpackService = require(script.JetpackService)
+local WeeklyService = require(script.WeeklyService)
+local SeasonService = require(script.SeasonService)
 
 local started = os.clock()
 
@@ -88,5 +90,7 @@ SpaceBonusService.Start()
 CapsuleService.Start()
 -- Launch Bay'deki jetpack standı (SpaceService güverteyi kurduktan sonra)
 JetpackService.Start()
+WeeklyService.Start()
+SeasonService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))

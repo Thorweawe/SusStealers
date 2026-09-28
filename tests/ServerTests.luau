@@ -60,6 +60,9 @@ local SettingsService = require(Server.SettingsService)
 local SpaceService = require(Server.SpaceService)
 local SpaceBonusService = require(Server.SpaceBonusService)
 local JetpackService = require(Server.JetpackService)
+local WeeklyService = require(Server.WeeklyService)
+local SeasonService = require(Server.SeasonService)
+local MeteorShower = require(ReplicatedStorage.Shared.MeteorShower)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
 local ServerTests = {}
@@ -1100,7 +1103,7 @@ case("Unvan: tanımlar tutarlı", function()
 	local stats = {
 		salvaged = true, spaceSpeed = true, trainings = true, stunned = true, thrown = true,
 		mutatedSteals = true, bossSteals = true, discovered = true,
-		secrets = true, rebirths = true, maxedUpgrades = true,
+		secrets = true, rebirths = true, maxedUpgrades = true, weeklyBest = true,
 	}
 
 	local ids, orders = {}, {}
@@ -2153,10 +2156,10 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		SettingsSave oyuncu ayarları için eklendi; SpaceHit uzay soygununa
 		geçilince kalktı; 2026-09-28'de SpaceReturn istasyona dönüş,
 		JetpackAction jetpack dükkânı, SpinRequest çark penceresi eklendi;
-		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
-		kazara büyümesin.
+		SeasonClaim Sezon Kartı; gerekçeleri Net.luau'da): yenisi eklemek
+		bilinçli bir karar olsun, kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 22, tostring(#listened))
+	ok("liste bilinçli", #listened <= 23, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)
@@ -4162,6 +4165,179 @@ case("Uzay: istasyona dönüş yalnızca uzayda ve boş elle", function(ctx)
 	ok("art arda dönüş yok", not SpaceService.ReturnToStation(ctx.player))
 	ctx.player:SetAttribute("InSpace", nil)
 	root.CFrame = home
+end)
+
+case("Jetpack alevleri: parayla alınıyor, ödüllü ve Robux'lusu satılmıyor", function(ctx)
+	ok("Classic herkeste", JetpackService.OwnsFlame(ctx.player, "Classic"))
+	local cryo = Config.GetJetFlame("Cryo") :: Config.JetFlameDef
+	ctx.profile.flames = {}
+	ctx.profile.flame = "Classic"
+	setCash(ctx.player, cryo.price - 1)
+	ok("parası yetmeyince alınamıyor", not JetpackService.BuyFlame(ctx.player, "Cryo"))
+	setCash(ctx.player, cryo.price)
+	ok("alındı", JetpackService.BuyFlame(ctx.player, "Cryo"))
+	eq("takıldı", ctx.player:GetAttribute("JetFlame"), "Cryo")
+	ok("sahiplik yayında", string.find(tostring(ctx.player:GetAttribute("FlamesOwned")), "Cryo", 1, true) ~= nil)
+	setCash(ctx.player, 1e15)
+	ok("sezon alevi satılmıyor", not JetpackService.BuyFlame(ctx.player, "Nebula"))
+	ok("haftalık alev satılmıyor", not JetpackService.BuyFlame(ctx.player, "Champion"))
+	ok("Robux alevi parayla alınmıyor", not JetpackService.BuyFlame(ctx.player, "Rainbow"))
+	ok("ödülle geliyor", RewardService.Give(ctx.player, { kind = "flame", flame = "Nebula" }) ~= nil)
+	ok("ödül alevi takılabiliyor", JetpackService.EquipFlame(ctx.player, "Nebula"))
+	for _, def in Config.JetFlames do
+		ok(def.id .. " açıklaması var", def.blurb ~= "")
+	end
+	ctx.profile.flames = {}
+	ctx.profile.flame = "Classic"
+	JetpackService.Publish(ctx.player)
+end)
+
+case("Haftalık sıralama: hafta sayacı, ödül girişte bir kez", function(ctx)
+	local t = 1790553600
+	eq("hafta bitişi bir sonraki pazartesi", Config.WeekEndsAt(t) - Config.WeekEndsAt(t - 7 * 86400), 7 * 86400)
+	ok("hafta başı pazartesi", (Config.WeekEndsAt(t) - Config.Weekly.Epoch) % (7 * 86400) == 0)
+	eq("1. ödül", (Config.GetWeeklyReward(1) :: any).best, 3)
+	eq("3. ödül", (Config.GetWeeklyReward(3) :: any).best, 2)
+	eq("10. ödül", (Config.GetWeeklyReward(10) :: any).best, 1)
+	eq("11. yok", Config.GetWeeklyReward(11), nil)
+
+	-- Soygun sayacı haftalığa da yazılıyor (önceki testlerin ertelenmiş sinyalleri önce işlensin)
+	ctx.profile.weekId = Config.WeekIndex(os.time())
+	task.wait()
+	local before = ctx.profile.weekStolen
+	DataService.Bump(ctx.player, "salvaged")
+	task.wait() -- sinyaller ertelemeli (SignalBehavior Deferred)
+	eq("haftalık soygun arttı", ctx.profile.weekStolen, before + 1)
+	ctx.profile.salvaged -= 1
+
+	-- Geçen hafta birinci: nakit + unvan sayacı + alev, bir kez
+	local week = Config.WeekIndex(os.time())
+	ctx.profile.weeklyChecked = 0
+	ctx.profile.weeklyBest = 0
+	ctx.profile.flames = {}
+	setCash(ctx.player, 0)
+	local top = { { n = "Me", v = 50, u = ctx.player.UserId } }
+	eq("birinci", WeeklyService.Settle(ctx.player, top, week), 1)
+	eq("unvan sayacı", ctx.profile.weeklyBest, 3)
+	ok("para geldi", EconomyService.GetCash(ctx.player) >= Config.Weekly.Rewards[1].minimum)
+	ok("şampiyon alevi", ctx.profile.flames.Champion == true)
+	ok("şampiyon unvanı açıldı", ctx.profile.titles.WeeklyChampion == true)
+	eq("ikinci kez yok", WeeklyService.Settle(ctx.player, top, week), nil)
+	-- Listede yoksa ödül yok ama işaretleniyor
+	ctx.profile.weeklyChecked = 0
+	eq("listede değil", WeeklyService.Settle(ctx.player, { { n = "X", v = 9, u = -5 } }, week), nil)
+	eq("işaretlendi", ctx.profile.weeklyChecked, week)
+
+	ctx.profile.flames = {}
+	ctx.profile.weeklyBest = 0
+	ctx.profile.titles.WeeklyChampion = nil
+	ctx.profile.titles.WeeklyTop3 = nil
+	ctx.profile.titles.WeeklyTop10 = nil
+	ctx.player:SetAttribute("WeeklyResult", nil)
+	JetpackService.Publish(ctx.player)
+	TitleService.Publish(ctx.player)
+end)
+
+case("Sezon Kartı: XP kademesi, bedava ve premium ödül", function(ctx)
+	eq("0 XP kademe 0", (Config.SeasonProgress(0)), 0)
+	eq("1. kademe", (Config.SeasonProgress(Config.SeasonTierXp(1))), 1)
+	local total = 0
+	for tier = 1, Config.Season.tiers do
+		total += Config.SeasonTierXp(tier)
+		local free, premium = Config.GetSeasonRewards(tier)
+		ok(tier .. ". bedava ödül tanımlı", free.kind ~= "")
+		ok(tier .. ". premium ödül tanımlı", premium.kind ~= "")
+	end
+	eq("tavan", (Config.SeasonProgress(total + 999)), Config.Season.tiers)
+	-- XP kaynağı bir soygun saatlerce değil: 30 kademe ~ yüzlerce soygun
+	ok("30 kademe emek istiyor", total / Config.Season.xp.salvaged >= 300, tostring(total))
+
+	ctx.profile.season = { id = Config.Season.id, xp = Config.SeasonTierXp(1), free = {}, premium = {} }
+	SeasonService._SetPass(ctx.player, false)
+	ok("1. bedava toplandı", SeasonService.Claim(ctx.player, 1, "free"))
+	ok("ikinci kez yok", not SeasonService.Claim(ctx.player, 1, "free"))
+	ok("ulaşılmamış kademe yok", not SeasonService.Claim(ctx.player, 2, "free"))
+	ok("pass'siz premium yok", not SeasonService.Claim(ctx.player, 1, "premium"))
+	SeasonService._SetPass(ctx.player, true)
+	ok("pass'le premium", SeasonService.Claim(ctx.player, 1, "premium"))
+	ok("uydurma iz yok", not SeasonService.Claim(ctx.player, 1, "gold"))
+	ok("claimed yayında", string.find(tostring(ctx.player:GetAttribute("SeasonClaimed")), "p1", 1, true) ~= nil)
+	-- Başka sezonun kaydı sıfırlanıyor
+	ctx.profile.season = { id = "OLD", xp = 99999, free = { ["1"] = true }, premium = {} }
+	SeasonService.Publish(ctx.player)
+	eq("yeni sezon sıfırdan", ctx.profile.season.xp, 0)
+	SeasonService._SetPass(ctx.player, nil)
+	ctx.profile.season = { id = Config.Season.id, xp = 0, free = {}, premium = {} }
+	SeasonService.Publish(ctx.player)
+end)
+
+case("Çark: jeton ve süper çark haklarını harcıyor, 7. gün süper çark", function(ctx)
+	eq("7. gün süper çark", Config.DailyRewards[7].kind, "superspin")
+	ctx.profile.spinTokens = 0
+	ctx.profile.superSpins = 0
+	ok("jetonsuz çevrilmiyor", not SpinService.Spin(ctx.player, false, true, "token"))
+	ok("süpersiz çevrilmiyor", not SpinService.Spin(ctx.player, false, true, "super"))
+	ok("ödül olarak süper çark", RewardService.Give(ctx.player, { kind = "superspin", count = 1 }) ~= nil)
+	eq("süper çark hakkı", ctx.profile.superSpins, 1)
+	ok("süper çevrildi", SpinService.Spin(ctx.player, false, true, "super"))
+	eq("süper harcandı", ctx.profile.superSpins, 0)
+	ctx.profile.spinTokens = 2
+	ok("jetonla çevrildi", SpinService.Spin(ctx.player, false, true, "token"))
+	eq("jeton harcandı", ctx.profile.spinTokens, 1)
+	-- Süper çarkın ağırlıkları büyük ödüle kayık
+	local normalBig = 0
+	local superBig = 0
+	local total, superTotal = 0, 0
+	for _, r in Config.SpinRewards do
+		total += r.weight
+		superTotal += Config.SuperSpin.weights[r.id] or 0
+		if r.id == "FreeUnit" or r.id == "HugeCash" then
+			normalBig += r.weight
+			superBig += Config.SuperSpin.weights[r.id] or 0
+		end
+	end
+	ok("süperde büyük ödül daha olası", superBig / superTotal > normalBig / total * 2)
+	ctx.profile.spinTokens = 0
+	ctx.profile.superSpins = 0
+end)
+
+case("Uzay olayları: güneş rüzgârı, karartma, göktaşı yağmuru", function()
+	EventService.End()
+	ok("Solar Wind başladı", EventService.Begin("SolarWind"))
+	eq("uçuş çarpanı", workspace:GetAttribute("EventFlightMul"), Config.SolarWindFlightMul)
+	EventService.End()
+	eq("çarpan döndü", workspace:GetAttribute("EventFlightMul"), 1)
+
+	ok("Blackout başladı", EventService.Begin("Blackout"))
+	EventService.End()
+
+	-- Göktaşları sunucu ve istemcide aynı (aynı tohum)
+	local a = MeteorShower.Build(42, 1000, 90)
+	local b = MeteorShower.Build(42, 1000, 90)
+	ok("göktaşı var", #a > 50, tostring(#a))
+	eq("aynı sayı", #a, #b)
+	local same = true
+	for i = 1, #a do
+		if (a[i].to - b[i].to).Magnitude > 1e-6 or a[i].t0 ~= b[i].t0 then
+			same = false
+		end
+	end
+	ok("aynı tohum aynı liste", same)
+	local shards = 0
+	for _, m in a do
+		if m.shard then
+			shards += 1
+		end
+		ok("hedef uçuş alanında", SpaceField.InSpace(m.to))
+	end
+	ok("yıldız parçası bırakan var", shards > 5)
+	ok("yolun ortasında konum var", MeteorShower.PositionAt(a[1], (a[1].t0 + a[1].t1) / 2) ~= nil)
+	eq("uçuş bitince yok", MeteorShower.PositionAt(a[1], a[1].t1 + 1), nil)
+
+	ok("Meteor Shower başladı", EventService.Begin("Meteors"))
+	ok("tohum yayında", typeof(workspace:GetAttribute("MeteorSeed")) == "number")
+	EventService.End()
+	eq("tohum kalktı", workspace:GetAttribute("MeteorSeed"), nil)
 end)
 
 -- ─── Çalıştırıcı ────────────────────────────────────────────────────────────

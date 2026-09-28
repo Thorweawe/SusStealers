@@ -28,6 +28,9 @@ local UiKit = require(script.Parent.UiKit)
 
 local Leaderboard = {}
 
+--[[ Başlıktaki 🏆 düğmesi: haftalık sıralama penceresini açar (init bağlıyor). ]]
+Leaderboard.OpenWeekly = Instance.new("BindableEvent")
+
 local player = Players.LocalPlayer
 
 local WIDTH = 270
@@ -159,7 +162,26 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	local title = CardKit.bold(head, "CREW", 22, CardKit.WHITE, 3, 2.5)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position = UDim2.fromOffset(40, 0)
-	title.Size = UDim2.new(1, -120, 1, 0)
+	title.Size = UDim2.new(1, -170, 1, 0)
+
+	-- Haftalık sıralama (WeeklyPanel): tablonun kendisi bu sunucu, düğme bütün oyun
+	local weekly = Instance.new("TextButton")
+	weekly.Name = "Weekly"
+	weekly.AnchorPoint = Vector2.new(1, 0.5)
+	weekly.Position = UDim2.new(1, -62, 0.5, 0)
+	weekly.Size = UDim2.fromOffset(82, 24)
+	weekly.BackgroundColor3 = Color3.fromRGB(255, 196, 50)
+	weekly.AutoButtonColor = true
+	weekly.Text = ""
+	weekly.ZIndex = 4
+	weekly.Parent = head
+	CardKit.corner(weekly, 8)
+	CardKit.border(weekly, CardKit.OUTLINE, 2)
+	local weeklyText = CardKit.bold(weekly, "🏆 WEEKLY", 13, CardKit.WHITE, 5, 1.8)
+	weeklyText.Size = UDim2.fromScale(1, 1)
+	weekly.Activated:Connect(function()
+		Leaderboard.OpenWeekly:Fire()
+	end)
 
 	local count = CardKit.bold(head, "", 16, CardKit.WHITE, 3, 2)
 	count.AnchorPoint = Vector2.new(1, 0)

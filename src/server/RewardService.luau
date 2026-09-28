@@ -174,8 +174,42 @@ local function give(player: Player, reward: Config.RewardDef): string?
 		end
 		local egg = Config.GetEgg(reward.egg)
 		return if egg then "a free " .. egg.name else "a free egg"
+	elseif reward.kind == "superspin" or reward.kind == "spins" then
+		-- Çark hakları (SpinService kullanıyor; pencere niteliklerden sayıyor)
+		local profile = DataService.Get(player)
+		if not profile then
+			return nil
+		end
+		local count = reward.count or 1
+		if reward.kind == "superspin" then
+			profile.superSpins += count
+		else
+			profile.spinTokens += count
+		end
+		player:SetAttribute("SuperSpins", profile.superSpins)
+		player:SetAttribute("SpinTokens", profile.spinTokens)
+		if reward.kind == "superspin" then
+			return if count == 1 then "a SUPER SPIN" else count .. " SUPER SPINS"
+		end
+		return if count == 1 then "a free spin" else count .. " free spins"
+	elseif reward.kind == "flame" and reward.flame then
+		-- Jetpack alevi (kozmetik): kalıcı; JetpackService yayınlıyor
+		local def = Config.GetJetFlame(reward.flame)
+		local profile = DataService.Get(player)
+		if not (def and profile) then
+			return nil
+		end
+		profile.flames[def.id] = true
+		-- Tembel require: JetpackService bizi çağırmıyor ama başlangıç sırası karışmasın
+		require(script.Parent.JetpackService).Publish(player)
+		return "the " .. def.name .. " jetpack flame"
 	end
 	return nil
+end
+
+--[[ Dışa açık: sezon ve haftalık ödüller de aynı yoldan veriliyor. ]]
+function RewardService.Give(player: Player, reward: Config.RewardDef): string?
+	return give(player, reward)
 end
 
 -- ─── Kodlar ─────────────────────────────────────────────────────────────────
@@ -267,6 +301,7 @@ function RewardService.ClaimDaily(player: Player): boolean
 	end
 	profile.dailyStreak = nextStreak
 	profile.lastDailyDay = Config.DayIndex(os.time())
+	DataService.Bump(player, "dailyClaims")
 	notify(player, string.format("Day %d reward: %s!", nextStreak, what), false)
 	RewardService.Push(player)
 	return true

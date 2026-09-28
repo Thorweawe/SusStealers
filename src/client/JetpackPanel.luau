@@ -8,6 +8,11 @@
 	jetpack'lerinde R$ fiyatı; pass kimliği henüz 0 ise "SOON". Fiyat ve
 	sahiplik sunucuda; burası yalnızca "JetpackAction" gönderiyor ve
 	"Jetpack" / "JetpacksOwned" niteliklerini okuyor.
+
+	İkinci sekme FLAMES (2026-09-28): alev kozmetikleri (Config.JetFlames).
+	Önizleme 3B değil: ViewportFrame parçacık çizmiyor, o yüzden alev
+	arayüzde çiziliyor (degradeli damla katmanları, titreşen, ışıltılı;
+	gökkuşağı renk değiştiriyor). Sahiplik "FlamesOwned", takılı "JetFlame".
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -74,19 +79,42 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 
 	local title = label(band, "🚀 JETPACKS", Enum.Font.GothamBlack, 22, Color3.new(1, 1, 1), Z + 2)
 	title.Position = UDim2.fromOffset(16, 6)
-	title.Size = UDim2.new(1, -100, 0, 26)
+	title.Size = UDim2.new(1, -320, 0, 26)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextStrokeTransparency = 0.5
 	local hint = label(band, "Faster on the way out to the planets. Carrying crew home, you fly at your own speed.",
 		Enum.Font.GothamMedium, 12, UiKit.MUTED, Z + 2)
 	hint.Position = UDim2.fromOffset(16, 30)
-	hint.Size = UDim2.new(1, -100, 0, 16)
+	hint.Size = UDim2.new(1, -320, 0, 16)
+	hint.TextTruncate = Enum.TextTruncate.AtEnd
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 
 	local close = UiKit.CloseButton(root)
 	close.ZIndex = Z + 3
 
+	-- Sekmeler: bandın sağında (kapatma düğmesinin solu)
+	type Tab = { button: TextButton, text: TextLabel }
+	local tabs: { [string]: Tab } = {}
+	local function makeTab(id: string, text: string, order: number)
+		local b = Instance.new("TextButton")
+		b.AnchorPoint = Vector2.new(1, 0.5)
+		b.Position = UDim2.new(1, -60 - (order - 1) * 118, 0.5, 0)
+		b.Size = UDim2.fromOffset(110, 32)
+		b.AutoButtonColor = false
+		b.Text = ""
+		b.ZIndex = Z + 3
+		b.Parent = band
+		UiKit.Corner(b, 10)
+		UiKit.Stroke(b, Color3.fromRGB(12, 16, 28), 2, 0)
+		local t = label(b, text, Enum.Font.GothamBlack, 14, Color3.new(1, 1, 1), Z + 4)
+		t.Size = UDim2.fromScale(1, 1)
+		tabs[id] = { button = b, text = t }
+	end
+	makeTab("flames", "🔥 FLAMES", 1)
+	makeTab("packs", "🚀 PACKS", 2)
+
 	local grid = Instance.new("Frame")
+	grid.Name = "PackGrid"
 	grid.Position = UDim2.fromOffset(14, 64)
 	grid.Size = UDim2.new(1, -28, 1, -76)
 	grid.BackgroundTransparency = 1
@@ -188,6 +216,153 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 		table.insert(cards, { def = def, button = button, price = price, frame = card, stroke = stroke })
 	end
 
+	-- ─── Alevler ─────────────────────────────────────────────────────────
+	local FLAME_COLUMNS = 5
+	local flameRows = math.ceil(#Config.JetFlames / FLAME_COLUMNS)
+	local flameGrid = Instance.new("Frame")
+	flameGrid.Name = "FlameGrid"
+	flameGrid.Position = UDim2.fromOffset(14, 64)
+	flameGrid.Size = UDim2.new(1, -28, 1, -76)
+	flameGrid.BackgroundTransparency = 1
+	flameGrid.Visible = false
+	flameGrid.ZIndex = Z + 1
+	flameGrid.Parent = root
+	local flameLayout = Instance.new("UIGridLayout")
+	flameLayout.CellSize = UDim2.new(1 / FLAME_COLUMNS, -8, 1 / flameRows, -8)
+	flameLayout.CellPadding = UDim2.fromOffset(8, 8)
+	flameLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	flameLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	flameLayout.Parent = flameGrid
+
+	type FlameCard = { def: Config.JetFlameDef, button: TextButton, price: TextLabel, stroke: UIStroke, layers: { Frame }, grads: { UIGradient }, dots: { Frame } }
+	local flameCards: { FlameCard } = {}
+
+	--[[ Arayüzde alev: üç iç içe damla (dış renk → iç beyaz), aşağı doğru. ]]
+	local function drawFlame(parent: Frame, def: Config.JetFlameDef): ({ Frame }, { UIGradient }, { Frame })
+		local layers: { Frame } = {}
+		local grads: { UIGradient } = {}
+		local shapes = {
+			{ w = 0.46, h = 0.86, top = def.flame2, bottom = def.flame2:Lerp(Color3.new(0, 0, 0), 0.3), tr = 0.15 },
+			{ w = 0.32, h = 0.66, top = def.flame, bottom = def.flame2, tr = 0.05 },
+			{ w = 0.16, h = 0.4, top = def.core or Color3.new(1, 1, 1), bottom = def.flame, tr = 0 },
+		}
+		for i, sh in shapes do
+			local f = Instance.new("Frame")
+			f.AnchorPoint = Vector2.new(0.5, 0)
+			f.Position = UDim2.fromScale(0.5, 0.06)
+			f.Size = UDim2.fromScale(sh.w, sh.h)
+			f.BackgroundColor3 = Color3.new(1, 1, 1)
+			f.BorderSizePixel = 0
+			f.ZIndex = Z + 4 + i
+			f.Parent = parent
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0.5, 0)
+			c.Parent = f
+			local g = Instance.new("UIGradient")
+			g.Rotation = 90
+			g.Color = ColorSequence.new(sh.top, sh.bottom)
+			g.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, sh.tr), NumberSequenceKeypoint.new(0.7, sh.tr + 0.1), NumberSequenceKeypoint.new(1, 1) })
+			g.Parent = f
+			table.insert(layers, f)
+			table.insert(grads, g)
+		end
+		-- Meme: alevin çıktığı koyu ağız
+		local nozzle = Instance.new("Frame")
+		nozzle.AnchorPoint = Vector2.new(0.5, 0)
+		nozzle.Position = UDim2.fromScale(0.5, 0)
+		nozzle.Size = UDim2.fromScale(0.36, 0.1)
+		nozzle.BackgroundColor3 = Color3.fromRGB(60, 64, 78)
+		nozzle.BorderSizePixel = 0
+		nozzle.ZIndex = Z + 8
+		nozzle.Parent = parent
+		UiKit.Corner(nozzle, 4)
+		-- Işıltı/kıvılcım noktaları
+		local dots: { Frame } = {}
+		if def.sparkle or def.embers then
+			for k = 1, 6 do
+				local d = Instance.new("Frame")
+				d.AnchorPoint = Vector2.new(0.5, 0.5)
+				d.Size = UDim2.fromOffset(4, 4)
+				d.BackgroundColor3 = def.sparkle or def.flame
+				d.BorderSizePixel = 0
+				d.Rotation = 45
+				d.ZIndex = Z + 9
+				d:SetAttribute("Seed", k * 1.37)
+				d.Parent = parent
+				table.insert(dots, d)
+			end
+		end
+		return layers, grads, dots
+	end
+
+	for index, def in Config.JetFlames do
+		local card = Instance.new("Frame")
+		card.LayoutOrder = index
+		card.BackgroundColor3 = def.flame:Lerp(UiKit.ROW, 0.86)
+		card.BorderSizePixel = 0
+		card.ZIndex = Z + 2
+		card.Parent = flameGrid
+		UiKit.Corner(card, 12)
+		local stroke = UiKit.Stroke(card, def.flame, 1.4, 0.55)
+
+		local stage = Instance.new("Frame")
+		stage.AnchorPoint = Vector2.new(0.5, 0)
+		stage.Position = UDim2.new(0.5, 0, 0, 8)
+		stage.Size = UDim2.new(1, -16, 0, 104)
+		stage.BackgroundColor3 = Color3.fromRGB(10, 12, 26)
+		stage.ClipsDescendants = true
+		stage.ZIndex = Z + 3
+		stage.Parent = card
+		UiKit.Corner(stage, 10)
+		local layers, grads, dots = drawFlame(stage, def)
+
+		local tagText = if def.pass ~= nil then "ROBUX" elseif def.source == "season" then "SEASON" elseif def.source == "weekly" then "WEEKLY #1" else nil
+		if tagText then
+			local tag = label(card, tagText, Enum.Font.GothamBlack, 10, Color3.new(1, 1, 1), Z + 6)
+			tag.AnchorPoint = Vector2.new(1, 0)
+			tag.Position = UDim2.new(1, -12, 0, 12)
+			tag.Size = UDim2.fromOffset(if tagText == "WEEKLY #1" then 64 else 52, 16)
+			tag.BackgroundTransparency = 0
+			tag.BackgroundColor3 = if def.pass ~= nil then ROBUX elseif def.source == "season" then Color3.fromRGB(170, 90, 255) else Color3.fromRGB(230, 170, 30)
+			UiKit.Corner(tag, 6)
+		end
+
+		local name = label(card, def.name, Enum.Font.GothamBlack, 14, UiKit.INK, Z + 3)
+		name.Position = UDim2.fromOffset(6, 114)
+		name.Size = UDim2.new(1, -12, 0, 18)
+		local blurb = label(card, def.blurb, Enum.Font.GothamMedium, 10, UiKit.MUTED, Z + 3)
+		blurb.Position = UDim2.fromOffset(8, 134)
+		blurb.Size = UDim2.new(1, -16, 0, 30)
+		blurb.TextWrapped = true
+		blurb.TextYAlignment = Enum.TextYAlignment.Top
+
+		local holder, button = UiKit.Raised(card, "Buy", UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), UDim2.new(1, -16, 0, 36), 10)
+		holder.AnchorPoint = Vector2.new(0.5, 1)
+		holder.Position = UDim2.new(0.5, 0, 1, -8)
+		holder.ZIndex = Z + 3
+		local price = label(button, "", Enum.Font.GothamBlack, 13, Color3.new(1, 1, 1), Z + 7)
+		price.Size = UDim2.fromScale(1, 1)
+		price.TextStrokeTransparency = 0.5
+
+		local id = def.id
+		button.MouseButton1Click:Connect(function()
+			if not button.Active then
+				return
+			end
+			local owned = string.find("," .. tostring(player:GetAttribute("FlamesOwned") or "") .. ",", "," .. id .. ",", 1, true) ~= nil
+			if owned then
+				actionRemote:FireServer("flameequip", id)
+			elseif def.pass ~= nil then
+				if def.pass > 0 then
+					MarketplaceService:PromptGamePassPurchase(player, def.pass)
+				end
+			elseif def.source == nil then
+				actionRemote:FireServer("flamebuy", id)
+			end
+		end)
+		table.insert(flameCards, { def = def, button = button, price = price, stroke = stroke, layers = layers, grads = grads, dots = dots })
+	end
+
 	local function paint(button: TextButton, base: Color3, dim: boolean)
 		button.BackgroundColor3 = base
 		button.BackgroundTransparency = if dim then 0.35 else 0
@@ -233,10 +408,73 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 				paint(card.button, UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), cash < def.price)
 			end
 		end
+
+		local flamesOwned: { [string]: boolean } = {}
+		local rawFlames = player:GetAttribute("FlamesOwned")
+		if typeof(rawFlames) == "string" then
+			for id in string.gmatch(rawFlames, "[^,]+") do
+				flamesOwned[id] = true
+			end
+		end
+		local flameRaw = player:GetAttribute("JetFlame")
+		local flameOn = if typeof(flameRaw) == "string" then flameRaw else "Classic"
+		for _, card in flameCards do
+			local def = card.def
+			local isOn = flameOn == def.id
+			card.stroke.Thickness = if isOn then 3 else 1.4
+			card.stroke.Transparency = if isOn then 0 else 0.55
+			if isOn then
+				card.button.Active = false
+				card.price.Text = "EQUIPPED"
+				paint(card.button, UiKit.DIM, false)
+			elseif flamesOwned[def.id] then
+				card.button.Active = true
+				card.price.Text = "EQUIP"
+				paint(card.button, ACCENT, false)
+			elseif def.pass ~= nil then
+				local soon = def.pass <= 0
+				card.button.Active = not soon
+				card.price.Text = if soon then "SOON" else "R$ " .. tostring(def.robux or "?")
+				paint(card.button, if soon then UiKit.DIM else ROBUX, soon)
+			elseif def.source == "season" then
+				card.button.Active = false
+				card.price.Text = "SEASON PASS"
+				paint(card.button, Color3.fromRGB(120, 70, 200), true)
+			elseif def.source == "weekly" then
+				card.button.Active = false
+				card.price.Text = "WIN A WEEK"
+				paint(card.button, Color3.fromRGB(200, 150, 30), true)
+			else
+				card.button.Active = true
+				card.price.Text = "$" .. Config.FormatCash(def.price)
+				paint(card.button, UiKit.CREW.GREEN:Lerp(UiKit.GOOD, 0.35), cash < def.price)
+			end
+		end
 	end
 
+	local current = "packs"
+	local function showTab(id: string)
+		current = id
+		grid.Visible = id == "packs"
+		flameGrid.Visible = id == "flames"
+		for tabId, tab in tabs do
+			local on = tabId == id
+			tab.button.BackgroundColor3 = if on then ACCENT else UiKit.ROW
+			tab.text.TextColor3 = if on then Color3.new(1, 1, 1) else UiKit.MUTED
+		end
+		title.Text = if id == "packs" then "🚀 JETPACKS" else "🔥 JETPACK FLAMES"
+		hint.Text = if id == "packs" then "Faster on the way out to the planets. Carrying crew home, you fly at your own speed."
+			else "Pure style: your flame and trail, on any jetpack. Everyone in space sees it."
+	end
+	for id, tab in tabs do
+		tab.button.Activated:Connect(function()
+			showTab(id)
+		end)
+	end
+	showTab("packs")
+
 	local conns: { RBXScriptConnection } = {}
-	for _, attr in { "JetpacksOwned", "Jetpack" } do
+	for _, attr in { "JetpacksOwned", "Jetpack", "FlamesOwned", "JetFlame" } do
 		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(refresh))
 	end
 	table.insert(conns, player:GetAttributeChangedSignal("Cash"):Connect(function()
@@ -252,9 +490,34 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 			return
 		end
 		angle += dt * 0.9
-		for _, spin in spins do
-			local offset = Vector3.new(math.sin(angle) * 5.2, 0.8, math.cos(angle) * 5.2)
-			spin.camera.CFrame = CFrame.lookAt(spin.center + offset, spin.center)
+		if current == "packs" then
+			for _, spin in spins do
+				local offset = Vector3.new(math.sin(angle) * 5.2, 0.8, math.cos(angle) * 5.2)
+				spin.camera.CFrame = CFrame.lookAt(spin.center + offset, spin.center)
+			end
+			return
+		end
+		-- Alevler titreşiyor; ışıltılar aşağı akıyor; gökkuşağı renk değiştiriyor
+		local t = os.clock()
+		for i, card in flameCards do
+			for k, layer in card.layers do
+				local wob = math.sin(t * (13 + k * 3) + i) * 0.04 + math.sin(t * 7.3 + k) * 0.025
+				local base = ({ 0.86, 0.66, 0.4 })[k]
+				layer.Size = UDim2.fromScale(layer.Size.X.Scale, base * (1 + wob))
+			end
+			if card.def.rainbow then
+				local a = Config.RainbowColor(t, i * 0.1)
+				local b = Config.RainbowColor(t, 0.33 + i * 0.1)
+				card.grads[1].Color = ColorSequence.new(b, b:Lerp(Color3.new(0, 0, 0), 0.3))
+				card.grads[2].Color = ColorSequence.new(a, b)
+				card.stroke.Color = a
+			end
+			for _, d in card.dots do
+				local seed = d:GetAttribute("Seed") :: number
+				local u = (t * 0.7 + seed) % 1
+				d.Position = UDim2.fromScale(0.5 + math.sin(seed * 7 + t * 2) * 0.22 * u, 0.15 + u * 0.85)
+				d.BackgroundTransparency = u
+			end
 		end
 	end))
 

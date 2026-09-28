@@ -26,6 +26,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
+local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local PromptGuard = require(script.Parent.PromptGuard)
 
@@ -119,6 +120,7 @@ function TaskService.TryComplete(player: Player, taskId: any, now: number?): num
 	player:SetAttribute("TaskReady_" .. taskId, os.time() + def.cooldown)
 	local reward = TaskService.RewardFor(player, def)
 	EconomyService.AddCash(player, reward)
+	DataService.Bump(player, "tasksDone")
 	notify(player, string.format("%s complete! +$%s", def.name, Config.FormatCash(reward)))
 	return reward
 end

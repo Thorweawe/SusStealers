@@ -248,6 +248,10 @@ local function findProduct(productId: number): Config.ProductDef?
 			return def
 		end
 	end
+	-- 5'li çark paketi: kimliği girilince (Config.SpinPack) SpinService veriyor
+	if Config.SpinPack.id > 0 and Config.SpinPack.id == productId then
+		return { id = Config.SpinPack.id, name = Config.SpinPack.name, kind = "spinpack" } :: any
+	end
 	return nil
 end
 

@@ -46,8 +46,9 @@ local EVENTS = {
 	"CapsuleCatch", -- client -> server (argümansız) — kapsül mini oyununda çubuk doldu
 	"SpaceReturn",  -- client -> server (argümansız) — uzaydan güverteye dön (taşımıyorsa)
 	"JetpackAction", -- client -> server (action: "buy"|"equip", id: string) — jetpack standı
-	"SpinRequest",  -- client -> server (argümansız) — çark penceresindeki SPIN düğmesi
-	"SpinResult",   -- server -> client (rewardId, text, duration, sliceIndex, ok) — çark sonucu
+	"SpinRequest",  -- client -> server (mode: nil | "token" | "super") — çark penceresindeki SPIN düğmeleri
+	"SpinResult",   -- server -> client (rewardId, text, duration, sliceIndex, jitter, super) — çark sonucu
+	"SeasonClaim",  -- client -> server (tier, "free" | "premium") — Sezon Kartı ödülü
 }
 
 --[[
@@ -170,17 +171,24 @@ local CLIENT_TO_SERVER = {
 	]]
 	SpaceReturn = true,
 	--[[
-		JetpackAction bedava bir şey VERMİYOR: "buy" oyuncunun KENDİ parasını
-		harcıyor (fiyat Config'te, sunucuda), "equip" yalnızca sahip olunanı
-		(pass'li olanlar Roblox'tan sorgulanıyor) takıyor (JetpackService).
+		JetpackAction bedava bir şey VERMİYOR: "buy"/"flamebuy" oyuncunun KENDİ
+		parasını harcıyor (fiyat Config'te, sunucuda), "equip"/"flameequip"
+		yalnızca sahip olunanı (pass'li olanlar Roblox'tan sorgulanıyor)
+		takıyor (JetpackService).
 	]]
 	JetpackAction = true,
 	--[[
 		SpinRequest çarkın prompt'u ile AYNI yoldan geçiyor (SpinService.TrySpin):
-		hak sunucuda (günlük bedava / satın alınan ekstra), oyuncu çarka yakın
-		olmalı, dönerken ikinci istek yok sayılıyor.
+		hak sunucuda (günlük bedava / jeton / süper çark sayacı profilde),
+		oyuncu çarka yakın olmalı, dönerken ikinci istek yok sayılıyor.
 	]]
 	SpinRequest = true,
+	--[[
+		SeasonClaim yalnızca HAK EDİLMİŞ ödülü topluyor: kademe sunucudaki XP'den
+		(XP yalnızca sunucu sayaçlarından), premium pass Roblox'tan, alınan
+		ödül profilde işaretli (SeasonService.Claim).
+	]]
+	SeasonClaim = true,
 }
 
 local Net = {}

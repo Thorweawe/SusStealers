@@ -131,6 +131,25 @@ export type Profile = {
 	-- Jetpack'ler (JetpackService): sahip olunanlar ve kuşanılan
 	jetpacks: { [string]: boolean },
 	jetpack: string,
+	-- Jetpack alevleri (kozmetik, JetpackService): sahip olunanlar ve takılı olan
+	flames: { [string]: boolean },
+	flame: string,
+	--[[ Haftalık sıralama (WeeklyService): hangi haftanın soygunu sayılıyor,
+	     o haftaki soygun, ödülü en son hangi hafta için bakıldı, en iyi derece
+	     (unvan sayacı: 3 birinci, 2 ilk üç, 1 ilk on). ]]
+	weekId: number,
+	weekStolen: number,
+	weeklyChecked: number,
+	weeklyBest: number,
+	-- Çark: bekleme istemeyen jeton ve süper çark hakkı (SpinService)
+	spinTokens: number,
+	superSpins: number,
+	-- Sezon Kartı (SeasonService): sezon kimliği, XP, toplanan kademeler
+	season: { id: string, xp: number, free: { [string]: boolean }, premium: { [string]: boolean } },
+	-- Sezon XP'si için sayaçlar (yalnızca artıyor)
+	questsClaimed: number,
+	dailyClaims: number,
+	tasksDone: number,
 	-- Kozmetikler: sahip olunanlar (kimlik -> true) ve takılı şapka / iz.
 	-- Boş dize = takılı değil. Kalıcı; rebirth'te sıfırlanmıyor.
 	cosmetics: { [string]: boolean },
@@ -224,6 +243,18 @@ local function newProfile(): Profile
 		gear = {},
 		jetpacks = {},
 		jetpack = "Starter",
+		flames = {},
+		flame = "Classic",
+		weekId = 0,
+		weekStolen = 0,
+		weeklyChecked = 0,
+		weeklyBest = 0,
+		spinTokens = 0,
+		superSpins = 0,
+		season = { id = "", xp = 0, free = {}, premium = {} },
+		questsClaimed = 0,
+		dailyClaims = 0,
+		tasksDone = 0,
 		cosmetics = {},
 		hat = "",
 		trail = "",
@@ -283,7 +314,8 @@ local function sanitize(raw: any): Profile
 		profile.lastSpinAt = math.floor(raw.lastSpinAt)
 	end
 
-	for _, field in { "trainings", "stunned", "thrown", "mutatedSteals", "bossSteals", "bestPlanet", "bought", "sold", "spins", "earned", "salvaged" } do
+	for _, field in { "trainings", "stunned", "thrown", "mutatedSteals", "bossSteals", "bestPlanet", "bought", "sold", "spins", "earned", "salvaged",
+		"weekId", "weekStolen", "weeklyChecked", "weeklyBest", "spinTokens", "superSpins", "questsClaimed", "dailyClaims", "tasksDone" } do
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)
@@ -545,6 +577,36 @@ local function sanitize(raw: any): Profile
 	if typeof(raw.jetpack) == "string" and Config.GetJetpack(raw.jetpack) then
 		profile.jetpack = raw.jetpack
 	end
+	if typeof(raw.flames) == "table" then
+		for id, flag in raw.flames do
+			if typeof(id) == "string" and flag == true and Config.GetJetFlame(id) then
+				profile.flames[id] = true
+			end
+		end
+	end
+	if typeof(raw.flame) == "string" and Config.GetJetFlame(raw.flame) then
+		profile.flame = raw.flame
+	end
+	-- Sezon: kademe kimlikleri "1".."30"; başka sezonun ilerlemesi SeasonService'te sıfırlanıyor
+	if typeof(raw.season) == "table" then
+		local s = raw.season
+		if typeof(s.id) == "string" and #s.id <= 16 then
+			profile.season.id = s.id
+		end
+		if typeof(s.xp) == "number" and s.xp >= 0 then
+			profile.season.xp = math.floor(s.xp)
+		end
+		for _, track in { "free", "premium" } do
+			if typeof(s[track]) == "table" then
+				for key, flag in s[track] do
+					local n = tonumber(key)
+					if n and n >= 1 and n <= Config.Season.tiers and flag == true then
+						(profile.season :: any)[track][tostring(math.floor(n))] = true
+					end
+				end
+			end
+		end
+	end
 
 	if typeof(raw.gear) == "table" then
 		for id, flag in raw.gear do
@@ -732,6 +794,9 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.codes = table.clone(profile.codes)
 	snapshot.gear = table.clone(profile.gear)
 	snapshot.jetpacks = table.clone(profile.jetpacks)
+	snapshot.flames = table.clone(profile.flames)
+	snapshot.season = { id = profile.season.id, xp = profile.season.xp,
+		free = table.clone(profile.season.free), premium = table.clone(profile.season.premium) }
 	snapshot.cosmetics = table.clone(profile.cosmetics)
 	snapshot.settings = table.clone(profile.settings)
 	snapshot.settings.autoDelete = table.clone(profile.settings.autoDelete)
@@ -793,6 +858,9 @@ function DataService.WaitForProfile(player: Player, timeout: number?): Profile?
 	return profiles[player]
 end
 
+--[[ Bir sayaç arttı: (oyuncu, alan, miktar). Sezon XP'si ve haftalık soygun buna bağlı. ]]
+DataService.Bumped = Instance.new("BindableEvent")
+
 --[[
 	Profildeki sayısal bir sayacı artırır.
 
@@ -811,6 +879,8 @@ function DataService.Bump(player: Player, field: string, amount: number?)
 	assert(typeof(current) == "number", "DataService.Bump: sayısal olmayan alan " .. field)
 
 	any[field] = current + (amount or 1)
+	-- Sezon XP'si, haftalık sayaç gibi dinleyiciler (SeasonService, WeeklyService)
+	DataService.Bumped:Fire(player, field, amount or 1)
 end
 
 function DataService.Save(player: Player): boolean
