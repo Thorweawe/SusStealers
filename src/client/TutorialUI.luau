@@ -516,6 +516,18 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		marker.StudsOffsetWorldSpace = Vector3.new(0, 6 + math.abs(math.sin(clock * 3)) * 1.4, 0)
 		guideBob.Scale = 1 + math.sin(clock * 2.2) * 0.03
 
+		-- Dokunmatikte kart üst ortada (DeviceLayout): olay şeridi açıkken onun
+		-- altına in (GOAL kartıyla aynı kural), yön oku da kartın altına
+		local topCenter = frame.AnchorPoint.X == 0.5
+		if topCenter then
+			local eventId = workspace:GetAttribute("EventId")
+			local y = if typeof(eventId) == "string" and eventId ~= "" then 80 else 8
+			if frame.Position.Y.Offset ~= y then
+				frame.Position = UDim2.new(0.5, 0, 0, y)
+			end
+		end
+		compass.Position = UDim2.new(0.5, 0, if topCenter then 0.45 else 0.30, 0)
+
 		-- Hedef henüz yoksa (yüklenmedi) yarım saniyede bir yeniden ara
 		if frame.Visible and not (currentTarget and currentTarget.Parent) and currentHint and clock >= retryAt then
 			retryAt = clock + 0.5

@@ -222,7 +222,9 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		başlık şeridine iniyor; sağdaki ok hangi durumda olduğunu gösteriyor.
 		WEEKLY düğmesi başlığın üstünde, ona basmak tabloyu küçültmüyor.
 	]]
-	local collapsed = false
+	-- Telefonda kapalı başlıyor (2026-09-28, mobil hiyerarşi): tablo üçüncül,
+	-- sağ üstte oyun alanının büyük bir parçasını kaplıyordu. Başlığa dokununca açılıyor.
+	local collapsed = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 	local shownRows = 1
 	local chevron = CardKit.bold(head, "▲", 14, CardKit.WHITE, 4, 2)
 	chevron.AnchorPoint = Vector2.new(1, 0.5)
@@ -248,6 +250,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 		collapsed = not collapsed
 		applySize(true)
 	end)
+	applySize(false)
 
 	local rule = Instance.new("Frame")
 	rule.Position = UDim2.fromOffset(0, HEADER - 2)

@@ -61,7 +61,6 @@ local TOUCH_LIFT = {
 	SideRail = "left",
 	-- Uzaydaki yukarı / aşağı tuşları (SpaceFX), Return to Station'ın solunda
 	FlyPad = "right",
-	Tutorial = "left",
 	-- Uzaydaki "Return to Station" (SpaceFX): zıplama düğmesinin üstüne
 	ReturnToStation = "right",
 	-- MenuDock artık sağ ortada (Envanter + Rebirth): zıplama düğmesine denk gelmiyor.
@@ -85,6 +84,14 @@ local TOUCH_PLACE: { [string]: { anchor: Vector2, position: UDim2?, beside: stri
 	]]
 	StatBar = { anchor = Vector2.new(1, 0), position = UDim2.new(1, -22, 0, 12) },
 	Leaderboard = { anchor = Vector2.new(1, 0), position = UDim2.new(1, -22, 0, 12 + 108 + 8) },
+	--[[
+		2026-09-28 (mobil hiyerarşi): öğretici kartı joystick bandının üstüne
+		kaldırılınca ekranın ORTASINDA, oyun alanının üstünde duruyordu. Artık
+		üst ortada — GOAL kartının yeri (öğretici bitene kadar GOAL gizli), yani
+		oyuncunun hedefi her zaman aynı yerde. Olay şeridi açıkken TutorialUI
+		kartı onun altına indiriyor.
+	]]
+	Tutorial = { anchor = Vector2.new(0.5, 0), position = UDim2.new(0.5, 0, 0, 8) },
 }
 
 --[[

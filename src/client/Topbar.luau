@@ -68,6 +68,12 @@ local CLUTTER = {
 }
 
 local BUTTON = 44
+--[[
+	2026-09-28 (görsel hiyerarşi): dört düğmenin gövdesi aynı koyu lacivert.
+	Eskiden yeşil / pembe / mavi gövdeler hedef kartı ve hapları kadar
+	bağırıyordu; üst çubuk üçüncül — rengi 3B ikonlar taşıyor.
+]]
+local TOP_BODY = Color3.fromRGB(44, 50, 72)
 local GAP = 12
 
 --[[
@@ -126,7 +132,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 
 	-- ─── Davet ──────────────────────────────────────────────────────────────
 
-	local inviteHolder, inviteButton = UiKit.Raised(row, "Invite", UiKit.CREW.GREEN, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	local inviteHolder, inviteButton = UiKit.Raised(row, "Invite", TOP_BODY, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
 	inviteHolder.LayoutOrder = 0
 	local inviteSlot = Instance.new("Frame")
 	inviteSlot.Size = UDim2.fromScale(1, 1)
@@ -179,7 +185,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 
 	-- ─── Hediye ─────────────────────────────────────────────────────────────
 
-	local giftHolder, giftButton = UiKit.Raised(row, "Gift", UiKit.CREW.PINK, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	local giftHolder, giftButton = UiKit.Raised(row, "Gift", TOP_BODY, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
 	giftHolder.LayoutOrder = 1
 	local giftSlot = Instance.new("Frame")
 	giftSlot.Size = UDim2.fromScale(1, 1)
@@ -192,7 +198,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 
 	-- ─── Göz ────────────────────────────────────────────────────────────────
 
-	local eyeHolder, eyeButton = UiKit.Raised(row, "HideUi", Color3.fromRGB(70, 82, 98), UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	local eyeHolder, eyeButton = UiKit.Raised(row, "HideUi", TOP_BODY, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
 	eyeHolder.LayoutOrder = 2
 	local eyeSlot = Instance.new("Frame")
 	eyeSlot.Size = UDim2.fromScale(1, 1)
@@ -276,7 +282,7 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 
 	-- ─── Ayarlar ────────────────────────────────────────────────────────────
 
-	local gearHolder, gearButton = UiKit.Raised(row, "Settings", Color3.fromRGB(46, 110, 200), UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
+	local gearHolder, gearButton = UiKit.Raised(row, "Settings", TOP_BODY, UDim2.fromOffset(BUTTON, BUTTON + 4), 12)
 	gearHolder.LayoutOrder = 3
 	art(gearButton, "Top_Settings")
 	gearButton.MouseButton1Click:Connect(function()
