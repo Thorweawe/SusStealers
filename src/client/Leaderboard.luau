@@ -44,7 +44,10 @@ local ROW_H = 46
 	son satır ONUN satırı oluyor (gerçek sırasıyla): kendini her zaman görüyor.
 ]]
 -- 2026-09-28: 6 → 4 (üçüncül öğe: ekranda az yer kaplasın)
-local MAX_ROWS = 4
+-- Telefonda 3: hız/para hapları tablonun altında (DeviceLayout); 4 satırda
+-- dolu sunucuda küçük telefonlarda zıplama tuşunun bölgesine iniyorlardı
+local UserInputService = game:GetService("UserInputService")
+local MAX_ROWS = if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then 3 else 4
 local HEADER_COLOR = Color3.fromRGB(30, 160, 200)
 
 -- İlk üçün sıra rozeti: altın, gümüş, bronz
