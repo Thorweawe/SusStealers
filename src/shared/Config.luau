@@ -3052,7 +3052,7 @@ Config.JetFlames = {
 		flame = Color3.fromRGB(255, 248, 180), flame2 = Color3.fromRGB(255, 180, 30), sparkle = Color3.fromRGB(255, 230, 120),
 		size = 1.2, trail = Color3.fromRGB(255, 215, 70), trail2 = Color3.fromRGB(255, 150, 20),
 		blurb = "Pure golden sunfire with glitter." },
-	{ id = "Rainbow",  name = "Rainbow Rocket", price = 0, pass = 0, robux = 149,
+	{ id = "Rainbow",  name = "Rainbow Rocket", price = 0, pass = 1997991334, robux = 149,
 		flame = Color3.fromRGB(255, 90, 90), flame2 = Color3.fromRGB(90, 120, 255), sparkle = Color3.new(1, 1, 1),
 		rainbow = true, trail = Color3.new(1, 1, 1),
 		blurb = "Cycles through every color. Robux exclusive." },
@@ -3153,7 +3153,7 @@ Config.Season = {
 	tiers = 30,
 	xpBase = 120,            -- 1. kademe
 	xpGrowth = 14,           -- her kademede bu kadar fazla
-	pass = { id = 0, robux = 399, name = "Season Pass" },
+	pass = { id = 1999563376, robux = 399, name = "Season Pass" },
 	xp = {
 		salvaged = 12, bossSteals = 30, trainings = 4, spins = 6,
 		questsClaimed = 25, dailyClaims = 20, tasksDone = 5,
@@ -3233,7 +3233,7 @@ Config.SuperSpin = {
 	Henüz kimliği olmayan Robux ürünleri (Creator Dashboard'da açılınca
 	kimlik buraya; Config.Products'a taşınmıyor çünkü orada kimlik 0 olamaz).
 ]]
-Config.SpinPack = { id = 0, count = 5, robux = 199, name = "5 Spins" }
+Config.SpinPack = { id = 3715307547, count = 5, robux = 199, name = "5 Spins" }
 
 -- ─── Sunucu şansı ve troller (Robux; bütün sunucuya) ───────────────────────
 --[[
@@ -3259,10 +3259,10 @@ Config.Trolls = {
 	Alarm = { name = "Impostor Alarm", seconds = 8 },
 } :: { [string]: { name: string, seconds: number, scale: number?, gravity: number? } }
 Config.ServerProducts = {
-	ServerLuck = { id = 0, robux = 149, name = "Server Luck x2", kind = "serverluck" },
-	TrollTiny = { id = 0, robux = 49, name = "Shrink Everyone", kind = "troll", troll = "Tiny" },
-	TrollMoon = { id = 0, robux = 49, name = "Moon Gravity", kind = "troll", troll = "Moon" },
-	TrollAlarm = { id = 0, robux = 25, name = "Impostor Alarm", kind = "troll", troll = "Alarm" },
+	ServerLuck = { id = 3715307763, robux = 149, name = "Server Luck x2", kind = "serverluck" },
+	TrollTiny = { id = 3715307859, robux = 49, name = "Shrink Everyone", kind = "troll", troll = "Tiny" },
+	TrollMoon = { id = 3715307696, robux = 49, name = "Moon Gravity", kind = "troll", troll = "Moon" },
+	TrollAlarm = { id = 3715307628, robux = 25, name = "Impostor Alarm", kind = "troll", troll = "Alarm" },
 } :: { [string]: { id: number, robux: number, name: string, kind: string, troll: string? } }
 
 --[[ Şu anki sunucu şansı çarpanı (yoksa 1). İki tarafta da çalışıyor. ]]

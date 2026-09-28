@@ -4193,7 +4193,10 @@ case("Jetpack alevleri: parayla alınıyor, ödüllü ve Robux'lusu satılmıyor
 	setCash(ctx.player, 1e15)
 	ok("sezon alevi satılmıyor", not JetpackService.BuyFlame(ctx.player, "Nebula"))
 	ok("haftalık alev satılmıyor", not JetpackService.BuyFlame(ctx.player, "Champion"))
-	ok("Robux alevi parayla alınmıyor", not JetpackService.BuyFlame(ctx.player, "Rainbow"))
+	-- Pass sahibi (ör. oyunun yapımcısı) için alım "takma"ya dönüyor; o durumda denetlenemez
+	if not JetpackService.OwnsFlame(ctx.player, "Rainbow") then
+		ok("Robux alevi parayla alınmıyor", not JetpackService.BuyFlame(ctx.player, "Rainbow"))
+	end
 	ok("ödülle geliyor", RewardService.Give(ctx.player, { kind = "flame", flame = "Nebula" }) ~= nil)
 	ok("ödül alevi takılabiliyor", JetpackService.EquipFlame(ctx.player, "Nebula"))
 	for _, def in Config.JetFlames do
