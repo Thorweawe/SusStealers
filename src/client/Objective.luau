@@ -164,7 +164,7 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 					key = "train:" .. def.id,
 					icon = "🚀",
 					title = string.format("Train to %d Space Speed", def.need),
-					sub = string.format("Unlocks %s's planet - rarer crew! (Space Capsule behind your base)", def.name),
+					sub = string.format("Train in your Space Capsule to unlock %s", def.name),
 					progress = (speed - prev) / math.max(0.001, def.need - prev),
 					tint = Color3.fromRGB(46, 110, 220),
 				}
@@ -215,7 +215,16 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 		local tutorialDone = step >= #Config.Tutorial or step < 0
 		local busy = player:GetAttribute("InSpace") == true or player:GetAttribute("InCapsule") == true
 			or player:GetAttribute("SpaceGrabbed") ~= nil
-		holder.Visible = tutorialDone and not busy
+		-- Ortada bir pencere açıkken (mağaza, envanter...) kart gizli: üstüne biniyordu
+		local windowOpen = false
+		for _, child in screen:GetChildren() do
+			if child:IsA("GuiObject") and child.Visible and child.AbsoluteSize.X > 300 and child.AnchorPoint == Vector2.new(0.5, 0.5)
+				and child.Position.X.Scale == 0.5 and child.Position.Y.Scale == 0.5 then
+				windowOpen = true
+				break
+			end
+		end
+		holder.Visible = tutorialDone and not busy and not windowOpen and player:GetAttribute("Cinematic") ~= true
 		if not holder.Visible then
 			return
 		end

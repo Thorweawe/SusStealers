@@ -200,6 +200,17 @@ function Intro.Play()
 
 	local oldType = camera.CameraType
 	camera.CameraType = Enum.CameraType.Scriptable
+	-- Arayüz sinema boyunca kapalı (öğretici kartı, tablo, üst şerit, hedef oku)
+	player:SetAttribute("Cinematic", true)
+	local pg = player:WaitForChild("PlayerGui")
+	local hidden: { ScreenGui } = {}
+	for _, name in { "SusStealersHud", "SusStealersTopbar" } do
+		local g = pg:FindFirstChild(name)
+		if g and g:IsA("ScreenGui") and g.Enabled then
+			g.Enabled = false
+			table.insert(hidden, g)
+		end
+	end
 
 	-- Yazı harf harf (daktilo)
 	local function typeText(text: string)
@@ -254,6 +265,10 @@ function Intro.Play()
 	mStroke.Parent = mission
 
 	camera.CameraType = if oldType == Enum.CameraType.Scriptable then Enum.CameraType.Custom else oldType
+	for _, g in hidden do
+		g.Enabled = true
+	end
+	player:SetAttribute("Cinematic", nil)
 	TweenService:Create(mission, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
 	TweenService:Create(mStroke, TweenInfo.new(0.4), { Transparency = 0 }):Play()
 	skip.Visible = false

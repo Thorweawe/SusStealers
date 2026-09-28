@@ -127,6 +127,12 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 	frame.Parent = screen
 	local frameScale = Instance.new("UIScale")
 	frameScale.Parent = frame
+	-- Telefonda kart ekranın ortasını kaplıyordu: dokunmatikte %80
+	local function fullScale(): number
+		local UserInputService = game:GetService("UserInputService")
+		return if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then 0.8 else 1
+	end
+	frameScale.Scale = fullScale()
 
 	-- Öğretici = oyuncunun hedefi: tam renkli (hero) kart, ekranın en belirgin öğesi
 	local card = CardKit.hero(frame, CARD_TINT, UDim2.new(1, 0, 1, -14), Z, UDim2.fromScale(0.15, 0.4), 360)
@@ -310,7 +316,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		CardKit.tintCard(stageCard, tint)
 		stage.Visible = true
 		stageScale.Scale = 0.3
-		TweenService:Create(stageScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		TweenService:Create(stageScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = fullScale() }):Play()
 		if withConfetti then
 			confetti(46)
 		end
@@ -525,7 +531,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 			da güvertenin kendisi) zaten geride/ayağın altında: ok ve vurgu
 			orada takılı kalıyordu. O zaman hepsi gizli.
 		]]
-		local away = player:GetAttribute("InSpace") == true
+		local away = player:GetAttribute("InSpace") == true or player:GetAttribute("Cinematic") == true
 			or (root ~= nil and root:IsA("BasePart") and (SpaceField.InSpace(root.Position) or SpaceField.InDeck(root.Position)))
 		local wantMarker = currentTarget ~= nil and currentTarget.Parent ~= nil and not away
 		if marker.Enabled ~= wantMarker then
@@ -611,7 +617,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		t:Play()
 		t.Completed:Once(function()
 			frame.Visible = false
-			frameScale.Scale = 1
+			frameScale.Scale = fullScale()
 		end)
 	end
 
@@ -659,7 +665,7 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		if not frame.Visible then
 			frame.Visible = true
 			frameScale.Scale = 0
-			TweenService:Create(frameScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+			TweenService:Create(frameScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = fullScale() }):Play()
 		end
 
 		-- Yeni adımın afişi: kutlamadan sonra

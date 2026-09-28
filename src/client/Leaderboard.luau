@@ -178,7 +178,7 @@ function Leaderboard.Create(screen: ScreenGui): Board
 	weekly.Parent = head
 	CardKit.corner(weekly, 8)
 	CardKit.border(weekly, CardKit.OUTLINE, 2)
-	local weeklyText = CardKit.bold(weekly, "🏆 WEEKLY", 13, CardKit.WHITE, 5, 1.8)
+	local weeklyText = CardKit.bold(weekly, "WEEKLY", 14, CardKit.WHITE, 5, 1.8)
 	weeklyText.Size = UDim2.fromScale(1, 1)
 	weekly.Activated:Connect(function()
 		Leaderboard.OpenWeekly:Fire()

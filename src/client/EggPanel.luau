@@ -19,6 +19,7 @@
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -218,6 +219,8 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	end
 
 	--[[ Paneli bir yumurta için baştan kurar. ]]
+	-- Açık yumurtanın tuşları (E x1, R x3, T auto): build dolduruyor
+	local keyActions: { [Enum.KeyCode]: () -> () } = {}
 	local function build(egg: Config.EggDef)
 		if content then
 			content:Destroy()
@@ -486,12 +489,13 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 
 		local eggId = egg.id
 		local one = roundButton("E", "x1", Color3.fromRGB(60, 200, 90), 1)
-		one.Activated:Connect(function()
+		local function hatchOne()
 			hatchRemote:FireServer(eggId, 1, false)
-		end)
+		end
+		one.Activated:Connect(hatchOne)
 		local three, threeLabel = roundButton("R", "x3", Color3.fromRGB(150, 70, 230), 2)
 		tripleButton, tripleLabel = three, threeLabel
-		three.Activated:Connect(function()
+		local function hatchThree()
 			if hasTriple() then
 				hatchRemote:FireServer(eggId, Config.TripleHatchCount, false)
 			else
@@ -500,17 +504,21 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 					MarketplaceService:PromptGamePassPurchase(player, pass.id)
 				end
 			end
-		end)
+		end
+		three.Activated:Connect(hatchThree)
 		refreshTriple()
 		local autoB, autoS = roundButton("T", "Auto", Color3.fromRGB(230, 60, 70), 3)
 		autoButton, autoLabel = autoB, autoS
-		autoB.Activated:Connect(function()
+		local function toggleAuto()
 			if auto then
 				auto.Toggle(eggId, 1)
 				task.defer(refreshAuto)
 			end
-		end)
+		end
+		autoB.Activated:Connect(toggleAuto)
 		refreshAuto()
+		keyActions = { [Enum.KeyCode.E] = hatchOne, [Enum.KeyCode.R] = hatchThree, [Enum.KeyCode.T] = toggleAuto,
+			[Enum.KeyCode.ButtonX] = hatchOne }
 	end
 
 	-- ── Yakındaki yumurta ────────────────────────────────────────────────
@@ -528,14 +536,13 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			local egg = typeof(id) == "string" and Config.GetEgg(id) or nil
 			if d:IsA("BasePart") and egg then
 				table.insert(shells, { part = d, egg = egg })
-				-- Promptların varsayılan kutusu gizli: bu panel onların yerine
+				--[[ 2026-09-28: yumurtanın promptları istemcide KAPALI. Tuşları
+				     (E/R/T) bu panel doğrudan dinliyor: promptlar 0.25 sn basılı
+				     tutma istiyordu, kısa basış hiçbir şey yapmıyordu ("E, T
+				     çalışmıyor, tıklamak lazım"). ]]
 				for _, p in d:GetChildren() do
-					if p:IsA("ProximityPrompt") and p.Style ~= Enum.ProximityPromptStyle.Custom then
-						p.Style = Enum.ProximityPromptStyle.Custom
-					end
-					-- R tuşu (x3) yalnızca pass sahibinde
-					if p:IsA("ProximityPrompt") and p.Name == "TriplePrompt" and p.Enabled ~= hasTriple() then
-						p.Enabled = hasTriple()
+					if p:IsA("ProximityPrompt") and p.Enabled then
+						p.Enabled = false
 					end
 				end
 			end
@@ -564,6 +571,15 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	end)
 
 	local visible = false
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not visible or processed or UserInputService:GetFocusedTextBox() then
+			return
+		end
+		local action = keyActions[input.KeyCode]
+		if action then
+			action()
+		end
+	end)
 	local function setVisible(on: boolean)
 		if visible == on then
 			return

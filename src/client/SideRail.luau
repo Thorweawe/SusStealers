@@ -112,9 +112,20 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 		end)
 	end
 
-	--[[ Kademeli açılma: gizli düğme ızgarada yer kaplamıyor. ]]
+	--[[ Kademeli açılma: gizli düğme ızgarada yer kaplamıyor. "NEW" yalnızca
+	     oyun SIRASINDA açılanlara: nitelik ilk geldiğinde (giriş) açık olanlar
+	     sessizce görünüyor. ]]
 	local first = true
 	local function apply()
+		if player:GetAttribute("TutorialStep") == nil then
+			-- Profil daha gelmedi: yalnızca hep açık olanlar
+			for _, entry in entries do
+				local want = (entry.spec.unlockAt or 0) <= 0
+				entry.shown = want
+				entry.holder.Visible = want
+			end
+			return
+		end
 		local done = step()
 		for _, entry in entries do
 			local want = done >= (entry.spec.unlockAt or 0)
