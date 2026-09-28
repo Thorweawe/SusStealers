@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-28 (46) — Batur (Yusuf'un şeridine yazıldı: mağaza)
+
+**Mağaza "videodaki gibi kaliteli" (ilk pencere).** Studio'ya aktarıldı; yalnızca istemci.
+
+- **3B ikonlar** (`client/UiArt`, `ui_art/icons/`): oyunun kendi modelleriyle Studio'da render (`tools/ui_icons.py` son işlem: dış çizgi + "2X"/"+2" rozeti). Studio MCP `upload_image` ile yüklendi, kimlikler UiArt'ta.
+- **Dokular** (`tools/ui_art.py`, `ui_art/`): halftone, halftone_fade, sparkle, glow, stripes.
+- **`client/FancyKit`** (bütün pencereler için): `driver` (pencere kapalıyken durur), `halftone`, `title` (3B kalın başlık + parıltı), `jelly` (harf harf zıplayan), `gleam`, `bob`, `spin`, `glow`, `particles`, `juicy`, `hover`.
+- **ShopPanel**: jöle SHOP başlığı, kayan şeritli canlı başlık, bölüm şeritleri, kartlarda nokta dokusu + dönen ışın + süzülen ikon + hale, satın alma düğmelerinde parıltı ve şişme, gövdede yükselen parıltılar. Mantık değişmedi.
+- Sıradaki: aynı dil diğer pencerelere (envanter, yükseltme/rebirth, ödüller, çark, jetpack...).
+
+---
+
 ## 2026-09-28 (45) — Batur (Yusuf'un şeridine de yazıldı)
 
 Studio'ya aktarıldı, **177/177 test temiz**.

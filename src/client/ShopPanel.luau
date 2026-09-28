@@ -10,7 +10,15 @@
 	düğmeleri (FEATURED, PASSES, MONEY, POTIONS, BOOSTS): basınca liste o
 	bölüme kayıyor.
 
-	═══ RESİMLER ══════════════════════════════════════════════════════════
+	═══ 2026-09-28: "VİDEODAKİ GİBİ KALİTELİ" ══════════════════════════════
+
+	Görseller 3B render ikonlar (UiArt.Icon — oyunun modelleri, Studio'da
+	render). Dil ve canlandırmalar FancyKit'te: noktalı doku, kayan parıltı,
+	harf harf zıplayan SHOP başlığı, 3B kalın başlıklar, süzülen ikonlar,
+	dönen ışınlar, yükselen parıltılar, düğme şişme/ezilme. Canlandırmalar
+	pencere açıkken çalışıyor (FancyKit.driver).
+
+	═══ RESİMLER (eski) ═══════════════════════════════════════════════════
 
 	Kart resimleri tools/shop_art.py'nin ürettiği saydam PNG'ler
 	(shop_art/). Studio'nun Import Queue'suyla yüklendi, kimlikleri aşağıda
@@ -47,6 +55,8 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local UiKit = require(script.Parent.UiKit)
+local UiArt = require(script.Parent.UiArt)
+local FancyKit = require(script.Parent.FancyKit)
 
 local ShopPanel = {}
 
@@ -95,9 +105,18 @@ local ART: { [string]: number } = {
 }
 
 local function artImage(name: string): string
+	-- Önce yeni 3B ikon (UiArt), yoksa eski çizim
+	local icon = UiArt.Image("Icon", name)
+	if icon ~= "" then
+		return icon
+	end
 	local id = ART[name]
 	return if id then "rbxassetid://" .. id else ""
 end
+
+-- Pencerenin canlandırma sürücüsü (Create kuruyor; yardımcılar kullanıyor)
+local fx: FancyKit.Driver? = nil
+local fxCount = 0
 
 local FONT = Enum.Font.FredokaOne
 
@@ -239,10 +258,13 @@ local function art(parent: Instance, entry: Entry, size: number, z: number): Fra
 	fallback.Parent = holder
 	UiKit.Icon(fallback, entry.icon, math.floor(size * 0.55), entry.tint:Lerp(WHITE, 0.35))
 
+	if fx and entry.art ~= "" then
+		FancyKit.glow(holder, entry.tint:Lerp(WHITE, 0.55), 1.25, 0.35, z)
+	end
 	local img = Instance.new("ImageLabel")
 	img.Size = UDim2.fromScale(1, 1)
 	img.BackgroundTransparency = 1
-	img.Image = artImage(entry.art)
+	img.Image = artImage(if entry.art == "" then "Gift" else entry.art)
 	img.ScaleType = Enum.ScaleType.Fit
 	img.ZIndex = z + 1
 	img.Parent = holder
@@ -253,6 +275,11 @@ local function art(parent: Instance, entry: Entry, size: number, z: number): Fra
 	end
 	img:GetPropertyChangedSignal("IsLoaded"):Connect(check)
 	check()
+	if fx then
+		-- Süzülme: her ikon farklı fazda
+		fxCount += 1
+		FancyKit.bob(img, fx, math.max(2, size * 0.03), 2.6, fxCount * 0.9, 3)
+	end
 	return holder
 end
 
@@ -279,6 +306,24 @@ local function cardBase(parent: Instance, tint: Color3, size: UDim2, z: number, 
 	rays.ImageTransparency = 0.35
 	rays.ZIndex = z
 	rays.Parent = card
+	if fx then
+		FancyKit.spin(rays, fx, 10)
+	end
+	-- Üstte büyük, aşağı küçülen noktalar + üst parlak şerit (referans kart dili)
+	FancyKit.halftone(card, WHITE, 0.8, z, true)
+	local shine = Instance.new("Frame")
+	shine.Name = "TopShine"
+	shine.Size = UDim2.new(1, 0, 0.42, 0)
+	shine.BackgroundColor3 = WHITE
+	shine.BackgroundTransparency = 0.82
+	shine.BorderSizePixel = 0
+	shine.ZIndex = z
+	shine.Parent = card
+	corner(shine, 14)
+	local sg = Instance.new("UIGradient")
+	sg.Rotation = 90
+	sg.Transparency = NumberSequence.new(0, 1)
+	sg.Parent = shine
 
 	-- Dış çerçeve: koyu kalın kenar + içte ince açık kenar (kabartma)
 	local frame = Instance.new("Frame")
@@ -287,7 +332,7 @@ local function cardBase(parent: Instance, tint: Color3, size: UDim2, z: number, 
 	frame.ZIndex = z + 1
 	frame.Parent = card
 	corner(frame, 14)
-	border(frame, OUTLINE, 3)
+	border(frame, OUTLINE, 4)
 	local inner = Instance.new("Frame")
 	inner.Position = UDim2.fromOffset(3, 3)
 	inner.Size = UDim2.new(1, -6, 1, -6)
@@ -395,14 +440,11 @@ local function buyButton(parent: Instance, size: UDim2, z: number, textSize: num
 	end
 	button.MouseButton1Up:Connect(release)
 	button.MouseLeave:Connect(release)
-	button.MouseEnter:Connect(function()
-		if button.Active then
-			TweenService:Create(holder, TweenInfo.new(0.08), { Rotation = -2 }):Play()
-		end
-	end)
-	button.MouseLeave:Connect(function()
-		TweenService:Create(holder, TweenInfo.new(0.1), { Rotation = 0 }):Play()
-	end)
+	if fx then
+		fxCount += 1
+		FancyKit.gleam(button, fx, 3.4, fxCount * 0.45, 0.55)
+		FancyKit.juicy(holder, button, 1.06, 2)
+	end
 
 	return { holder = holder, button = button, label = label, icon = icon, setState = setState }
 end
@@ -424,10 +466,13 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		end
 	end
 	gradient(root, BODY, BODY_DEEP)
-	border(root, OUTLINE, 4)
+	border(root, OUTLINE, 5)
 	corner(root, 16)
+	fx = FancyKit.driver(root)
+	fxCount = 0
+	local driver = fx :: FancyKit.Driver
 
-	-- Gövdede nokta deseni: düz koyu yerine perçinli metal panel hissi
+	-- Gövde: soluk noktalı doku + arkadan yükselen parıltılar
 	local dots = Instance.new("Frame")
 	dots.Name = "Dots"
 	dots.Position = UDim2.fromOffset(0, HEADER)
@@ -436,19 +481,8 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	dots.ClipsDescendants = true
 	dots.ZIndex = Z
 	dots.Parent = root
-	for y = 0, math.floor((H - HEADER) / 28) do
-		for x = 0, math.floor(W / 28) do
-			local d = Instance.new("Frame")
-			d.Position = UDim2.fromOffset(x * 28 + (y % 2) * 14 + 8, y * 28 + 10)
-			d.Size = UDim2.fromOffset(4, 4)
-			d.BackgroundColor3 = Color3.new(0, 0, 0)
-			d.BackgroundTransparency = 0.72
-			d.BorderSizePixel = 0
-			d.ZIndex = Z
-			d.Parent = dots
-			corner(d, 2)
-		end
-	end
+	FancyKit.halftone(dots, Color3.fromRGB(120, 140, 220), 0.9, Z)
+	FancyKit.particles(dots, driver, 16, Color3.fromRGB(255, 230, 150), Z)
 
 	-- ── Başlık şeridi ──────────────────────────────────────────────────────
 	local header = Instance.new("Frame")
@@ -460,28 +494,41 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	header.ZIndex = Z + 1
 	header.Parent = root
 	corner(header, 16)
-	gradient(header, HEADER_GREEN:Lerp(WHITE, 0.2), HEADER_GREEN:Lerp(Color3.new(0, 0, 0), 0.12))
+	local hg = Instance.new("UIGradient")
+	hg.Rotation = 0
+	hg.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 214, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 196, 150)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(46, 140, 240)),
+	})
+	hg.Parent = header
+	-- UIGradient zemin rengiyle ÇARPILIYOR: renkler gradyanda, zemin beyaz
+	header.BackgroundColor3 = WHITE
 	-- Alt köşeler düz kalsın: şeridin alt yarısına düz bir örtü
 	local foot = Instance.new("Frame")
 	foot.Position = UDim2.new(0, 0, 1, -16)
 	foot.Size = UDim2.new(1, 0, 0, 16)
-	foot.BackgroundColor3 = HEADER_GREEN:Lerp(Color3.new(0, 0, 0), 0.1)
+	foot.BackgroundColor3 = WHITE
 	foot.BorderSizePixel = 0
 	foot.ZIndex = Z + 1
 	foot.Parent = header
-	-- Eğik parlak şeritler
-	for i, x in { 0.52, 0.6, 0.66 } do
-		local stripe = Instance.new("Frame")
-		stripe.AnchorPoint = Vector2.new(0.5, 0.5)
-		stripe.Position = UDim2.fromScale(x, 0.5)
-		stripe.Size = UDim2.fromOffset(if i == 1 then 46 else 18, 180)
-		stripe.Rotation = 30
-		stripe.BackgroundColor3 = WHITE
-		stripe.BackgroundTransparency = 0.8
-		stripe.BorderSizePixel = 0
-		stripe.ZIndex = Z + 2
-		stripe.Parent = header
-	end
+	hg:Clone().Parent = foot
+	-- Kayan çapraz şeritler + noktalar (başlık hep canlı)
+	local stripes = Instance.new("ImageLabel")
+	stripes.Name = "Stripes"
+	stripes.BackgroundTransparency = 1
+	stripes.Size = UDim2.new(1, 64, 1, 0)
+	stripes.Image = UiArt.Image("Texture", "stripes")
+	stripes.ScaleType = Enum.ScaleType.Tile
+	stripes.TileSize = UDim2.fromOffset(64, 64)
+	stripes.ImageTransparency = 0.88
+	stripes.ZIndex = Z + 2
+	stripes.Parent = header
+	driver.add(function(t)
+		stripes.Position = UDim2.fromOffset(-((t * 18) % 64), 0)
+	end)
+	FancyKit.halftone(header, WHITE, 0.86, Z + 2, true)
+	FancyKit.gleam(header, driver, 5, 1, 0.35)
 	-- Başlığın altında koyu çizgi
 	local rule = Instance.new("Frame")
 	rule.Position = UDim2.new(0, 0, 0, HEADER - 2)
@@ -491,10 +538,8 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	rule.ZIndex = Z + 3
 	rule.Parent = root
 
-	local title = bold(header, "Shop", 50, WHITE, Z + 4, 5)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Position = UDim2.fromOffset(26, 6)
-	title.Size = UDim2.fromOffset(300, 60)
+	local title = FancyKit.jelly(header, "SHOP", 54, Color3.fromRGB(255, 226, 60), Color3.fromRGB(255, 140, 20), Z + 4, driver)
+	title.Position = UDim2.fromOffset(24, 6)
 
 	-- Kırmızı kare X (başlığın sağında)
 	local close = Instance.new("TextButton")
@@ -512,12 +557,8 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	gradient(close, Color3.fromRGB(250, 70, 70), Color3.fromRGB(190, 20, 30))
 	local x = bold(close, "X", 42, WHITE, Z + 6, 4)
 	x.Size = UDim2.fromScale(1, 1)
-	close.MouseEnter:Connect(function()
-		TweenService:Create(close, TweenInfo.new(0.08), { Rotation = 8 }):Play()
-	end)
-	close.MouseLeave:Connect(function()
-		TweenService:Create(close, TweenInfo.new(0.1), { Rotation = 0 }):Play()
-	end)
+	FancyKit.gleam(close, driver, 4.2, 2, 0.4)
+	FancyKit.juicy(close, close, 1.1, -8)
 
 	-- ── Liste ──────────────────────────────────────────────────────────────
 	local list = Instance.new("ScrollingFrame")
@@ -551,10 +592,44 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 
 	local function sectionTitle(id: string, text: string, color: Color3)
 		order += 1
-		local t = bold(list, "-- " .. text .. " --", 40, color, Z + 2, 4)
-		t.LayoutOrder = order
-		t.Size = UDim2.fromOffset(CONTENT_W, 50)
-		sectionAt[id] = t
+		local holder = Instance.new("Frame")
+		holder.LayoutOrder = order
+		holder.Size = UDim2.fromOffset(CONTENT_W, 58)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = Z + 2
+		holder.Parent = list
+		-- Şerit: rengin koyu tonu, kalın kenar, noktalar, parıltı
+		local ribbon = Instance.new("Frame")
+		ribbon.AnchorPoint = Vector2.new(0.5, 0.5)
+		ribbon.Position = UDim2.fromScale(0.5, 0.5)
+		ribbon.Size = UDim2.new(0, 360, 0, 46)
+		ribbon.BackgroundColor3 = WHITE
+		ribbon.BorderSizePixel = 0
+		ribbon.ZIndex = Z + 2
+		ribbon.Parent = holder
+		corner(ribbon, 23)
+		border(ribbon, OUTLINE, 4)
+		-- Şerit bölümün renginde (canlı), yazı beyaz: renk üstüne renk okunmuyordu
+		gradient(ribbon, color:Lerp(WHITE, 0.1), color:Lerp(Color3.new(0, 0, 0), 0.4))
+		FancyKit.halftone(ribbon, WHITE, 0.8, Z + 2)
+		FancyKit.gleam(ribbon, driver, 4.5, order * 0.3, 0.3)
+		local t = FancyKit.title(ribbon, text, 34, WHITE, Color3.fromRGB(255, 236, 190), Z + 4, driver)
+		t.Size = UDim2.fromScale(1, 1)
+		t.Position = UDim2.fromOffset(0, -3)
+		-- İki yanda parıltı yıldızları
+		for _, side in { -1, 1 } do
+			local star = Instance.new("ImageLabel")
+			star.BackgroundTransparency = 1
+			star.AnchorPoint = Vector2.new(0.5, 0.5)
+			star.Position = UDim2.new(0.5, side * 205, 0.5, 0)
+			star.Size = UDim2.fromOffset(34, 34)
+			star.Image = UiArt.Image("Texture", "sparkle")
+			star.ImageColor3 = color:Lerp(WHITE, 0.3)
+			star.ZIndex = Z + 3
+			star.Parent = holder
+			FancyKit.spin(star, driver, side * 50)
+		end
+		sectionAt[id] = holder
 	end
 
 	local function grid(cellW: number, cellH: number, count: number, cols: number): Frame
@@ -579,6 +654,10 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 	local cards: { Card } = {}
 
 	local function wireBuy(entry: Entry, buy: BuyButton)
+		local card = buy.holder.Parent
+		if card and card:IsA("GuiObject") and card.Parent ~= list then
+			FancyKit.hover(card, 1.03)
+		end
 		buy.button.MouseButton1Click:Connect(function()
 			local def = defOf(entry)
 			if not (def and def.id ~= 0 and buy.button.Active) then
@@ -620,10 +699,11 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		corner(ribbon, 6)
 		border(ribbon, OUTLINE, 3)
 
-		local name = bold(banner, "x2 INCOME PASS", 46, TITLE_YELLOW, Z + 5, 5)
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.Position = UDim2.fromOffset(200, 12)
+		local name = FancyKit.title(banner, "x2 INCOME PASS", 46, TITLE_YELLOW, Color3.fromRGB(255, 150, 20), Z + 5, driver)
+		FancyKit.setTitle(name, nil, Enum.TextXAlignment.Left)
+		name.Position = UDim2.fromOffset(200, 10)
 		name.Size = UDim2.fromOffset(420, 50)
+		FancyKit.bob(ribbon, driver, 3, 1.8, 0, 4)
 
 		local lines = {
 			"Every crewmate on your podiums earns " .. hi("DOUBLE", "#7CFF5B") .. " cash",
@@ -658,13 +738,9 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			a.AnchorPoint = Vector2.new(0, 0.5)
 			a.Position = UDim2.new(0, 10, 0.5, 0)
 
-			local name = bold(card, entry.title, 34, WHITE, Z + 5, 4)
-			name.Position = UDim2.fromOffset(165, 12)
+			local name = FancyKit.title(card, entry.title, 32, WHITE, entry.tint:Lerp(WHITE, 0.55), Z + 5, driver)
+			name.Position = UDim2.fromOffset(165, 10)
 			name.Size = UDim2.new(1, -175, 0, 42)
-			name.TextScaled = true
-			local nlimit = Instance.new("UITextSizeConstraint")
-			nlimit.MaxTextSize = 34
-			nlimit.Parent = name
 
 			local blurb = bold(card, entry.blurb, 22, WHITE, Z + 5, 2.5)
 			blurb.Position = UDim2.fromOffset(165, 58)
@@ -692,10 +768,10 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			local a = art(card, entry, 150, Z + 4)
 			a.AnchorPoint = Vector2.new(0.5, 0)
 			a.Position = UDim2.new(0.5, 0, 0, 6)
-			local amount = bold(card, entry.title, 40, WHITE, Z + 5, 4)
-			amount.AnchorPoint = Vector2.new(0.5, 0)
-			amount.Position = UDim2.new(0.5, 0, 0, 142)
-			amount.Size = UDim2.new(1, -20, 0, 44)
+			local amountTitle = FancyKit.title(card, entry.title, 38, Color3.fromRGB(190, 255, 120), Color3.fromRGB(70, 200, 60), Z + 5, driver)
+			amountTitle.AnchorPoint = Vector2.new(0.5, 0)
+			amountTitle.Position = UDim2.new(0.5, 0, 0, 142)
+			amountTitle.Size = UDim2.new(1, -20, 0, 44)
 			--[[
 				2026-09-28: paket miktarı oyuncunun gelirine ve bakiyesine göre
 				(Config.GetCashPackAmount — sunucu satın almada aynısını veriyor).
@@ -709,7 +785,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 					local value = Config.GetCashPackAmount(product,
 						if typeof(income) == "number" then income else 0,
 						if typeof(cash) == "number" then cash else 0)
-					amount.Text = "$" .. Config.FormatCash(value)
+					FancyKit.setTitle(amountTitle, "$" .. Config.FormatCash(value))
 				end
 				paintAmount()
 				player:GetAttributeChangedSignal("Income"):Connect(paintAmount)
@@ -740,7 +816,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			local a = art(card, entry, 130, Z + 4)
 			a.AnchorPoint = Vector2.new(0.5, 0)
 			a.Position = UDim2.new(0.5, 0, 0, 8)
-			local name = bold(card, entry.title, 26, WHITE, Z + 5, 3)
+			local name = FancyKit.title(card, entry.title, 24, WHITE, entry.tint:Lerp(WHITE, 0.55), Z + 5, driver)
 			name.AnchorPoint = Vector2.new(0.5, 0)
 			name.Position = UDim2.new(0.5, 0, 0, 136)
 			name.Size = UDim2.new(1, -12, 0, 30)
@@ -770,7 +846,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			local a = art(card, entry, 124, Z + 4)
 			a.AnchorPoint = Vector2.new(0.5, 0)
 			a.Position = UDim2.new(0.5, 0, 0, 8)
-			local name = bold(card, entry.title, 26, WHITE, Z + 5, 3)
+			local name = FancyKit.title(card, entry.title, 24, WHITE, entry.tint:Lerp(WHITE, 0.55), Z + 5, driver)
 			name.AnchorPoint = Vector2.new(0.5, 0)
 			name.Position = UDim2.new(0.5, 0, 0, 130)
 			name.Size = UDim2.new(1, -12, 0, 30)
@@ -929,6 +1005,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		a.AnchorPoint = Vector2.new(0.5, 0)
 		a.Position = UDim2.new(0.5, 0, 0, 0)
 		local l = bold(b, spec.text, 26, spec.color, Z + 4, 3.5)
+		FancyKit.juicy(b, b, 1.08, -4)
 		l.AnchorPoint = Vector2.new(0.5, 1)
 		l.Position = UDim2.new(0.5, 0, 1, -2)
 		l.Size = UDim2.new(1, 0, 0, 30)
@@ -1055,6 +1132,7 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 		end,
 		Destroy = function()
 			finished:Disconnect()
+			driver.destroy()
 			if codeConn then
 				codeConn:Disconnect()
 			end
