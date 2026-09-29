@@ -1286,10 +1286,23 @@ function SpaceService.ReturnToStation(player: Player): boolean
 	end
 	lastReturn[player] = now
 	local deck = SpaceField.DeckCenter() + Vector3.new(0, 3.5, 8)
-	if player.Character then
-		player.Character:PivotTo(CFrame.lookAt(deck, deck + Vector3.new(0, 0, -1)))
-		root.AssemblyLinearVelocity = Vector3.zero
-	end
+	local target = CFrame.lookAt(deck, deck + Vector3.new(0, 0, -1))
+	--[[
+		2026-09-29 (Batur: "başka oyuncu return deyince bende uçmaya devam
+		ediyor"): karakterin fiziği oyuncunun kendi istemcisinde ve uçuş
+		kuvveti (LinearVelocity) açık. Sunucu ışınlayınca istemci eski
+		uçuşunu yollamaya devam edip diğerlerinde uzayda kalabiliyordu.
+		Işınlamayı istemci yapıyor: önce uçuşu kapatıyor, sonra taşınıyor
+		(SpaceFX "return"). Yapmazsa 1 sn sonra sunucu taşıyor.
+	]]
+	fx(player, "return", target)
+	task.delay(1, function()
+		local r = rootOf(player)
+		if r and player.Parent and SpaceField.InSpace(r.Position) and player.Character then
+			player.Character:PivotTo(target)
+			r.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
 	return true
 end
 

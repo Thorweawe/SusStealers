@@ -1290,6 +1290,19 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 	-- ─── Sunucu olayları ────────────────────────────────────────────────
 	table.insert(connections, Net.Get("SpaceFX").OnClientEvent:Connect(function(kind, a, b, c, d)
+		if kind == "return" and typeof(a) == "CFrame" then
+			-- Return to Station: önce uçuş kuvvetini kapat, sonra kendin taşın
+			-- (fizik bizde; sunucu taşısaydı diğerlerinde uzayda kalabiliyorduk)
+			setFlying(false)
+			local character = player.Character
+			local _, root = humanoidOf()
+			if character and root then
+				root.AssemblyLinearVelocity = Vector3.zero
+				root.AssemblyAngularVelocity = Vector3.zero
+				character:PivotTo(a)
+			end
+			return
+		end
 		if kind == "roar" and typeof(a) == "string" then
 			local def = Config.GetSpaceMonster(a)
 			local _, root = humanoidOf()
