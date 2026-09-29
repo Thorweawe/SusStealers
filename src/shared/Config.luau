@@ -1160,7 +1160,8 @@ Config.LiveOps = {
 ]]
 Config.Notifications = {
 	secretName = "OpenCloudKey",
-	daily = "", -- "Your daily reward is ready! Keep your {streak}-day streak 🔥" şablonunun kimliği
+	-- "Your daily reward is ready! Keep your {streak}-day streak 🔥" şablonunun kimliği (Creator Hub)
+	daily = "b56c0f9d-9d1e-9345-b787-64d78d2e4ce7",
 }
 
 --[[ Sunucudaki arkadaş sayısına göre gelir bonusu (0.10 = +%10). ]]
