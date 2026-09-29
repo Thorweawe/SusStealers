@@ -3883,6 +3883,60 @@ case("Uzay: canavar yakalayınca elinde tutup gemiye fırlatıyor", function(ctx
 	clearPlot(ctx.plot)
 end)
 
+case("Heyecan: şanslı soygun, close call, kıl payı ve nadir doğuş kuralları", function(ctx)
+	-- Zar sırası: Jackpot önce, sonra Lucky, gerisi bonussuz
+	eq("zar 0.005 jackpot", (Config.RollLuckySteal(0.005) or {} :: any).id, "Jackpot")
+	eq("zar 0.05 lucky", (Config.RollLuckySteal(0.05) or {} :: any).id, "Lucky")
+	eq("zar 0.5 bonus yok", Config.RollLuckySteal(0.5), nil)
+	-- Beklenen değer küçük kalmalı (ekonomiyi kaydırmasın): soygun başına < 10 sn gelir
+	local ev, total = 0, 0
+	for _, b in Config.Hype.LuckySteal do
+		ev += b.chance * b.seconds
+		total += b.chance
+	end
+	ok("şans beklenen değeri küçük", ev < 10, string.format("(%.1f sn)", ev))
+	ok("toplam şans makul", total > 0.05 and total < 0.25, tostring(total))
+
+	ok("Secret nadir doğuş", Config.IsHypeSpawn("TheCrewmate", nil))
+	ok("Epic + IMPOSTOR nadir doğuş", Config.IsHypeSpawn("Impostor", "Impostor"))
+	ok("Common + IMPOSTOR değil", not Config.IsHypeSpawn("RedCrew", "Impostor"))
+	ok("Mythic tek başına değil (her rotasyonda alarm olurdu)", not Config.IsHypeSpawn("DoubleImp", nil))
+
+	-- Çark ihtimalleri gösterilebilir: her ödülün ağırlığı var, toplamlar pozitif
+	local spinTotal, superTotal = 0, 0
+	for _, r in Config.SpinRewards do
+		spinTotal += r.weight
+		superTotal += Config.SuperSpin.weights[r.id] or 0
+	end
+	ok("çark ağırlıkları", spinTotal > 0 and superTotal > 0)
+
+	-- Teslimde jackpot: nakit en az tabanı kadar artıyor
+	local character = ctx.player.Character
+	if not character then
+		ok("karakter var", false)
+		return
+	end
+	local startCf = character:GetPivot()
+	clearPlot(ctx.plot)
+	SpaceService._ClearImmunity(ctx.player)
+	local def = Config.SpaceMonsters[1]
+	local spot = SpaceField.CrewSpots(def)[2]
+	character:PivotTo(CFrame.new(spot + Vector3.new(0, 3, 4)))
+	SpaceService._Grab(ctx.player, 1, 2)
+	ok("taşıyor", SpaceService.IsCarrying(ctx.player))
+	character:PivotTo(CFrame.new(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
+	setCash(ctx.player, 0)
+	SpaceService._SetLuckRoll(0)
+	SpaceService._Deliver(ctx.player)
+	SpaceService._SetLuckRoll(0.99)
+	ok("teslim edildi", not SpaceService.IsCarrying(ctx.player))
+	local jackpot = Config.Hype.LuckySteal[1]
+	ok("jackpot nakdi", EconomyService.GetCash(ctx.player) >= jackpot.minimum, tostring(EconomyService.GetCash(ctx.player)))
+	SpaceService._Step(1 / 30)
+	character:PivotTo(startCf)
+	clearPlot(ctx.plot)
+end)
+
 case("Uzay: bedava karakter (çark / ürün) doğrudan kaideye", function(ctx)
 	clearPlot(ctx.plot)
 	local name = SpaceService.GrantUnit(ctx.player, true)
@@ -4536,6 +4590,8 @@ function ServerTests.Run(player: Player?): number
 	SpaceService.SetPaused(true)
 	SpaceBonusService.SetPaused(true)
 	CapsuleService.SetPaused(true)
+	-- Teslimdeki şans bonusu nakit ölçen testleri bozmasın (Config.Hype)
+	SpaceService._SetLuckRoll(0.99)
 
 	print("═══ SUNUCU REGRESYON TESTLERİ ═══")
 
@@ -4569,6 +4625,7 @@ function ServerTests.Run(player: Player?): number
 	end
 
 	-- Ortamı geri yükle
+	SpaceService._SetLuckRoll(nil)
 	TitleService.SetPaused(false)
 	TutorialService.SetPaused(false)
 	QuestService.SetPaused(false)

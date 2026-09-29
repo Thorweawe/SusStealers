@@ -32,6 +32,7 @@ local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
 local EggStyle = require(script.Parent.EggStyle)
 local QuestPanel = require(script.Parent.QuestPanel)
+local Engagement = require(script.Parent.Engagement)
 
 local RewardsPanel = {}
 
@@ -52,6 +53,7 @@ local Z = 45
 export type Panel = {
 	Toggle: () -> (),
 	OpenQuests: () -> (),
+	IsDailyReady: () -> boolean,
 	Destroy: () -> (),
 }
 
@@ -268,6 +270,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 
 	local streakLabel = CardKit.bold(dailyPage, "", 22, CardKit.YELLOW, Z + 2, 2.5)
 	streakLabel.Size = UDim2.new(1, 0, 0, 26)
+	CardKit.fit(streakLabel, 22, 14)
 
 	local dayGrid = Instance.new("Frame")
 	dayGrid.Position = UDim2.fromOffset(0, 34)
@@ -403,7 +406,10 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			dailyButton.set("CLAIM DAY " .. state.nextStreak, CardKit.GREEN)
 			dailyPulse.Scale = if clockPulse % 2 == 0 then 1.05 else 1
 		else
-			streakLabel.Text = string.format("STREAK %d  ·  next reward in %s", state.streak, clock(left))
+			-- Seri kaybı korkusu (kayıptan kaçınma): seri büyüdükçe "bozma" hatırlatması
+			streakLabel.Text = if state.streak >= 2
+				then string.format("STREAK %d  ·  next in %s  ·  don't break it!", state.streak, clock(left))
+				else string.format("STREAK %d  ·  next reward in %s", state.streak, clock(left))
 			dailyButton.set("COME BACK IN " .. clock(left), nil)
 			dailyPulse.Scale = 1
 		end
@@ -454,6 +460,10 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 		end
 		local daily = payload.daily
 		if typeof(daily) == "table" then
+			-- Günlük ödül az önce alındı: yarın haber verelim mi (Roblox bildirim izni)
+			if state.canClaim and daily.canClaim ~= true and (tonumber(daily.streak) or 0) > state.streak then
+				Engagement.PromptNotifications()
+			end
 			state.streak = tonumber(daily.streak) or 0
 			state.canClaim = daily.canClaim == true
 			state.nextStreak = tonumber(daily.nextStreak) or 1
@@ -519,6 +529,9 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			root.Visible = true
 			current = if tutorialDone() >= QUESTS_UNLOCK then "quests" else "daily"
 			redraw()
+		end,
+		IsDailyReady = function(): boolean
+			return state.canClaim
 		end,
 		Destroy = function()
 			connection:Disconnect()

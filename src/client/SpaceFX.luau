@@ -36,6 +36,7 @@ local CardKit = require(script.Parent.CardKit)
 local FlyPose = require(script.Parent.FlyPose)
 local JetpackModel = require(Shared.JetpackModel)
 local SoundFX = require(script.Parent.SoundFX)
+local StealReveal = require(script.Parent.StealReveal)
 
 local SpaceFX = {}
 
@@ -145,7 +146,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	shout.Name = "SpaceShout"
 	shout.AnchorPoint = Vector2.new(0.5, 0.5)
 	shout.Position = UDim2.fromScale(0.5, 0.34)
-	shout.Size = UDim2.fromOffset(900, 70)
+	--[[
+		2026-09-29 (mobil hiyerarşi): 900 sabit genişlik telefonda ekrandan
+		taşıyor, yazı kesiliyordu (TikTok videosunda görüldü). Artık ekran
+		genişliği kadar, en fazla 900; CardKit.fit yazıyı sığdırıyor.
+	]]
+	shout.Size = UDim2.new(1, -40, 0, 70)
+	local shoutLimit = Instance.new("UISizeConstraint")
+	shoutLimit.MaxSize = Vector2.new(900, 70)
+	shoutLimit.Parent = shout
 	shout.Visible = false
 	CardKit.fit(shout, 54, 20)
 	local shoutScale = Instance.new("UIScale")
@@ -1201,7 +1210,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	end))
 
 	-- ─── Sunucu olayları ────────────────────────────────────────────────
-	table.insert(connections, Net.Get("SpaceFX").OnClientEvent:Connect(function(kind, a, b, c)
+	table.insert(connections, Net.Get("SpaceFX").OnClientEvent:Connect(function(kind, a, b, c, d)
 		if kind == "roar" and typeof(a) == "string" then
 			local def = Config.GetSpaceMonster(a)
 			local _, root = humanoidOf()
@@ -1229,7 +1238,12 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			effects.Flash(Color3.fromRGB(255, 60, 80), 0.45, 0.5)
 			SoundFX.Deny()
 			local def = Config.GetSpaceMonster(a)
-			yell(string.format("%s GOT YOU!", string.upper(if def then def.name else "IT")), Color3.fromRGB(255, 70, 90), b + 0.4)
+			-- Kıl payı (Config.Hype.NearMissStuds): güverteye yakın yakalandıysan mesafe
+			if typeof(d) == "number" and d >= 0 and d <= Config.Hype.NearMissStuds then
+				yell(string.format("SO CLOSE! %d STUDS FROM SAFETY", math.max(1, d)), Color3.fromRGB(255, 170, 70), b + 0.8)
+			else
+				yell(string.format("%s GOT YOU!", string.upper(if def then def.name else "IT")), Color3.fromRGB(255, 70, 90), b + 0.4)
+			end
 		elseif kind == "lunge" and typeof(a) == "string" then
 			local def = Config.GetSpaceMonster(a)
 			effects.Shake(1.2, 0.5)
@@ -1282,7 +1296,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		elseif kind == "delivered" then
 			effects.Flash(Color3.fromRGB(90, 255, 120), 0.45, 0.6)
 			SoundFX.Success()
-			yell(string.format("STOLE %s!", string.upper(tostring(a))), Color3.fromRGB(120, 255, 130), 2.4)
+			-- Kutlama kartı (StealReveal); eski sunucu tablo göndermezse düz yazı
+			if typeof(b) == "table" then
+				shout.Visible = false
+				StealReveal.Show(screen, tostring(a), b)
+			else
+				yell(string.format("STOLE %s!", string.upper(tostring(a))), Color3.fromRGB(120, 255, 130), 2.4)
+			end
+		elseif kind == "rarespawn" and typeof(a) == "string" and typeof(c) == "number" then
+			StealReveal.RareSpawn(screen, a, if typeof(b) == "string" and b ~= "" then b else nil, c)
 		end
 	end))
 

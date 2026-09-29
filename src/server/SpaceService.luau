@@ -103,6 +103,8 @@ local grabbedBy: { [Player]: Monster } = {}
 local shieldReadyAt: { [Player]: number } = {}
 -- Lucky Scanner zarı (mürettebat balonlarının zarından ayrı)
 local luckRng = Random.new()
+-- Testler: teslimdeki şans zarını sabitler (Config.Hype.LuckySteal), nil = rastgele
+local forcedLuck: number? = nil
 
 -- Aşağıda tanımlı; daha önceki fonksiyonlar (catch) da kullanıyor
 local keepOffPlanets: (p: Vector3) -> (Vector3, boolean)
@@ -495,6 +497,8 @@ local function placeSpot(spot: Spot, unitId: string, mutationId: string?, folder
 end
 
 local crewFolder: Folder? = nil
+-- Son nadir doğuş alarmı (os.clock), Config.Hype.RareSpawnGap
+local lastHypeAt = -math.huge
 
 local function rollSpot(spot: Spot)
 	-- Nebula Blackout: bir üst canavarın havuzu
@@ -508,7 +512,27 @@ local function rollSpot(spot: Spot)
 			mutation = Config.RollMutation(rng, luck)
 		end
 	end
-	placeSpot(spot, unit.id, if mutation then mutation.id else nil, crewFolder :: Folder)
+	local mutationId = if mutation then mutation.id else nil
+	placeSpot(spot, unit.id, mutationId, crewFolder :: Folder)
+
+	--[[
+		Nadir doğuş alarmı (Config.Hype.RareSpawn): bütün sunucu görüyor,
+		hızı yeten yarışıyor, yetmeyen hedefini görüyor. Sohbete de düşüyor.
+	]]
+	if Config.IsHypeSpawn(unit.id, mutationId) and os.clock() - lastHypeAt >= Config.Hype.RareSpawnGap then
+		lastHypeAt = os.clock()
+		local planet = Config.SpaceMonsters[spot.planet]
+		fxAll("rarespawn", unit.id, mutationId or "", spot.planet)
+		if planet then
+			local rarity = Config.Rarities[unit.rarity]
+			-- unitName aşağıda tanımlı: adı burada kur
+			local mutationDef = Config.GetMutation(mutationId)
+			local label = (if mutationDef then mutationDef.name .. " " else "") .. unit.name
+			AnnounceService.Summon(string.format("%s spotted on %s! (needs %d Space Speed)",
+				AnnounceService.Paint(label, if rarity then rarity.color else Color3.new(1, 1, 1)),
+				planet.planet, planet.need))
+		end
+	end
 end
 
 -- ─── Taşıma ─────────────────────────────────────────────────────────────────
@@ -690,8 +714,14 @@ local function placeOnPodium(player: Player, unitId: string, mutationId: string?
 	end
 	if def and ANNOUNCE_RARITIES[def.rarity] then
 		local rarity = Config.Rarities[def.rarity]
-		AnnounceService.Summon(string.format("%s %s %s!", player.DisplayName, origin,
-			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color)))
+		local text = string.format("%s %s %s!", player.DisplayName, origin,
+			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color))
+		-- Secret soygunu bütün sunuculara (Config.Hype, sosyal kanıt)
+		if def.rarity == "Secret" and origin == "stole" then
+			AnnounceService.Global(text)
+		else
+			AnnounceService.Summon(text)
+		end
 	end
 	return true
 end
@@ -762,8 +792,41 @@ local function deliver(player: Player, root: BasePart)
 		BadgeService.Award(player, "StreakMaster")
 	end
 	local name = unitName(carry.unitId, carry.mutationId)
+
+	--[[
+		Heyecan (Config.Hype): kovalayan canavar dibindeyse CLOSE CALL, sonra
+		şans zarı (LuckySteal). İkisi de gelire göre nakit; istemci
+		"delivered" kartında gösteriyor, ayrı bildirim yok.
+	]]
+	local hype = Config.Hype
+	local income = EconomyService.GetIncome(player)
+	local closeCall = 0
+	for _, m in monsters do
+		if m.target == player and (m.state == "chase" or m.state == "wake")
+			and (m.position - root.Position).Magnitude <= hype.CloseCallStuds then
+			closeCall = math.max(hype.CloseCallMin, math.floor(income * hype.CloseCallSeconds))
+			break
+		end
+	end
+	local bonus = Config.RollLuckySteal(forcedLuck or luckRng:NextNumber())
+	local bonusCash = if bonus then math.max(bonus.minimum, math.floor(income * bonus.seconds)) else 0
+	if closeCall + bonusCash > 0 then
+		EconomyService.AddCash(player, closeCall + bonusCash)
+	end
+	if bonus and bonus.id == "Jackpot" then
+		AnnounceService.Summon(string.format("%s hit a %s +$%s on a space heist!", player.DisplayName,
+			AnnounceService.Paint("JACKPOT", Color3.fromRGB(255, 205, 60)), Config.FormatCash(bonusCash)))
+	end
+
 	notify(player, string.format("%s is on your podium!", name), false, "deposit")
-	fx(player, "delivered", name)
+	fx(player, "delivered", name, {
+		unitId = carry.unitId,
+		mutationId = carry.mutationId,
+		closeCall = closeCall,
+		bonusId = if bonus then bonus.id else nil,
+		bonusName = if bonus then bonus.name else nil,
+		bonusCash = bonusCash,
+	})
 end
 
 -- ─── Yakalama ve fırlatma ───────────────────────────────────────────────────
@@ -809,7 +872,19 @@ local function catch(monster: Monster, player: Player)
 	monster.state = "grab"
 	monster.stateAt = now
 	monster.target = player
-	fx(player, "grab", monster.def.id, s.GrabTime, s.ThrowTime)
+	--[[
+		Kıl payı (Config.Hype.NearMiss): taşırken güverteye yakın yakalandıysa
+		istemci "SO CLOSE! N studs" diyor. Güvertenin kutusuna en kısa uzaklık.
+	]]
+	local toSafety = -1
+	local caughtRoot = rootOf(player)
+	if carry and caughtRoot then
+		local lo, hi = SpaceField.DeckBox()
+		local p = caughtRoot.Position
+		local nearest = Vector3.new(math.clamp(p.X, lo.X, hi.X), math.clamp(p.Y, lo.Y, hi.Y), math.clamp(p.Z, lo.Z, hi.Z))
+		toSafety = math.floor((p - nearest).Magnitude)
+	end
+	fx(player, "grab", monster.def.id, s.GrabTime, s.ThrowTime, toSafety)
 	notify(player, string.format("%s caught you! %s went back to its planet", monster.def.name, name), true)
 
 	-- Sunucu yedeği: istemci fırlatmayı çizemezse yine de gemiye insin
@@ -1418,6 +1493,10 @@ function SpaceService._Deliver(player: Player, keepTime: boolean?)
 		end
 		deliver(player, root)
 	end
+end
+
+function SpaceService._SetLuckRoll(value: number?)
+	forcedLuck = value
 end
 
 function SpaceService.SetPaused(value: boolean)

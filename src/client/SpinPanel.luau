@@ -251,6 +251,96 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 	local tokenText = text(tokenPill, "", 19, WHITE, Z + 12, 2.5)
 	tokenText.Size = UDim2.fromScale(1, 1)
 
+	--[[
+		İHTİMALLER (2026-09-29): Robux'la çevirme satılıyor (ücretli rastgele
+		ödül) — Roblox kuralı: ihtimaller satın almadan ÖNCE görünmeli.
+		"ODDS" düğmesi çarkın üstüne bir tablo açıyor: normal ve süper çark,
+		Config.SpinRewards / Config.SuperSpin.weights'ten hesaplanıyor.
+	]]
+	local oddsBtn = Instance.new("TextButton")
+	oddsBtn.Name = "Odds"
+	oddsBtn.AnchorPoint = Vector2.new(1, 0)
+	oddsBtn.Position = UDim2.new(1, -14, 0, HEADER + 64)
+	oddsBtn.Size = UDim2.fromOffset(112, 32)
+	oddsBtn.BackgroundColor3 = Color3.fromRGB(34, 36, 52)
+	oddsBtn.AutoButtonColor = true
+	oddsBtn.Text = ""
+	oddsBtn.ZIndex = Z + 10
+	oddsBtn.Parent = root
+	FancyKit.corner(oddsBtn, 16)
+	FancyKit.border(oddsBtn, OUTLINE, 3)
+	local oddsLabel = text(oddsBtn, "ⓘ ODDS", 17, WHITE, Z + 11, 2)
+	oddsLabel.Size = UDim2.fromScale(1, 1)
+
+	local oddsCard = Instance.new("Frame")
+	oddsCard.Name = "OddsTable"
+	oddsCard.AnchorPoint = Vector2.new(0.5, 0)
+	oddsCard.Position = UDim2.new(0.5, 0, 0, HEADER + 104)
+	oddsCard.Size = UDim2.fromOffset(W - 60, 300)
+	oddsCard.BackgroundColor3 = Color3.fromRGB(24, 26, 40)
+	oddsCard.Visible = false
+	oddsCard.ZIndex = Z + 40
+	oddsCard.Active = true
+	oddsCard.Parent = root
+	FancyKit.corner(oddsCard, 16)
+	FancyKit.border(oddsCard, OUTLINE, 3)
+	do
+		local function percents(weightOf: (any) -> number): { [string]: number }
+			local total = 0
+			for _, r in Config.SpinRewards do
+				total += weightOf(r)
+			end
+			local out = {}
+			for _, r in Config.SpinRewards do
+				out[r.id] = if total > 0 then weightOf(r) / total * 100 else 0
+			end
+			return out
+		end
+		local normal = percents(function(r)
+			return r.weight
+		end)
+		local super = percents(function(r)
+			return Config.SuperSpin.weights[r.id] or 0
+		end)
+		local function pct(v: number): string
+			return if v >= 10 or v == math.floor(v) then string.format("%d%%", math.floor(v + 0.5)) else string.format("%.1f%%", v)
+		end
+		local ROW = 32
+		local head = text(oddsCard, "PRIZE", 16, Color3.fromRGB(170, 180, 210), Z + 41, 2)
+		head.Position = UDim2.fromOffset(20, 10)
+		head.Size = UDim2.new(0.5, -20, 0, 22)
+		head.TextXAlignment = Enum.TextXAlignment.Left
+		local h1 = text(oddsCard, "SPIN", 16, Color3.fromRGB(170, 180, 210), Z + 41, 2)
+		h1.Position = UDim2.new(0.5, 0, 0, 10)
+		h1.Size = UDim2.new(0.25, 0, 0, 22)
+		local h2 = text(oddsCard, "SUPER", 16, Color3.fromRGB(255, 220, 110), Z + 41, 2)
+		h2.Position = UDim2.new(0.75, -10, 0, 10)
+		h2.Size = UDim2.new(0.25, 0, 0, 22)
+		for i, r in Config.SpinRewards do
+			local look = Config.SpinSliceLook[r.id]
+			local y = 38 + (i - 1) * ROW
+			local name = text(oddsCard, r.name, 20, if look then look.color:Lerp(WHITE, 0.35) else WHITE, Z + 41, 2)
+			name.Position = UDim2.fromOffset(20, y)
+			name.Size = UDim2.new(0.5, -20, 0, ROW)
+			name.TextXAlignment = Enum.TextXAlignment.Left
+			local a = text(oddsCard, pct(normal[r.id]), 20, WHITE, Z + 41, 2)
+			a.Position = UDim2.new(0.5, 0, 0, y)
+			a.Size = UDim2.new(0.25, 0, 0, ROW)
+			local b = text(oddsCard, pct(super[r.id]), 20, Color3.fromRGB(255, 230, 140), Z + 41, 2)
+			b.Position = UDim2.new(0.75, -10, 0, y)
+			b.Size = UDim2.new(0.25, 0, 0, ROW)
+		end
+		local note = text(oddsCard, "Crewmates roll from the best planet you can reach (Jackpot: one higher).", 14, Color3.fromRGB(170, 180, 210), Z + 41, 1.5)
+		note.AnchorPoint = Vector2.new(0.5, 1)
+		note.Position = UDim2.new(0.5, 0, 1, -10)
+		note.Size = UDim2.new(1, -30, 0, 18)
+		oddsCard.Size = UDim2.fromOffset(W - 60, 38 + #Config.SpinRewards * ROW + 40)
+	end
+	oddsBtn.Activated:Connect(function()
+		oddsCard.Visible = not oddsCard.Visible
+		oddsLabel.Text = if oddsCard.Visible then "✕ CLOSE" else "ⓘ ODDS"
+	end)
+
 	-- ─── Alt kısım: +5 · SPIN · +1 ───────────────────────────────────────
 	local ROW_BOTTOM = H - 46
 	local spinBtn = FancyKit.button(root, UDim2.fromOffset(190, 76), GREEN, 34, Z + 10, driver, 0)

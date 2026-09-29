@@ -109,8 +109,54 @@ function AnnounceService.Paint(text: string, color: Color3): string
 	return string.format('<font color="%s"><b>%s</b></font>', AnnounceService.Hex(color), text)
 end
 
+--[[
+	BÜTÜN SUNUCULARA duyuru (2026-09-29, Config.Hype.Global): Secret
+	soygunları gibi çok nadir anlar. Başka sunucudaki oyuncu da görüyor —
+	"bunlar gerçekten çıkıyor" hissi (sosyal kanıt). Bu sunucuda hemen,
+	diğerlerine MessagingService ile; yayın en fazla GLOBAL_GAP sn'de bir.
+	Metni yalnızca sunucularımız yazıyor (istemciden gelen bir şey yok).
+]]
+local MessagingService = game:GetService("MessagingService")
+local GLOBAL_TOPIC = "SusGlobalAnnounce"
+local GLOBAL_GAP = 10
+local lastGlobal = -math.huge
+local notifyRemote: RemoteEvent? = nil
+
+local function shout(text: string)
+	AnnounceService.Summon(text)
+	if notifyRemote then
+		-- Sohbeti kapalı olan (telefon) da görsün: düz metin bildirimi
+		local plain = text:gsub("<[^>]+>", "")
+		notifyRemote:FireAllClients(plain, false, "global")
+	end
+end
+
+function AnnounceService.Global(text: string)
+	shout(text)
+	if os.clock() - lastGlobal < GLOBAL_GAP then
+		return
+	end
+	lastGlobal = os.clock()
+	task.spawn(function()
+		pcall(function()
+			MessagingService:PublishAsync(GLOBAL_TOPIC, { t = text, j = game.JobId })
+		end)
+	end)
+end
+
 function AnnounceService.Start()
 	summonsRemote = Net.Get("Summons")
+	notifyRemote = Net.Get("Notify")
+	task.spawn(function()
+		pcall(function()
+			MessagingService:SubscribeAsync(GLOBAL_TOPIC, function(message)
+				local data = message.Data
+				if typeof(data) == "table" and data.j ~= game.JobId and typeof(data.t) == "string" and #data.t < 600 then
+					shout("🌐 " .. data.t)
+				end
+			end)
+		end)
+	end)
 
 	--[[
 		Sekmeler kapalıysa kanal sohbette görünmüyor; mesajlar yine

@@ -163,14 +163,16 @@ local function onPlayerAdded(player: Player)
 	refreshStats(player)
 
 	-- Çevrimdışı kazanç profile zaten eklendi; oyuncuya haber ver
+	--[[
+		Çevrimdışı kazanç: girişte bir kez. 2026-09-29: bildirim yerine
+		nitelik — istemci (Engagement) büyük bir "WELCOME BACK" kartı
+		gösteriyor (başlık ekranı kapanınca). Tavanı da orada yazıyor:
+		"daha sık gel" (Config.OfflineIncomeCapHours).
+	]]
 	local earned, seconds = DataService.ConsumeOfflineEarnings(player)
-	if earned > 0 and notifyRemote then
-		-- Çevrimdışı kazanç: girişte bir kez, kendi sesiyle
-		notifyRemote:FireClient(player, string.format(
-			"Welcome back! You earned $%s while away (%d min)",
-			Config.FormatCash(earned),
-			math.floor(seconds / 60)
-		), false, "welcome")
+	if earned > 0 then
+		player:SetAttribute("OfflineSeconds", math.floor(seconds))
+		player:SetAttribute("OfflineEarned", earned)
 	end
 end
 

@@ -61,6 +61,7 @@ local TutorialUI = require(script.TutorialUI)
 local Menus = require(script.Menus)
 local Topbar = require(script.Topbar)
 local RewardsPanel = require(script.RewardsPanel)
+local Engagement = require(script.Engagement)
 local Music = require(script.Music)
 local OwnPlot = require(script.OwnPlot)
 local Sprint = require(script.Sprint)
@@ -106,6 +107,8 @@ TitleScreen.Show({
 	-- Yeni oyuncuya hikâye girişi (Intro kendisi karar veriyor: öğretici başlamamışsa)
 	onPlay = function()
 		Intro.PlayIfNew()
+		-- Geri dönen oyuncunun "WELCOME BACK" kartı perde açılınca
+		Engagement.Ready()
 	end,
 })
 
@@ -942,4 +945,15 @@ mountPanel("Topbar", function()
 			rewards.OpenQuests()
 		end
 	end
+	-- Geri dönüş kartı + favori istemi (Engagement); günlük ödüle giden düğme buradan
+	Engagement.Start(screen, {
+		openRewards = function()
+			if rewards then
+				rewards.Toggle()
+			end
+		end,
+		dailyReady = function(): boolean
+			return rewards ~= nil and rewards.IsDailyReady()
+		end,
+	})
 end)

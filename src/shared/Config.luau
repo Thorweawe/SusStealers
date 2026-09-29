@@ -2772,6 +2772,59 @@ Config.Space = {
 }
 
 --[[
+	HEYECAN KURALLARI (2026-09-29, "Steal a Brainrot gibi hype olsun").
+	Asıl döngünün (soygun) her turunda küçük bir belirsizlik ve bir an:
+
+	  LuckySteal — teslimde DEĞİŞKEN ORANLI sürpriz: bazı soygunların sonunda
+	               bonus nakit. Oyuncu hangisinde geleceğini bilmiyor; ilki
+	               kazanırsa geçer, sıra önemli (Jackpot önce). Beklenen değer
+	               soygun başına ~6 sn'lik gelir: ekonomiyi kaydırmıyor.
+	  CloseCall  — kovalayan canavar dibindeyken güverteye varan: "CLOSE CALL!"
+	               ve küçük bir bonus (riskin ödülü).
+	  NearMiss   — güverteye bu kadar yakın yakalanan: "SO CLOSE!" (tekrar dene).
+	  RareSpawn  — gezegende Secret (ya da Epic+ IMPOSTOR mutasyonlu) doğunca
+	               bütün sunucuya alarm; en fazla RareSpawnGap sn'de bir.
+	  Global     — Secret soygunları BÜTÜN sunuculara duyuruluyor
+	               (MessagingService, AnnounceService.Global).
+]]
+Config.Hype = {
+	LuckySteal = {
+		{ id = "Jackpot", name = "JACKPOT!", chance = 0.01, seconds = 300, minimum = 50000 },
+		{ id = "Lucky", name = "LUCKY BONUS!", chance = 0.10, seconds = 30, minimum = 2000 },
+	},
+	CloseCallStuds = 40,
+	CloseCallSeconds = 10,
+	CloseCallMin = 500,
+	NearMissStuds = 120,
+	RareSpawnGap = 45,
+}
+
+--[[ Teslimde şans: kazanan bonus (ya da nil). `roll` 0..1. ]]
+function Config.RollLuckySteal(roll: number): { id: string, name: string, chance: number, seconds: number, minimum: number }?
+	local acc = 0
+	for _, bonus in Config.Hype.LuckySteal do
+		acc += bonus.chance
+		if roll < acc then
+			return bonus
+		end
+	end
+	return nil
+end
+
+--[[ Gezegende doğan bu karakter bütün sunucuya duyurulacak kadar nadir mi? ]]
+function Config.IsHypeSpawn(unitId: string, mutationId: string?): boolean
+	local def = Config.GetUnit(unitId)
+	if not def then
+		return false
+	end
+	if def.rarity == "Secret" then
+		return true
+	end
+	local order = Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0
+	return mutationId == "Impostor" and order >= 4
+end
+
+--[[
 	Yol üstü ödüller ve engeller (SpaceBonusService, SpaceFX). 2026-09-28:
 	"gezegenlere giden yol çok boş". Ödüller gelire göre (yeni oyuncu için
 	taban), yani her aşamada anlamlı ama kapsülün ve soygunun yerini tutmuyor.
