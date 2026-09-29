@@ -94,7 +94,9 @@ local EFFECT: { [string]: Effect } = {
 		label = "Training / sec",
 		value = function(level)
 			local speed = Players.LocalPlayer:GetAttribute("SpaceSpeed")
-			return string.format("+%.3f", Config.GetCapsuleGain(level, if typeof(speed) == "number" then speed else Config.Space.BaseSpeed))
+			local rb = Players.LocalPlayer:GetAttribute("Rebirths")
+			return string.format("+%.3f", Config.GetCapsuleGain(level, if typeof(speed) == "number" then speed else Config.Space.BaseSpeed)
+				* Config.GetRebirthTrainingMul(if typeof(rb) == "number" then rb else 0))
 		end,
 	},
 	TrainingConsole = {

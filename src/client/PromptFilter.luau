@@ -113,6 +113,13 @@ local function applyHeistHold(d: Instance)
 		if math.abs(d.HoldDuration - hold) > 0.005 then
 			d.HoldDuration = hold
 		end
+		-- Rebirth canavarı (2026-09-29): yeterli rebirth yoksa istem hiç görünmüyor
+		local need = d:GetAttribute("Rebirths")
+		local have = Players.LocalPlayer:GetAttribute("Rebirths")
+		local open = typeof(need) ~= "number" or (if typeof(have) == "number" then have else 0) >= need
+		if d.Enabled ~= open then
+			d.Enabled = open
+		end
 	end
 end
 
@@ -129,6 +136,7 @@ function PromptFilter.Create(): Filter
 	end
 	Players.LocalPlayer:GetAttributeChangedSignal("StealHoldMul"):Connect(refreshHeist)
 	Players.LocalPlayer:GetAttributeChangedSignal("Upg_QuickHands"):Connect(refreshHeist)
+	Players.LocalPlayer:GetAttributeChangedSignal("Rebirths"):Connect(refreshHeist)
 	refreshHeist()
 
 	local function update(myPlot: Model?)

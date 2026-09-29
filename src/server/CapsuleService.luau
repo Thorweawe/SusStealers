@@ -211,7 +211,8 @@ local function tick(dt: number)
 				and insideCapsule(capsule, root.Position) then
 				training = true
 				local level = UpgradeService.GetLevel(owner, UPGRADE_ID)
-				local gain = Config.GetCapsuleGain(level, profile.spaceSpeed) * dt
+				-- Rebirth antrenmanı hızlandırıyor (rebirth canavarlarının hızına çıkılsın)
+				local gain = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * dt
 				profile.spaceSpeed = math.min(Config.Space.MaxSpeed, profile.spaceSpeed + gain)
 				publish(owner, profile.spaceSpeed)
 				owner:SetAttribute("CapsuleGain", math.floor(gain / dt * 1000 + 0.5) / 1000)
@@ -252,7 +253,7 @@ function CapsuleService.TryCatch(player: Player, perfect: boolean?): number?
 	end
 	lastCatch[player] = now
 	local level = UpgradeService.GetLevel(player, UPGRADE_ID)
-	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * c.CatchBonusSeconds
+	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * c.CatchBonusSeconds
 	if perfect == true then
 		bonus *= c.PerfectCatchMul
 	end

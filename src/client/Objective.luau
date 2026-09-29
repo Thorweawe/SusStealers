@@ -168,6 +168,18 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 		local speed = num("SpaceSpeed", Config.Space.BaseSpeed)
 		local prev = Config.Space.BaseSpeed
 		for _, def in Config.SpaceMonsters do
+			-- Rebirth canavarı kilitliyse hedef rebirth (2026-09-29)
+			if not Config.MonsterUnlocked(def, rebirths) then
+				return {
+					key = "rebirthgate:" .. def.id,
+					icon = "♻️",
+					title = string.format("Rebirth %d unlocks %s", def.rebirths or 0, def.name),
+					sub = string.format("A new monster with CELESTIAL crew · %d/%d rebirths", rebirths, def.rebirths or 0),
+					progress = rebirths / math.max(1, def.rebirths or 1),
+					tint = Color3.fromRGB(230, 130, 40),
+					onClick = actions.Rebirth,
+				}
+			end
 			if speed < def.need then
 				return {
 					key = "train:" .. def.id,
@@ -181,7 +193,7 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 			prev = def.need
 		end
 		local last = Config.SpaceMonsters[#Config.SpaceMonsters]
-		return { key = "hunt", icon = "👑", title = "Every planet is open!", sub = string.format("Hunt Secret crew from %s", last.name),
+		return { key = "hunt", icon = "👑", title = "Every planet is open!", sub = string.format("Hunt Celestial crew from %s", last.name),
 			tint = Color3.fromRGB(150, 80, 230) }
 	end
 

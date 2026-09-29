@@ -48,10 +48,12 @@ local function capsuleLevel(): number
 	return if typeof(v) == "number" then v else 0
 end
 
---[[ Hızın yetmediği ilk canavar (hepsi yetiyorsa nil). ]]
+--[[ Hızın yetmediği ilk AÇIK canavar (hepsi yetiyorsa nil). Rebirth kilidi olan canavar yalnızca açıksa. ]]
 local function nextMonster(value: number): Config.SpaceMonsterDef?
+	local rb = player:GetAttribute("Rebirths")
+	local rebirths = if typeof(rb) == "number" then rb else 0
 	for _, def in Config.SpaceMonsters do
-		if value < def.need then
+		if value < def.need and Config.MonsterUnlocked(def, rebirths) then
 			return def
 		end
 	end
@@ -750,7 +752,9 @@ function CapsuleFX.Start(screen: Instance): Handle
 			if now - lastCatchAt >= Config.Capsule.CatchCooldown + 0.15 then
 				lastCatchAt = now
 				local perfect = not crashedThisRound
-				local bonus = Config.GetCapsuleGain(capsuleLevel(), speed()) * Config.Capsule.CatchBonusSeconds
+				local rb = player:GetAttribute("Rebirths")
+				local bonus = Config.GetCapsuleGain(capsuleLevel(), speed()) * Config.GetRebirthTrainingMul(if typeof(rb) == "number" then rb else 0)
+					* Config.Capsule.CatchBonusSeconds
 					* (if perfect then Config.Capsule.PerfectCatchMul else 1)
 				catchRemote:FireServer(perfect)
 				SoundFX.Success()

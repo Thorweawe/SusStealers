@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (53) — Batur (Yusuf'un şeridine de yazıldı: canavar görünümü, uzay arayüzü)
+
+Studio'ya aktarıldı, **182/182 test temiz**. Beş canavar Studio'da render edilip bakıldı.
+
+- **Rebirth canavarları** (`Config.SpaceMonsters`, yeni alan `rebirths`): Frost Wyrm (R2, 135 hız), Crystal Golem (R4, 150), Solar Phoenix (R6, 165), Black Hole Devourer (R8, 180), Galaxy Titan (R10, 200). Gezegenler Void Leviathan'ın ötesinde (Z -3100 … -6000; `BoundsMin.Z` -6200). Hız rebirth'te sıfırlanmıyor, maliyet 8x kaldı.
+- **Yeni nadirlik Celestial** (8. sıra): 15 özel ekip, her canavara 3 tane (`unit.monster` ile yalnız o canavarda çıkıyor). Gelir 60M → 110T; her kapı ~40x (iki rebirth'lük gelir artışı).
+- **Kilit**: yetersiz rebirth'te sunucu çalmayı reddediyor; `HeistPrompt` üzerinde `Rebirths` özniteliği, `PromptFilter` kilitliye göstermiyor; `SpaceFX` etiketi "🔒 Unlocks at REBIRTH N" (turuncu). `Config.MonsterUnlocked`, `Config.BestSpaceMonster(speed, rebirths)`, `Config.BaseSpaceMonsters()` (rebirthsiz 6 canavar — Intro, kuyruklu yıldız, rastgele nokta bunları kullanıyor).
+- **Rebirth antrenman bonusu**: kapsül kazancı ×(1 + 0.5·rebirth) (`Config.GetRebirthTrainingMul`; CapsuleService, CapsuleFX, UpgradePanel).
+- **Görünüm/ses** (`MonsterModel` 5 yeni kurucu, `MonsterStyle` 5 stil: kükreme + adım sesleri), `UnitModel` 15 Celestial aksesuarı, Index'te Celestial sekmesi, StealReveal "CELESTIAL SPOTTED", Objective kilitli canavarda "Rebirth N unlocks X" hedefi, bilgi panosunda "REBIRTH N" etiketi.
+
+---
+
 ## 2026-09-29 (52) — Batur (Yusuf'un şeridine de yazıldı: öğretici, sol menü)
 
 Studio'ya aktarıldı, **179/179 test temiz**. PC ve telefon düzeninde bakıldı.

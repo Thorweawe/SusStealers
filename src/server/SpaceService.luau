@@ -134,7 +134,7 @@ local rotateAt = math.huge
 local eventMods = { wakeMul = 1, chaseMul = 1, mutated = false, tierBonus = 0 }
 
 -- Gemi çıkışı nadir karakterleri herkese duyurulsun (eski konveyör kuralı)
-local ANNOUNCE_RARITIES = { Mythic = true, Secret = true }
+local ANNOUNCE_RARITIES = { Mythic = true, Secret = true, Celestial = true }
 
 local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote and player.Parent then
@@ -470,6 +470,11 @@ local function placeSpot(spot: Spot, unitId: string, mutationId: string?, folder
 	prompt.Name = "HeistPrompt"
 	prompt.ActionText = "Steal"
 	prompt.ObjectText = if unit then unit.name else unitId
+	-- Rebirth canavarı: istemci (PromptFilter) kilitli oyuncuya göstermiyor
+	local owner = Config.SpaceMonsters[spot.planet]
+	if owner and owner.rebirths then
+		prompt:SetAttribute("Rebirths", owner.rebirths)
+	end
 	prompt.HoldDuration = Config.Space.GrabHold
 	prompt.MaxActivationDistance = Config.Space.GrabDistance
 	prompt.RequiresLineOfSight = false
@@ -630,6 +635,13 @@ function onGrab(player: Player, spot: Spot)
 	if grabbedBy[player] or os.clock() < (immuneUntil[player] or 0) then
 		return
 	end
+	-- Rebirth canavarı: yeterli rebirth yoksa çalınamıyor
+	local planetDef = Config.SpaceMonsters[spot.planet]
+	local profileNow = DataService.Get(player)
+	if planetDef and planetDef.rebirths and not Config.MonsterUnlocked(planetDef, if profileNow then profileNow.rebirths else 0) then
+		notify(player, string.format("%s unlocks at REBIRTH %d!", planetDef.name, planetDef.rebirths), true)
+		return
+	end
 	local plot = PlotService.GetPlotOf(player)
 	if not plot then
 		notify(player, "You need a base first", true)
@@ -709,7 +721,7 @@ local function placeOnPodium(player: Player, unitId: string, mutationId: string?
 	end
 	DataService.Discover(player, unitId)
 	local def = Config.GetUnit(unitId)
-	if def and def.rarity == "Secret" then
+	if def and (def.rarity == "Secret" or def.rarity == "Celestial") then
 		BadgeService.Award(player, "SecretFind")
 	end
 	if def and ANNOUNCE_RARITIES[def.rarity] then
@@ -717,7 +729,7 @@ local function placeOnPodium(player: Player, unitId: string, mutationId: string?
 		local text = string.format("%s %s %s!", player.DisplayName, origin,
 			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color))
 		-- Secret soygunu bütün sunuculara (Config.Hype, sosyal kanıt)
-		if def.rarity == "Secret" and origin == "stole" then
+		if (def.rarity == "Secret" or def.rarity == "Celestial") and origin == "stole" then
 			AnnounceService.Global(text)
 		else
 			AnnounceService.Summon(text)
@@ -779,7 +791,9 @@ local function deliver(player: Player, root: BasePart)
 	if carry.mutationId then
 		DataService.Bump(player, "mutatedSteals")
 	end
-	if carry.planet == #Config.SpaceMonsters then
+	-- Boss soygunu: Void Leviathan ve ötesi (rebirth canavarları)
+	local carriedDef = Config.SpaceMonsters[carry.planet]
+	if carriedDef and (carriedDef.id == "VoidLeviathan" or carriedDef.rebirths) then
 		DataService.Bump(player, "bossSteals")
 	end
 	local best = DataService.Get(player)
@@ -1314,9 +1328,16 @@ end
 ]]
 --[[ Oyuncunun hızının yettiği en iyi canavar, isteğe bağlı bir üst kademe. ]]
 function SpaceService.PoolFor(player: Player, bonusTier: number?): Config.SpaceMonsterDef
-	local best = Config.BestSpaceMonster(speedOf(player))
+	local profile = DataService.Get(player)
+	local rebirths = if profile then profile.rebirths else 0
+	local best = Config.BestSpaceMonster(speedOf(player), rebirths)
 	local index = table.find(Config.SpaceMonsters, best) or 1
-	return Config.SpaceMonsters[math.min(#Config.SpaceMonsters, index + (bonusTier or 0))]
+	-- Üst kademe kilitli bir rebirth canavarına düşmesin
+	local target = math.min(#Config.SpaceMonsters, index + (bonusTier or 0))
+	while target > index and not Config.MonsterUnlocked(Config.SpaceMonsters[target], rebirths) do
+		target -= 1
+	end
+	return Config.SpaceMonsters[target]
 end
 
 function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?): (string?, string?)
@@ -1466,7 +1487,9 @@ function SpaceService.RandomSpacePoint(random: Random?): Vector3?
 	local r = random or rng
 	local start = SpaceField.DeckCenter() + Vector3.new(0, 10, -20)
 	for _ = 1, 30 do
-		local def = Config.SpaceMonsters[r:NextInteger(1, #Config.SpaceMonsters)]
+		-- Yalnızca herkese açık gezegenlerin yolunda (rebirth gezegenleri çok uzak)
+		local base = Config.BaseSpaceMonsters()
+		local def = base[r:NextInteger(1, #base)]
 		local p = start:Lerp(def.position + Vector3.new(0, 12, 0), r:NextNumber(0.25, 0.85))
 			+ Vector3.new(r:NextNumber(-45, 45), r:NextNumber(-12, 22), r:NextNumber(-20, 20))
 		p = SpaceField.ClampToBounds(p)

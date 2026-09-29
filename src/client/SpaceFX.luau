@@ -53,7 +53,7 @@ export type Handle = {
 local player = Players.LocalPlayer
 local Z = 30
 
-local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "Celestial" }
 
 local function bearingTo(target: Vector3, from: Vector3): number
 	local camera = workspace.CurrentCamera
@@ -1142,12 +1142,17 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 			-- Etiket
 			local need = v.def.need
-			local ok = trainedSpeed() >= need
-			local text = string.format("Needs %d Space Speed  ·  up to %s", need, bestRarity(v.def))
+			-- Rebirth canavarı: kilitliyse etikette kilit (2026-09-29)
+			local rb = player:GetAttribute("Rebirths")
+			local locked = not Config.MonsterUnlocked(v.def, if typeof(rb) == "number" then rb else 0)
+			local ok = trainedSpeed() >= need and not locked
+			local text = if locked
+				then string.format("🔒 Unlocks at REBIRTH %d  ·  %d Space Speed  ·  CELESTIAL crew", v.def.rebirths or 0, need)
+				else string.format("Needs %d Space Speed  ·  up to %s", need, bestRarity(v.def))
 			if v.needLabel.Text ~= text then
 				v.needLabel.Text = text
 			end
-			local color = if ok then Color3.fromRGB(120, 255, 130) else Color3.fromRGB(255, 110, 110)
+			local color = if locked then Color3.fromRGB(255, 170, 90) elseif ok then Color3.fromRGB(120, 255, 130) else Color3.fromRGB(255, 110, 110)
 			if v.needLabel.TextColor3 ~= color then
 				v.needLabel.TextColor3 = color
 			end

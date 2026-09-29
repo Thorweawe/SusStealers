@@ -11,6 +11,11 @@
 	  Sand Maw     — kum solucanı: kıvrılarak, yaprak çeneleri açık, gürleme
 	  Rift Stalker — örümcek: hızlı seğirme, çene kıskaçları tıkırdıyor
 	  Void Leviathan — yılan: sağa sola süzülüyor, derin metalik uğultu
+	  Frost Wyrm   — buz ejderhası: kanat vuruşlarıyla süzülüyor (rebirth 2)
+	  Crystal Golem— ağır adımlar, yer gürlüyor (rebirth 4)
+	  Solar Phoenix— hızlı çırpış, alev hışırtısı, çığlık (rebirth 6)
+	  Black Hole   — süzülüyor, halkası dönüyor, derin uğultu (rebirth 8)
+	  Galaxy Titan — dev adımlar, pelerin (rebirth 10)
 
 	Kovalama ağırlığı `k` (0 boşta .. 1 tam kovalama) yumuşak geçiş için:
 	yürüyüş k ile karışıyor. Sesler 3B: canavarın kök parçasında, yakında
@@ -100,6 +105,57 @@ local STYLES: { [string]: Style } = {
 		end,
 		roar = { id = "rbxassetid://9116292530", speed = 0.6, volume = 1.3, length = 3 },
 		step = { id = "rbxassetid://9118750706", speed = 0.8, volume = 0.55, length = 2 },
+	},
+
+	-- ── Rebirth canavarları (2026-09-29) ─────────────────────────────────
+	-- Frost Wyrm: süzülerek uçuyor, her kanat vuruşunda yükselip "fşşt"
+	FrostWyrm = {
+		freq = 3.2, beats = 1,
+		gait = function(p, k)
+			local beat = 0.5 + 0.5 * math.sin(p)
+			return mods((2.5 + 2.2 * beat) * k, (-0.18 + 0.06 * math.cos(p)) * k, math.sin(p * 0.5) * 0.08 * k, 0, 1.2 * beat * k, 1.6, 2.1, (0.25 + 0.4 * math.max(0, math.sin(p * 0.5))) * k)
+		end,
+		roar = { id = "rbxassetid://9113985466", speed = 1.15, volume = 1.3, length = 2.6 },
+		step = { id = "rbxassetid://9113444620", speed = 0.65, volume = 0.9, length = 1.2 },
+	},
+	-- Crystal Golem: ağır, yavaş adımlar; her adımda yana yatıp gürültü
+	CrystalGolem = {
+		freq = 3, beats = 2,
+		gait = function(p, k)
+			local stomp = math.abs(math.sin(p))
+			return mods(stomp * 1.2 * k, -0.1 * k, math.sin(p) * 0.1 * k, math.sin(p) * 0.05 * k, 0, 2.2, 1.3, (0.2 + 0.3 * stomp) * k)
+		end,
+		roar = { id = "rbxassetid://9113980319", speed = 0.75, volume = 1.3, length = 3 },
+		step = { id = "rbxassetid://9112775165", speed = 1.4, volume = 0.9, length = 0.9 },
+	},
+	-- Solar Phoenix: hızlı kanat çırpışlı süzülüş, alev hışırtısı
+	SolarPhoenix = {
+		freq = 5, beats = 1,
+		gait = function(p, k)
+			local beat = 0.5 + 0.5 * math.sin(p)
+			return mods((3 + 1.8 * beat) * k, -0.3 * k, math.sin(p * 0.7) * 0.12 * k, math.sin(p * 0.35) * 0.08 * k, 1.5 * beat * k, 1.9, 2.6, 0.3 * k)
+		end,
+		roar = { id = "rbxassetid://9125598512", speed = 0.8, volume = 1.3, length = 2.3 },
+		step = { id = "rbxassetid://9112780561", speed = 1.1, volume = 0.7, length = 0.8 },
+	},
+	-- Black Hole Devourer: süzülüyor, halkası hızlanıyor, ağzı nefes alır gibi
+	BlackHole = {
+		freq = 1.6, beats = 1,
+		gait = function(p, k)
+			return mods((1.5 + math.sin(p) * 1.5) * k, -0.08 * k, math.sin(p * 0.5) * 0.06 * k, 0, 2 * (0.5 + 0.5 * math.sin(p)) * k, 1.6, 2.8, (0.45 + 0.35 * math.sin(p * 1.5)) * k)
+		end,
+		roar = { id = "rbxassetid://9114353261", speed = 0.8, volume = 1.4, length = 3.2 },
+		step = { id = "rbxassetid://9120407189", speed = 1.1, volume = 0.6, length = 1.6 },
+	},
+	-- Galaxy Titan: dev adımlar, gövde sallanıyor, pelerin dalgalanıyor
+	GalaxyTitan = {
+		freq = 2.6, beats = 2,
+		gait = function(p, k)
+			local stride = math.abs(math.sin(p))
+			return mods(stride * 1.6 * k, -0.12 * k, math.sin(p) * 0.07 * k, math.sin(p) * 0.08 * k, 0, 2, 1.4, (0.15 + 0.35 * stride) * k)
+		end,
+		roar = { id = "rbxassetid://9113980680", speed = 0.55, volume = 1.5, length = 3.2 },
+		step = { id = "rbxassetid://9125404769", speed = 0.8, volume = 1, length = 1.4 },
 	},
 }
 

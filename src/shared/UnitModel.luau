@@ -291,6 +291,150 @@ local EXTRAS: { [string]: { noHat: boolean?, build: (k: Kit) -> () } } = {
 		local glow = k.cyl("Aura", Vector3.new(0.1, 5.2, 5.2), CFrame.new(0, 2.6, 1.6) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 240, 180), Enum.Material.Neon)
 		glow.Transparency = 0.75
 	end },
+
+	-- ── Celestial (rebirth canavarları, 2026-09-29) ──────────────────────
+	-- Frost Wyrm
+	Frostbite = { noHat = true, build = function(k)
+		-- Buz sarkıtlı taç, omuzda kar
+		for i = -2, 2 do
+			local ice = k.part("IceCrown", Vector3.new(0.3, 0.9 - math.abs(i) * 0.12, 0.3), CFrame.new(i * 0.42, 4.25, -0.2) * CFrame.Angles(0, 0, math.rad(i * 10)), Color3.fromRGB(190, 240, 255), Enum.Material.Glass)
+			ice.Transparency = 0.15
+		end
+		k.ball("Frost", Vector3.new(2.3, 0.45, 2.2), CFrame.new(0, 3.95, 0), Color3.fromRGB(240, 250, 255))
+		k.visor.Color = Color3.fromRGB(140, 230, 255)
+		k.visor.Material = Enum.Material.Neon
+	end },
+	SnowQueen = { noHat = true, build = function(k)
+		-- Kar tanesi taç, buz pelerini
+		k.cyl("TiaraBand", Vector3.new(0.2, 2.2, 2.2), CFrame.new(0, 3.85, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 240, 255), Enum.Material.Neon)
+		for _, a in { 0, 60, 120 } do
+			k.part("Snowflake", Vector3.new(0.14, 1.2, 0.14), CFrame.new(0, 4.6, -0.6) * CFrame.Angles(0, 0, math.rad(a)), Color3.fromRGB(230, 250, 255), Enum.Material.Neon)
+		end
+		local cape = k.part("IceCape", Vector3.new(2.3, 2.9, 0.15), CFrame.new(0, 2, 1.25) * CFrame.Angles(math.rad(8), 0, 0), Color3.fromRGB(150, 210, 255), Enum.Material.Glass)
+		cape.Transparency = 0.3
+	end },
+	GlacierGuard = { build = function(k)
+		-- Buz kalkanı ve buz mızrak
+		local shield = k.part("IceShield", Vector3.new(0.3, 2, 1.6), CFrame.new(-1.3, 2, -0.3), Color3.fromRGB(150, 220, 255), Enum.Material.Glass)
+		shield.Transparency = 0.2
+		k.part("ShieldRim", Vector3.new(0.34, 2.1, 0.2), CFrame.new(-1.3, 2, -1.1), Color3.fromRGB(230, 250, 255), Enum.Material.Neon)
+		k.part("Spear", Vector3.new(0.18, 4.4, 0.18), CFrame.new(1.3, 2.4, -0.3), Color3.fromRGB(120, 170, 220))
+		k.part("SpearTip", Vector3.new(0.4, 0.8, 0.4), CFrame.new(1.3, 4.9, -0.3) * CFrame.Angles(0, math.rad(45), 0), Color3.fromRGB(180, 245, 255), Enum.Material.Neon)
+	end },
+
+	-- Crystal Golem
+	GemMiner = { noHat = true, build = function(k)
+		-- Madenci baretinde lamba, sırtta kazma
+		k.ball("HardHat", Vector3.new(2.25, 1.1, 2.25), CFrame.new(0, 3.85, 0), Color3.fromRGB(255, 200, 40))
+		k.cyl("HatLamp", Vector3.new(0.3, 0.55, 0.55), CFrame.new(0, 3.95, -1.05) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 250, 200), Enum.Material.Neon)
+		k.part("PickHandle", Vector3.new(0.2, 3, 0.2), CFrame.new(0.4, 2.4, 1.35) * CFrame.Angles(0, 0, math.rad(35)), WOOD)
+		k.part("PickHead", Vector3.new(1.8, 0.28, 0.28), CFrame.new(1.2, 3.6, 1.35) * CFrame.Angles(0, 0, math.rad(35)), METAL)
+		k.part("Gem", Vector3.new(0.45, 0.45, 0.45), CFrame.new(-0.5, 1.4, -1.02) * CFrame.Angles(math.rad(45), math.rad(45), 0), Color3.fromRGB(255, 120, 235), Enum.Material.Neon)
+	end },
+	Prism = { build = function(k)
+		-- Gövdeden fışkıran kristaller, gökkuşağı vizör
+		k.visor.Color = Color3.fromRGB(255, 180, 250)
+		k.visor.Material = Enum.Material.Neon
+		for i, spec in { { -0.9, 3.9, 0.3, 20 }, { 0.8, 4.1, 0.4, -25 }, { 0, 4.3, 0.8, 5 }, { -1.05, 2, 0.6, 60 }, { 1.05, 2.2, 0.5, -60 } } do
+			local c = k.part("Crystal", Vector3.new(0.4, 1.2, 0.4), CFrame.new(spec[1], spec[2], spec[3]) * CFrame.Angles(0, 0, math.rad(spec[4])),
+				if i % 2 == 0 then Color3.fromRGB(130, 240, 255) else Color3.fromRGB(255, 130, 240), Enum.Material.Glass)
+			c.Reflectance = 0.3
+		end
+	end },
+	DiamondCrew = { noHat = true, build = function(k)
+		-- Başında dönen elmas, parlayan gövde
+		local d = k.part("Diamond", Vector3.new(1, 1, 1), CFrame.new(0, 4.8, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)), Color3.fromRGB(210, 250, 255), Enum.Material.Glass)
+		d.Reflectance = 0.5
+		k.ball("DiamondGlow", Vector3.new(0.5, 0.5, 0.5), CFrame.new(0, 4.8, 0), Color3.fromRGB(230, 255, 255), Enum.Material.Neon)
+		for i = 1, 4 do
+			local a = i * math.pi / 2
+			k.ball("Sparkle", Vector3.new(0.22, 0.22, 0.22), CFrame.new(math.cos(a) * 1.6, 3.3 + (i % 2) * 0.6, math.sin(a) * 1.6), Color3.fromRGB(255, 255, 255), Enum.Material.Neon)
+		end
+	end },
+
+	-- Solar Phoenix
+	Sunborn = { noHat = true, build = function(k)
+		-- Güneş halesi: arkada ışınlı disk
+		local sun = k.cyl("SunDisk", Vector3.new(0.12, 3.2, 3.2), CFrame.new(0, 3.2, 1.3) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 210, 70), Enum.Material.Neon)
+		sun.Transparency = 0.2
+		for i = 0, 7 do
+			local a = i * math.pi / 4
+			k.part("SunRay", Vector3.new(0.2, 0.9, 0.1), CFrame.new(math.cos(a) * 1.9, 3.2 + math.sin(a) * 1.9, 1.35) * CFrame.Angles(0, 0, a - math.pi / 2), Color3.fromRGB(255, 170, 40), Enum.Material.Neon)
+		end
+	end },
+	FlameKnight = { noHat = true, build = function(k)
+		-- Alev tüylü miğfer ve yanan kılıç
+		k.ball("Helm", Vector3.new(2.2, 1.3, 2.2), CFrame.new(0, 3.75, 0), METAL)
+		k.part("HelmCrest", Vector3.new(0.3, 1.2, 1.6), CFrame.new(0, 4.5, 0.2), Color3.fromRGB(255, 120, 30), Enum.Material.Neon)
+		k.part("SwordBlade", Vector3.new(0.14, 2.6, 0.4), CFrame.new(1.3, 2.9, -0.3) * CFrame.Angles(0, 0, math.rad(-10)), Color3.fromRGB(255, 150, 50), Enum.Material.Neon)
+		k.part("SwordGuard", Vector3.new(0.9, 0.18, 0.3), CFrame.new(1.2, 1.55, -0.3) * CFrame.Angles(0, 0, math.rad(-10)), GOLD)
+		k.part("SwordGrip", Vector3.new(0.2, 0.6, 0.2), CFrame.new(1.15, 1.15, -0.3) * CFrame.Angles(0, 0, math.rad(-10)), DARK)
+	end },
+	PhoenixRider = { build = function(k)
+		-- Sırtta alevli kanatlar
+		k.pack.Transparency = 1
+		for _, sx in { -1, 1 } do
+			for f = 0, 2 do
+				k.ball("FireWing", Vector3.new(0.3, 2.2 - f * 0.4, 1.1), CFrame.new(sx * (0.9 + f * 0.45), 2.8 + f * 0.25, 1.4) * CFrame.Angles(math.rad(-15), 0, math.rad(sx * (40 + f * 15))),
+					if f == 0 then Color3.fromRGB(255, 200, 60) else Color3.fromRGB(255, 110, 30), Enum.Material.Neon)
+			end
+		end
+	end },
+
+	-- Black Hole Devourer
+	GravityBender = { build = function(k)
+		-- Etrafında yörüngede taşlar, mor halka
+		local ring = k.cyl("GravityRing", Vector3.new(0.08, 3.8, 3.8), CFrame.new(0, 2.2, 0) * CFrame.Angles(math.rad(20), 0, math.rad(90)), Color3.fromRGB(170, 90, 255), Enum.Material.Neon)
+		ring.Transparency = 0.3
+		for i = 1, 4 do
+			local a = i * math.pi / 2 + 0.4
+			k.ball("Rock", Vector3.new(0.5, 0.42, 0.46), CFrame.new(math.cos(a) * 1.9, 2.2 + math.sin(a) * 0.65, math.sin(a) * 1.9), Color3.fromRGB(110, 100, 130))
+		end
+	end },
+	Singularity = { build = function(k)
+		-- Göğüste kara delik, çevresinde parlak disk
+		k.ball("Hole", Vector3.new(0.9, 0.9, 0.3), CFrame.new(0, 2, -1.02), Color3.fromRGB(5, 5, 10))
+		local disk = k.cyl("Accretion", Vector3.new(0.06, 1.7, 1.7), CFrame.new(0, 2, -1.0) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 120, 220), Enum.Material.Neon)
+		disk.Transparency = 0.35
+		k.visor.Color = Color3.fromRGB(170, 90, 255)
+		k.visor.Material = Enum.Material.Neon
+	end },
+	NebulaWizard = { noHat = true, build = function(k)
+		-- Yıldızlı sivri şapka, asa
+		k.cyl("HatBrim", Vector3.new(0.14, 2.8, 2.8), CFrame.new(0, 3.95, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(70, 40, 150))
+		k.part("HatCone", Vector3.new(1.3, 2, 1.3), CFrame.new(0, 5, 0.1) * CFrame.Angles(math.rad(-10), math.rad(45), 0), Color3.fromRGB(90, 50, 190))
+		k.ball("HatStar", Vector3.new(0.35, 0.35, 0.35), CFrame.new(0.3, 4.9, -0.55), Color3.fromRGB(255, 240, 150), Enum.Material.Neon)
+		k.part("Staff", Vector3.new(0.18, 4, 0.18), CFrame.new(1.3, 2.2, -0.3), WOOD)
+		k.ball("StaffOrb", Vector3.new(0.6, 0.6, 0.6), CFrame.new(1.3, 4.3, -0.3), Color3.fromRGB(190, 120, 255), Enum.Material.Neon)
+	end },
+
+	-- Galaxy Titan
+	TitanHeart = { build = function(k)
+		-- Göğüste atan kalp çekirdeği, zırh plakaları
+		k.ball("HeartCore", Vector3.new(0.8, 0.8, 0.4), CFrame.new(-0.2, 2.1, -1.02), Color3.fromRGB(255, 70, 110), Enum.Material.Neon)
+		k.part("ChestPlate", Vector3.new(1.9, 1.3, 0.12), CFrame.new(0, 2.1, -0.98), Color3.fromRGB(210, 190, 120))
+		for _, sx in { -1, 1 } do
+			k.ball("Pauldron", Vector3.new(0.9, 0.6, 1), CFrame.new(sx * 1.05, 2.9, 0), GOLD)
+		end
+	end },
+	GalaxyGuardian = { build = function(k)
+		-- Gövdede yıldızlar, galaksi pelerini
+		for i = 1, 6 do
+			k.ball("BodyStar", Vector3.new(0.18, 0.18, 0.1), CFrame.new(-0.7 + (i * 0.37) % 1.4, 1.2 + (i * 0.53) % 2.2, -1.0), Color3.fromRGB(255, 255, 230), Enum.Material.Neon)
+		end
+		local cape = k.part("GalaxyCape", Vector3.new(2.3, 3, 0.15), CFrame.new(0, 2, 1.28) * CFrame.Angles(math.rad(8), 0, 0), Color3.fromRGB(80, 50, 170), Enum.Material.Neon)
+		cape.Transparency = 0.25
+	end },
+	StarEmperor = { noHat = true, build = function(k)
+		-- Yıldız taç, altın pelerin, asa
+		for i = -2, 2 do
+			k.part("StarCrown", Vector3.new(0.35, 1 - math.abs(i) * 0.15, 0.35), CFrame.new(i * 0.45, 4.3 - math.abs(i) * 0.08, 0) * CFrame.Angles(0, math.rad(45), 0), GOLD, Enum.Material.Neon)
+		end
+		k.cyl("CrownBand", Vector3.new(0.3, 2.2, 2.2), CFrame.new(0, 3.85, 0) * CFrame.Angles(0, 0, math.rad(90)), GOLD)
+		k.part("RoyalCape", Vector3.new(2.3, 3, 0.15), CFrame.new(0, 2, 1.28) * CFrame.Angles(math.rad(8), 0, 0), Color3.fromRGB(180, 30, 60))
+		k.part("Scepter", Vector3.new(0.18, 3.4, 0.18), CFrame.new(1.3, 2.2, -0.3), GOLD)
+		k.ball("ScepterStar", Vector3.new(0.55, 0.55, 0.55), CFrame.new(1.3, 4, -0.3), Color3.fromRGB(255, 250, 200), Enum.Material.Neon)
+	end },
 }
 
 --[[

@@ -63,7 +63,7 @@ export type Catalog = {
 local Z = 50
 local ACCENT = UiKit.CREW.CYAN
 local SELECTED = Color3.fromRGB(255, 226, 60)
-local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+local TIERS = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "Celestial" }
 
 local CARD_W, CARD_H = 100, 124
 local ROW_H = CARD_H + 30
@@ -424,7 +424,8 @@ function Index.Create(screen: ScreenGui): Catalog
 		-- (bu nadirliği veren ilk canavar: Steal an Egg tarzı "hangi yaratık")
 		local source = "Events & wheel"
 		for _, monster in Config.SpaceMonsters do
-			if monster.odds[def.rarity] then
+			-- Celestial: yalnızca kendi canavarı
+			if (def.monster and monster.id == def.monster) or (not def.monster and monster.odds[def.rarity]) then
 				source = monster.name
 				break
 			end

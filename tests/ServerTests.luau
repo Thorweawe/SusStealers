@@ -2590,7 +2590,9 @@ case("Yükseltme: seviye başına etki yarıya indi ama tavan aynı kaldı", fun
 	local ceiling = Config.GetUpgradeCeiling(def)
 
 	-- Tavandaki kapsül en üst canavarın hızında bile makul (dakikada birkaç puan)
-	local top = Config.GetCapsuleGain(ceiling, Config.SpaceMonsters[#Config.SpaceMonsters].need)
+	-- En uzak canavarın hızında, o canavarı açan rebirth sayısının antrenman hızlanmasıyla
+	local lastDef = Config.SpaceMonsters[#Config.SpaceMonsters]
+	local top = Config.GetCapsuleGain(ceiling, lastDef.need) * Config.GetRebirthTrainingMul(lastDef.rebirths or 0)
 	ok("kapsül tavanı makul", top > 0.003 and top < 20, string.format("%.4f", top))
 
 	local morale = Config.GetMoraleMultiplier(Config.GetUpgradeCeiling(Config.GetUpgrade("CrewMorale")))
@@ -3690,7 +3692,9 @@ end)
 case("Uzay: gezegen düzeni oynanabilir", function()
 	local sp = Config.Space
 	local list = Config.SpaceMonsters
-	eq("altı canavar", #list, 6)
+	-- 6 herkese açık + 5 rebirth canavarı (2026-09-29)
+	eq("on bir canavar", #list, 11)
+	eq("herkese açık altı", #Config.BaseSpaceMonsters(), 6)
 	eq("ilki taban hızda", list[1].need, sp.BaseSpeed)
 	local lastZ = math.huge
 	local lastNeed = 0
@@ -4028,6 +4032,69 @@ case("Uzay: olaylar ve ekipman canavarları etkiliyor", function(ctx)
 	GearService._ResetCooldowns(ctx.player)
 end)
 
+case("Rebirth canavarları: kilit, özel Celestial havuzu, antrenman", function(ctx)
+	local seen: { [string]: boolean } = {}
+	local expected = { FrostWyrm = 2, CrystalGolem = 4, SolarPhoenix = 6, BlackHole = 8, GalaxyTitan = 10 }
+	for id, rb in expected do
+		local def = Config.GetSpaceMonster(id)
+		ok(id .. " var", def ~= nil)
+		if not def then
+			continue
+		end
+		eq(id .. " rebirth", def.rebirths, rb)
+		ok(id .. " kilitli (bir eksik)", not Config.MonsterUnlocked(def, rb - 1))
+		ok(id .. " açık", Config.MonsterUnlocked(def, rb))
+		-- Celestial yalnızca bu canavarın kendi üçlüsü
+		local rng = Random.new(7)
+		local mine = 0
+		for _ = 1, 400 do
+			local unit = Config.RollSpaceUnit(rng, def)
+			if unit.rarity == "Celestial" then
+				ok(id .. " özel havuz", unit.monster == id, unit.id)
+				seen[unit.id] = true
+				mine += 1
+			end
+		end
+		ok(id .. " Celestial çıkıyor", mine > 0)
+	end
+	-- Eski canavarlar hiç Celestial vermiyor
+	local rng = Random.new(11)
+	for _, def in Config.BaseSpaceMonsters() do
+		for _ = 1, 200 do
+			ok(def.id .. " Celestial vermiyor", Config.RollSpaceUnit(rng, def).rarity ~= "Celestial")
+		end
+	end
+	-- Her kapı bir öncekinin çok üstünde (fiyat 8x/rebirth dengesi)
+	local best: { [string]: number } = {}
+	for _, unit in Config.Units do
+		if unit.monster then
+			best[unit.monster] = math.max(best[unit.monster] or 0, unit.income)
+		end
+	end
+	local order = { "FrostWyrm", "CrystalGolem", "SolarPhoenix", "BlackHole", "GalaxyTitan" }
+	for i = 2, #order do
+		ok(order[i] .. " gelir kapısı", best[order[i]] > best[order[i - 1]] * 5,
+			string.format("%s vs %s", Config.FormatCash(best[order[i]]), Config.FormatCash(best[order[i - 1]])))
+	end
+	-- Rebirth antrenmanı hızlandırıyor
+	ok("antrenman çarpanı", Config.GetRebirthTrainingMul(0) == 1 and Config.GetRebirthTrainingMul(4) > 2)
+	-- En iyi canavar kilitliyi saymıyor
+	eq("hız yetse de kilitli değil", Config.BestSpaceMonster(1000, 0).id, "VoidLeviathan")
+	eq("rebirth 4'te golem", Config.BestSpaceMonster(1000, 4).id, "CrystalGolem")
+	-- Sunucu: kilitli gezegenden çalınamıyor
+	local frostIndex = table.find(Config.SpaceMonsters, Config.GetSpaceMonster("FrostWyrm"))
+	local saved = ctx.profile.rebirths
+	ctx.profile.rebirths = 0
+	SpaceService._ClearImmunity(ctx.player)
+	local unitId = SpaceService._Spot(frostIndex, 1)
+	if unitId then
+		SpaceService._Grab(ctx.player, frostIndex, 1)
+		ok("kilitli gezegenden çalınamadı", not SpaceService.IsCarrying(ctx.player))
+	end
+	ctx.profile.rebirths = saved
+	local _ = seen
+end)
+
 case("Uzay: canavar gezegenin içine gömülmüyor", function()
 	for _, def in Config.SpaceMonsters do
 		local top = def.position.Y
@@ -4070,7 +4137,8 @@ case("Kapsül: içinde durunca uzay hızı artıyor, başkasınınkinde artmıyo
 	character:PivotTo(CFrame.new(zone.Position))
 	CapsuleService._Tick(1)
 	local gained = CapsuleService.GetSpeed(ctx.player) - Config.Space.BaseSpeed
-	near("bir saniyelik kazanç", gained, Config.GetCapsuleGain(2, Config.Space.BaseSpeed), 1e-6)
+	-- Rebirth antrenmanı hızlandırıyor (Config.GetRebirthTrainingMul)
+	near("bir saniyelik kazanç", gained, Config.GetCapsuleGain(2, Config.Space.BaseSpeed) * Config.GetRebirthTrainingMul(ctx.profile.rebirths), 1e-6)
 	eq("InCapsule", ctx.player:GetAttribute("InCapsule"), true)
 	near("nitelik güncel", ctx.player:GetAttribute("SpaceSpeed") :: number, CapsuleService.GetSpeed(ctx.player), 0.01)
 
@@ -4120,7 +4188,7 @@ case("Kapsül: mini oyun bonusu ısınma ve bekleme ile sınırlı, dışarıda 
 	local s0 = CapsuleService.GetSpeed(ctx.player)
 	local bonus = CapsuleService.TryCatch(ctx.player)
 	ok("bonus verildi", bonus ~= nil)
-	near("bonus = kapsül kazancı × süre", bonus or 0, Config.GetCapsuleGain(3, s0) * Config.Capsule.CatchBonusSeconds, 1e-6)
+	near("bonus = kapsül kazancı × süre", bonus or 0, Config.GetCapsuleGain(3, s0) * Config.GetRebirthTrainingMul(ctx.profile.rebirths) * Config.Capsule.CatchBonusSeconds, 1e-6)
 	near("hıza eklendi", CapsuleService.GetSpeed(ctx.player), s0 + (bonus or 0), 1e-6)
 	eq("art arda ikinci bonus yok", CapsuleService.TryCatch(ctx.player), nil)
 

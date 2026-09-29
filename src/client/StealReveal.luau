@@ -262,7 +262,7 @@ function StealReveal.RareSpawn(screen: Instance, unitId: string, mutationId: str
 	scale.Parent = holder
 	local tint = tintOf(unit.rarity)
 	local card = CardKit.hero(holder, tint, UDim2.fromScale(1, 1), Z - 10, UDim2.fromScale(0.5, 0.5), 400)
-	local top = CardKit.bold(card, string.format("%s SPOTTED!", if unit.rarity == "Secret" then "SECRET" else "IMPOSTOR MUTATION"),
+	local top = CardKit.bold(card, string.format("%s SPOTTED!", if unit.rarity == "Secret" or unit.rarity == "Celestial" then string.upper(unit.rarity) else "IMPOSTOR MUTATION"),
 		22, GOLD, Z - 6, 3)
 	top.Position = UDim2.fromOffset(0, 6)
 	top.Size = UDim2.new(1, 0, 0, 26)

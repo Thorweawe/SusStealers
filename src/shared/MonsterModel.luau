@@ -765,6 +765,361 @@ local function voidLeviathan(ctx: Ctx)
 	light(ctx, hc + Vector3.new(0, 0, -5), glow, 30, 1.6)
 end
 
+-- ─── 7. Frost Wyrm: buz ejderhası, kanat çırparak süzülüyor (rebirth 2) ────
+
+local function frostWyrm(ctx: Ctx)
+	local ice = rgb(170, 220, 250)
+	local deep = rgb(90, 150, 210)
+	local belly = rgb(235, 248, 255)
+	local crystal = rgb(140, 240, 255)
+
+	bone(ctx, "Body", Vector3.new(0, 6, 0), { axis = Vector3.xAxis, sway = 0.05, rate = 1.3 })
+	local B = { bone = "Body" }
+
+	-- Gövde ve karın
+	blob(ctx, "Body", Vector3.new(7.5, 6.5, 12), CFrame.new(0, 8, 1), ice, { bone = "Body", reflect = 0.08 })
+	blob(ctx, "Belly", Vector3.new(5.5, 3.5, 9), CFrame.new(0, 6.2, 0.4), belly, B)
+	-- Sırt boyunca buz dikenleri
+	for k = 0, 5 do
+		local z = -3 + k * 1.8
+		wedge(ctx, "Spike", Vector3.new(0.5, 1.8 - k * 0.15, 1.3), CFrame.new(0, 11.3 - k * 0.15, z), crystal, { bone = "Body", material = Enum.Material.Neon })
+	end
+
+	-- Boyun ve baş
+	bone(ctx, "Neck", Vector3.new(0, 10, -4), { parent = "Body", axis = Vector3.xAxis, sway = 0.08, rate = 1.5, roar = -0.25, grab = 0.2 })
+	capsule(ctx, "Neck", Vector3.new(0, 10, -4), Vector3.new(0, 14, -8), 3.2, ice, { bone = "Neck" })
+	blob(ctx, "Head", Vector3.new(4.6, 3.8, 5.8), CFrame.new(0, 15, -9.6), ice, { bone = "Neck" })
+	blob(ctx, "Snout", Vector3.new(3.4, 2.2, 3.6), CFrame.new(0, 14.7, -12.2), deep, { bone = "Neck" })
+	for _, x in { -1, 1 } do
+		eye(ctx, Vector3.new(x * 1.7, 15.9, -11), 1.4, rgb(90, 220, 255), Vector3.new(x * 0.5, 0, -1), "Neck")
+		wedge(ctx, "Horn", Vector3.new(0.6, 3, 1), CFrame.new(x * 1.4, 17.6, -8.6) * CFrame.Angles(math.rad(-30), 0, math.rad(x * -15)), crystal, { bone = "Neck", material = Enum.Material.Neon })
+	end
+	-- Alt çene (kükreyince açılıyor) ve buz dişleri
+	bone(ctx, "Jaw", Vector3.new(0, 14, -9), { parent = "Neck", axis = Vector3.xAxis, sway = 0.05, rate = 2, roar = -0.6 })
+	blob(ctx, "Jaw", Vector3.new(3.2, 1.1, 4.6), CFrame.new(0, 13.5, -11.4), deep, { bone = "Jaw" })
+	blob(ctx, "Mouth", Vector3.new(2.6, 0.8, 3.6), CFrame.new(0, 13.9, -11.6), rgb(30, 70, 120), { bone = "Jaw" })
+	for i = -2, 2 do
+		wedge(ctx, "Tooth", Vector3.new(0.35, 0.7, 0.35), CFrame.new(i * 0.55, 14.1, -13.1 + math.abs(i) * 0.3), belly, { bone = "Jaw" })
+	end
+
+	-- Kanatlar: kemikler ayna, çırparken yukarı-aşağı (Z ekseni)
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "WingR" else "WingL"
+		local root = Vector3.new(x * 3, 10.5, 0)
+		bone(ctx, name, root, { parent = "Body", axis = Vector3.new(0, 0, -x), sway = 0.42, rate = 1.6, phase = 0, roar = 0.5, grab = 0.3 })
+		rod(ctx, "WingArm", root, root + Vector3.new(x * 9, 2.5, 1), 0.7, deep, { bone = name })
+		for f = 0, 3 do
+			local tip = root + Vector3.new(x * (3 + f * 2.2), 2.4 - f * 0.4, 1)
+			local low = root + Vector3.new(x * (2.5 + f * 2), -3.6 + f * 0.4, 5 + f * 0.6)
+			capsule(ctx, "WingSkin", tip, low, 1.1, crystal, { bone = name, transparency = 0.35, material = Enum.Material.Glass })
+		end
+		local _ = side
+	end
+
+	-- Kuyruk (dört boğum)
+	local pts = { Vector3.new(0, 8, 6.5), Vector3.new(0, 7.2, 10), Vector3.new(0, 6.8, 13.4), Vector3.new(0, 7.2, 16.6), Vector3.new(0, 8.4, 19.4) }
+	local parent = "Body"
+	for k = 1, 4 do
+		local name = "Tail" .. k
+		bone(ctx, name, pts[k], { parent = parent, axis = Vector3.yAxis, sway = 0.12, rate = 1.3, phase = -k * 0.6 })
+		capsule(ctx, "Tail", pts[k], pts[k + 1], 2.6 - k * 0.45, ice, { bone = name })
+		parent = name
+	end
+	wedge(ctx, "TailBlade", Vector3.new(0.5, 2.4, 2), CFrame.new(pts[5] + Vector3.new(0, 0.6, 0.6)), crystal, { bone = parent, material = Enum.Material.Neon })
+
+	-- Pençeli ön ayaklar; sağ ayak kavrıyor, arkada iki kısa bacak
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "ArmR" else "ArmL"
+		local shoulder = Vector3.new(x * 2.8, 6.4, -3)
+		bone(ctx, name, shoulder, { parent = "Body", axis = Vector3.xAxis, sway = 0.1, rate = 1.3, phase = side, grab = if x > 0 then 1.3 else 0.3, roar = 0.3 })
+		local foot = shoulder + Vector3.new(x * 0.5, -4, -1.2)
+		capsule(ctx, "Leg", shoulder, foot, 1.8, deep, { bone = name })
+		for f = -1, 1 do
+			wedge(ctx, "Claw", Vector3.new(0.4, 1, 0.5), CFrame.new(foot + Vector3.new(f * 0.5, -0.6, -0.5)) * CFrame.Angles(math.rad(180), 0, 0), belly, { bone = name })
+		end
+		if x > 0 then
+			hand(ctx, foot + Vector3.new(0, -1.2, -1.3), name)
+		end
+		capsule(ctx, "HindLeg", Vector3.new(x * 3, 6, 5), Vector3.new(x * 3.4, 2.6, 5.6), 2, deep, B)
+	end
+
+	sparkles(ctx, Vector3.new(0, 9, 0), rgb(220, 250, 255), 10)
+	light(ctx, Vector3.new(0, 12, -6), crystal, 20, 1)
+end
+
+-- ─── 8. Crystal Golem: kristal sırtlı taş dev, ağır adımlar (rebirth 4) ────
+
+local function crystalGolem(ctx: Ctx)
+	local stone = rgb(118, 104, 140)
+	local dark = rgb(78, 66, 98)
+	local pink = rgb(255, 120, 235)
+	local cyan = rgb(120, 240, 255)
+
+	bone(ctx, "Body", Vector3.new(0, 1, 0), { axis = Vector3.zAxis, sway = 0.03, rate = 1 })
+	local B = { bone = "Body" }
+
+	-- Kütük bacaklar
+	for side, x in { -1, 1 } do
+		local name = "Leg" .. side
+		bone(ctx, name, Vector3.new(x * 3, 6, 0), { parent = "Body", axis = Vector3.xAxis, sway = 0.08, rate = 1, phase = side * 1.6 })
+		box(ctx, "Leg", Vector3.new(3.4, 6, 3.6), CFrame.new(x * 3, 3, 0) * CFrame.Angles(0, 0, math.rad(x * 3)), dark, { bone = name })
+		box(ctx, "Foot", Vector3.new(4, 1.4, 4.8), CFrame.new(x * 3.1, 0.7, -0.4), stone, { bone = name })
+	end
+
+	-- Kaba gövde (iki blok, hafif eğik) ve göğüste parlayan çekirdek
+	box(ctx, "Torso", Vector3.new(10, 8, 7), CFrame.new(0, 10.5, 0) * CFrame.Angles(math.rad(-6), 0, 0), stone, { bone = "Body", reflect = 0.05 })
+	box(ctx, "Chest", Vector3.new(8.4, 5, 7.6), CFrame.new(0, 12.4, -0.3) * CFrame.Angles(math.rad(-8), math.rad(4), 0), dark, B)
+	ball(ctx, "Core", 2.6, Vector3.new(0, 11.4, -3.9), pink, { bone = "Body", material = Enum.Material.Neon })
+	-- Sırtta ve omuzlarda kristal kümeleri
+	for i, spec in { { -3, 15, 1.5, 4.6, 12 }, { 0, 15.8, 2.4, 5.6, -6 }, { 3, 15, 1.4, 4.4, -18 }, { -5, 14, -0.5, 3.2, 28 }, { 5.2, 14, -0.4, 3.4, -30 }, { -1.5, 13.8, 3.8, 3.6, 20 } } do
+		local color = if i % 2 == 0 then cyan else pink
+		wedge(ctx, "Crystal", Vector3.new(1.3, spec[4], 1.3), CFrame.new(spec[1], spec[2], spec[3]) * CFrame.Angles(math.rad(-12), 0, math.rad(spec[5])), color, { bone = "Body", material = Enum.Material.Glass, reflect = 0.3 })
+		wedge(ctx, "CrystalCore", Vector3.new(0.6, spec[4] * 0.7, 0.6), CFrame.new(spec[1], spec[2] - 0.2, spec[3]) * CFrame.Angles(math.rad(-12), 0, math.rad(spec[5])), color, { bone = "Body", material = Enum.Material.Neon })
+	end
+
+	-- Küçük kafa, çatık kaş, iki göz; alt çene taş plaka
+	bone(ctx, "Head", Vector3.new(0, 15, -1), { parent = "Body", axis = Vector3.yAxis, sway = 0.06, rate = 0.8, roar = 0.05 })
+	box(ctx, "Head", Vector3.new(4.6, 3.6, 4), CFrame.new(0, 16.8, -2), stone, { bone = "Head" })
+	box(ctx, "Brow", Vector3.new(4.8, 0.9, 1.2), CFrame.new(0, 17.9, -4) * CFrame.Angles(math.rad(10), 0, 0), dark, { bone = "Head" })
+	for _, x in { -1, 1 } do
+		ball(ctx, "Eye", 0.9, Vector3.new(x * 1.1, 17.1, -4.05), cyan, { bone = "Head", material = Enum.Material.Neon })
+	end
+	bone(ctx, "Jaw", Vector3.new(0, 15.6, -1), { parent = "Head", axis = Vector3.xAxis, sway = 0.03, rate = 1.2, roar = -0.55 })
+	box(ctx, "Jaw", Vector3.new(4.2, 1.2, 3.8), CFrame.new(0, 14.9, -2.3), dark, { bone = "Jaw" })
+	box(ctx, "Maw", Vector3.new(3.4, 0.7, 0.4), CFrame.new(0, 15.6, -4), pink, { bone = "Jaw", material = Enum.Material.Neon })
+
+	-- Kocaman kollar ve kristal yumruklar; sağ kol kavrıyor
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "ArmR" else "ArmL"
+		local shoulder = Vector3.new(x * 6.4, 13.6, -0.2)
+		bone(ctx, name, shoulder, { parent = "Body", axis = Vector3.xAxis, sway = 0.1, rate = 1, phase = side * 1.6 + 1.6, grab = if x > 0 then 1.4 else 0.35, roar = 0.9 })
+		box(ctx, "Shoulder", Vector3.new(4, 3.4, 4), CFrame.new(shoulder + Vector3.new(x * 0.6, 0.4, 0)), dark, { bone = name })
+		local elbow = shoulder + Vector3.new(x * 1.6, -4, -0.6)
+		local wrist = elbow + Vector3.new(0, -3.4, -1)
+		capsule(ctx, "UpperArm", shoulder, elbow, 2.8, stone, { bone = name })
+		capsule(ctx, "Forearm", elbow, wrist, 3.2, stone, { bone = name })
+		box(ctx, "Fist", Vector3.new(3.8, 3.6, 3.8), CFrame.new(wrist + Vector3.new(0, -1.6, -0.3)), dark, { bone = name })
+		wedge(ctx, "Knuckle", Vector3.new(0.9, 1.6, 0.9), CFrame.new(wrist + Vector3.new(x * 0.6, -0.4, -2.2)) * CFrame.Angles(math.rad(-70), 0, 0), cyan, { bone = name, material = Enum.Material.Neon })
+		if x > 0 then
+			hand(ctx, wrist + Vector3.new(0, -2.4, -2.4), name)
+		end
+	end
+
+	sparkles(ctx, Vector3.new(0, 14, 1), pink, 8)
+	light(ctx, Vector3.new(0, 12, -5), pink, 18, 1.1)
+end
+
+-- ─── 9. Solar Phoenix: alevli kanatlı güneş kuşu (rebirth 6) ─────────────────
+
+local function solarPhoenix(ctx: Ctx)
+	local body = rgb(255, 140, 40)
+	local gold = rgb(255, 210, 80)
+	local red = rgb(230, 60, 30)
+	local fire = rgb(255, 170, 40)
+
+	bone(ctx, "Body", Vector3.new(0, 7, 0), { axis = Vector3.xAxis, sway = 0.06, rate = 1.4 })
+	local B = { bone = "Body" }
+
+	blob(ctx, "Body", Vector3.new(6.4, 6.8, 9.6), CFrame.new(0, 9, 0.5) * CFrame.Angles(math.rad(-15), 0, 0), body, B)
+	blob(ctx, "Chest", Vector3.new(4.8, 5, 4), CFrame.new(0, 9.6, -3.2), gold, B)
+
+	-- Baş, tepelik, gaga (alt gaga = çene)
+	bone(ctx, "Head", Vector3.new(0, 12.5, -3.5), { parent = "Body", axis = Vector3.xAxis, sway = 0.07, rate = 1.8, roar = -0.25 })
+	ball(ctx, "Head", 4.4, Vector3.new(0, 14.6, -5), body, { bone = "Head" })
+	for _, x in { -1, 1 } do
+		eye(ctx, Vector3.new(x * 1.35, 15.2, -6.6), 1.2, rgb(255, 240, 120), Vector3.new(x * 0.4, 0, -1), "Head", rgb(120, 20, 10))
+	end
+	for i = -2, 2 do
+		wedge(ctx, "Crest", Vector3.new(0.5, 3.4 - math.abs(i) * 0.5, 1.6), CFrame.new(i * 0.55, 17.4 - math.abs(i) * 0.3, -3.6 + math.abs(i) * 0.3) * CFrame.Angles(math.rad(-35), 0, math.rad(i * 12)), if i == 0 then gold else fire, { bone = "Head", material = Enum.Material.Neon })
+	end
+	wedge(ctx, "Beak", Vector3.new(1.4, 1, 2.8), CFrame.new(0, 14.6, -7.9) * CFrame.Angles(math.rad(-90), 0, 0), gold, { bone = "Head" })
+	bone(ctx, "Jaw", Vector3.new(0, 13.9, -6.6), { parent = "Head", axis = Vector3.xAxis, sway = 0.04, rate = 2.2, roar = -0.55 })
+	wedge(ctx, "LowerBeak", Vector3.new(1.1, 0.7, 2.2), CFrame.new(0, 13.8, -7.8) * CFrame.Angles(math.rad(-90), 0, math.rad(180)), rgb(220, 150, 40), { bone = "Jaw" })
+
+	-- Alevli kanatlar: büyük çırpış, tüyler neon
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "WingR" else "WingL"
+		local root = Vector3.new(x * 2.8, 11, 0)
+		bone(ctx, name, root, { parent = "Body", axis = Vector3.new(0, 0, -x), sway = 0.5, rate = 2, phase = 0, roar = 0.6, grab = 0.2 })
+		for f = 0, 5 do
+			local len = 7 + f * 1.2
+			local a = math.rad(15 - f * 11)
+			local tip = root + Vector3.new(x * math.cos(a) * len, math.sin(a) * len * 0.6 + 1, 1 + f * 0.8)
+			capsule(ctx, "Feather", root + Vector3.new(x * 1, 0, f * 0.4), tip, 1.5 - f * 0.1, if f % 2 == 0 then fire else red, { bone = name, material = Enum.Material.Neon })
+		end
+	end
+
+	-- Kuyruk tüyleri (üç boğum, uçları altın)
+	for i = -1, 1 do
+		local pts = { Vector3.new(i * 0.8, 8, 5), Vector3.new(i * 1.8, 6.5, 9.5), Vector3.new(i * 3, 5.4, 14), Vector3.new(i * 4.2, 5, 18) }
+		local parent = "Body"
+		for k = 1, 3 do
+			local name = "Tail" .. i .. "_" .. k
+			bone(ctx, name, pts[k], { parent = parent, axis = Vector3.yAxis, sway = 0.1, rate = 1.4, phase = -k * 0.5 + i })
+			capsule(ctx, "TailFeather", pts[k], pts[k + 1], 1.3 - k * 0.2, if k == 3 then gold else fire, { bone = name, material = Enum.Material.Neon })
+			parent = name
+		end
+	end
+
+	-- Pençeli bacaklar; sağ pençe kavrıyor
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "ArmR" else "ArmL"
+		local hip = Vector3.new(x * 1.6, 6.5, 1)
+		bone(ctx, name, hip, { parent = "Body", axis = Vector3.xAxis, sway = 0.08, rate = 1.4, phase = side, grab = if x > 0 then 1.5 else 0.3, roar = 0.2 })
+		local foot = hip + Vector3.new(0, -4.8, -0.6)
+		rod(ctx, "Leg", hip, foot, 0.8, gold, { bone = name })
+		for f = -1, 1 do
+			wedge(ctx, "Talon", Vector3.new(0.35, 1.1, 0.4), CFrame.new(foot + Vector3.new(f * 0.5, -0.4, -0.7)) * CFrame.Angles(math.rad(-110), 0, 0), rgb(60, 30, 20), { bone = name })
+		end
+		if x > 0 then
+			hand(ctx, foot + Vector3.new(0, -1.2, -1.4), name)
+		end
+	end
+
+	sparkles(ctx, Vector3.new(0, 10, 2), fire, 22)
+	light(ctx, Vector3.new(0, 11, -3), fire, 26, 1.6)
+end
+
+-- ─── 10. Black Hole Devourer: ağzı kara delik, etrafında dönen halka (rebirth 8)
+
+local function blackHole(ctx: Ctx)
+	local void = rgb(14, 10, 24)
+	local purple = rgb(170, 90, 255)
+	local pink = rgb(255, 110, 200)
+	local rim = rgb(60, 40, 100)
+
+	bone(ctx, "Body", Vector3.new(0, 11, 0), { axis = Vector3.xAxis, sway = 0.05, rate = 0.9 })
+	local B = { bone = "Body" }
+
+	-- Kapkara küre, parlak kenar halkası
+	ball(ctx, "Core", 12, Vector3.new(0, 11, 0), void, { bone = "Body", reflect = 0.15 })
+	ball(ctx, "Rim", 12.6, Vector3.new(0, 11, 0), rim, { bone = "Body", transparency = 0.7, material = Enum.Material.Neon })
+
+	-- Birikim diski: iki halka boncuk, sürekli dönüyor gibi salınıyor
+	bone(ctx, "Ring", Vector3.new(0, 11, 0), { parent = "Body", axis = Vector3.yAxis, sway = 1.4, rate = 0.45, roar = 0.8 })
+	for i = 0, 23 do
+		local a = i / 24 * math.pi * 2
+		local r = 9.5
+		ball(ctx, "Disk", 1.5 - (i % 3) * 0.25, Vector3.new(math.cos(a) * r, 11 + math.sin(a * 3) * 0.4, math.sin(a) * r), if i % 2 == 0 then purple else pink, { bone = "Ring", material = Enum.Material.Neon })
+	end
+	bone(ctx, "Ring2", Vector3.new(0, 11, 0), { parent = "Body", axis = Vector3.new(0.3, 1, 0).Unit, sway = -1.1, rate = 0.6 })
+	for i = 0, 15 do
+		local a = i / 16 * math.pi * 2
+		ball(ctx, "Debris", 1.1, Vector3.new(math.cos(a) * 12.5, 11 + math.sin(a) * 2, math.sin(a) * 12.5), rgb(120, 110, 140), { bone = "Ring2" })
+	end
+
+	-- Göz kümesi üstte
+	for i, spec in { { -3, 15.6, -3.2, 1.6 }, { 0, 16.6, -3.4, 2.2 }, { 3, 15.6, -3.2, 1.6 }, { -1.6, 14.4, -4.6, 1.1 }, { 1.6, 14.4, -4.6, 1.1 } } do
+		eye(ctx, Vector3.new(spec[1], spec[2], spec[3]), spec[4], purple, Vector3.new(spec[1] * 0.1, 0, -1), "Body", rgb(255, 255, 255))
+		local _ = i
+	end
+
+	-- Dev ağız: üst dişler gövdede, alt dudak + dişler çenede
+	blob(ctx, "Maw", Vector3.new(8, 4.4, 2.4), CFrame.new(0, 10, -5.4), rgb(80, 0, 40), B)
+	ball(ctx, "Throat", 3, Vector3.new(0, 10, -5.2), pink, { bone = "Body", material = Enum.Material.Neon })
+	for i = -3, 3 do
+		wedge(ctx, "Fang", Vector3.new(0.8, 1.6 - math.abs(i) * 0.15, 0.6), CFrame.new(i * 1.05, 11.8, -6.2 + math.abs(i) * 0.2) * CFrame.Angles(0, 0, math.rad(180)), rgb(240, 230, 255), B)
+	end
+	bone(ctx, "Jaw", Vector3.new(0, 9, -3), { parent = "Body", axis = Vector3.xAxis, sway = 0.08, rate = 1.8, roar = -0.6 })
+	blob(ctx, "Lip", Vector3.new(8.6, 2, 3.6), CFrame.new(0, 8, -5.2), void, { bone = "Jaw" })
+	for i = -2, 2 do
+		wedge(ctx, "LowFang", Vector3.new(0.75, 1.2, 0.6), CFrame.new(i * 1.2, 8.8, -6.4 + math.abs(i) * 0.2), rgb(240, 230, 255), { bone = "Jaw" })
+	end
+
+	-- İki dokunaç kol; sağdaki kavrıyor
+	for side, x in { -1, 1 } do
+		local pts = { Vector3.new(x * 5.6, 8, -1), Vector3.new(x * 8, 5.5, -2), Vector3.new(x * 9, 2.8, -3.2), Vector3.new(x * 8.4, 0.8, -4.6) }
+		local parent = "Body"
+		local name = ""
+		for k = 1, 3 do
+			name = (if x > 0 then "ArmR" else "ArmL") .. (if k == 1 then "" else tostring(k))
+			bone(ctx, name, pts[k], { parent = parent, axis = Vector3.xAxis, sway = 0.12, rate = 1.3, phase = side + k * 0.6, grab = if x > 0 then 0.55 else 0.15, roar = 0.3 })
+			capsule(ctx, "Tentacle", pts[k], pts[k + 1], 2 - k * 0.4, rim, { bone = name })
+			parent = name
+		end
+		ball(ctx, "TentacleTip", 1.1, pts[4], purple, { bone = name, material = Enum.Material.Neon })
+		if x > 0 then
+			hand(ctx, pts[4] + Vector3.new(0, -0.4, -1.2), name)
+		end
+	end
+
+	sparkles(ctx, Vector3.new(0, 11, 0), purple, 16)
+	light(ctx, Vector3.new(0, 11, -7), purple, 26, 1.3)
+end
+
+-- ─── 11. Galaxy Titan: yıldızlı dev, pelerin ve taç (rebirth 10, son boss) ──
+
+local function galaxyTitan(ctx: Ctx)
+	local navy = rgb(34, 40, 96)
+	local deep = rgb(20, 22, 60)
+	local gold = rgb(255, 214, 110)
+	local star = rgb(255, 250, 230)
+	local nebula = rgb(170, 110, 255)
+
+	bone(ctx, "Body", Vector3.new(0, 9, 0), { axis = Vector3.zAxis, sway = 0.03, rate = 0.8 })
+	local B = { bone = "Body" }
+
+	-- Bacaklar (adım adım salınım)
+	for side, x in { -1, 1 } do
+		local name = "Leg" .. side
+		local hip = Vector3.new(x * 2.6, 9, 0)
+		bone(ctx, name, hip, { parent = "Body", axis = Vector3.xAxis, sway = 0.14, rate = 1, phase = side * 1.6 })
+		capsule(ctx, "Thigh", hip, hip + Vector3.new(x * 0.3, -4.5, 0), 3.2, navy, { bone = name })
+		capsule(ctx, "Shin", hip + Vector3.new(x * 0.3, -4.5, 0), hip + Vector3.new(x * 0.4, -8.2, -0.4), 2.8, deep, { bone = name })
+		box(ctx, "Boot", Vector3.new(3, 1.4, 4), CFrame.new(hip + Vector3.new(x * 0.4, -8.4, -0.9)), gold, { bone = name })
+	end
+
+	-- Gövde, kemer, göğüste galaksi girdabı ve yıldızlar
+	blob(ctx, "Torso", Vector3.new(9.4, 10, 6), CFrame.new(0, 14.4, 0), navy, B)
+	box(ctx, "Belt", Vector3.new(8.2, 1.2, 5.6), CFrame.new(0, 10.4, 0), gold, B)
+	disk(ctx, "Galaxy", Vector3.new(0, 15, -3.05), Vector3.new(0, 0, -1), 4.6, 0.2, nebula, { bone = "Body", material = Enum.Material.Neon, transparency = 0.1 })
+	disk(ctx, "GalaxyCore", Vector3.new(0, 15, -3.2), Vector3.new(0, 0, -1), 1.8, 0.2, star, { bone = "Body", material = Enum.Material.Neon })
+	for _, p in { Vector3.new(-3, 17.5, -2.4), Vector3.new(3.2, 12.6, -2.5), Vector3.new(-2.6, 12, -2.6), Vector3.new(2.4, 18, -2.2), Vector3.new(-3.8, 14.6, -1.6), Vector3.new(3.8, 15.6, -1.6) } do
+		ball(ctx, "Star", 0.6, p, star, { bone = "Body", material = Enum.Material.Neon })
+	end
+
+	-- Yıldız pelerini (arkada, salınıyor)
+	bone(ctx, "Cape", Vector3.new(0, 18.5, 2.6), { parent = "Body", axis = Vector3.xAxis, sway = 0.06, rate = 0.9, roar = 0.15 })
+	box(ctx, "Cape", Vector3.new(9.6, 14, 0.4), CFrame.new(0, 11.8, 3.6) * CFrame.Angles(math.rad(8), 0, 0), deep, { bone = "Cape" })
+	for i = 1, 8 do
+		ball(ctx, "CapeStar", 0.45, Vector3.new(-4 + (i * 1.37) % 8, 6 + (i * 2.3) % 11, 3.95 + (i % 3) * 0.05), star, { bone = "Cape", material = Enum.Material.Neon })
+	end
+
+	-- Baş, parlayan gözler, yıldız taç; çene
+	bone(ctx, "Head", Vector3.new(0, 19.5, 0), { parent = "Body", axis = Vector3.xAxis, sway = 0.05, rate = 0.9, roar = -0.15 })
+	blob(ctx, "Head", Vector3.new(5, 5.6, 5), CFrame.new(0, 22, -0.2), navy, { bone = "Head" })
+	for _, x in { -1, 1 } do
+		blob(ctx, "Eye", Vector3.new(1.3, 0.7, 0.4), CFrame.new(x * 1.1, 22.6, -2.6), gold, { bone = "Head", material = Enum.Material.Neon })
+	end
+	for i = -2, 2 do
+		wedge(ctx, "Crown", Vector3.new(0.9, 2.4 - math.abs(i) * 0.3, 0.9), CFrame.new(i * 1.1, 25.6 - math.abs(i) * 0.3, -0.3 + math.abs(i) * 0.4), gold, { bone = "Head", material = Enum.Material.Neon })
+		ball(ctx, "CrownGem", 0.6, Vector3.new(i * 1.1, 26.9 - math.abs(i) * 0.45, -0.3 + math.abs(i) * 0.4), if i == 0 then nebula else star, { bone = "Head", material = Enum.Material.Neon })
+	end
+	bone(ctx, "Jaw", Vector3.new(0, 20.6, -0.6), { parent = "Head", axis = Vector3.xAxis, sway = 0.03, rate = 1.3, roar = -0.5 })
+	blob(ctx, "Jaw", Vector3.new(3.8, 1.6, 3.4), CFrame.new(0, 20.3, -1.6), deep, { bone = "Jaw" })
+	blob(ctx, "Mouth", Vector3.new(2.8, 0.6, 0.4), CFrame.new(0, 20.9, -3.1), nebula, { bone = "Jaw", material = Enum.Material.Neon })
+
+	-- Uzun kollar, altın bilezik; sağ kol kavrıyor
+	for side, x in { -1, 1 } do
+		local name = if x > 0 then "ArmR" else "ArmL"
+		local shoulder = Vector3.new(x * 5.4, 18, 0)
+		bone(ctx, name, shoulder, { parent = "Body", axis = Vector3.xAxis, sway = 0.12, rate = 1, phase = side * 1.6 + 1.6, grab = if x > 0 then 1.45 else 0.3, roar = 0.7 })
+		ball(ctx, "Pauldron", 3.4, shoulder + Vector3.new(x * 0.4, 0.4, 0), gold, { bone = name })
+		local elbow = shoulder + Vector3.new(x * 1.2, -5, -0.5)
+		local wrist = elbow + Vector3.new(0, -4.6, -1)
+		capsule(ctx, "UpperArm", shoulder, elbow, 2.6, navy, { bone = name })
+		capsule(ctx, "Forearm", elbow, wrist, 2.4, navy, { bone = name })
+		disk(ctx, "Bracer", elbow + (wrist - elbow) * 0.6, (wrist - elbow).Unit, 2.8, 0.8, gold, { bone = name })
+		ball(ctx, "Fist", 2.6, wrist + Vector3.new(0, -1, -0.3), deep, { bone = name })
+		if x > 0 then
+			hand(ctx, wrist + Vector3.new(0, -2, -1.6), name)
+		end
+	end
+
+	sparkles(ctx, Vector3.new(0, 15, 0), star, 18)
+	light(ctx, Vector3.new(0, 16, -5), gold, 28, 1.3)
+end
+
 local BUILDERS: { [string]: (Ctx) -> () } = {
 	Glorp = glorp,
 	Chomper = chomper,
@@ -772,6 +1127,11 @@ local BUILDERS: { [string]: (Ctx) -> () } = {
 	SandMaw = sandMaw,
 	RiftStalker = riftStalker,
 	VoidLeviathan = voidLeviathan,
+	FrostWyrm = frostWyrm,
+	CrystalGolem = crystalGolem,
+	SolarPhoenix = solarPhoenix,
+	BlackHole = blackHole,
+	GalaxyTitan = galaxyTitan,
 }
 
 --[[ Canavarı kurar. Kök (Root) ayak tabanının ortasında, model ileri -Z. ]]

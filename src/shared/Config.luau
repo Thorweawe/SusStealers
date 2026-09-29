@@ -321,7 +321,7 @@ Config.Titles = {
 	{ id = "WeeklyTop10",   name = "Weekly Top 10",      rarity = "Epic",      stat = "weeklyBest",    threshold = 1,     order = 13.5, incomeSeconds = 900, minimum = 500000, hint = "Finish a week in the Top 10 heisters" },
 	{ id = "Lightspeed",    name = "Lightspeed",         rarity = "Legendary", stat = "spaceSpeed",    threshold = 120,   order = 14, incomeSeconds = 1800, minimum = 2500000,  hint = "Reach 120 space speed" },
 	{ id = "GalaxyBandit",  name = "Galaxy Bandit",      rarity = "Legendary", stat = "salvaged",      threshold = 2500,  order = 15, incomeSeconds = 1800, minimum = 2500000,  hint = "Steal 2,500 crewmates from space monsters" },
-	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 1800, minimum = 2500000,  hint = "Discover all 25 crewmates in the Index" },
+	{ id = "Collector",     name = "Collector",          rarity = "Legendary", stat = "discovered",    threshold = 25,    order = 16, incomeSeconds = 1800, minimum = 2500000,  hint = "Discover 25 crewmates in the Index" },
 	{ id = "Admiral",       name = "Admiral",            rarity = "Legendary", stat = "rebirths",      threshold = 5,     order = 17, incomeSeconds = 1800, minimum = 2500000,  hint = "Rebirth 5 times" },
 	{ id = "WeeklyTop3",    name = "Weekly Top 3",       rarity = "Legendary", stat = "weeklyBest",    threshold = 2,     order = 17.5, incomeSeconds = 1800, minimum = 2500000, hint = "Finish a week in the Top 3 heisters" },
 	{ id = "LeviathanRobber", name = "Leviathan Robber", rarity = "Mythic",    stat = "bossSteals",    threshold = 50,    order = 18, incomeSeconds = 3600, minimum = 12500000, hint = "Steal 50 crewmates from the Void Leviathan" },
@@ -342,6 +342,7 @@ local TITLE_COLORS: { [string]: Color3 } = {
 	Legendary = Color3.fromRGB(255, 185, 50),
 	Mythic = Color3.fromRGB(255, 85, 150),
 	Secret = Color3.fromRGB(255, 240, 160),
+	Celestial = Color3.fromRGB(120, 255, 235),
 }
 
 function Config.GetTitleColor(rarity: string): Color3
@@ -1536,7 +1537,7 @@ function Config.GetMoraleMultiplier(level: number): number
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
-export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
+export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret" | "Celestial"
 
 Config.Rarities = {
 	Common    = { order = 1, color = Color3.fromRGB(170, 176, 186) },
@@ -1546,6 +1547,8 @@ Config.Rarities = {
 	Legendary = { order = 5, color = Color3.fromRGB(255, 175,  45) },
 	Mythic    = { order = 6, color = Color3.fromRGB(255,  70, 110) },
 	Secret    = { order = 7, color = Color3.fromRGB( 30,  30,  40) },
+	-- 2026-09-29: rebirth canavarlarına özel (her canavarın kendi üçlüsü)
+	Celestial = { order = 8, color = Color3.fromRGB(110, 250, 230) },
 }
 
 --[[
@@ -1573,6 +1576,8 @@ export type UnitDef = {
 	income: number,
 	weight: number,
 	color: Color3,
+	-- Yalnızca bu canavarda çıkıyor (Celestial; rebirth canavarları)
+	monster: string?,
 }
 
 --[[
@@ -1646,6 +1651,36 @@ Config.Units = {
 	-- Secret — amorti ~320s
 	{ id = "AmogusPrime", name = "Amogus Prime",       rarity = "Secret",    price = 5800000000, income =    18100000, weight =    1, color = Color3.fromRGB( 12,  12,  18) },
 	{ id = "TheCrewmate", name = "The Crewmate",       rarity = "Secret",    price =13000000000, income =    40600000, weight =    1, color = Color3.fromRGB(215, 224, 240) },
+
+	--[[
+		Celestial — REBIRTH CANAVARLARI (2026-09-29, Batur: "8x kalsın, yeni
+		crewmate'lerle dengeleyelim"). Her canavarın üç özel crewmate'i
+		(ağırlık 60/30/10), yalnızca o canavarda. Gelirler SON değer (ölçek
+		yok, UnitIncomeScale Celestial = 1): her kapı bir öncekinin ~×40'ı,
+		çünkü iki kapı arası iki rebirth (fiyat 8×8 = 64 kat) ve çarpan artışı.
+		Hedef: kapıdan sonraki iki rebirth'ün her biri ~1 saatlik oyun
+		(24 kaidenin ~üçte biri bu canavarın crewmate'leriyle dolu).
+	]]
+	-- Frost Wyrm (rebirth 2)
+	{ id = "Frostbite",      name = "Frostbite",        rarity = "Celestial", price =   16000000000, income =      60000000, weight = 60, color = Color3.fromRGB(170, 225, 255), monster = "FrostWyrm" },
+	{ id = "SnowQueen",      name = "Snow Queen",       rarity = "Celestial", price =   32000000000, income =     120000000, weight = 30, color = Color3.fromRGB(235, 245, 255), monster = "FrostWyrm" },
+	{ id = "GlacierGuard",   name = "Glacier Guardian", rarity = "Celestial", price =   68000000000, income =     250000000, weight = 10, color = Color3.fromRGB( 80, 160, 230), monster = "FrostWyrm" },
+	-- Crystal Golem (rebirth 4)
+	{ id = "GemMiner",       name = "Gem Miner",        rarity = "Celestial", price =  110000000000, income =     400000000, weight = 60, color = Color3.fromRGB(150, 110, 200), monster = "CrystalGolem" },
+	{ id = "Prism",          name = "Prism",            rarity = "Celestial", price =  240000000000, income =     900000000, weight = 30, color = Color3.fromRGB(240, 170, 255), monster = "CrystalGolem" },
+	{ id = "DiamondCrew",    name = "Diamond Crewmate", rarity = "Celestial", price =  600000000000, income =    2200000000, weight = 10, color = Color3.fromRGB(200, 250, 255), monster = "CrystalGolem" },
+	-- Solar Phoenix (rebirth 6)
+	{ id = "Sunborn",        name = "Sunborn",          rarity = "Celestial", price = 1600000000000, income =    6000000000, weight = 60, color = Color3.fromRGB(255, 190,  60), monster = "SolarPhoenix" },
+	{ id = "FlameKnight",    name = "Flame Knight",     rarity = "Celestial", price = 4000000000000, income =   15000000000, weight = 30, color = Color3.fromRGB(230,  80,  40), monster = "SolarPhoenix" },
+	{ id = "PhoenixRider",   name = "Phoenix Rider",    rarity = "Celestial", price = 9500000000000, income =   35000000000, weight = 10, color = Color3.fromRGB(255, 120,  30), monster = "SolarPhoenix" },
+	-- Black Hole Devourer (rebirth 8)
+	{ id = "GravityBender",  name = "Gravity Bender",   rarity = "Celestial", price =   110000000000000, income =   400000000000, weight = 60, color = Color3.fromRGB( 90,  70, 150), monster = "BlackHole" },
+	{ id = "Singularity",    name = "Singularity",      rarity = "Celestial", price =   240000000000000, income =   900000000000, weight = 30, color = Color3.fromRGB( 25,  20,  40), monster = "BlackHole" },
+	{ id = "NebulaWizard",   name = "Nebula Wizard",    rarity = "Celestial", price =   600000000000000, income =  2200000000000, weight = 10, color = Color3.fromRGB(120,  60, 220), monster = "BlackHole" },
+	-- Galaxy Titan (rebirth 10)
+	{ id = "TitanHeart",     name = "Titan Heart",      rarity = "Celestial", price =  5400000000000000, income =  20000000000000, weight = 60, color = Color3.fromRGB(255,  90, 120), monster = "GalaxyTitan" },
+	{ id = "GalaxyGuardian", name = "Galaxy Guardian",  rarity = "Celestial", price = 12000000000000000, income =  45000000000000, weight = 30, color = Color3.fromRGB( 40,  50, 120), monster = "GalaxyTitan" },
+	{ id = "StarEmperor",    name = "Star Emperor",     rarity = "Celestial", price = 30000000000000000, income = 110000000000000, weight = 10, color = Color3.fromRGB(250, 220, 120), monster = "GalaxyTitan" },
 } :: { UnitDef }
 
 --[[
@@ -1669,6 +1704,7 @@ Config.UnitPriceScale = 1.5
 Config.UnitIncomeScale = {
 	Common = 0.75, Uncommon = 0.7, Rare = 0.62, Epic = 0.58,
 	Legendary = 0.55, Mythic = 0.55, Secret = 0.55,
+	Celestial = 1,
 } :: { [string]: number }
 
 local function niceNumber(x: number): number
@@ -1680,6 +1716,7 @@ local function niceNumber(x: number): number
 end
 
 for _, unit in Config.Units do
+	-- Celestial fiyatları son değer (price ≈ income × 270 × 1.5)
 	unit.price = niceNumber(unit.price * Config.UnitPriceScale)
 	unit.income = niceNumber(unit.income * (Config.UnitIncomeScale[unit.rarity] or 1))
 end
@@ -2651,6 +2688,7 @@ Config.PlaytimeRewards = {
 Config.IndexRewards = {
 	Common = 0.02, Uncommon = 0.03, Rare = 0.04, Epic = 0.05,
 	Legendary = 0.07, Mythic = 0.09, Secret = 0.12,
+	Celestial = 0.2,
 } :: { [string]: number }
 
 --[[ Nakit ödülünün tutarı: gelirin `seconds` katı, en az `minimum`. ]]
@@ -2714,6 +2752,7 @@ export type SpaceMonsterDef = {
 	wake: number,           -- kükreme süresi: bu kadar sn sonra kovalamaya başlıyor
 	lunge: number,          -- yakına gelince ani atak hız çarpanı (1 = atak yok)
 	odds: { [string]: number },   -- nadirlik -> ağırlık
+	rebirths: number?,      -- bu kadar rebirth yapmadan çalınamıyor (rebirth canavarları)
 	planetColor: Color3,
 	planetColor2: Color3,
 	glow: Color3,
@@ -2756,7 +2795,64 @@ Config.SpaceMonsters = {
 		odds = { Legendary = 45, Mythic = 43, Secret = 12 },
 		planetColor = Color3.fromRGB(38, 26, 64), planetColor2 = Color3.fromRGB(22, 14, 40), glow = Color3.fromRGB(200, 80, 255),
 	},
+
+	--[[
+		REBIRTH CANAVARLARI (2026-09-29, Batur: "2-4-6-8-10. rebirthlerde yeni
+		canavarlar"). `rebirths` kadar rebirth yapmayan onlardan ÇALAMIYOR
+		(gezegen kilitli, istemci "REBIRTH N" yazıyor). Celestial havuzu
+		yalnızca o canavarın kendi üçlüsü (UnitDef.monster).
+		Hız: kapsül eğrisi (Config.Capsule, üs 3.4) 120'den sonra çok dikleşiyor;
+		rebirth antrenmanı hızlandırdığı için (Config.RebirthTrainingBonus) her
+		kapıya ~1 saatlik antrenman kalıyor: 135 / 150 / 165 / 180 / 200.
+		Uzaklık: her biri öncekinden ~600-750 stud ötede (dönüş 20-35 sn).
+	]]
+	{
+		id = "FrostWyrm", name = "Frost Wyrm", planet = "Glacira", need = 135, rebirths = 2,
+		position = Vector3.new(20, 14, -3100), radius = 66, scale = 1.9, wake = 0.4, lunge = 1.3,
+		odds = { Mythic = 30, Secret = 30, Celestial = 40 },
+		planetColor = Color3.fromRGB(190, 230, 255), planetColor2 = Color3.fromRGB(110, 170, 225), glow = Color3.fromRGB(140, 230, 255),
+	},
+	{
+		id = "CrystalGolem", name = "Crystal Golem", planet = "Prismara", need = 150, rebirths = 4,
+		position = Vector3.new(360, 20, -3750), radius = 70, scale = 2.0, wake = 0.38, lunge = 1.32,
+		odds = { Mythic = 20, Secret = 30, Celestial = 50 },
+		planetColor = Color3.fromRGB(120, 90, 150), planetColor2 = Color3.fromRGB(80, 56, 110), glow = Color3.fromRGB(255, 120, 240),
+	},
+	{
+		id = "SolarPhoenix", name = "Solar Phoenix", planet = "Helion", need = 165, rebirths = 6,
+		position = Vector3.new(0, 34, -4450), radius = 72, scale = 2.1, wake = 0.35, lunge = 1.35,
+		odds = { Mythic = 20, Secret = 30, Celestial = 50 },
+		planetColor = Color3.fromRGB(255, 150, 50), planetColor2 = Color3.fromRGB(200, 80, 30), glow = Color3.fromRGB(255, 200, 70),
+	},
+	{
+		id = "BlackHole", name = "Black Hole Devourer", planet = "Event Horizon", need = 180, rebirths = 8,
+		position = Vector3.new(360, 10, -5200), radius = 74, scale = 2.2, wake = 0.32, lunge = 1.38,
+		odds = { Mythic = 20, Secret = 30, Celestial = 50 },
+		planetColor = Color3.fromRGB(30, 22, 48), planetColor2 = Color3.fromRGB(12, 8, 22), glow = Color3.fromRGB(170, 90, 255),
+	},
+	{
+		id = "GalaxyTitan", name = "Galaxy Titan", planet = "Titanis", need = 200, rebirths = 10,
+		position = Vector3.new(40, 40, -6000), radius = 80, scale = 2.4, wake = 0.3, lunge = 1.4,
+		odds = { Mythic = 20, Secret = 30, Celestial = 50 },
+		planetColor = Color3.fromRGB(40, 50, 110), planetColor2 = Color3.fromRGB(20, 24, 70), glow = Color3.fromRGB(255, 220, 120),
+	},
 } :: { SpaceMonsterDef }
+
+--[[ Canavar bu oyuncu için açık mı (rebirth kilidi). ]]
+function Config.MonsterUnlocked(def: SpaceMonsterDef, rebirths: number): boolean
+	return (def.rebirths or 0) <= rebirths
+end
+
+--[[
+	Rebirth antrenmanı hızlandırıyor: kapsül kazancı × (1 + bu × rebirth).
+	Kapsül eğrisi 120 üstünde çok dik; rebirth canavarlarının hızına
+	(135-200) makul sürede çıkılsın diye.
+]]
+Config.RebirthTrainingBonus = 0.5
+
+function Config.GetRebirthTrainingMul(rebirths: number): number
+	return 1 + Config.RebirthTrainingBonus * math.max(0, rebirths)
+end
 
 Config.Space = {
 	BaseSpeed = 16,             -- yeni oyuncunun uzay hızı (ilk canavarın need'i)
@@ -2775,7 +2871,7 @@ Config.Space = {
 	SafeHeight = 44,
 
 	-- Uçulabilen alan (dışına çıkan içeri itiliyor)
-	BoundsMin = Vector3.new(-220, -200, -2650),
+	BoundsMin = Vector3.new(-220, -200, -6200),
 	BoundsMax = Vector3.new(580, 280, -68),
 
 	-- Fırlatılan oyuncunun indiği yer: gemide, kapının içinde
@@ -2867,7 +2963,7 @@ function Config.IsHypeSpawn(unitId: string, mutationId: string?): boolean
 	if not def then
 		return false
 	end
-	if def.rarity == "Secret" then
+	if def.rarity == "Secret" or def.rarity == "Celestial" then
 		return true
 	end
 	local order = Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0
@@ -2980,7 +3076,7 @@ function Config.GetSpaceMonster(id: string): SpaceMonsterDef?
 	return nil
 end
 
-local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+local RARITY_LADDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "Celestial" }
 
 --[[
 	Canavarın havuzundan karakter çeker: önce nadirlik (odds ağırlığıyla),
@@ -3005,13 +3101,13 @@ function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef, luck: number?):
 	end
 	local pool = 0
 	for _, unit in Config.Units do
-		if unit.rarity == rarity then
+		if unit.rarity == rarity and (unit.monster == nil or unit.monster == def.id) then
 			pool += unit.weight
 		end
 	end
 	local pick = rng:NextNumber(0, pool)
 	for _, unit in Config.Units do
-		if unit.rarity == rarity then
+		if unit.rarity == rarity and (unit.monster == nil or unit.monster == def.id) then
 			pick -= unit.weight
 			if pick <= 0 then
 				return unit
@@ -3021,15 +3117,26 @@ function Config.RollSpaceUnit(rng: Random, def: SpaceMonsterDef, luck: number?):
 	return Config.Units[1]
 end
 
---[[ Oyuncunun hızının yettiği en yüksek canavar (hiçbiri değilse ilki). ]]
-function Config.BestSpaceMonster(speed: number): SpaceMonsterDef
+--[[ Oyuncunun hızının yettiği en yüksek canavar (hiçbiri değilse ilki). Rebirth kilidi olanlar yalnızca `rebirths` yetiyorsa. ]]
+function Config.BestSpaceMonster(speed: number, rebirths: number?): SpaceMonsterDef
 	local best = Config.SpaceMonsters[1]
 	for _, def in Config.SpaceMonsters do
-		if speed >= def.need then
+		if speed >= def.need and Config.MonsterUnlocked(def, rebirths or 0) then
 			best = def
 		end
 	end
 	return best
+end
+
+--[[ Rebirth kilidi olmayan (herkese açık) canavarlar: olaylar, kuyruklu yıldız, tanıtım. ]]
+function Config.BaseSpaceMonsters(): { SpaceMonsterDef }
+	local list = {}
+	for _, def in Config.SpaceMonsters do
+		if not def.rebirths then
+			table.insert(list, def)
+		end
+	end
+	return list
 end
 
 -- ─── Uzay kapsülü ───────────────────────────────────────────────────────────

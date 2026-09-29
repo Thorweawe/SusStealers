@@ -1328,7 +1328,7 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 		DataService.Discover(owner, unitId)
 
 		local def = Config.GetUnit(unitId)
-		if def and def.rarity == "Secret" then
+		if def and (def.rarity == "Secret" or def.rarity == "Celestial") then
 			BadgeService.Award(owner, "SecretFind")
 		end
 

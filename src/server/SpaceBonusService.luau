@@ -215,7 +215,7 @@ local function buildBoard(folder: Instance)
 		t.Parent = gui
 	end
 	line("SPACE HEIST TARGETS", 44, Color3.fromRGB(120, 220, 255), 0)
-	local ladder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" }
+	local ladder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret", "Celestial" }
 	for i, def in Config.SpaceMonsters do
 		local best = "Common"
 		for _, name in ladder do
@@ -224,8 +224,10 @@ local function buildBoard(folder: Instance)
 			end
 		end
 		local color = Config.GetTitleColor(best)
-		line(string.format('%d. %s  <font color="#FFE13C">%d SPEED</font>  <font color="#%s">up to %s</font>',
-			i, string.upper(def.name), def.need, color:ToHex(), best), 30, Color3.new(1, 1, 1), i)
+		-- Rebirth canavarı: kilidi satırda (11 satır sığsın diye biraz küçük)
+		local lock = if def.rebirths then string.format('  <font color="#FF9A6B">REBIRTH %d</font>', def.rebirths) else ""
+		line(string.format('%d. %s  <font color="#FFE13C">%d SPEED</font>  <font color="#%s">up to %s</font>%s',
+			i, string.upper(def.name), def.need, color:ToHex(), best, lock), 24, Color3.new(1, 1, 1), i)
 	end
 	line("Train in your capsule to reach the far planets!", 24, Color3.fromRGB(170, 255, 170), 99)
 end
@@ -351,7 +353,9 @@ function SpaceBonusService.StartComet(): () -> ()
 	SpaceBonusService.StopComet()
 	local s = Config.Space
 	local b = Config.SpaceBonus
-	local last = Config.SpaceMonsters[#Config.SpaceMonsters]
+	-- Herkese açık son gezegene kadar (rebirth gezegenleri çok uzak)
+	local base = Config.BaseSpaceMonsters()
+	local last = base[#base]
 	local from = Vector3.new(s.BoundsMin.X + 40, 60, SpaceField.DeckEdgeZ() - 160)
 	local to = Vector3.new(s.BoundsMax.X - 40, 30, last.position.Z + 300)
 	local duration = (to - from).Magnitude / b.CometSpeed

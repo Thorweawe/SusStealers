@@ -74,7 +74,9 @@ local function buildShots(): { Shot }
 
 	-- 2. Canavar gezegenleri: ilk canavar (Glorp), sonra en büyüğü
 	local first = Config.SpaceMonsters[1]
-	local last = Config.SpaceMonsters[#Config.SpaceMonsters]
+	-- Yeni oyuncuya herkese açık en büyük canavar (rebirth canavarları çok uzak)
+	local base = Config.BaseSpaceMonsters()
+	local last = base[#base]
 	if first and last then
 		local c1 = SpaceField.PlanetCenter(first)
 		local cLast = SpaceField.PlanetCenter(last)
