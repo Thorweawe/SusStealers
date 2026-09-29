@@ -3815,10 +3815,18 @@ case("Uzay: çal, bırak, hile payı, teslim et", function(ctx)
 	eq("aynı mürettebat yerine döndü", back, unitId)
 	eq("mutasyonu da", backMutation, mutationId)
 
-	-- Hile payı: kapıp anında güverteye ışınlanan teslim edemiyor
+	-- Hile payı: kapıp anında güverteye ışınlanan teslim edemiyor. Hız
+	-- taban değerde: test hesabının uzay hızı ve pet bonusu (hile payını
+	-- büyütüyor) sonucu değiştirmesin.
+	local savedSpeed = ctx.player:GetAttribute("SpaceSpeed")
+	local savedPet = ctx.player:GetAttribute("PetSpeedBonus")
+	ctx.player:SetAttribute("SpaceSpeed", Config.Space.BaseSpeed)
+	ctx.player:SetAttribute("PetSpeedBonus", 0)
 	SpaceService._Grab(ctx.player, 1, 1)
 	character:PivotTo(CFrame.new(SpaceField.DeckCenter() + Vector3.new(0, 3, 0)))
 	SpaceService._Deliver(ctx.player, true)
+	ctx.player:SetAttribute("SpaceSpeed", savedSpeed)
+	ctx.player:SetAttribute("PetSpeedBonus", savedPet)
 	ok("hızlı teslim reddedildi", not SpaceService.IsCarrying(ctx.player))
 	eq("karakter yerine döndü", (SpaceService._Spot(1, 1)), unitId)
 	local filled = 0

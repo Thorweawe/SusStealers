@@ -1292,17 +1292,14 @@ function SpaceService.ReturnToStation(player: Player): boolean
 		ediyor"): karakterin fiziği oyuncunun kendi istemcisinde ve uçuş
 		kuvveti (LinearVelocity) açık. Sunucu ışınlayınca istemci eski
 		uçuşunu yollamaya devam edip diğerlerinde uzayda kalabiliyordu.
-		Işınlamayı istemci yapıyor: önce uçuşu kapatıyor, sonra taşınıyor
-		(SpaceFX "return"). Yapmazsa 1 sn sonra sunucu taşıyor.
+		Sunucu taşıyor VE istemciye söylüyor (SpaceFX "return"): istemci
+		uçuş kuvvetini hemen kapatıp kendini de aynı yere koyuyor.
 	]]
+	if player.Character then
+		player.Character:PivotTo(target)
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
 	fx(player, "return", target)
-	task.delay(1, function()
-		local r = rootOf(player)
-		if r and player.Parent and SpaceField.InSpace(r.Position) and player.Character then
-			player.Character:PivotTo(target)
-			r.AssemblyLinearVelocity = Vector3.zero
-		end
-	end)
 	return true
 end
 
