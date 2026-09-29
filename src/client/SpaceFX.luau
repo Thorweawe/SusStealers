@@ -37,6 +37,7 @@ local FlyPose = require(script.Parent.FlyPose)
 local JetpackModel = require(Shared.JetpackModel)
 local SoundFX = require(script.Parent.SoundFX)
 local StealReveal = require(script.Parent.StealReveal)
+local MonsterStyle = require(script.Parent.MonsterStyle)
 
 local SpaceFX = {}
 
@@ -235,6 +236,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		needLabel: TextLabel,
 		tag: TextLabel,
 		posedAt: number?,
+		-- Kovalama karakteri (MonsterStyle): yürüyüş, sesler, ağırlık 0..1
+		voice: MonsterStyle.Voice,
+		chase: number,
+		-- Beni kovalarken kırmızı dış çizgi ("kimi kovaladığı belli olmuyor")
+		highlight: Highlight,
 	}
 	local visuals: { [Model]: Visual } = {}
 	local localFolder = Instance.new("Folder")
@@ -291,7 +297,18 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		local rig = MonsterModel.Rig(model)
 		-- Hemen yerine koy: model (0,0,0)'da kuruldu, orası 1. üssün içi
 		rig:Pose(root.CFrame, 0, { sway = 1, rate = 1, grab = 0, roar = 0 })
+		local highlight = Instance.new("Highlight")
+		highlight.FillColor = Color3.fromRGB(255, 40, 60)
+		highlight.FillTransparency = 0.8
+		highlight.OutlineColor = Color3.fromRGB(255, 60, 80)
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Enabled = false
+		highlight.Parent = model
 		visuals[holder] = {
+			voice = MonsterStyle.Attach(def.id, model.PrimaryPart :: BasePart, def.scale),
+			chase = 0,
+			highlight = highlight,
 			holder = holder,
 			root = root,
 			def = def,
@@ -1020,6 +1037,38 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 	local wasInSpace = false
 	local wasCarrying = false
 
+	--[[
+		Kovalanma kalp atışı (2026-09-29): 2B döngü, `level` 0..1 (0 = sus).
+		Yaklaştıkça hem hızlanıyor hem yükseliyor: gerilim sesle de geliyor.
+	]]
+	local heartbeat = Instance.new("Sound")
+	heartbeat.Name = "ChaseHeartbeat"
+	heartbeat.SoundId = "rbxassetid://9785208731"
+	heartbeat.Looped = true
+	heartbeat.Volume = 0
+	do
+		local g = game:GetService("SoundService"):FindFirstChild("Effects")
+		if g and g:IsA("SoundGroup") then
+			heartbeat.SoundGroup = g
+		end
+	end
+	heartbeat.Parent = game:GetService("SoundService")
+	local heartLevel = 0
+	local function setHeartbeat(level: number)
+		heartLevel += (level - heartLevel) * 0.15
+		if heartLevel < 0.02 then
+			if heartbeat.IsPlaying then
+				heartbeat:Stop()
+			end
+			return
+		end
+		if not heartbeat.IsPlaying then
+			heartbeat:Play()
+		end
+		heartbeat.Volume = 0.35 + 0.9 * heartLevel
+		heartbeat.PlaybackSpeed = 0.9 + 0.7 * heartLevel
+	end
+
 	local function poseFor(v: Visual, dt: number, now: number)
 		local state = (v.holder:GetAttribute("State") :: string?) or "idle"
 		if state ~= v.state then
@@ -1073,10 +1122,23 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 				end
 			end
 			v.posedAt = now
-			local lift = if state == "idle" then 0 else (2 + math.sin(clock * 2.2) * 1.2) * v.def.scale
-			local shake = if state == "wake" or state == "grab" then Vector3.new(math.sin(clock * 47), 0, math.cos(clock * 41)) * 0.35 * v.def.scale else Vector3.zero
-			local breathe = math.sin(clock * 1.4) * 0.15 * v.def.scale
-			v.rig:Pose(v.cf + Vector3.new(0, lift + breathe, 0) + shake, clock, { sway = v.sway, rate = v.rate, grab = v.grab, roar = v.roar })
+			local s = v.def.scale
+			local lift = if state == "idle" then 0 else (2 + math.sin(clock * 2.2) * 1.2) * s
+			local shake = if state == "wake" or state == "grab" then Vector3.new(math.sin(clock * 47), 0, math.cos(clock * 41)) * 0.35 * s else Vector3.zero
+			local breathe = math.sin(clock * 1.4) * 0.15 * s
+			-- Kovalama yürüyüşü (MonsterStyle): canavara özgü zıplama / dörtnal / yüzme...
+			local chaseGoal = if state == "chase" then 1 elseif state == "return" then 0.35 else 0
+			v.chase += (chaseGoal - v.chase) * (1 - math.exp(-5 * dt))
+			local m = MonsterStyle.Step(v.voice, dt, v.chase, (v.cf.Position - camPos).Magnitude < 320)
+			local center = 6 * s
+			local body = (v.cf + Vector3.new(0, lift + breathe + m.lift * s, 0) + shake)
+				* CFrame.new(0, center, -m.surge * s) * CFrame.Angles(m.pitch, m.yaw, m.roll) * CFrame.new(0, -center, 0)
+			v.rig:Pose(body, clock, {
+				sway = v.sway * (1 + (m.sway - 1) * v.chase),
+				rate = v.rate * (1 + (m.rate - 1) * v.chase),
+				grab = v.grab,
+				roar = v.roar + m.roar,
+			})
 
 			-- Etiket
 			local need = v.def.need
@@ -1089,10 +1151,23 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			if v.needLabel.TextColor3 ~= color then
 				v.needLabel.TextColor3 = color
 			end
-			local tag = if state == "idle" then "zzz" elseif state == "return" then "..." else "!!"
+			-- Kimi kovaladığı etikette; beni kovalıyorsa kırmızı dış çizgi
+			local targetId = v.holder:GetAttribute("Target")
+			local chasing = state == "chase" or state == "wake" or state == "grab"
+			local mine = chasing and targetId == player.UserId
+			local tag = if state == "idle" then "zzz" elseif state == "return" then "..." elseif mine then "!! CHASING YOU !!" else "!!"
+			if chasing and not mine and typeof(targetId) == "number" then
+				local who = Players:GetPlayerByUserId(targetId)
+				if who then
+					tag = "!! CHASING " .. string.upper(who.DisplayName)
+				end
+			end
 			if v.tag.Text ~= tag then
 				v.tag.Text = tag
-				v.tag.TextColor3 = if tag == "!!" then Color3.fromRGB(255, 80, 90) else Color3.fromRGB(200, 200, 255)
+				v.tag.TextColor3 = if string.sub(tag, 1, 2) == "!!" then Color3.fromRGB(255, 80, 90) else Color3.fromRGB(200, 200, 255)
+			end
+			if v.highlight.Enabled ~= mine then
+				v.highlight.Enabled = mine
 			end
 		end
 
@@ -1102,6 +1177,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 
 		-- Yakalanmışken her şeyi fırlatma yönetiyor
 		if grab then
+			setHeartbeat(0)
 			if not flying then
 				setFlying(true)
 			end
@@ -1182,6 +1258,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		-- Tehlike kenarı: beni kovalayan canavar yakınsa (kart gizliyken de)
 		if not (inSpace or onDeck) then
 			dangerStroke.Transparency = 1
+			setHeartbeat(0)
 			return
 		end
 		local nearest = math.huge
@@ -1196,6 +1273,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		else
 			dangerStroke.Transparency = 1
 		end
+		-- Kalp atışı: kovalanırken, yaklaştıkça hızlı ve yüksek (120 stud'dan başlıyor)
+		setHeartbeat(if nearest < 120 then 1 - math.max(0, nearest) / 120 else 0)
 	end))
 
 	table.insert(connections, player.CharacterAdded:Connect(function()
@@ -1221,7 +1300,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			end
 			if mine or near then
 				effects.Shake(if mine then 1.8 else 0.8, 0.8)
-				SoundFX.Alarm()
+				-- Canavarın kendi kükremesi (3B, MonsterStyle); alarm yalnızca hedefe
+				for _, v in visuals do
+					if v.def.id == a then
+						MonsterStyle.Roar(v.voice)
+					end
+				end
+				if mine then
+					SoundFX.Alarm()
+				end
 			end
 			if mine and def then
 				yell(string.format("%s WOKE UP! FLY!", string.upper(def.name)), Color3.fromRGB(255, 80, 110), 2.4)
@@ -1321,6 +1408,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			localFolder:Destroy()
 			hud:Destroy()
 			shout:Destroy()
+			heartbeat:Destroy()
 			danger:Destroy()
 			local _ = monstersFolder
 		end,

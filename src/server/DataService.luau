@@ -143,6 +143,9 @@ export type Profile = {
 	weekStolen: number,
 	weeklyChecked: number,
 	weeklyBest: number,
+	-- Davet (ReferralService): ödüllenen davet sayısı, bu oyuncuyu kim davet etti (0 = kimse)
+	referrals: number,
+	referredBy: number,
 	-- Çark: bekleme istemeyen jeton ve süper çark hakkı (SpinService)
 	spinTokens: number,
 	superSpins: number,
@@ -192,6 +195,7 @@ local SESSION_ID = if game.JobId ~= "" then game.JobId else "studio-" .. tostrin
 local profiles: { [Player]: Profile } = {}
 local loading: { [Player]: boolean } = {}
 local offlineEarnings: { [Player]: { amount: number, seconds: number } } = {}
+local firstVisit: { [Player]: boolean } = {}
 
 -- Aynı anahtara çok sık yazmak DataStore kuyruğunu dolduruyor
 local SAVE_MIN_INTERVAL = 7
@@ -252,6 +256,8 @@ local function newProfile(): Profile
 		weekStolen = 0,
 		weeklyChecked = 0,
 		weeklyBest = 0,
+		referrals = 0,
+		referredBy = 0,
 		spinTokens = 0,
 		superSpins = 0,
 		season = { id = "", xp = 0, free = {}, premium = {} },
@@ -318,7 +324,8 @@ local function sanitize(raw: any): Profile
 	end
 
 	for _, field in { "trainings", "stunned", "thrown", "mutatedSteals", "bossSteals", "bestPlanet", "bought", "sold", "spins", "earned", "salvaged",
-		"weekId", "weekStolen", "weeklyChecked", "weeklyBest", "spinTokens", "superSpins", "questsClaimed", "dailyClaims", "tasksDone" } do
+		"weekId", "weekStolen", "weeklyChecked", "weeklyBest", "spinTokens", "superSpins", "questsClaimed", "dailyClaims", "tasksDone",
+		"referrals", "referredBy" } do
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)
@@ -957,6 +964,8 @@ local function onPlayerAdded(player: Player)
 
 	-- Çevrimdışı kazanç: profil kullanıma açılmadan ÖNCE eklenmeli ki
 	-- EconomyService nakdi okuduğunda birikmiş tutar zaten içinde olsun.
+	-- Hiç kaydedilmemiş profil = ilk ziyaret (davet ödülü buna bakıyor)
+	firstVisit[player] = profile.lastSeen == 0
 	local away = if profile.lastSeen > 0 then os.time() - profile.lastSeen else 0
 	local earned = Config.GetOfflineEarnings(profile.incomePerSecond, away)
 	if earned > 0 then
@@ -1011,11 +1020,17 @@ function DataService.ConsumeOfflineEarnings(player: Player): (number, number)
 	return entry.amount, entry.seconds
 end
 
+--[[ Profil bu oturumda ilk kez mi kuruldu (hiç kaydedilmemiş)? Davet ödülü için. ]]
+function DataService.IsFirstVisit(player: Player): boolean
+	return firstVisit[player] == true
+end
+
 local function onPlayerRemoving(player: Player)
 	saveProfile(player, true)
 	profiles[player] = nil
 	loading[player] = nil
 	offlineEarnings[player] = nil
+	firstVisit[player] = nil
 	lastSaveAt[player] = nil
 	pendingSave[player] = nil
 end

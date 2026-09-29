@@ -1114,6 +1114,55 @@ Config.VentHoldTime = 0.35
 Config.FriendBonusPerFriend = 0.05
 Config.FriendBonusMax = 0.15
 
+--[[
+	DAVET ÖDÜLÜ (2026-09-29, ReferralService). Üst şeritteki davet düğmesi
+	daveti "ref:<davet eden>" LaunchData'sıyla gönderiyor; Roblox ayrıca
+	GetJoinData().ReferredByPlayerId veriyor. Davetle İLK KEZ gelen oyuncu
+	hoş geldin hediyesi alıyor, davet eden de (oyunda değilse bir sonraki
+	girişinde) ödül alıyor. Davet eden en fazla MaxRewards kez ödüllenir
+	(sahte hesapla sonsuz yumurta olmasın).
+]]
+Config.Referral = {
+	MaxRewards = 10,
+	Inviter = {
+		{ kind = "egg", egg = "SkeldEgg" },
+		{ kind = "cash", seconds = 300, minimum = 20000 },
+	},
+	Invitee = {
+		{ kind = "egg", egg = "SupplyEgg" },
+		{ kind = "cash", seconds = 0, minimum = 5000 },
+	},
+}
+
+--[[
+	Roblox Premium bonusu: Premium üyeye +%10 gelir (EconomyService). Premium
+	oyuncunun oyunda geçirdiği süre oyuna Premium Payout olarak dönüyor;
+	küçük bir teşekkür. Nakit hapında "premium +10%" yazıyor.
+]]
+Config.PremiumIncomeBonus = 0.10
+
+--[[
+	Lobi tabelası (LobbyBoardService): sıradaki güncellemeye geri sayım ve
+	beğeni hedefi. Beğeni sayısı oyun içinden okunamıyor (Roblox API'si oyun
+	sunucusuna kapalı), o yüzden hedef elle: ulaşınca kod verilir.
+	`at` UTC saniye (0 = tarih yok, "SOON" yazar).
+]]
+Config.LiveOps = {
+	nextUpdate = { at = 1791136800, title = "NEW PLANET + PETS" }, -- 4 Eki 2026 18:00 UTC
+	likeGoal = { goal = 100, reward = "SECRET CODE" },
+}
+
+--[[
+	Deneyim bildirimleri (NotifyService, Open Cloud). Creator Hub'da oluşturulan
+	bildirim şablonunun kimliği ve Open Cloud anahtarının Secrets adı. Kimlik
+	boşsa hiçbir şey gönderilmiyor. Oyuncu yalnızca izin verdiyse alıyor
+	(Engagement'taki istem), sınırı Roblox koyuyor.
+]]
+Config.Notifications = {
+	secretName = "OpenCloudKey",
+	daily = "", -- "Your daily reward is ready! Keep your {streak}-day streak 🔥" şablonunun kimliği
+}
+
 --[[ Sunucudaki arkadaş sayısına göre gelir bonusu (0.10 = +%10). ]]
 function Config.GetFriendBonus(friendCount: number): number
 	return math.min(Config.FriendBonusMax, math.max(0, friendCount) * Config.FriendBonusPerFriend)

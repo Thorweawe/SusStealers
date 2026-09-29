@@ -501,15 +501,38 @@ function MapLife.Start(): Handle
 				continue
 			end
 
-			local step = math.min(dist, WALK_SPEED * dt)
 			local dir = flat.Unit
+			--[[
+				2026-09-29 ("NPC'ler oyuncuyu itiyor"): katı kutu (Bumper) her
+				karede oyuncunun İÇİNE taşınınca fizik oyuncuyu itiyordu. Artık
+				önünde oyuncu varsa mürettebat durup bekliyor (yol veriyor).
+			]]
+			if myRoot then
+				local toMe = Vector3.new(myRoot.Position.X - w.pos.X, 0, myRoot.Position.Z - w.pos.Z)
+				if toMe.Magnitude < 3.8 and math.abs(myRoot.Position.Y - w.pos.Y - 2.5) < 5
+					and (toMe.Magnitude < 0.1 or dir:Dot(toMe.Unit) > 0.2) then
+					w.waitUntil = now + 0.4
+					continue
+				end
+			end
+			local step = math.min(dist, WALK_SPEED * dt)
 			local y = w.pos.Y + (target.Y - w.pos.Y) * math.clamp(step / dist, 0, 1)
 			w.pos = Vector3.new(w.pos.X + dir.X * step, y, w.pos.Z + dir.Z * step)
-			w.facing = dir
-			-- Yürürken zıplar gibi hafif sekme: Among Us yürüyüşü
-			local bob = math.abs(math.sin((clock + w.phase) * 9)) * 0.35
-			if farTurn or (w.pos - cam).Magnitude <= 160 then
-				w.model:PivotTo(CFrame.lookAt(w.pos, w.pos + dir) + Vector3.new(0, w.lift + bob, 0))
+			-- Yumuşak dönüş: ara noktalarda ani 90° çevrilme "takılıyor" gibi duruyordu
+			local turned = w.facing:Lerp(dir, 1 - math.exp(-10 * dt))
+			w.facing = if turned.Magnitude > 0.01 then turned.Unit else dir
+			--[[
+				Görünüş sıklığı: yakındaki her kare, orta mesafe iki karede bir,
+				uzaktaki altı karede bir (eskiden 160 stud'dan ötesi altı karede
+				bir çiziliyordu ve telefonda kesik kesik görünüyordu).
+			]]
+			local camDist = (w.pos - cam).Magnitude
+			if camDist <= 180 or (camDist <= 360 and frameNo % 2 == 0) or farTurn then
+				-- Among Us yürüyüşü: sekme + iki yana sallanma
+				local t = (clock + w.phase) * 9
+				local bob = math.abs(math.sin(t)) * 0.35
+				local roll = math.sin(t) * math.rad(7)
+				w.model:PivotTo(CFrame.lookAt(w.pos, w.pos + w.facing) * CFrame.new(0, w.lift + bob, 0) * CFrame.Angles(0, 0, roll))
 			end
 		end
 	end)

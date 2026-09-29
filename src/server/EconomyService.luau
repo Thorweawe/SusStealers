@@ -126,6 +126,11 @@ function EconomyService.GetIncome(player: Player): number
 	local friendBonus = player:GetAttribute("FriendBonus") :: number?
 	multiplier *= 1 + math.clamp(friendBonus or 0, 0, Config.FriendBonusMax)
 
+	-- Roblox Premium üyesine teşekkür (Config.PremiumIncomeBonus)
+	if player.MembershipType == Enum.MembershipType.Premium then
+		multiplier *= 1 + Config.PremiumIncomeBonus
+	end
+
 	-- Emergency Meeting: sunucu geneli gelir çarpanı (EventService workspace'e yazıyor)
 	local eventMul = workspace:GetAttribute("EventIncomeMul") :: number?
 	multiplier *= math.clamp(eventMul or 1, 1, Config.MeetingIncomeMul)

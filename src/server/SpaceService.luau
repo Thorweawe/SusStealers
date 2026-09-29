@@ -818,7 +818,7 @@ local function deliver(player: Player, root: BasePart)
 			AnnounceService.Paint("JACKPOT", Color3.fromRGB(255, 205, 60)), Config.FormatCash(bonusCash)))
 	end
 
-	notify(player, string.format("%s is on your podium!", name), false, "deposit")
+	-- Bildirim yok: kutlama kartı (istemci StealReveal) aynı şeyi söylüyor
 	fx(player, "delivered", name, {
 		unitId = carry.unitId,
 		mutationId = carry.mutationId,

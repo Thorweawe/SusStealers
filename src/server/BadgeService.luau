@@ -95,7 +95,8 @@ function BadgeService.Award(player: Player, key: string)
 
 			if ok then
 				cacheOf(player)[key] = true
-				notify(player, string.format("Badge unlocked: %s", def.name))
+				-- 2026-09-29: kendi bildirimimiz yok — Roblox zaten "Badge Awarded"
+				-- kartını gösteriyor; ikisi üst üste ekranı kalabalıklaştırıyordu.
 			else
 				warn(string.format("[Badge] %s verilemedi: %s", key, tostring(err)))
 			end

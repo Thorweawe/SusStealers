@@ -63,6 +63,9 @@ local JetpackService = require(Server.JetpackService)
 local WeeklyService = require(Server.WeeklyService)
 local SeasonService = require(Server.SeasonService)
 local ServerBoostService = require(Server.ServerBoostService)
+local ReferralService = require(Server.ReferralService)
+local NotifyService = require(Server.NotifyService)
+local LobbyBoardService = require(Server.LobbyBoardService)
 local MeteorShower = require(ReplicatedStorage.Shared.MeteorShower)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
@@ -3935,6 +3938,51 @@ case("Heyecan: şanslı soygun, close call, kıl payı ve nadir doğuş kurallar
 	SpaceService._Step(1 / 30)
 	character:PivotTo(startCf)
 	clearPlot(ctx.plot)
+end)
+
+case("Geri getirme: davet ödülü, bildirim zamanı, lobi geri sayımı", function(ctx)
+	local p = ctx.profile
+	local keepBy, keepCount = p.referredBy, p.referrals
+	ReferralService._NoStore = true
+
+	-- Davet eden kimliği: LaunchData önce, sonra Roblox'un ReferredByPlayerId'si
+	eq("LaunchData", ReferralService.InviterOf(ctx.player, { LaunchData = "ref:123" }), 123)
+	eq("ReferredByPlayerId", ReferralService.InviterOf(ctx.player, { ReferredByPlayerId = 55 }), 55)
+	eq("kendini davet yok", ReferralService.InviterOf(ctx.player, { LaunchData = "ref:" .. ctx.player.UserId }), nil)
+	eq("bozuk veri yok", ReferralService.InviterOf(ctx.player, { LaunchData = "ref:abc" }), nil)
+
+	-- Eski oyuncu (ilk ziyaret değil) davetli sayılmıyor
+	p.referredBy = 0
+	eq("eski oyuncuya ödül yok", ReferralService.HandleJoin(ctx.player, { LaunchData = "ref:999" }, false), nil)
+	eq("referredBy boş kaldı", p.referredBy, 0)
+	-- İlk ziyaret: hoş geldin ödülü bir kez
+	eq("ilk ziyarette işlendi", ReferralService.HandleJoin(ctx.player, { LaunchData = "ref:999" }, true), 999)
+	eq("davet eden yazıldı", p.referredBy, 999)
+	eq("ikinci kez işlenmiyor", ReferralService.HandleJoin(ctx.player, { LaunchData = "ref:999" }, true), nil)
+
+	-- Davet edenin ödülü tavanlı
+	p.referrals = Config.Referral.MaxRewards - 1
+	ok("tavandan önce ödül", ReferralService.RewardInviter(ctx.player, "Test"))
+	eq("sayaç arttı", p.referrals, Config.Referral.MaxRewards)
+	ok("tavanda ödül yok", not ReferralService.RewardInviter(ctx.player, "Test"))
+	p.referredBy, p.referrals = keepBy, keepCount
+	ReferralService._NoStore = false
+
+	-- Bildirim zamanı: seri yoksa yok; bugün alındıysa yarın; dün alındıysa gün bitmeden
+	local now = 100 * 86400 + 5 * 3600
+	eq("seri yok", (NotifyService.DailyAt({ dailyStreak = 0, lastDailyDay = 100 }, now)), nil)
+	eq("bugün alındı: yarın", (NotifyService.DailyAt({ dailyStreak = 3, lastDailyDay = 100 }, now)), 101 * 86400 + 600)
+	local warnAt = NotifyService.DailyAt({ dailyStreak = 3, lastDailyDay = 99 }, now)
+	ok("dün alındı: bugün bitmeden", warnAt ~= nil and warnAt < 101 * 86400 and warnAt > now, tostring(warnAt))
+	eq("seri koptu: yok", (NotifyService.DailyAt({ dailyStreak = 3, lastDailyDay = 90 }, now)), nil)
+
+	-- Lobi geri sayımı
+	local at = Config.LiveOps.nextUpdate.at
+	if at > 0 then
+		eq("güncelleme çıktı", LobbyBoardService.CountdownText(at + 5), "OUT NOW!")
+		eq("gün + saat", LobbyBoardService.CountdownText(at - (86400 + 3661)), "1d 01:01:01")
+	end
+	ok("tabela kurulu", workspace:FindFirstChild("LobbyUpdateBoard") ~= nil)
 end)
 
 case("Uzay: bedava karakter (çark / ürün) doğrudan kaideye", function(ctx)

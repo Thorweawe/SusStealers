@@ -172,6 +172,14 @@ speedSub.Text = "SPACE SPEED"
 local cashPill, cashDisc, cashValue, cashSub = UiKit.StatPill(statBar, "CashPill", UiKit.CREW.LIME)
 cashPill.LayoutOrder = 2
 UiKit.ArtIcon(cashDisc, 46, "Cash100K", 1.3)
+-- Alt satır bonuslarla uzayabiliyor (arkadaş + premium): sığmazsa küçülsün
+do
+	cashSub.TextScaled = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = 13
+	limit.MinTextSize = 8
+	limit.Parent = cashSub
+end
 
 --[[
 	Eskiden burada sağ üstte "Podiums / Lock / Carrying" paneli vardı.
@@ -270,14 +278,26 @@ local function refreshCash()
 		görsün, arkadaşı çağırmanın karşılığı da burada okunuyor.
 	]]
 	local friendBonus = player:GetAttribute("FriendBonus") :: number?
-	cashSub.Text = if (friendBonus or 0) > 0
-		then string.format("+$%s/s · friends +%d%%", Config.FormatCash(income or 0), math.floor((friendBonus or 0) * 100 + 0.5))
-		else string.format("+$%s/s", Config.FormatCash(income or 0))
+	local extras = {}
+	if (friendBonus or 0) > 0 then
+		table.insert(extras, string.format("friends +%d%%", math.floor((friendBonus or 0) * 100 + 0.5)))
+	end
+	-- Premium bonusu (EconomyService, Config.PremiumIncomeBonus)
+	if player.MembershipType == Enum.MembershipType.Premium then
+		table.insert(extras, string.format("premium +%d%%", math.floor(Config.PremiumIncomeBonus * 100 + 0.5)))
+	end
+	cashSub.Text = string.format("+$%s/s", Config.FormatCash(income or 0))
+		.. (if #extras > 0 then " · " .. table.concat(extras, " · ") else "")
 end
 
 player:GetAttributeChangedSignal("Cash"):Connect(refreshCash)
 player:GetAttributeChangedSignal("Income"):Connect(refreshCash)
 player:GetAttributeChangedSignal("FriendBonus"):Connect(refreshCash)
+Players.PlayerMembershipChanged:Connect(function(who)
+	if who == player then
+		refreshCash()
+	end
+end)
 refreshCash()
 
 --[[

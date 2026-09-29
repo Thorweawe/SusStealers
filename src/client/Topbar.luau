@@ -158,8 +158,9 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 	inviteTip.TextStrokeTransparency = 0.5
 	inviteTip.TextTransparency = 1
 	inviteTip.ZIndex = 6
-	inviteTip.Text = string.format("Invite friends · +%d%% income each",
+	inviteTip.Text = string.format("Invite · both get a FREE EGG · +%d%% income each",
 		math.floor(Config.FriendBonusPerFriend * 100 + 0.5))
+	inviteTip.Size = UDim2.fromOffset(260, 18)
 	inviteTip.Parent = inviteHolder
 
 	inviteButton.MouseEnter:Connect(function()
@@ -176,9 +177,21 @@ function Topbar.Create(screen: ScreenGui, onGift: () -> (), onSettings: (() -> (
 				return SocialService:CanSendGameInviteAsync(player)
 			end)
 			if ok and allowed then
-				pcall(function()
-					SocialService:PromptGameInvite(player)
+				--[[
+					Davet ödülü (sunucu ReferralService): davet eden kimliği
+					LaunchData'da; arkadaş ilk kez gelince ikisi de ödül alıyor.
+				]]
+				local sent = pcall(function()
+					local options = Instance.new("ExperienceInviteOptions")
+					options.PromptMessage = "Invite friends: you BOTH get a free egg!"
+					options.LaunchData = "ref:" .. tostring(player.UserId)
+					SocialService:PromptGameInvite(player, options)
 				end)
+				if not sent then
+					pcall(function()
+						SocialService:PromptGameInvite(player)
+					end)
+				end
 			end
 		end)
 	end)
