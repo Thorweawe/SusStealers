@@ -47,6 +47,7 @@ local FunnelService = require(script.FunnelService)
 local ReferralService = require(script.ReferralService)
 local NotifyService = require(script.NotifyService)
 local LobbyBoardService = require(script.LobbyBoardService)
+local AdminService = require(script.AdminService)
 
 local started = os.clock()
 
@@ -105,5 +106,7 @@ FunnelService.Start()
 ReferralService.Start()
 NotifyService.Start()
 LobbyBoardService.Start()
+-- Geliştirici konsolu komutları (ServerStorage.AdminCommand)
+AdminService.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))
