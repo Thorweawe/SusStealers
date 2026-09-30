@@ -19,6 +19,7 @@
 	Satın alma "EventShop" remote'u; hak kontrolü sunucuda.
 ]]
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -496,6 +497,62 @@ function EventPanel.Create(screen: Instance): Panel
 		table.insert(rows, { item = item, buy = buy, count = count })
 	end
 
+	-- ─── Robux'la etkinlik parası (Config.EventProducts) ─────────────────
+	local packCard = section(50, 128, Color3.fromRGB(30, 120, 60))
+	line(packCard, string.format("NEED MORE %s %s?", e.icon, string.upper(e.currency)), 20, CardKit.YELLOW, 8)
+	-- Adil oyun: satın alınan yalnızca harcanır, yarışa sayılmaz (şeffaflık)
+	line(packCard, "Bought " .. e.currency .. " is for the shop only - it doesn't count for the leaderboard, Star Path or Galaxy Goal",
+		12, Color3.fromRGB(210, 235, 215), 32)
+	local packButtons: { { def: any, buy: CardKit.Button } } = {}
+	local packPrices: { [number]: string } = {}
+	for i, key in Config.EventProductOrder do
+		local def = Config.EventProducts[key]
+		if not def then
+			continue
+		end
+		local slot = Instance.new("Frame")
+		slot.Position = UDim2.new((i - 1) / 3, 8, 0, 52)
+		slot.Size = UDim2.new(1 / 3, -16, 0, 68)
+		slot.BackgroundTransparency = 1
+		slot.ZIndex = Z + 4
+		slot.Parent = packCard
+		local amount = CardKit.bold(slot, string.format("%s %d", e.icon, def.amount), 18, Color3.new(1, 1, 1), Z + 5, 2)
+		amount.Size = UDim2.new(1, 0, 0, 22)
+		CardKit.fit(amount, 18, 10)
+		local buy = CardKit.button(slot, UDim2.new(1, 0, 0, 42), Z + 5, 18, CardKit.GREEN)
+		buy.holder.Position = UDim2.fromOffset(0, 24)
+		buy.button.Activated:Connect(function()
+			if def.id ~= 0 and Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then
+				MarketplaceService:PromptProductPurchase(player, def.id)
+			end
+		end)
+		table.insert(packButtons, { def = def, buy = buy })
+	end
+	-- Gerçek fiyat Roblox'tan (bir kez); yoksa Config'teki
+	task.spawn(function()
+		for _, pack in packButtons do
+			if pack.def.id ~= 0 then
+				local ok, info = pcall(function()
+					return MarketplaceService:GetProductInfo(pack.def.id, Enum.InfoType.Product)
+				end)
+				if ok and typeof(info) == "table" and info.PriceInRobux then
+					packPrices[pack.def.id] = tostring(info.PriceInRobux)
+				end
+			end
+		end
+	end)
+	local function redrawPacks(active: boolean)
+		for _, pack in packButtons do
+			if pack.def.id == 0 then
+				pack.buy.set("SOON", CardKit.GREY)
+			elseif not active then
+				pack.buy.set("CLOSED", CardKit.GREY)
+			else
+				pack.buy.set("R$ " .. (packPrices[pack.def.id] or tostring(pack.def.robux)), CardKit.GREEN)
+			end
+		end
+	end
+
 	-- ─── Sıralama (listenin sonunda): ilk 10 etkinlik bitince sınırlı taç ──
 	local board = Instance.new("Frame")
 	board.LayoutOrder = 100
@@ -584,6 +641,7 @@ function EventPanel.Create(screen: Instance): Panel
 			countText.Text = "SEE YOU NEXT TIME"
 		end
 		redrawExtras(now, active)
+		redrawPacks(active)
 		local candy = player:GetAttribute("EventCandy")
 		candy = if typeof(candy) == "number" then candy else 0
 		candyText.Text = string.format("%s %d", e.icon, candy)

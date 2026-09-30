@@ -2399,6 +2399,24 @@ function ServerTests2.Register(kit: Kit)
 		ok("sınır dolunca alınmıyor", not (LimitedEventService.Buy(ctx.player, hatItem.id)))
 		ok("bilinmeyen ürün yok", not (LimitedEventService.Buy(ctx.player, "Nope")))
 
+		-- Robux paketleri: yalnızca harcanabilir para, yarışa sayılmıyor
+		local prevAmount = 0
+		for i, key in Config.EventProductOrder do
+			local def = Config.EventProducts[key]
+			ok("paket tanımlı " .. key, def ~= nil and def.kind == "stardust")
+			if def then
+				ok("paket büyüyor " .. i, def.amount > prevAmount)
+				ok("büyük paket Robux başına kârlı " .. i, i == 1 or def.amount / def.robux >= Config.EventProducts[Config.EventProductOrder[i - 1]].amount / Config.EventProducts[Config.EventProductOrder[i - 1]].robux)
+				prevAmount = def.amount
+			end
+		end
+		local candyBefore, earnedBefore = p.limited.candy, p.limited.earned
+		local goalBefore = LimitedEventService.CommunityTotal()
+		ok("paket verildi", LimitedEventService.GrantPurchased(ctx.player, 150))
+		eq("paket parası", p.limited.candy, candyBefore + 150)
+		eq("paket sıralamaya sayılmıyor", p.limited.earned, earnedBefore)
+		eq("paket ortak hedefe sayılmıyor", LimitedEventService.CommunityTotal(), goalBefore)
+
 		clearPlot(ctx.plot)
 		ok("etkinlik mutasyonlu karakter alındı", (LimitedEventService.Buy(ctx.player, unitItem.id)))
 		local placed = false

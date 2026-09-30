@@ -13,6 +13,10 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (65) — Yusuf / Claude (MonetizationService, LimitedEventService, Config)
+- Etkinlik parası Robux'la: `Config.EventProducts` (150 / 500 / 1500, 49 / 149 / 399 R$, kind "stardust"). MonetizationService.findProduct bu tabloya da bakıyor; granter LimitedEventService'te (`GrantPurchased`). Satın alınan para yalnızca `limited.candy`'ye ekleniyor, `earned` (sıralama / yıldız yolu / ortak hedef) değişmiyor.
+- Kimlikler 0: Creator Hub'da üç Developer Product açılınca buraya yazılacak (pencerede o zamana kadar "SOON").
+
 ## 2026-09-30 (64) — Yusuf / Claude (Config.NotifyCues, LimitedEventService bildirim türleri)
 - Yeni ses türleri (Config.NotifyCues): `stardust` (yıldız yakalandı), `supernova`, `fanfare` (ortak hedef kademesi, yıldız yolu bitti, sınırlı eşya alındı, ilk 10 ödülü). NotifyCue'ya `fade` alanı eklendi (uzun kesit sönerek bitsin). Kaynaklar SoundFX'te: StarChime, Harp, Fanfare, StarFall (Roblox lisanslı kütüphane, yüklendikleri ölçüldü). Test (ServerTests "her tınının kaynağı") listesi güncellendi.
 - Batur: kendi servisinde yeni bildirim türü kullanırsan Config.NotifyCues'a da ekle (test zorluyor).

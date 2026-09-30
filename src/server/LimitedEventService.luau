@@ -42,6 +42,7 @@ local Net = require(Shared.Net)
 local SpaceField = require(Shared.SpaceField)
 
 local AnnounceService = require(script.Parent.AnnounceService)
+local MonetizationService = require(script.Parent.MonetizationService)
 local CosmeticService = require(script.Parent.CosmeticService)
 local DataService = require(script.Parent.DataService)
 local RewardService = require(script.Parent.RewardService)
@@ -293,6 +294,25 @@ function LimitedEventService.CheckMilestones(player: Player): number
 		DataService.RequestSave(player)
 	end
 	return given
+end
+
+--[[
+	Robux'la alınan etkinlik parası (Config.EventProducts). Yalnızca harcanabilir
+	paraya ekleniyor: `earned` (sıralama, yıldız yolu, ortak hedef) değişmiyor.
+	Etkinlik bitmiş olsa bile veriliyor (ödeme alındı; dükkân zaten kapalı).
+	Döner: verildi mi (MonetizationService makbuzu buna göre işliyor).
+]]
+function LimitedEventService.GrantPurchased(player: Player, amount: number): boolean
+	local profile = DataService.Get(player)
+	if not profile or amount <= 0 then
+		return false
+	end
+	roll(profile)
+	profile.limited.candy += math.floor(amount)
+	LimitedEventService.Publish(player)
+	local e = Config.LimitedEvent
+	notify(player, string.format("+%d %s %s! Spend it in the EVENT shop", math.floor(amount), e.icon, e.currency), false, "fanfare")
+	return true
 end
 
 --[[ Şeker ekler (soygun, bonus). Etkinlik dışında ya da 0'da bir şey yapmıyor. ]]
@@ -865,6 +885,11 @@ end
 
 function LimitedEventService.Start()
 	notifyRemote = Net.Get("Notify")
+
+	-- Robux paketleri (makbuz MonetizationService'te; kaydetme orada)
+	MonetizationService.RegisterGranter("stardust", function(player, product)
+		return LimitedEventService.GrantPurchased(player, (product :: any).amount or 0)
+	end)
 
 	SpaceService.Delivered.Event:Connect(function(player: Player, _unitId: string, _mutationId: string?, candy: number)
 		if typeof(candy) == "number" and candy > 0 then
