@@ -48,6 +48,17 @@ local ReferralService = require(script.ReferralService)
 local NotifyService = require(script.NotifyService)
 local LobbyBoardService = require(script.LobbyBoardService)
 local AdminService = require(script.AdminService)
+local SoftShutdown = require(script.SoftShutdown)
+
+--[[
+	Yeniden başlatmanın geçici durağı (SoftShutdown): oyunun hiçbir servisi
+	başlamıyor — profil yüklenmiyor, üs verilmiyor; oyuncu birkaç saniye
+	sonra yeni sürümün sunucusuna geri ışınlanıyor.
+]]
+if SoftShutdown.IsTemporary() then
+	SoftShutdown.RunTemporary()
+	return
+end
 
 local started = os.clock()
 
@@ -108,5 +119,7 @@ NotifyService.Start()
 LobbyBoardService.Start()
 -- Geliştirici konsolu komutları (ServerStorage.AdminCommand)
 AdminService.Start()
+-- "Restart servers": 10 sn geri sayım, sonra oyuncular yeni sürüme otomatik taşınıyor
+SoftShutdown.Start()
 
 print(string.format("[SusStealers] Server ready (%.0f ms)", (os.clock() - started) * 1000))
