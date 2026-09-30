@@ -41,7 +41,7 @@ Among Us temalı "Steal a Brainrot" tarzı Roblox oyunu.
 | `src/client/EggStyle.luau` | İstemci | Yumurta stilleri: kuluçkada süs + boşta animasyon, açılışta stil |
 | `src/client/EventFX.luau` | İstemci | Olay şeridi (üst orta), olay çizelgesi (sağ alt), Lights Sabotage karanlığı |
 | `src/client/*` | İstemci | HUD, efekt, ses, mini harita, dekor |
-| `tests/ServerTests.luau` | Sunucu (elle) | Regresyon testleri |
+| `tests/ServerTests.luau` · `ServerTests2.luau` | Sunucu (elle) | Regresyon testleri (ikiye bölünmüş, `Server.Tests` + `Server.Tests2`) |
 
 **Bağımlılık yönü:** `client → shared ← server`. Sunucu servisleri birbirini `script.Parent.<Servis>` ile çağırır. Shared modülleri hiçbir servise bağımlı değildir — bu yönü bozma.
 
@@ -229,14 +229,17 @@ kat başına kaide 8 -> 10 olduğu için geçildi, slot numaralandırması deği
 
 ## Regresyon testleri
 
-`tests/ServerTests.luau` — 56 test, 300+ kontrol, ~2.3 saniye.
+`tests/ServerTests.luau` + `tests/ServerTests2.luau` — 183 test, 5.200+ kontrol,
+~3.3 saniye. Tek dosya Roblox'un 200.000 karakter betik sınırına dayandığı
+için ikiye bölündü: `Tests` altyapıyı, A-T bölümlerini ve `Run`'ı tutuyor;
+`Tests2` U bölümünden (petler) sonrasını. Yeni testi küçük olana ekle.
 
 **Neden var:** bir kez basılı tutma doğrulaması yüzünden çalma ve satma
 tamamen kırıldı ve ancak elle oynanarak fark edildi. İki kişi aynı sunucu
 dosyalarına yazarken bu tekrar olacak.
 
 **Her sunucu değişikliğinden sonra koş.** Önce dosyayı Studio'ya
-`ServerScriptService.Server.Tests` olarak senkronize et, sonra MCP'nin
+`ServerScriptService.Server.Tests` ve `Server.Tests2` olarak senkronize et, sonra MCP'nin
 `run_script_in_play_mode` aracını `mode = "start_play"` ile kullan:
 
 ```lua

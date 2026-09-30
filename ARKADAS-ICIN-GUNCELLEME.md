@@ -128,7 +128,8 @@ README'de.
 require(game.ServerScriptService.Server.Tests).Run(player)
 ```
 
-`0` dönerse temiz. Yeni özellik eklersen testini de ekle. Periyodik
+`Server.Tests2` de Studio'da olmalı (`tests/ServerTests2.luau`); `Tests`
+onu kendisi çağırıyor. `0` dönerse temiz. Yeni özellik eklersen testini de ekle. Periyodik
 tarama yapan bir servis eklersen `SetPaused` de ekle ve `Run`'da
 duraklat — yoksa tarama test ortasında ödül dağıtıp nakit sayan
 testleri bozuyor.

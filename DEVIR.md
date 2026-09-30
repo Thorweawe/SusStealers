@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (58) — Batur (test dosyası; iki şerit de kullanıyor)
+
+Studio'ya aktarıldı, **183/183 test temiz** (5.272 kontrol).
+
+- **Testler ikiye bölündü**: `tests/ServerTests.luau` 199.5K ile Roblox'un 200.000 karakter sınırına dayanmıştı. Şimdi `ServerTests.luau` (~107K: altyapı, A-T, `Run`) + `ServerTests2.luau` (~98K: U bölümünden sonrası). Studio'da `Server.Tests` ve `Server.Tests2`.
+- `Tests2` yardımcıları (`case/ok/eq/near/clearPlot/setCash`) `Tests`'ten `Register(kit)` ile alıyor, vakalar aynı listeye aynı sırayla ekleniyor. Çalıştırma değişmedi: `require(Server.Tests).Run(player)`. `Tests2` Studio'da yoksa require hata veriyor (testler sessizce eksik koşmuyor).
+- Her dosya yalnızca kullandığı servisleri require ediyor; yeni testte gereken servisi o dosyanın başına ekle. Yeni testleri küçük olan dosyaya koy.
+- `Run` artık koşu boyunca `profile.upgrades`'i boşaltıyor (sonda geri yükleniyor): hesabın Crew Morale 2. seviyesi gelir testlerini ~%3 kaydırıp 2 kontrolü düşürüyordu.
+- `tools/` içinde test yolu sabit yazılı değil (`sync_server.py` her yolu GET ile veriyor); araç değişikliği gerekmedi. 8788'de başka oturumun köprüsü açıktı, aktarım geçici `python -m http.server 8791` ile yapıldı. `HttpEnabled` yine `false`.
+
+---
+
 ## 2026-09-30 (57) — Batur (Yusuf'un şeridine de yazıldı: sezon/ödül paneli)
 
 Studio'ya aktarıldı, **183/183 test temiz**.
