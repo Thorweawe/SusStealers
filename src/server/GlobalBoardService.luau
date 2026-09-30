@@ -161,7 +161,9 @@ local function write(player: Player)
 	for _, board in BOARDS do
 		local store = storeFor(board)
 		if store then
-			local value = math.floor(math.max(0, board.value(profile)))
+			-- OrderedDataStore 64 bit tamsayı istiyor: çok büyük değer (rebirth sonrası
+			-- kentilyon) reddediliyordu ("ValueNotNumeric"), sıralama güncellenmiyordu
+			local value = math.floor(math.clamp(board.value(profile), 0, 9e18))
 			pcall(function()
 				(store :: OrderedDataStore):SetAsync(tostring(player.UserId), value)
 			end)
