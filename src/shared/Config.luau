@@ -1182,7 +1182,9 @@ Config.PremiumIncomeBonus = 0.10
 	`at` UTC saniye (0 = tarih yok, "SOON" yazar).
 ]]
 Config.LiveOps = {
-	nextUpdate = { at = 1791136800, title = "NEW PLANET + PETS" }, -- 4 Eki 2026 18:00 UTC
+	-- 2026-09-30: asıl güncelleme etkinlik (Config.LimitedEvent; tabela onu gösteriyor).
+	-- Etkinlikten sonraki güncellemenin tarihi belli olunca buraya (0 = "SOON!")
+	nextUpdate = { at = 0, title = "MORE PLANETS & EVENTS" },
 	likeGoal = { goal = 100, reward = "SECRET CODE" },
 }
 

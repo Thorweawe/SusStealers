@@ -2168,6 +2168,11 @@ function ServerTests2.Register(kit: Kit)
 		ok("HAUNTED normal zarda yok", not inRoll)
 		ok("sınırlı kozmetik parayla alınmıyor", not CosmeticService.TryBuy(ctx.player, "PumpkinHead"))
 
+		-- Lobi tabelası: yaklaşırken ve sürerken etkinlik, bitince güncelleme
+		ok("tabela: yaklaşırken etkinlik", (LobbyBoardService.EventHeadline(e.startsAt - 3600)) ~= nil)
+		ok("tabela: sürerken etkinlik", (LobbyBoardService.EventHeadline(e.startsAt + 60)) ~= nil)
+		eq("tabela: bitince güncelleme", (LobbyBoardService.EventHeadline(e.endsAt + 60)), nil)
+
 		-- Etkinlik dışında: şeker yok, dükkân kapalı
 		e.startsAt, e.endsAt = os.time() + 3600, os.time() + 7200
 		eq("dışarıda soygun şekeri yok", Config.GetHeistCandy("RedCrew", nil, os.time()), 0)
