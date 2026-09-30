@@ -40,6 +40,7 @@ local EconomyService = require(script.Parent.EconomyService)
 local AnnounceService = require(script.Parent.AnnounceService)
 local SpaceService = require(script.Parent.SpaceService)
 local SpaceBonusService = require(script.Parent.SpaceBonusService)
+local LimitedEventService = require(script.Parent.LimitedEventService)
 
 local EventService = {}
 
@@ -95,7 +96,7 @@ local function publishNext(now: number)
 			continue
 		end
 		local at = Config.GetNextEventStart(def, now + 1)
-		if at < bestAt then
+		if at < bestAt and Config.IsEventScheduled(def, at) then
 			bestDef, bestAt = def, at
 		end
 	end
@@ -309,6 +310,8 @@ local BEGIN: { [string]: () -> (() -> ())? } = {
 	Comet = beginComet,
 	Meteors = beginMeteors,
 	Blackout = beginBlackout,
+	-- Sınırlı etkinliğin yıldız yağmuru (yalnızca etkinlikte; LimitedEventService)
+	EventShower = LimitedEventService.StartShower,
 }
 
 --[[
@@ -405,7 +408,8 @@ function EventService.Start()
 				end
 				local nextAt = Config.GetNextEventStart(def, now)
 				-- Uyarı: başlangıçtan EventWarning saniye önce, slot başına bir kez
-				if nextAt - now <= Config.EventWarning and nextAt > now and warned[def.id] ~= nextAt then
+				if nextAt - now <= Config.EventWarning and nextAt > now and warned[def.id] ~= nextAt
+					and Config.IsEventScheduled(def, nextAt) then
 					warned[def.id] = nextAt
 					notifyAll(string.format("%s in %d seconds!", def.name, nextAt - now))
 				end
@@ -415,7 +419,7 @@ function EventService.Start()
 					saniye atlayabiliyor ve olay hiç başlamazdı.
 				]]
 				local lastAt = if nextAt == now then now else nextAt - def.every
-				if now - lastAt < 5 and started[def.id] ~= lastAt then
+				if now - lastAt < 5 and started[def.id] ~= lastAt and Config.IsEventScheduled(def, lastAt) then
 					started[def.id] = lastAt
 					EventService.Begin(def.id, now)
 				end

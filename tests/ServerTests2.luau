@@ -655,13 +655,17 @@ function ServerTests2.Register(kit: Kit)
 			ok(id .. " tanımlı", ids[id] == true)
 		end
 		-- "Özel an": saatte en fazla iki sabit olay (+ ara sıra sürpriz)
-		local perHour = 0
+		local perHour, limitedPerHour = 0, 0
 		for _, def in Config.Events do
-			if not def.random then
+			if def.limited then
+				limitedPerHour += 3600 / def.every
+			elseif not def.random then
 				perHour += 3600 / def.every
 			end
 		end
 		ok("saatte en fazla iki sabit olay", perHour <= 2, tostring(perHour))
+		-- Sınırlı etkinlikte yağmur da ekleniyor: yine de saatte en fazla dört an
+		ok("etkinlikte saatte en fazla dört an", perHour + limitedPerHour <= 4, tostring(perHour + limitedPerHour))
 
 		-- 24 saat boyunca her olayın penceresi (uyarı dahil) başka bir olayınkiyle kesişmesin
 		local day0 = 1_700_000_000 - (1_700_000_000 % 86400)
@@ -2128,6 +2132,7 @@ function ServerTests2.Register(kit: Kit)
 		local keepLimited = p.limited
 		local keepCos, keepHat, keepTrail = table.clone(p.cosmetics), p.hat, p.trail
 		local keepSuper = p.superSpins
+		local keepTokens = p.spinTokens
 
 		--[[ Tanım denetimi: aktif etkinlik VE Cadılar Bayramı taslağı (ileride
 		     Config.LimitedEvent'e konunca bozuk çıkmasın). Fiyat ucuzdan pahalıya
@@ -2159,6 +2164,25 @@ function ServerTests2.Register(kit: Kit)
 			end
 			ok(tag .. "süs türü", ev.decor == "stars" or ev.decor == "pumpkins")
 			ok(tag .. "süre", ev.endsAt > ev.startsAt)
+			-- Giriş takvimi artıyor, yıldız yolu sıralı ve ödülleri tanınıyor
+			ok(tag .. "takvim 7 gün", #ev.dailyLadder == 7)
+			for i = 2, #ev.dailyLadder do
+				ok(tag .. "takvim artıyor " .. i, ev.dailyLadder[i] >= ev.dailyLadder[i - 1])
+			end
+			local prevAt = 0
+			for i, step in ev.milestones do
+				ok(tag .. "yol sıralı " .. i, step.at > prevAt)
+				prevAt = step.at
+				local kind = step.reward.kind
+				ok(tag .. "yol ödülü " .. i, kind == "unit" or kind == "cash" or kind == "spins" or kind == "superspin" or kind == "potion")
+				ok(tag .. "yol etiketi " .. i, #step.label > 0)
+			end
+			local sh = ev.shower
+			ok(tag .. "yağmur miktarı", sh.min >= 1 and sh.max >= sh.min and sh.superAmount > sh.max)
+			ok(tag .. "yağmur ihtimali", sh.superChance > 0 and sh.superChance < 0.5)
+			ok(tag .. "yağmur periyot içinde", sh.duration + Config.EventWarning < sh.every and sh.offset < sh.every)
+			ok(tag .. "son gün çarpanı", ev.finalDayMul >= 1)
+			ok(tag .. "yol adı", #ev.text.path > 0)
 		end
 		checkDef(e, "aktif: ")
 		checkDef(Config.SpookyEventDraft, "cadılar: ")
@@ -2200,22 +2224,117 @@ function ServerTests2.Register(kit: Kit)
 		eq("dışarıda soygun şekeri yok", Config.GetHeistCandy("RedCrew", nil, os.time()), 0)
 		ok("dışarıda dükkân kapalı", not (LimitedEventService.Buy(ctx.player, spinItem.id)))
 
-		-- Etkinlik sürerken
-		e.startsAt, e.endsAt = os.time() - 60, os.time() + 3600
+		-- Takvim: yağmur yalnızca etkinlikte
+		local shower: Config.EventDef? = nil
+		for _, def in Config.Events do
+			if def.id == "EventShower" then
+				shower = def
+			end
+		end
+		ok("yağmur takvimde", shower ~= nil and shower.limited == true)
+		if shower then
+			ok("dışarıda yağmur yok", not Config.IsEventScheduled(shower, os.time()))
+		end
+		eq("dışarıda yağmur başlamıyor", LimitedEventService.StartShower(), nil)
+
+		-- Etkinlik sürerken (son gün değil)
+		e.startsAt, e.endsAt = os.time() - 60, os.time() + 3 * 86400
 		local common = e.candyByRarity.Common
+		ok("son gün değil", not Config.IsEventFinalDay(os.time()))
 		eq("sade soygun", Config.GetHeistCandy("RedCrew", nil, os.time()), common)
 		eq("mutasyonlu soygun", Config.GetHeistCandy("RedCrew", "Golden", os.time()), common * e.mutationCandyMul)
 		eq("etkinlik mutasyonlu soygun", Config.GetHeistCandy("RedCrew", e.mutation, os.time()), common * e.eventMutationMul)
+		if shower then
+			ok("etkinlikte yağmur var", Config.IsEventScheduled(shower, os.time()))
+		end
+		local sh = e.shower
+		local amount, super = LimitedEventService.RollStar(0.99, sh.max + 50)
+		ok("yıldız en fazla max", amount == sh.max and not super)
+		amount, super = LimitedEventService.RollStar(0, nil)
+		ok("SUPERNOVA", amount == sh.superAmount and super)
+		eq("takvim 1. gün", Config.EventDailyAmount(1), e.dailyLadder[1])
+		eq("takvim sonrası son değer", Config.EventDailyAmount(20), e.dailyLadder[#e.dailyLadder])
+
+		-- Son gün: her şey finalDayMul katı, tabela söylüyor
+		e.endsAt = os.time() + 3600
+		ok("son gün", Config.IsEventFinalDay(os.time()))
+		eq("son gün soygun", Config.GetHeistCandy("RedCrew", nil, os.time()), common * e.finalDayMul)
+		amount = LimitedEventService.RollStar(0.99, sh.min)
+		eq("son gün yıldız", amount, sh.min * e.finalDayMul)
+		local title = LobbyBoardService.EventHeadline(os.time())
+		ok("tabela son gün", title ~= nil and string.find(title :: string, "FINAL") ~= nil)
+		e.endsAt = os.time() + 3 * 86400
 
 		-- Eski etkinliğin sayacı sıfırlanıyor
-		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0 }
+		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0, days = 4, ms = 3 }
 		LimitedEventService.Publish(ctx.player)
 		eq("yeni etkinlikte şeker sıfır", p.limited.candy, 0)
+		eq("yeni etkinlikte takvim sıfır", p.limited.days, 0)
+		eq("yeni etkinlikte yol sıfır", p.limited.ms, 0)
 		eq("nitelik", ctx.player:GetAttribute("EventCandy"), 0)
 
 		ok("günlük bonus", LimitedEventService.Daily(ctx.player))
-		eq("bonus şekeri", p.limited.candy, e.dailyBonus)
+		eq("bonus şekeri (1. gün)", p.limited.candy, e.dailyLadder[1])
+		eq("takvim günü", p.limited.days, 1)
+		eq("gün niteliği", ctx.player:GetAttribute("EventDays"), 1)
+		eq("bugün alındı niteliği", ctx.player:GetAttribute("EventDayDone"), true)
 		ok("aynı gün ikinci bonus yok", not LimitedEventService.Daily(ctx.player))
+		-- Takvimin ilerisi: 7. gün büyük ödül
+		p.limited.days, p.limited.lastDaily, p.limited.candy = 6, 0, 0
+		ok("7. gün", LimitedEventService.Daily(ctx.player))
+		eq("7. gün şekeri", p.limited.candy, e.dailyLadder[7])
+
+		-- Yıldız yolu: basamağa varınca kendiliğinden, sırayla; atlamada hepsi
+		clearPlot(ctx.plot)
+		p.limited.earned, p.limited.ms, p.limited.candy = 0, 0, 0
+		local ms = e.milestones
+		local tokens = p.spinTokens
+		LimitedEventService.AddCandy(ctx.player, ms[1].at - 1)
+		eq("basamağın altında ödül yok", p.limited.ms, 0)
+		LimitedEventService.AddCandy(ctx.player, 1)
+		eq("1. basamak", p.limited.ms, 1)
+		if ms[1].reward.kind == "spins" then
+			eq("1. basamak çarkları", p.spinTokens, tokens + (ms[1].reward.count or 1))
+		end
+		eq("yol niteliği", ctx.player:GetAttribute("EventMs"), 1)
+		local unitStep = 0
+		for i, step in ms do
+			if step.reward.kind == "unit" and unitStep == 0 then
+				unitStep = i
+			end
+		end
+		if unitStep > 0 then
+			LimitedEventService.AddCandy(ctx.player, ms[unitStep].at - p.limited.earned)
+			eq("atlayınca aradakiler de", p.limited.ms, unitStep)
+			local starborn = false
+			for _, podium in PlotService.GetUnlockedPodiums(ctx.plot) do
+				if podium:GetAttribute("MutationId") == e.mutation then
+					starborn = true
+				end
+			end
+			ok("yol mürettebatı etkinlik mutasyonlu", starborn)
+		end
+		eq("yol candy'yi harcamıyor", p.limited.candy, p.limited.earned)
+		clearPlot(ctx.plot)
+		p.limited.ms = #ms
+		eq("yolun sonu", (Config.EventNextMilestone(#ms)), nil)
+
+		-- Yağmur: yıldızlar uzaya düşüyor, ilk dokunan alıyor, bitince kayboluyor
+		local stop = LimitedEventService.StartShower()
+		ok("yağmur başladı", stop ~= nil)
+		if stop then
+			local list = LimitedEventService._Stars()
+			ok("yıldız düştü", #list > 0 and workspace:FindFirstChild("EventStars") ~= nil)
+			if #list > 0 then
+				local before = p.limited.candy
+				local got = LimitedEventService._CollectStar(ctx.player, 1)
+				ok("yıldız verdi", got > 0)
+				eq("yıldız parası", p.limited.candy, before + got)
+			end
+			stop()
+			eq("bitince yıldız yok", workspace:FindFirstChild("EventStars"), nil)
+			eq("liste boş", #LimitedEventService._Stars(), 0)
+		end
 
 		-- Dükkân
 		p.limited.candy = 0
@@ -2271,6 +2390,9 @@ function ServerTests2.Register(kit: Kit)
 		p.limited = keepLimited
 		p.cosmetics, p.hat, p.trail = keepCos, keepHat, keepTrail
 		p.superSpins = keepSuper
+		p.spinTokens = keepTokens
+		ctx.player:SetAttribute("SpinTokens", keepTokens)
+		ctx.player:SetAttribute("SuperSpins", keepSuper)
 		CosmeticService.Apply(ctx.player)
 		CosmeticService.Publish(ctx.player)
 		LimitedEventService.Publish(ctx.player)

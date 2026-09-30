@@ -9,6 +9,9 @@
 	  Nebula Blackout — uzaydayken ekran kararıp mora çalıyor, karakterin
 	                    başında el feneri (SpotLight) yanıyor; mürettebat
 	                    auraları ve canavar gözleri karanlıkta öne çıkıyor.
+	  Etkinlik yağmuru — (LimitedEventService, workspace.EventStars) sunucu
+	                    yıldızı yerine koyuyor; burada gökten kuyruklu bir
+	                    göktaşı olarak düşüp yerine oturuyor, alınınca patlıyor.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -206,6 +209,96 @@ function SpaceEventsFX.Start(): Handle
 			end
 		end
 	end))
+
+	-- ─── Etkinlik yağmuru: yıldızlar gökten düşsün ───────────────────────
+	local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+	local function burst(at: Vector3, color: Color3, count: number)
+		local host = part("StarBurst", Vector3.one * 0.2, color)
+		host.Transparency = 1
+		host.Position = at
+		host.Parent = folder
+		local e = Instance.new("ParticleEmitter")
+		e.Texture = SPARKLE
+		e.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+		e.LightEmission = 1
+		e.Size = NumberSequence.new(1.1, 0)
+		e.Lifetime = NumberRange.new(0.5, 0.9)
+		e.Speed = NumberRange.new(10, 22)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Rate = 0
+		e.Parent = host
+		e:Emit(count)
+		task.delay(1.2, function()
+			host:Destroy()
+		end)
+	end
+	local function setShown(star: BasePart, on: boolean)
+		star.LocalTransparencyModifier = if on then 0 else 1
+		for _, d in star:GetDescendants() do
+			if d:IsA("BillboardGui") or d:IsA("ParticleEmitter") or d:IsA("PointLight") then
+				(d :: any).Enabled = on
+			end
+		end
+	end
+	local function fall(star: Instance)
+		if not star:IsA("BasePart") then
+			return
+		end
+		local target = star.Position
+		local color = star.Color
+		-- Uzaktakiler için göktaşı yok (yalnızca yerinde belirir)
+		local cam = workspace.CurrentCamera
+		if cam and (cam.CFrame.Position - target).Magnitude > 700 then
+			return
+		end
+		setShown(star, false)
+		local from = target + Vector3.new(math.random(-60, 60), 160, math.random(-60, 60))
+		local meteor = part("FallingStar", Vector3.one * (star.Size.X * 0.8), color, nil, Enum.PartType.Ball)
+		meteor.Position = from
+		meteor.Parent = folder
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, star.Size.X * 0.4, 0)
+		a0.Parent = meteor
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -star.Size.X * 0.4, 0)
+		a1.Parent = meteor
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+		trail.LightEmission = 1
+		trail.Lifetime = 0.45
+		trail.FaceCamera = true
+		trail.Transparency = NumberSequence.new(0, 1)
+		trail.WidthScale = NumberSequence.new(1, 0)
+		trail.Parent = meteor
+		local tween = TweenService:Create(meteor, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = target })
+		tween.Completed:Connect(function()
+			meteor:Destroy()
+			if star.Parent then
+				setShown(star, true)
+				burst(target, color, 18)
+			end
+		end)
+		tween:Play()
+	end
+	local function watchStars(bin: Instance)
+		if bin.Name ~= "EventStars" then
+			return
+		end
+		table.insert(conns, bin.ChildAdded:Connect(fall))
+		-- Alınan yıldız (ilk dokunan) yerinde patlasın
+		table.insert(conns, bin.ChildRemoved:Connect(function(star)
+			if star:IsA("BasePart") and bin.Parent then
+				burst(star.Position, star.Color, 30)
+			end
+		end))
+	end
+	table.insert(conns, workspace.ChildAdded:Connect(watchStars))
+	local existing = workspace:FindFirstChild("EventStars")
+	if existing then
+		watchStars(existing)
+	end
 
 	return {
 		Destroy = function()

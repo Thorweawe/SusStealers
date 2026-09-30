@@ -984,6 +984,7 @@ export type EventDef = {
 	random: boolean?,
 	perHour: number?,
 	chance: number?,   -- rastgele olay: o saat hiç gelmeme ihtimali için (0..1)
+	limited: boolean?, -- yalnızca sınırlı etkinlik sürerken (Config.IsEventScheduled)
 }
 
 Config.Events = {
@@ -1065,7 +1066,9 @@ function Config.GetFixedEventWindows(from: number, to: number): { { number } }
 		end
 		local t = Config.GetNextEventStart(def, from - def.duration - Config.EventWarning)
 		while t < to + Config.EventWarning do
-			table.insert(windows, { t - Config.EventWarning, t + def.duration })
+			if Config.IsEventScheduled(def, t) then
+				table.insert(windows, { t - Config.EventWarning, t + def.duration })
+			end
 			t += def.every
 		end
 	end
@@ -2838,8 +2841,14 @@ end
 	                    (mutationChance), çalınca daha çok etkinlik parası
 	  HEDEF MERDİVENİ — dükkân fiyatları ucuzdan (herkes) pahalıya (sıkı
 	                    oynayan / geç oyun oyuncusu); para nadirlikle artıyor
-	  GERİ DÖNÜŞ      — her gün ilk girişte para (dailyBonus)
-	  ŞEFFAFLIK       — etkinlik mutasyonu ihtimali dükkânda yazıyor
+	  GERİ DÖNÜŞ      — 7 günlük giriş takvimi (dailyLadder: her gün artıyor,
+	                    7. gün büyük) + saatte iki kez YILDIZ YAĞMURU (randevu)
+	  YAKIN KAÇIŞ     — YILDIZ YOLU (milestones): toplam paraya göre bedava
+	                    ödül basamakları, "sıradakine N kaldı" her yerde yazıyor
+	  SOSYAL YARIŞ    — yağmurda yıldızı ilk dokunan alıyor; SUPERNOVA duyuruluyor
+	  KAYIP KORKUSU   — son 24 saat 2x para (finalDayMul), son saat duyurusu
+	  ŞEFFAFLIK       — mutasyon ihtimali, yıldız miktarları ve SUPERNOVA
+	                    ihtimali dükkânda yazıyor
 	  SOSYAL KANIT    — sınırlı kozmetik alınınca sohbete duyuru
 	Zamanlar UTC saniye. Yeni etkinlik = yeni `id` (eski para sıfırlanıyor).
 
@@ -2856,10 +2865,23 @@ export type LimitedEventDef = {
 	color: Color3, color2: Color3,
 	mutation: string, mutationChance: number,
 	candyByRarity: { [string]: number },
-	mutationCandyMul: number, eventMutationMul: number, dailyBonus: number,
+	mutationCandyMul: number, eventMutationMul: number,
+	dailyLadder: { number }, -- etkinlikte giriş yapılan 1., 2., ... günün parası (son değer tekrar)
+	finalDayMul: number,     -- son 24 saatte bütün etkinlik parası çarpanı
+	--[[ Yıldız yağmuru: Config.Events'teki "EventShower" (yalnızca etkinlikte,
+	     saat :15 ve :45). Uzaya `stars` yıldız düşüyor, ilk dokunan alıyor. ]]
+	shower: {
+		name: string, every: number, offset: number, duration: number,
+		stars: number, min: number, max: number,
+		superChance: number, superAmount: number, superName: string,
+	},
+	--[[ Yıldız yolu: etkinlikte KAZANILAN toplam (earned) `at`'a varınca
+	     sırayla kendiliğinden veriliyor. reward.kind: RewardService türleri ya da
+	     "unit" (etkinlik mutasyonlu mürettebat). ]]
+	milestones: { { at: number, label: string, reward: RewardDef } },
 	decor: string,           -- "stars" | "pumpkins"
 	railHat: string,         -- sol raydaki EVENT düğmesinde dönen şapka
-	text: { teaser: string, live: string, hunters: string },
+	text: { teaser: string, live: string, hunters: string, path: string },
 	leaderboard: { rows: number, rewardTop: number, reward: string },
 	shop: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
 }
@@ -2889,13 +2911,28 @@ Config.LimitedEvent = {
 	},
 	mutationCandyMul = 2,   -- başka mutasyonlu çalınca
 	eventMutationMul = 3,   -- STARBORN çalınca (mutasyon çarpanının yerine)
-	dailyBonus = 25,
+	dailyLadder = { 25, 30, 40, 50, 60, 80, 150 },
+	finalDayMul = 2,
+	shower = {
+		name = "STARFALL SHOWER", every = 1800, offset = 15 * 60, duration = 90,
+		stars = 18, min = 4, max = 12, superChance = 0.08, superAmount = 50, superName = "SUPERNOVA STAR",
+	},
+	milestones = {
+		{ at = 40,   label = "3 FREE SPINS",      reward = { kind = "spins", count = 3 } },
+		{ at = 120,  label = "CASH BAG",          reward = { kind = "cash", seconds = 600, minimum = 5000 } },
+		{ at = 250,  label = "STARBORN CREWMATE",  reward = { kind = "unit" } },
+		{ at = 450,  label = "SUPER SPIN",        reward = { kind = "superspin", count = 1 } },
+		{ at = 700,  label = "2 POTIONS",         reward = { kind = "potion", count = 2 } },
+		{ at = 1000, label = "STARBORN CREWMATE",  reward = { kind = "unit" } },
+		{ at = 1500, label = "3 SUPER SPINS",     reward = { kind = "superspin", count = 3 } },
+	},
 	decor = "stars",
 	railHat = "CometCrown",
 	text = {
 		teaser = "LIMITED EVENT · STARDUST SHOP",
 		live = "STARBORN CREW · LIMITED HATS",
 		hunters = "TOP STARDUST COLLECTORS",
+		path = "⭐ STAR PATH",
 	},
 	leaderboard = { rows = 10, rewardTop = 10, reward = "GalaxyHalo" },
 	shop = {
@@ -2934,15 +2971,30 @@ Config.SpookyEventDraft = {
 		Common = 1, Uncommon = 2, Rare = 4, Epic = 7, Legendary = 12,
 		Mythic = 20, Secret = 35, Celestial = 50,
 	},
-	mutationCandyMul = 2,
-	eventMutationMul = 3,
-	dailyBonus = 25,
+	mutationCandyMul = 2,   -- başka mutasyonlu çalınca
+	eventMutationMul = 3,   -- HAUNTED çalınca (mutasyon çarpanının yerine)
+	dailyLadder = { 25, 30, 40, 50, 60, 80, 150 },
+	finalDayMul = 2,
+	shower = {
+		name = "CANDY RAIN", every = 1800, offset = 15 * 60, duration = 90,
+		stars = 18, min = 4, max = 12, superChance = 0.08, superAmount = 50, superName = "GOLDEN CANDY",
+	},
+	milestones = {
+		{ at = 40,   label = "3 FREE SPINS",      reward = { kind = "spins", count = 3 } },
+		{ at = 120,  label = "CASH BAG",          reward = { kind = "cash", seconds = 600, minimum = 5000 } },
+		{ at = 250,  label = "HAUNTED CREWMATE",  reward = { kind = "unit" } },
+		{ at = 450,  label = "SUPER SPIN",        reward = { kind = "superspin", count = 1 } },
+		{ at = 700,  label = "2 POTIONS",         reward = { kind = "potion", count = 2 } },
+		{ at = 1000, label = "HAUNTED CREWMATE",  reward = { kind = "unit" } },
+		{ at = 1500, label = "3 SUPER SPINS",     reward = { kind = "superspin", count = 3 } },
+	},
 	decor = "pumpkins",
 	railHat = "PumpkinHead",
 	text = {
 		teaser = "LIMITED EVENT · CANDY SHOP",
 		live = "HAUNTED CREW · LIMITED HATS",
 		hunters = "TOP CANDY HUNTERS",
+		path = "🍭 CANDY PATH",
 	},
 	leaderboard = { rows = 10, rewardTop = 10, reward = "CandyCrown" },
 	shop = {
@@ -2982,12 +3034,56 @@ function Config.GetHeistCandy(unitId: string, mutationId: string?, now: number):
 	local e = Config.LimitedEvent
 	local def = Config.GetUnit(unitId)
 	local base = if def then (e.candyByRarity[def.rarity] or 1) else 1
+	local mul = Config.EventCandyMul(now)
 	if mutationId == e.mutation then
-		return base * e.eventMutationMul
+		return base * e.eventMutationMul * mul
 	elseif mutationId and mutationId ~= "" then
-		return base * e.mutationCandyMul
+		return base * e.mutationCandyMul * mul
 	end
-	return base
+	return base * mul
+end
+
+--[[ Son 24 saat mi (etkinlik sürerken). ]]
+function Config.IsEventFinalDay(now: number): boolean
+	local e = Config.LimitedEvent
+	return Config.IsLimitedEventActive(now) and e.endsAt - now <= 86400
+end
+
+--[[ Etkinlik parası çarpanı: son gün finalDayMul, yoksa 1. ]]
+function Config.EventCandyMul(now: number): number
+	return if Config.IsEventFinalDay(now) then Config.LimitedEvent.finalDayMul else 1
+end
+
+--[[ Giriş takvimi: etkinlikte `day`. giriş gününün parası (1'den; son değer tekrar). ]]
+function Config.EventDailyAmount(day: number): number
+	local ladder = Config.LimitedEvent.dailyLadder
+	return ladder[math.clamp(day, 1, #ladder)]
+end
+
+--[[
+	Yıldız yolu: `claimed` basamak alınmışken sıradaki basamak (yoksa nil) ve
+	sırası. İstemci ilerleme çubuğu, sunucu verme için aynısını kullanıyor.
+]]
+function Config.EventNextMilestone(claimed: number): (any, number)
+	local list = Config.LimitedEvent.milestones
+	return list[claimed + 1], claimed + 1
+end
+
+--[[ Takvimdeki bir olay `at` anında gerçekten var mı (etkinlik olayları yalnızca etkinlikte). ]]
+function Config.IsEventScheduled(def: EventDef, at: number): boolean
+	return not def.limited or Config.IsLimitedEventActive(at)
+end
+
+--[[
+	Etkinlik yağmurunu olay takvimine ekler (Config.Events'e "EventShower",
+	limited = true). Etkinlik değişince adı ve saati Config.LimitedEvent'ten.
+]]
+do
+	local sh = Config.LimitedEvent.shower
+	table.insert(Config.Events, {
+		id = "EventShower", name = sh.name, every = sh.every, offset = sh.offset,
+		duration = sh.duration, limited = true,
+	})
 end
 
 -- ─── Gezen impostor (NPC) ───────────────────────────────────────────────────

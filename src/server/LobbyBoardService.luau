@@ -164,6 +164,9 @@ function LobbyBoardService.EventHeadline(now: number): (string?, string?, string
 	local e = Config.LimitedEvent
 	if now < e.startsAt and e.startsAt - now <= 7 * 86400 then
 		return e.emoji .. " " .. e.name, "IN " .. clock(e.startsAt - now), e.text.teaser
+	elseif Config.IsEventFinalDay(now) then
+		return e.emoji .. " FINAL DAY!", "ENDS " .. clock(e.endsAt - now),
+			string.format("%dX %s · LAST CHANCE", e.finalDayMul, string.upper(e.currency))
 	elseif Config.IsLimitedEventActive(now) then
 		return e.emoji .. " " .. e.name, "ENDS " .. clock(e.endsAt - now), e.text.live
 	end

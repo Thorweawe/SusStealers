@@ -7,8 +7,12 @@
 	       "ENDS IN" — kıtlık hissi), şeker bakiyesi
 	  Orta: etkinlik parası nasıl kazanılır + etkinlik mutasyonu ihtimali (şeffaflık)
 	  Metinler, renkler, simge Config.LimitedEvent'ten (temadan bağımsız).
-	  Alt: dükkân — beş ürün, ucuzdan pahalıya (hedef merdiveni); fiyat,
-	       alınan / en fazla, BUY düğmesi. Kozmetiklerde dönen 3B önizleme.
+	  Liste: YILDIZ YAĞMURU kartı (sıradakine geri sayım, miktarlar ve
+	       SUPERNOVA ihtimali — şeffaflık), YILDIZ YOLU (bedava ödül basamakları,
+	       ilerleme çubuğu, "N kaldı" — yakın kaçış), 7 GÜNLÜK GİRİŞ (yarın ne
+	       geleceği — geri dönüş), sonra dükkân — beş ürün, ucuzdan pahalıya
+	       (hedef merdiveni); fiyat, alınan / en fazla, BUY düğmesi. Kozmetiklerde
+	       dönen 3B önizleme. En altta sıralama.
 
 	Sol raydaki EVENT düğmesi (init.client) açıyor; düğme etkinlikten
 	3 gün önce görünmeye başlıyor (merak), bitince kayboluyor.
@@ -135,8 +139,8 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- ─── Nasıl kazanılır ────────────────────────────────────────────────
 	local how = CardKit.bold(body, string.format(
-		"Steal crewmates to earn %s %s (rarer = more)  ·  %s crewmates give %dx  ·  +%d every day",
-		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul, e.dailyBonus), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
+		"Steal crewmates for %s %s (rarer = more)  ·  %s crewmates give %dx  ·  catch falling stars  ·  log in daily",
+		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
 	how.Position = UDim2.fromOffset(12, 108)
 	how.Size = UDim2.new(1, -24, 0, 20)
 	CardKit.fit(how, 15, 10)
@@ -163,6 +167,192 @@ function EventPanel.Create(screen: Instance): Panel
 	layout.Padding = UDim.new(0, 8)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = list
+
+	-- ─── Yağmur, yıldız yolu, giriş takvimi (listenin başı) ─────────────
+	local function section(order: number, height: number, tint: Color3): Frame
+		local holder = Instance.new("Frame")
+		holder.LayoutOrder = order
+		holder.Size = UDim2.new(1, -10, 0, height)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = Z + 2
+		holder.Parent = list
+		return CardKit.card(holder, tint, UDim2.fromScale(1, 1), Z + 2)
+	end
+	local function line(parent: Instance, text: string, size: number, color: Color3, y: number): TextLabel
+		local l = CardKit.bold(parent, text, size, color, Z + 4, 2)
+		l.Position = UDim2.fromOffset(14, y)
+		l.Size = UDim2.new(1, -28, 0, size + 4)
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		CardKit.fit(l, size, 9)
+		return l
+	end
+
+	-- Yıldız yağmuru: ne zaman, ne kadar (ihtimal açık)
+	local sh = e.shower
+	local showerCard = section(-3, 68, e.color:Lerp(Color3.new(0, 0, 0), 0.25))
+	local showerTitle = line(showerCard, "", 20, Color3.new(1, 1, 1), 8)
+	line(showerCard, string.format("Stars give %d-%d %s  ·  1 in %d is a %s (%d %s)  ·  first to touch wins!",
+		sh.min, sh.max, e.icon, math.floor(1 / sh.superChance + 0.5), sh.superName, sh.superAmount, e.icon),
+		14, Color3.fromRGB(255, 235, 170), 38)
+	local showerDef: Config.EventDef? = nil
+	for _, def in Config.Events do
+		if def.id == "EventShower" then
+			showerDef = def
+		end
+	end
+
+	-- Yıldız yolu: bedava ödül basamakları
+	local milestones = e.milestones
+	local pathCard = section(-2, 124, e.color2)
+	line(pathCard, e.text.path .. "  ·  FREE REWARDS", 20, CardKit.YELLOW, 8)
+	local pathNext = line(pathCard, "", 15, Color3.new(1, 1, 1), 34)
+	local track = Instance.new("Frame")
+	track.Position = UDim2.new(0, 26, 0, 68)
+	track.Size = UDim2.new(1, -52, 0, 12)
+	track.BackgroundColor3 = Color3.fromRGB(20, 22, 40)
+	track.BorderSizePixel = 0
+	track.ZIndex = Z + 4
+	track.Parent = pathCard
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1, 0)
+	trackCorner.Parent = track
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = e.color
+	fill.BorderSizePixel = 0
+	fill.ZIndex = Z + 5
+	fill.Parent = track
+	trackCorner:Clone().Parent = fill
+	local dots: { Frame } = {}
+	for i, step in milestones do
+		local dot = Instance.new("Frame")
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.fromScale(i / #milestones, 0.5)
+		dot.Size = UDim2.fromOffset(24, 24)
+		dot.BackgroundColor3 = CardKit.GREY
+		dot.BorderSizePixel = 0
+		dot.ZIndex = Z + 6
+		dot.Parent = track
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = dot
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2
+		stroke.Color = Color3.fromRGB(10, 12, 24)
+		stroke.Parent = dot
+		local mark = CardKit.bold(dot, tostring(i), 13, Color3.new(1, 1, 1), Z + 7, 1.5)
+		mark.Size = UDim2.fromScale(1, 1)
+		local at = CardKit.bold(track, tostring(step.at), 12, Color3.fromRGB(220, 226, 245), Z + 6, 1.5)
+		at.AnchorPoint = Vector2.new(0.5, 0)
+		at.Position = UDim2.new(i / #milestones, 0, 1, 10)
+		at.Size = UDim2.fromOffset(60, 14)
+		table.insert(dots, dot)
+	end
+
+	-- Giriş takvimi: 7 gün, her gün artıyor
+	local ladder = e.dailyLadder
+	local dayCard = section(-1, 112, e.color:Lerp(e.color2, 0.5):Lerp(Color3.new(0, 0, 0), 0.2))
+	local dayTitle = line(dayCard, "", 20, Color3.new(1, 1, 1), 8)
+	local dayBoxes: { { box: Frame, top: TextLabel, amount: TextLabel } } = {}
+	local boxRow = Instance.new("Frame")
+	boxRow.Position = UDim2.fromOffset(12, 36)
+	boxRow.Size = UDim2.new(1, -24, 0, 46)
+	boxRow.BackgroundTransparency = 1
+	boxRow.ZIndex = Z + 4
+	boxRow.Parent = dayCard
+	for i = 1, #ladder do
+		local box = Instance.new("Frame")
+		box.Position = UDim2.new((i - 1) / #ladder, 3, 0, 0)
+		box.Size = UDim2.new(1 / #ladder, -6, 1, 0)
+		box.BackgroundColor3 = Color3.fromRGB(24, 26, 46)
+		box.BorderSizePixel = 0
+		box.ZIndex = Z + 4
+		box.Parent = boxRow
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 8)
+		c.Parent = box
+		local top = CardKit.bold(box, "DAY " .. i, 12, Color3.fromRGB(200, 208, 235), Z + 5, 1.5)
+		top.Position = UDim2.fromOffset(0, 3)
+		top.Size = UDim2.new(1, 0, 0, 16)
+		CardKit.fit(top, 12, 8)
+		local amount = CardKit.bold(box, string.format("+%d", ladder[i]), 17, Color3.new(1, 1, 1), Z + 5, 2)
+		amount.Position = UDim2.fromOffset(0, 20)
+		amount.Size = UDim2.new(1, 0, 0, 22)
+		CardKit.fit(amount, 17, 9)
+		table.insert(dayBoxes, { box = box, top = top, amount = amount })
+	end
+	local daySub = line(dayCard, "", 14, Color3.fromRGB(255, 235, 170), 88)
+
+	local function numberAttr(name: string): number
+		local v = player:GetAttribute(name)
+		return if typeof(v) == "number" then v else 0
+	end
+
+	local function redrawExtras(now: number, active: boolean)
+		-- Yağmur
+		if not active then
+			showerTitle.Text = string.format("%s %s: every %d min during the event", e.emoji, sh.name, sh.every // 60)
+		elseif workspace:GetAttribute("EventId") == "EventShower" then
+			showerTitle.Text = string.format("%s %s IS ON! Fly into space and catch stars!", e.emoji, sh.name)
+		elseif showerDef then
+			showerTitle.Text = string.format("%s %s every %d min  ·  next in %s", e.emoji, sh.name, sh.every // 60,
+				clock(Config.GetNextEventStart(showerDef, now) - now))
+		end
+
+		-- Yıldız yolu
+		local earned = numberAttr("EventEarned")
+		local claimed = numberAttr("EventMs")
+		local reached = 0
+		for _, step in milestones do
+			if earned >= step.at then
+				reached += 1
+			end
+		end
+		local seg = 0
+		local nextStep = milestones[reached + 1]
+		if nextStep then
+			local prevAt = if reached > 0 then milestones[reached].at else 0
+			seg = math.clamp((earned - prevAt) / math.max(1, nextStep.at - prevAt), 0, 1)
+		end
+		fill.Size = UDim2.fromScale(math.clamp((reached + seg) / #milestones, 0, 1), 1)
+		for i, dot in dots do
+			dot.BackgroundColor3 = if i <= claimed then CardKit.YELLOW elseif i <= reached then e.color else CardKit.GREY
+		end
+		local pending = milestones[claimed + 1]
+		if not pending then
+			pathNext.Text = "PATH COMPLETE! You got every reward"
+		elseif earned >= pending.at then
+			pathNext.Text = string.format("Your %s is waiting: free a podium to get it!", pending.label)
+		else
+			pathNext.Text = string.format("Next: %s at %d %s  ·  only %d to go!", pending.label, pending.at, e.icon, pending.at - earned)
+		end
+
+		-- Giriş takvimi
+		local days = numberAttr("EventDays")
+		local doneToday = player:GetAttribute("EventDayDone") == true
+		dayTitle.Text = string.format("📅 DAILY %s  ·  DAY %d / %d", string.upper(e.currency), math.min(days, #ladder), #ladder)
+		local nextDay = days + 1
+		for i, b in dayBoxes do
+			if i <= days then
+				b.box.BackgroundColor3 = CardKit.GREEN:Lerp(Color3.new(0, 0, 0), 0.2)
+				b.top.Text = "✓ DAY " .. i
+			elseif i == nextDay then
+				b.box.BackgroundColor3 = e.color:Lerp(Color3.new(0, 0, 0), 0.1)
+				b.top.Text = if doneToday then "TOMORROW" else "TODAY"
+			else
+				b.box.BackgroundColor3 = Color3.fromRGB(24, 26, 46)
+				b.top.Text = "DAY " .. i
+			end
+		end
+		if not active then
+			daySub.Text = string.format("Log in every day of the event: up to +%d %s on day %d!", ladder[#ladder], e.icon, #ladder)
+		elseif doneToday and (Config.DayIndex(now) + 1) * 86400 < e.endsAt then
+			-- Yarın (UTC gün başı) etkinlik hâlâ sürüyorsa
+			daySub.Text = string.format("Come back tomorrow for +%d %s - don't miss it!", Config.EventDailyAmount(nextDay), e.icon)
+		else
+			daySub.Text = "Log in every day - the rewards keep growing!"
+		end
+	end
 
 	local shopRemote = Net.Get("EventShop")
 	type Row = { item: any, buy: CardKit.Button, count: TextLabel }
@@ -315,6 +505,9 @@ function EventPanel.Create(screen: Instance): Panel
 		if now < e.startsAt then
 			countTitle.Text = "EVENT STARTS IN"
 			countText.Text = clock(e.startsAt - now)
+		elseif Config.IsEventFinalDay(now) then
+			countTitle.Text = string.format("FINAL DAY! %dX %s · ENDS IN", e.finalDayMul, e.icon)
+			countText.Text = clock(e.endsAt - now)
 		elseif active then
 			countTitle.Text = "LIMITED! ENDS IN"
 			countText.Text = clock(e.endsAt - now)
@@ -322,6 +515,7 @@ function EventPanel.Create(screen: Instance): Panel
 			countTitle.Text = "EVENT OVER"
 			countText.Text = "SEE YOU NEXT TIME"
 		end
+		redrawExtras(now, active)
 		local candy = player:GetAttribute("EventCandy")
 		candy = if typeof(candy) == "number" then candy else 0
 		candyText.Text = string.format("%s %d", e.icon, candy)
@@ -357,7 +551,7 @@ function EventPanel.Create(screen: Instance): Panel
 			redraw()
 		end
 	end)
-	for _, attr in { "EventCandy", "EventBought" } do
+	for _, attr in { "EventCandy", "EventBought", "EventEarned", "EventMs", "EventDays", "EventDayDone" } do
 		player:GetAttributeChangedSignal(attr):Connect(function()
 			if root.Visible then
 				redraw()

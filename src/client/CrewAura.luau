@@ -14,6 +14,8 @@
 	  Rare+       — çevresinde dönen ışık küreleri + nokta ışık
 	  Legendary+  — gökyüzüne ışık sütunu + ara ara yıldız patlaması
 	  mutasyonlu  — mutasyon renginde ikinci ışıltı katmanı
+	  etkinlik    — etkinlik mutasyonu (STARBORN): başının üstünden yağan
+	                yıldızlar, uzaktan "bu özel" desin
 
 	Kameradan uzaktakilerin dönen parçaları güncellenmiyor (performans).
 ]]
@@ -147,6 +149,16 @@ function CrewAura.Start(): Handle
 		if mutation then
 			local mc = mutation.tint or Color3.fromRGB(255, 255, 200)
 			sparkles(emitterHost, mc, 4, 0.5, 30)
+			if mutation.id == Config.LimitedEvent.mutation then
+				local sky = part(folder, "EventRain", Vector3.new(radius * 1.6, 0.1, radius * 1.6),
+					base * CFrame.new(0, size.Y + 3, 0), mc, 1)
+				local rain = sparkles(sky, Config.LimitedEvent.color, 7, 0.55, 10)
+				rain.Name = "EventRain"
+				rain.EmissionDirection = Enum.NormalId.Bottom
+				rain.Acceleration = Vector3.new(0, -4, 0)
+				rain.Speed = NumberRange.new(2, 4)
+				rain.Lifetime = NumberRange.new(0.9, 1.4)
+			end
 		end
 
 		-- Dönen küreler ve ışık

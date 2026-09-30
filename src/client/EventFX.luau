@@ -45,6 +45,8 @@ local ACCENT: { [string]: Color3 } = {
 	Comet = Color3.fromRGB(255, 205, 60),
 	Meteors = Color3.fromRGB(255, 120, 50),
 	Blackout = Color3.fromRGB(110, 70, 200),
+	-- Sınırlı etkinliğin yağmuru: etkinliğin rengi
+	EventShower = Config.LimitedEvent.color,
 }
 
 --[[
@@ -111,6 +113,16 @@ local function drawEventIcon(parent: Instance, size: number, id: string): Frame
 		S(h, 0.58, 0.44, 0.52, 0.52, Color3.fromRGB(40, 26, 80), 3, 0.5)
 		S(h, 0.8, 0.22, 0.08, 0.08, WHITE, 4, 0.5, 45)
 		S(h, 0.22, 0.8, 0.06, 0.06, WHITE, 4, 0.5, 45)
+	elseif id == "EventShower" then
+		-- Etkinlik renginde üç düşen yıldız (kuyruklu), biri iri
+		local e = Config.LimitedEvent
+		for k = 0, 2 do
+			local x, y, r = 0.3 + k * 0.24, 0.3 + (k % 2) * 0.34, if k == 1 then 0.3 else 0.2
+			local tail = S(h, x - r * 0.7, y - r * 0.7, r * 1.6, r * 0.34, e.color2, 1, 0.5, 45)
+			tail.BackgroundTransparency = 0.35
+			S(h, x, y, r, r, e.color, 2, 0.1, 45)
+			S(h, x, y, r * 0.5, r * 0.5, WHITE, 3, 0.1, 45)
+		end
 	else
 		S(h, 0.5, 0.5, 0.8, 0.8, UiKit.MUTED, 1, 0.5)
 	end
@@ -170,6 +182,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 		Comet = "First to touch it wins a mutated crewmate!",
 		Meteors = "Dodge the rocks, grab the star shards!",
 		Blackout = "Monsters can barely see - rarer crew!",
+		EventShower = string.format("Stars falling! Touch them first for %s %s", Config.LimitedEvent.icon, Config.LimitedEvent.currency),
 	}
 
 	-- ─── Çizelge (sağ alt) ───────────────────────────────────────────────
@@ -359,7 +372,11 @@ function EventFX.Create(screen: ScreenGui): Handle
 		local upcoming: { { def: Config.EventDef, at: number } } = {}
 		for _, def in Config.Events do
 			if def.id ~= activeId and not def.random then
-				table.insert(upcoming, { def = def, at = Config.GetNextEventStart(def, now) })
+				local at = Config.GetNextEventStart(def, now)
+				-- Etkinlik olayı yalnızca etkinlik sürerken takvimde
+				if Config.IsEventScheduled(def, at) then
+					table.insert(upcoming, { def = def, at = at })
+				end
 			end
 		end
 		table.sort(upcoming, function(a, b)

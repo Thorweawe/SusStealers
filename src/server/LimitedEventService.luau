@@ -6,23 +6,30 @@
 	İç adlarda "candy" = etkinlik parası (oyuncuya Config'teki `currency`).
 
 	  PARA      — her soygunda (SpaceService.Delivered; miktar
-	              Config.GetHeistCandy, istemci kartında da aynısı yazıyor)
-	              ve etkinlikte her gün ilk girişte (dailyBonus)
+	              Config.GetHeistCandy, istemci kartında da aynısı yazıyor),
+	              etkinlikte her gün ilk girişte (7 günlük takvim, dailyLadder)
+	              ve YILDIZ YAĞMURUNDA (EventService "EventShower", saat :15/:45:
+	              uzaya yıldızlar düşüyor, ilk dokunan alıyor, nadiren SUPERNOVA).
+	              Son 24 saat hepsi finalDayMul katı.
+	  YOL       — kazanılan toplam (earned) basamaklara varınca bedava ödül
+	              (Config.LimitedEvent.milestones), sırayla, kendiliğinden
 	  MUTASYON  — gezegen doğuşlarında (SpaceService.rollSpot) etkinlik
 	              mutasyonu (Config.LimitedEvent.mutation); çalınca 3x para
 	  DÜKKÂN    — "EventShop" remote'u (itemId): para sunucudaki sayaçtan,
 	              fiyat/adet Config'ten, yalnızca etkinlik sürerken
 	  SÜS       — güvertede ve kafeteryada (decor: yıldız kristali / balkabağı)
 
-	Profil: `limited` (id, candy, bought, lastDaily, earned, awarded); etkinlik
-	kimliği değişince sıfırlanıyor. İstemciye nitelikler: EventCandy,
-	EventBought ("id:n,id:n").
+	Profil: `limited` (id, candy, bought, lastDaily, earned, awarded, days, ms);
+	etkinlik kimliği değişince sıfırlanıyor. İstemciye nitelikler: EventCandy,
+	EventEarned, EventBought ("id:n,id:n"), EventDays (giriş yapılan gün),
+	EventDayDone (bugünkü alındı mı), EventMs (alınan yol basamağı).
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -43,6 +50,7 @@ local notifyRemote: RemoteEvent? = nil
 local lastBuy: { [Player]: number } = {}
 -- Testler saati sabitleyebiliyor
 local nowOverride: number? = nil
+local rng = Random.new()
 
 local function now(): number
 	return nowOverride or os.time()
@@ -57,7 +65,7 @@ end
 --[[ Profilin sayacı bu etkinliğin mi; değilse sıfırla. ]]
 local function roll(profile: any)
 	if profile.limited.id ~= Config.LimitedEvent.id then
-		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0 }
+		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0 }
 	end
 end
 
@@ -75,6 +83,55 @@ function LimitedEventService.Publish(player: Player)
 	player:SetAttribute("EventCandy", profile.limited.candy)
 	player:SetAttribute("EventEarned", profile.limited.earned)
 	player:SetAttribute("EventBought", table.concat(parts, ","))
+	player:SetAttribute("EventDays", profile.limited.days)
+	player:SetAttribute("EventDayDone", profile.limited.lastDaily == Config.DayIndex(now()))
+	player:SetAttribute("EventMs", profile.limited.ms)
+end
+
+--[[
+	Yıldız yolu: kazanılan toplam sıradaki basamağa vardıysa ödülü verir
+	(sırayla; bir seferde birkaç basamak geçilebilir). Mürettebat ödülü boş
+	kaide yoksa bekliyor (sonraki paraya ya da girişe kadar), sıra kaymıyor.
+	Döner: verilen basamak sayısı.
+]]
+function LimitedEventService.CheckMilestones(player: Player): number
+	local profile = DataService.Get(player)
+	if not profile then
+		return 0
+	end
+	roll(profile)
+	local e = Config.LimitedEvent
+	local given = 0
+	while true do
+		local step, index = Config.EventNextMilestone(profile.limited.ms)
+		if not step or profile.limited.earned < step.at then
+			break
+		end
+		local got: string? = nil
+		if step.reward.kind == "unit" then
+			got = SpaceService.GrantUnit(player, false, nil, e.mutation)
+			if not got then
+				notify(player, string.format("%s reward waiting: free a podium to get your %s!", e.text.path, step.label), true)
+				break
+			end
+		else
+			got = RewardService.Give(player, step.reward)
+			if not got then
+				break
+			end
+		end
+		profile.limited.ms = index
+		given += 1
+		notify(player, string.format("%s %d/%d: you got %s!", e.text.path, index, #e.milestones, got :: string), false)
+		if index == #e.milestones then
+			AnnounceService.Summon(string.format("%s finished the %s!", player.DisplayName, AnnounceService.Paint(e.text.path, e.color)))
+		end
+	end
+	if given > 0 then
+		LimitedEventService.Publish(player)
+		DataService.RequestSave(player)
+	end
+	return given
 end
 
 --[[ Şeker ekler (soygun, bonus). Etkinlik dışında ya da 0'da bir şey yapmıyor. ]]
@@ -88,6 +145,7 @@ function LimitedEventService.AddCandy(player: Player, amount: number)
 	profile.limited.earned += math.floor(amount)
 	LimitedEventService.Publish(player)
 	DataService.RequestSave(player)
+	LimitedEventService.CheckMilestones(player)
 end
 
 --[[ Etkinlikte günün ilk girişi: bonus şeker. Verildiyse true. ]]
@@ -102,9 +160,11 @@ function LimitedEventService.Daily(player: Player): boolean
 		return false
 	end
 	profile.limited.lastDaily = day
-	LimitedEventService.AddCandy(player, Config.LimitedEvent.dailyBonus)
+	profile.limited.days += 1
 	local e = Config.LimitedEvent
-	notify(player, string.format("%s daily bonus: +%d %s %s!", e.name, e.dailyBonus, e.icon, e.currency), false)
+	local amount = Config.EventDailyAmount(profile.limited.days) * Config.EventCandyMul(now())
+	LimitedEventService.AddCandy(player, amount)
+	notify(player, string.format("%s DAY %d: +%d %s %s! Come back tomorrow for more", e.name, profile.limited.days, amount, e.icon, e.currency), false)
 	return true
 end
 
@@ -295,6 +355,193 @@ function LimitedEventService.Settle(player: Player, top: { Row }?): number?
 	return rank
 end
 
+-- ─── Yıldız yağmuru (Config.LimitedEvent.shower) ────────────────────────────
+
+type Star = { part: BasePart, position: Vector3, amount: number, super: boolean }
+local stars: { Star } = {}
+local SUPER_COLOR = Color3.fromRGB(255, 215, 80)
+
+--[[
+	Bir yıldızın miktarı: min..max arası (değişken ödül), `superChance` ile
+	SUPERNOVA (superAmount). Son gün çarpanı dahil. `roll`/`pick` testler için.
+]]
+function LimitedEventService.RollStar(roll: number?, pick: number?): (number, boolean)
+	local sh = Config.LimitedEvent.shower
+	local mul = Config.EventCandyMul(now())
+	if (roll or rng:NextNumber()) < sh.superChance then
+		return sh.superAmount * mul, true
+	end
+	local amount = pick or rng:NextInteger(sh.min, sh.max)
+	return math.clamp(amount, sh.min, sh.max) * mul, false
+end
+
+local function buildStar(folder: Instance, position: Vector3, amount: number, super: boolean): BasePart
+	local e = Config.LimitedEvent
+	local color = if super then SUPER_COLOR else e.color
+	local star = Instance.new("Part")
+	star.Name = if super then "SuperStar" else "EventStar"
+	star.Shape = Enum.PartType.Ball
+	star.Size = Vector3.one * (if super then 4.5 else 3)
+	star.Material = Enum.Material.Neon
+	star.Color = color
+	star.Anchored = true
+	star.CanCollide = false
+	star.CanQuery = false
+	star.CanTouch = false
+	star.CastShadow = false
+	star.Position = position
+	star:SetAttribute("Amount", amount)
+	star:SetAttribute("Super", super)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = if super then 26 else 16
+	light.Brightness = 2
+	light.Parent = star
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new(if super then 0.8 else 0.5, 0)
+	sparkle.Lifetime = NumberRange.new(0.8, 1.4)
+	sparkle.Speed = NumberRange.new(2, 5)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.Rate = if super then 30 else 12
+	sparkle.Parent = star
+	-- Uzaktan bulunabilsin (hedef açık): her zaman üstte simge
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "StarTag"
+	tag.Size = UDim2.fromOffset(if super then 64 else 40, if super then 64 else 40)
+	tag.StudsOffsetWorldSpace = Vector3.new(0, if super then 4 else 3, 0)
+	tag.AlwaysOnTop = true
+	tag.MaxDistance = 450
+	tag.LightInfluence = 0
+	tag.Parent = star
+	local icon = Instance.new("TextLabel")
+	icon.Size = UDim2.fromScale(1, 1)
+	icon.BackgroundTransparency = 1
+	icon.Text = if super then "🌟" else e.icon
+	icon.TextScaled = true
+	icon.Font = Enum.Font.FredokaOne
+	icon.Parent = tag
+	star.Parent = folder
+	return star
+end
+
+--[[ Yıldızı `player`a verir (ilk dokunan). Döner: verilen miktar. ]]
+local function collectStar(player: Player, index: number): number
+	local star = stars[index]
+	if not star then
+		return 0
+	end
+	table.remove(stars, index)
+	star.part:Destroy()
+	local e = Config.LimitedEvent
+	LimitedEventService.AddCandy(player, star.amount)
+	if star.super then
+		notify(player, string.format("%s! +%d %s %s", e.shower.superName, star.amount, e.icon, e.currency), false)
+		AnnounceService.Summon(string.format("%s caught a %s! +%d %s", player.DisplayName,
+			AnnounceService.Paint(e.shower.superName, SUPER_COLOR), star.amount, e.icon))
+	else
+		notify(player, string.format("+%d %s %s", star.amount, e.icon, e.currency), false)
+	end
+	return star.amount
+end
+
+local function stepStars()
+	if #stars == 0 then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		if player:GetAttribute("SpaceGrabbed") then
+			continue
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not (root and humanoid and humanoid.Health > 0) then
+			continue
+		end
+		for i = #stars, 1, -1 do
+			local star = stars[i]
+			local reach = if star.super then 9 else 7
+			if (star.position - root.Position).Magnitude <= reach then
+				collectStar(player, i)
+			end
+		end
+	end
+end
+
+--[[
+	Yağmuru başlatır (EventService "EventShower" takvimi). Etkinlik yoksa nil.
+	Önce bir avuç yıldız, sonra süre boyunca birer birer: yarış bitmesin,
+	geç gelen de yakalasın. Döner: temizlik (kalan yıldızlar kayboluyor).
+]]
+function LimitedEventService.StartShower(): (() -> ())?
+	if not Config.IsLimitedEventActive(now()) then
+		return nil
+	end
+	local e = Config.LimitedEvent
+	local sh = e.shower
+	local old = workspace:FindFirstChild("EventStars")
+	if old then
+		old:Destroy()
+	end
+	table.clear(stars)
+	local folder = Instance.new("Folder")
+	folder.Name = "EventStars"
+	folder.Parent = workspace
+	local running = true
+	local function drop()
+		local pos = SpaceService.RandomSpacePoint(rng)
+		if pos and running then
+			local amount, super = LimitedEventService.RollStar()
+			table.insert(stars, { part = buildStar(folder, pos, amount, super), position = pos, amount = amount, super = super })
+		end
+	end
+	local first = math.min(6, sh.stars)
+	for _ = 1, first do
+		drop()
+	end
+	task.spawn(function()
+		local rest = sh.stars - first
+		local gap = if rest > 0 then (sh.duration * 0.75) / rest else 0
+		for _ = 1, rest do
+			task.wait(gap)
+			if not running then
+				return
+			end
+			drop()
+		end
+	end)
+	local acc = 0
+	local beat = RunService.Heartbeat:Connect(function(dt)
+		acc += dt
+		if acc >= 0.1 then
+			acc = 0
+			stepStars()
+		end
+	end)
+	if notifyRemote then
+		notifyRemote:FireAllClients(string.format("%s %s! Stars are falling into space - touch them first for %s %s (1 in %d is a %s!)",
+			e.emoji, string.upper(sh.name), e.icon, e.currency, math.floor(1 / sh.superChance + 0.5), sh.superName), false, "event")
+	end
+	return function()
+		running = false
+		beat:Disconnect()
+		table.clear(stars)
+		folder:Destroy()
+	end
+end
+
+--[[ Testler: yağmurdaki yıldızlar ve toplama. ]]
+function LimitedEventService._Stars(): { Star }
+	return stars
+end
+
+function LimitedEventService._CollectStar(player: Player, index: number): number
+	return collectStar(player, index)
+end
+
 -- ─── Süs: balkabakları ──────────────────────────────────────────────────────
 
 local function pumpkin(parent: Instance, at: Vector3, size: number)
@@ -449,7 +696,13 @@ function LimitedEventService.Start()
 			if DataService.WaitForProfile(player, 30) and player.Parent then
 				LimitedEventService.Publish(player)
 				LimitedEventService.Daily(player)
+				-- Bekleyen yol ödülü (ör. kaide doluydu) girişte tekrar denenir
+				LimitedEventService.CheckMilestones(player)
 				LimitedEventService.Settle(player)
+				if Config.IsEventFinalDay(now()) then
+					local e = Config.LimitedEvent
+					notify(player, string.format("%s FINAL DAY: %dX %s %s from everything!", e.emoji, e.finalDayMul, e.icon, e.currency), false)
+				end
 			end
 		end)
 	end
@@ -471,16 +724,40 @@ function LimitedEventService.Start()
 	]]
 	task.spawn(function()
 		local wasActive: boolean? = nil
+		local wasFinal: boolean? = nil
+		local saidLastHour = false
 		local tickNo = 0
 		while true do
 			tickNo += 1
 			local active = Config.IsLimitedEventActive(now())
 			if active ~= wasActive then
+				-- Sunucu açıkken başladıysa herkese (açılışta sürüyorsa değil)
+				if active and wasActive == false then
+					local e = Config.LimitedEvent
+					AnnounceService.Summon(string.format("%s %s HAS BEGUN! Steal crewmates for %s %s, open the EVENT shop!",
+						e.emoji, AnnounceService.Paint(e.name, e.color), e.icon, e.currency))
+				end
 				wasActive = active
 				if active then
 					buildDecor()
 				else
 					clearDecor()
+				end
+			end
+			-- Kayıp korkusu: son gün başlıyor / son saat (sunucu başına bir kez)
+			if active then
+				local e = Config.LimitedEvent
+				local left = e.endsAt - now()
+				local final = Config.IsEventFinalDay(now())
+				if final and wasFinal == false then
+					AnnounceService.Summon(string.format("%s FINAL DAY! Everything gives %dX %s %s for the last 24 hours!",
+						e.emoji, e.finalDayMul, e.icon, e.currency))
+				end
+				wasFinal = final
+				if left <= 3600 and not saidLastHour then
+					saidLastHour = true
+					AnnounceService.Summon(string.format("⏰ LAST HOUR of %s! Spend your %s %s before the shop closes forever!",
+						AnnounceService.Paint(e.name, e.color), e.icon, e.currency))
 				end
 			end
 			if active then

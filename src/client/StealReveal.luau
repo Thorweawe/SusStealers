@@ -185,7 +185,18 @@ function StealReveal.Show(screen: Instance, name: string, info: Info?)
 	-- Sınırlı etkinlik şekeri (Config.LimitedEvent; sunucu aynı miktarı ekledi)
 	local candy = data.candy or 0
 	if candy > 0 then
-		table.insert(lines, string.format("+%d %s %s", candy, Config.LimitedEvent.icon, string.upper(Config.LimitedEvent.currency)))
+		local text = string.format("+%d %s %s", candy, Config.LimitedEvent.icon, string.upper(Config.LimitedEvent.currency))
+		-- Yakın kaçış: yıldız yolunun sıradaki ödülü yakınsa söyle
+		local me = game:GetService("Players").LocalPlayer
+		local earned, claimed = me:GetAttribute("EventEarned"), me:GetAttribute("EventMs")
+		if typeof(earned) == "number" and typeof(claimed) == "number" then
+			local step = Config.EventNextMilestone(claimed)
+			local left = if step then step.at - earned else 0
+			if left > 0 and left <= 60 then
+				text ..= string.format(" · %d TO %s", left, step.label)
+			end
+		end
+		table.insert(lines, text)
 	end
 	local bonus = label(card, "", 22, Color3.fromRGB(120, 255, 140), Z + 5, 3)
 	bonus.AnchorPoint = Vector2.new(0, 1)

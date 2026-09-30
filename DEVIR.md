@@ -13,6 +13,11 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (62) — Yusuf / Claude (Batur'un şeridine de yazıldı: EventService, LimitedEventService, DataService, LobbyBoardService, Config)
+- STARFALL WEEK genişledi: (1) STARFALL SHOWER — Config.Events'e `EventShower` eklendi (`limited = true`, yalnızca etkinlikte, saat :15 ve :45, 90 sn). EventService bunu `Config.IsEventScheduled` ile atlıyor; başlatınca LimitedEventService.StartShower uzaya 18 yıldız düşürüyor (workspace.EventStars), ilk dokunan 4-12 Stardust, %8 SUPERNOVA 50. (2) STAR PATH — kazanılan toplama göre 7 bedava ödül basamağı (`milestones`), AddCandy sonrası kendiliğinden veriliyor. (3) 7 günlük giriş takvimi (`dailyLadder` 25→150; `dailyBonus` KALKTI). (4) Son 24 saat her şey 2x (`finalDayMul`, Config.EventCandyMul), etkinlik başlangıcı / son gün / son saat duyuruları.
+- Profil: `limited.days`, `limited.ms` eklendi (DataService tipi, varsayılan, sanitize). Yeni nitelikler: EventDays, EventDayDone, EventMs.
+- Batur: EventService'e yeni olay eklersen :15/:45 dolu (etkinlik haftasında). Config.Events'i dolaşan kodda `def.limited` olanları `Config.IsEventScheduled(def, at)` ile süz.
+
 ## 2026-09-30 (61) — Yusuf / Claude (Config, LimitedEventService, CosmeticModel)
 
 - **Bu Cuma'nın etkinliği değişti: 🌠 STARFALL WEEK** (2-9 Eki). Para Stardust ✨, etkinlik mutasyonu **STARBORN** (x6), sınırlı Star Visor / Starfall Trail / Comet Crown, ilk 10'a Galaxy Halo, süs yıldız kristalleri.
