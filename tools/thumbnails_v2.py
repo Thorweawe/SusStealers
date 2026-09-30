@@ -253,7 +253,8 @@ def scene_chomp(face="cry", headline="secret"):
     for dx, dy, r in ((-480, -330, 80), (460, -300, 65), (470, 230, 50), (-430, 280, 45), (0, -520, 40)):
         sparkle(c, hc[0] + dx, hc[1] + dy, r, (255, 240, 120))
 
-    exclaim(c, 330, 420, 400, angle=-10)
+    if headline != "none":
+        exclaim(c, 330, 420, 400, angle=-10)
     if headline == "pov":
         # TikTok'un "POV:" kalıbı: siyah hap üstünde beyaz, altında dev SECRET
         pill(c, "POV: YOU STOLE A", (2750, 170), 120)
@@ -262,6 +263,8 @@ def scene_chomp(face="cry", headline="secret"):
     elif headline == "worth":
         put_text(c, "WORTH IT?", (2700, 230), 290, angle=-4, fill=(255, 255, 255), stroke=(180, 20, 60))
         put_text(c, "$1.2B/s", (2750, 480), 200, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
+    elif headline == "none":
+        pass  # yazısız (video için; yazılar videoda ayrıca canlanıyor)
     else:
         put_text(c, "SECRET!", (2750, 230), 310, angle=-4, fill=rainbow_fill())
         put_text(c, "$1.2B/s", (2750, 470), 190, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
