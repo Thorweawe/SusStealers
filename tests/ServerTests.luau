@@ -556,6 +556,14 @@ case("Yükseltme: her seviye gerçekten bir şey değiştiriyor", function()
 			return string.format("%.5f", Config.GetLuckyChance(level))
 		elseif id == "CrewMorale" then
 			return string.format("%.5f", Config.GetMoraleMultiplier(level))
+		elseif id == "SprintBoots" then
+			return string.format("%.5f", Config.GetSprintMul(level))
+		elseif id == "SlapPower" then
+			return string.format("%.5f", Config.GetSlapPower(level))
+		elseif id == "StunCharge" then
+			return string.format("%.5f", Config.GetStunCharge(level))
+		elseif id == "GearRecharge" then
+			return string.format("%.5f", Config.GetGearRecharge(level))
 		end
 		return "?"
 	end
@@ -2534,8 +2542,16 @@ case("Yükseltme: tavan kat sayısıyla ikiye katlanıyor", function()
 		eq(def.name .. " 1. kat tabanı", f1, def.baseMaxLevel)
 		eq(def.name .. " 2. kat iki katı", f2, f1 * 2)
 		eq(def.name .. " 3. kat dört katı", f3, f1 * 4)
-		eq(def.name .. " tavan en üst kat", Config.GetUpgradeCeiling(def), f3)
+		eq(def.name .. " tavan en üst kat", Config.GetUpgradeCeiling(def), f3 + Config.GetRebirthUpgradeBonus(Config.MaxRebirths))
+		eq(def.name .. " R2 bonus yok", Config.GetUpgradeMaxLevel(def, 3, 2), f3)
+		eq(def.name .. " R3 +9", Config.GetUpgradeMaxLevel(def, 3, 3), f3 + 9)
+		eq(def.name .. " R10 +30", Config.GetUpgradeMaxLevel(def, 3, 10), f3 + 30)
 	end
+	local cap = Config.GetUpgradeMaxLevel(Config.GetUpgrade("SpaceCapsule") :: any, 3)
+	local k = Config.GetCapsuleGain(cap + 30, 100) / Config.GetCapsuleGain(cap, 100)
+	ok("kapsül bonus seviyeleri yavaş", k > 1.2 and k < 1.8, string.format("%.2f", k))
+	ok("sprint tavanlı", Config.GetSprintMul(200) <= 1.4 and Config.GetSprintMul(0) == 1)
+	ok("bekleme kısalıyor", Config.GetGearRecharge(200) >= 0.55 and Config.GetGearRecharge(0) == 1)
 end)
 
 case("Yükseltme: kat tavanı satın almayı durduruyor", function(ctx)

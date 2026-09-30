@@ -857,7 +857,7 @@ function Index.Create(screen: ScreenGui): Catalog
 			-- Rebirth petleri: son satırda yetenek (kaçış / şans), diğerlerinde uçuş hızı
 			if def.escape then { "Monster slow", if isKnown then string.format("-%d%%", math.floor(def.escape * 100 + 0.5)) else "???", UiKit.CREW.CYAN }
 			elseif def.luck then { "Lucky steal", if isKnown then string.format("+%.1f%%", def.luck * 100) else "???", UiKit.CREW.YELLOW }
-			else { "Flight speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
+			else { "Ability", if isKnown then "-" else "???", UiKit.CREW.CYAN },
 		}
 		for i, row in statRows do
 			local v = values[i]

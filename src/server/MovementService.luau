@@ -39,10 +39,18 @@ local function applyWalkSpeed(player: Player)
 		boost, sprintBoost = 0, 0
 	end
 
+	--[[
+		Sprint Boots yükseltmesi (UpgradeService "Upg_SprintBoots" yazıyor):
+		gemideki bütün yürüyüş hızları, bobinli olanlar da, çarpılıyor.
+		Uzayda (yukarıda boost sıfırlanan durum) yürüyüş zaten kullanılmıyor.
+	]]
+	local bootsLevel = player:GetAttribute("Upg_SprintBoots")
+	local mul = Config.GetSprintMul(if typeof(bootsLevel) == "number" then bootsLevel else 0)
+
 	if sprinting[player] then
-		humanoid.WalkSpeed = math.max(Config.SprintWalkSpeed, sprintBoost)
+		humanoid.WalkSpeed = math.max(Config.SprintWalkSpeed, sprintBoost) * mul
 	else
-		humanoid.WalkSpeed = math.max(Config.NormalWalkSpeed, boost)
+		humanoid.WalkSpeed = math.max(Config.NormalWalkSpeed, boost) * mul
 	end
 end
 
@@ -68,11 +76,15 @@ function MovementService.Start()
 
 	local function watchCharacter(player: Player)
 		player.CharacterAdded:Connect(function(character)
-			local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+			character:WaitForChild("Humanoid")
 			-- Yeniden doğan karakterde koşma bayrağı düşsün: tuşu bırakmış
 			-- olabilir ve haberimiz olmaz
 			sprinting[player] = nil
-			humanoid.WalkSpeed = Config.NormalWalkSpeed
+			applyWalkSpeed(player)
+		end)
+		-- Sprint Boots seviyesi değişince (satın alma, rebirth sıfırlaması)
+		player:GetAttributeChangedSignal("Upg_SprintBoots"):Connect(function()
+			applyWalkSpeed(player)
 		end)
 	end
 	for _, player in Players:GetPlayers() do

@@ -164,8 +164,10 @@ function Hotbar.Create(screen: ScreenGui): Bar
 		if not def then
 			return
 		end
-		cooldownTotal[gearId] = def.cooldown or 1
-		cooldownUntil[gearId] = os.clock() + (def.cooldown or 1)
+		-- Quick Recharge yükseltmesiyle kısalmış bekleme
+		local cooldown = Config.GetGearCooldown(player, def.cooldown)
+		cooldownTotal[gearId] = cooldown
+		cooldownUntil[gearId] = os.clock() + cooldown
 		local view = slots[gearId]
 		if view then
 			pop(view, 1.25)

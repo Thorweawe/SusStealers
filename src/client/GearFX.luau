@@ -427,7 +427,7 @@ function GearFX.Start(shaker: Shaker?): Handle
 		local gearDef = def :: Config.GearDef
 		tool.Activated:Connect(function()
 			local now = os.clock()
-			if now - (lastLocal[gearDef.id] or -math.huge) < (gearDef.cooldown or 1) - 0.15 then
+			if now - (lastLocal[gearDef.id] or -math.huge) < Config.GetGearCooldown(player, gearDef.cooldown) - 0.15 then
 				return
 			end
 			lastLocal[gearDef.id] = now

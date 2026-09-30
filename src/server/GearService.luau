@@ -70,6 +70,24 @@ local function rootOf(player: Player): BasePart?
 	return nil
 end
 
+--[[
+	Ekipman yükseltmesinin seviyesi (UpgradeService "Upg_<id>" niteliğini
+	yazıyor; istemci yazamıyor). UpgradeService'i require etmiyoruz: döngü.
+]]
+local function upgradeLevel(player: Player, id: string): number
+	local v = player:GetAttribute("Upg_" .. id)
+	return if typeof(v) == "number" then v else 0
+end
+
+--[[ Aletin gücü (sersemletme/savurma) ve menzil çarpanı: Power Slap, Stun Charge. ]]
+local function powerOf(player: Player, def: Config.GearDef): (number, number)
+	local power = if def.kind == "slap" then Config.GetSlapPower(upgradeLevel(player, "SlapPower"))
+		elseif def.kind == "stun" then Config.GetStunCharge(upgradeLevel(player, "StunCharge"))
+		else 1
+	-- Menzil gücün yarısı kadar büyüyor (x1.6 güç → x1.3 menzil)
+	return power, 1 + (power - 1) / 2
+end
+
 --[[ Bekleme süresi dolduysa kullanımı işaretleyip true döner. ]]
 local function ready(player: Player, def: Config.GearDef): boolean
 	local now = os.clock()
@@ -79,7 +97,9 @@ local function ready(player: Player, def: Config.GearDef): boolean
 		lastUse[player] = used
 	end
 	local last = used[def.id]
-	if last and now - last < (def.cooldown or 1) then
+	-- Quick Recharge yükseltmesi bütün aletlerin beklemesini kısaltıyor
+	local cooldown = Config.GetGearCooldown(player, def.cooldown)
+	if last and now - last < cooldown then
 		return false
 	end
 	used[def.id] = now
@@ -135,7 +155,8 @@ local function hitPlayer(attacker: Player, target: Player, def: Config.GearDef, 
 	end
 	lastHit[target] = os.clock()
 	local inSpace = target:GetAttribute("InSpace") == true
-	local mul = if inSpace then SPACE_HIT_MUL else 1
+	local power = powerOf(attacker, def)
+	local mul = (if inSpace then SPACE_HIT_MUL else 1) * power
 	fx("hit", character, def.id, from, (def.knock or 30) * mul, (def.stun or 1) * mul, inSpace)
 	notify(target, string.format("%s hit you with a %s!", attacker.DisplayName, def.name), true)
 	return true
@@ -179,7 +200,8 @@ function GearService.Use(player: Player, id: string): boolean
 		return false
 	end
 	local character = player.Character :: Model
-	local range = def.range or 10
+	local _, reachMul = powerOf(player, def)
+	local range = (def.range or 10) * reachMul
 	local look = root.CFrame.LookVector
 	local count = 0
 

@@ -41,6 +41,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local CardKit = require(script.Parent.CardKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local UpgradePanel = {}
@@ -60,6 +61,17 @@ local TINT: { [string]: Color3 } = {
 	StealthSuit = Color3.fromRGB(120, 80, 210),
 	LuckyScanner = Color3.fromRGB(215, 160, 20),
 	CrewMorale = Color3.fromRGB(40, 165, 150),
+	SprintBoots = Color3.fromRGB(70, 200, 230),
+	SlapPower = Color3.fromRGB(230, 70, 110),
+	StunCharge = Color3.fromRGB(250, 190, 40),
+	GearRecharge = Color3.fromRGB(150, 110, 240),
+}
+-- Ekipman kartlarında aletin 3B ikonu (UiArt), diğerlerinde çizim
+local ART: { [string]: string } = {
+	SprintBoots = "Gear_SpeedCoil",
+	SlapPower = "Gear_SlapGlove",
+	StunCharge = "Gear_StunGun",
+	GearRecharge = "Gear_EmergencyButton",
 }
 local ICON: { [string]: string } = {
 	SpaceCapsule = "bolt",
@@ -76,6 +88,7 @@ local SECTIONS = {
 	{ id = "training", title = "SPACE TRAINING", color = Color3.fromRGB(120, 210, 255) },
 	{ id = "heist", title = "HEIST GEAR", color = Color3.fromRGB(255, 150, 90) },
 	{ id = "base", title = "BASE", color = Color3.fromRGB(130, 240, 190) },
+	{ id = "gear", title = "GEAR", color = Color3.fromRGB(255, 120, 160) },
 }
 
 --[[
@@ -138,6 +151,30 @@ local EFFECT: { [string]: Effect } = {
 		label = "Income",
 		value = function(level)
 			return "+" .. pct(Config.GetMoraleMultiplier(level) - 1)
+		end,
+	},
+	SprintBoots = {
+		label = "Ship run speed",
+		value = function(level)
+			return "+" .. pct(Config.GetSprintMul(level) - 1)
+		end,
+	},
+	SlapPower = {
+		label = "Slap power",
+		value = function(level)
+			return "+" .. pct(Config.GetSlapPower(level) - 1)
+		end,
+	},
+	StunCharge = {
+		label = "Stun power",
+		value = function(level)
+			return "+" .. pct(Config.GetStunCharge(level) - 1)
+		end,
+	},
+	GearRecharge = {
+		label = "Gear cooldown",
+		value = function(level)
+			return "-" .. pct(1 - Config.GetGearRecharge(level))
 		end,
 	},
 }
@@ -348,7 +385,19 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	for _, def in Config.Upgrades do
 		local tint = TINT[def.id] or GOLD
 		local card = makeCard(cardOrder[def.id] or 99, tint, function(slot)
-			UiKit.Icon(slot, ICON[def.id] or "bolt", 50, tint:Lerp(CardKit.WHITE, 0.55))
+			local art = if ART[def.id] then UiArt.Image("Icon", ART[def.id]) else ""
+			if art ~= "" then
+				local img = Instance.new("ImageLabel")
+				img.AnchorPoint = Vector2.new(0.5, 0.5)
+				img.Position = UDim2.fromScale(0.5, 0.5)
+				img.Size = UDim2.fromOffset(58, 58)
+				img.BackgroundTransparency = 1
+				img.Image = art
+				img.ZIndex = slot.ZIndex + 1
+				img.Parent = slot
+			else
+				UiKit.Icon(slot, ICON[def.id] or "bolt", 50, tint:Lerp(CardKit.WHITE, 0.55))
+			end
 		end)
 		local nameLabel = title(card, def.name)
 		nameLabel.Size = UDim2.new(1, -270, 0, 24)
@@ -411,7 +460,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		end
 	end)
 
-	local foot = CardKit.bold(upgradePage, "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more",
+	local foot = CardKit.bold(upgradePage, "Upgrades reset on rebirth  ·  floors and rebirths raise every cap  ·  scroll for more",
 		15, Color3.fromRGB(190, 200, 220), Z + 2, 2)
 	foot.AnchorPoint = Vector2.new(0.5, 1)
 	foot.Position = UDim2.new(0.5, 0, 1, -6)
@@ -518,6 +567,9 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 			gains[2].Text = '<font color="#9CFFA0">+</font>  Unlocks <font color="#78FFEB">' .. table.concat(unlocks, ", ") .. "</font>"
 		elseif floor and floor.rebirths == rebirths + 1 then
 			gains[2].Text = '<font color="#9CFFA0">+</font>  Unlocks the next floor to buy'
+		elseif Config.GetRebirthUpgradeBonus(rebirths + 1) > 0 then
+			gains[2].Text = string.format('<font color="#9CFFA0">+</font>  Every upgrade cap <font color="#78FFEB">+%d levels</font>',
+				Config.GetRebirthUpgradeBonus(rebirths + 1) - Config.GetRebirthUpgradeBonus(rebirths))
 		else
 			local ahead = ""
 			for r = rebirths + 2, Config.MaxRebirths do
@@ -550,6 +602,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local function refresh()
 		local floors = number("UpgradeFloors", 1)
 		local cash = number("Cash", 0)
+		local rebirthsNow = number("Rebirths", 0)
 		paintTabs()
 		refreshRebirth(cash)
 
@@ -557,11 +610,11 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local buyable = 0
 		for _, row in rows do
 			local lvl = number("Upg_" .. row.def.id, 0)
-			local maxLevel = Config.GetUpgradeMaxLevel(row.def, floors)
+			local maxLevel = Config.GetUpgradeMaxLevel(row.def, floors, rebirthsNow)
 			row.bar.set(lvl / math.max(1, maxLevel), string.format("LV %d / %d", lvl, maxLevel))
 
 			local effect = EFFECT[row.def.id]
-			local price = Config.GetUpgradeCost(row.def.id, lvl, floors)
+			local price = Config.GetUpgradeCost(row.def.id, lvl, floors, rebirthsNow)
 			if effect then
 				if price then
 					-- Şimdi → sonraki: yeşil ok ve sonraki değer
@@ -578,6 +631,9 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 				row.buy.set("$" .. Config.FormatCash(price), if cash >= price then CardKit.GREEN else CardKit.GREEN:Lerp(CardKit.GREY, 0.55))
 			elseif floors < Config.MaxFloors then
 				row.buy.set("NEXT FLOOR", nil)
+			elseif rebirthsNow < Config.MaxRebirths then
+				-- Rebirth tavanı yükseltiyor (3. rebirth'ten itibaren)
+				row.buy.set("REBIRTH", nil)
 			else
 				row.buy.set("MAX", nil)
 			end
@@ -590,14 +646,21 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local canRebirth = rebirths < Config.MaxRebirths and tutorialFinished()
 		floorGoesRebirth = false
 		if not nextFloor then
-			floorName.Text = "ALL FLOORS OPEN"
+			--[[
+				Katlar bitti: kart rebirth tavan bonusunu anlatıyor
+				(Config.GetRebirthUpgradeBonus, 3. rebirth'ten itibaren her
+				yükseltmeye rebirth × 3 seviye). Düğme REBIRTH sekmesine götürüyor.
+			]]
+			local nowBonus = Config.GetRebirthUpgradeBonus(rebirths)
+			local nextBonus = Config.GetRebirthUpgradeBonus(rebirths + 1)
+			floorName.Text = "REBIRTH CAP BONUS"
 			if canRebirth then
-				-- Sıradaki adım rebirth: düğme oraya götürüyor
-				floorNote.Text = '<font color="#7CFF5B">Next step: REBIRTH</font> for more income forever'
+				floorNote.Text = string.format('Every upgrade: <font color="#7CFF5B">+%d levels</font>  ·  Rebirth %d → <font color="#FFE13C">+%d</font>',
+					nowBonus, rebirths + 1, nextBonus)
 				floorBuy.set("REBIRTH →", CardKit.GREEN)
 				floorGoesRebirth = true
 			else
-				floorNote.Text = "Every upgrade cap is at its highest"
+				floorNote.Text = string.format('Every upgrade: <font color="#7CFF5B">+%d levels</font>', nowBonus)
 				floorBuy.set("MAX", nil)
 			end
 		elseif rebirths < nextFloor.rebirths then
@@ -618,7 +681,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 
 		-- Alt yazı: alınacak yükseltme kalmadıysa sıradaki adımı söyle
 		if buyable > 0 then
-			foot.Text = "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more"
+			foot.Text = "Upgrades reset on rebirth  ·  floors and rebirths raise every cap  ·  scroll for more"
 			foot.TextColor3 = Color3.fromRGB(190, 200, 220)
 		elseif nextFloor and rebirths >= nextFloor.rebirths then
 			foot.Text = "ALL CAPS REACHED!  Scroll down and buy the NEW FLOOR to double every cap"

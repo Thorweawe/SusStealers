@@ -19,6 +19,7 @@ local Net = require(Shared.Net)
 local PlotService = require(script.Parent.PlotService)
 local EconomyService = require(script.Parent.EconomyService)
 local DataService = require(script.Parent.DataService)
+local MovementService = require(script.Parent.MovementService)
 
 local UpgradeService = {}
 
@@ -82,7 +83,7 @@ function UpgradeService.TryUpgrade(player: Player, id: string): boolean
 
 	local level = profile.upgrades[id] or 0
 	local floors = Config.GetUnlockedFloors(profile.floorsBought)
-	local cost = Config.GetUpgradeCost(id, level, floors)
+	local cost = Config.GetUpgradeCost(id, level, floors, profile.rebirths)
 
 	if not cost then
 		--[[
@@ -95,6 +96,9 @@ function UpgradeService.TryUpgrade(player: Player, id: string): boolean
 				"%s is maxed for floor %d - buy the next floor to raise the cap",
 				def.name, floors
 			), true)
+		elseif profile.rebirths < Config.MaxRebirths then
+			-- Rebirth tavan bonusu (Config.GetRebirthUpgradeBonus)
+			notify(player, string.format("%s is maxed - rebirth to raise every cap", def.name), true)
 		else
 			notify(player, string.format("%s is fully maxed", def.name), true)
 		end
@@ -112,6 +116,10 @@ function UpgradeService.TryUpgrade(player: Player, id: string): boolean
 
 	profile.upgrades[id] = level + 1
 	UpgradeService.PublishLevels(player)
+	-- Sprint Boots: yürüme hızı hemen değişsin
+	if id == "SprintBoots" then
+		MovementService.RefreshSpeed(player)
+	end
 	notify(player, string.format("%s upgraded to level %d", def.name, level + 1), false)
 	return true
 end
@@ -145,7 +153,7 @@ function UpgradeService.GetMaxLevel(player: Player, id: string): number
 	end
 	local profile = DataService.Get(player)
 	local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
-	return Config.GetUpgradeMaxLevel(def, floors)
+	return Config.GetUpgradeMaxLevel(def, floors, if profile then profile.rebirths else 0)
 end
 
 

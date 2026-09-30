@@ -101,7 +101,7 @@ local function priceText(owner: Player?, id: string, name: string): string
 	end
 	local profile = DataService.Get(owner)
 	local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
-	local cost = Config.GetUpgradeCost(id, UpgradeService.GetLevel(owner, id), floors)
+	local cost = Config.GetUpgradeCost(id, UpgradeService.GetLevel(owner, id), floors, if profile then profile.rebirths else 0)
 	return if cost then string.format("%s  $%s", name, Config.FormatCash(cost)) else name .. "  MAX"
 end
 
@@ -146,7 +146,7 @@ local function refreshCapsule(plot: Model)
 		if owner then
 			local profile = DataService.Get(owner)
 			local floors = if profile then Config.GetUnlockedFloors(profile.floorsBought) else 1
-			cost = Config.GetUpgradeCost(UPGRADE_ID, level, floors)
+			cost = Config.GetUpgradeCost(UPGRADE_ID, level, floors, if profile then profile.rebirths else 0)
 		end
 		local text = if not owner then "Space Capsule" elseif cost then string.format("Space Capsule  $%s", Config.FormatCash(cost)) else "Space Capsule  MAX"
 		if prompt.ObjectText ~= text then

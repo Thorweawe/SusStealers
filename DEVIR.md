@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (59) — Batur (Yusuf'un şeridine de yazıldı: yükseltme paneli, hotbar, pet paneli)
+
+Studio'ya aktarıldı, **183/183 test temiz**. Yusuf'un `cb600ea` (panelde "REBIRTH →") ile birleştirildi.
+
+- **Rebirth tavan bonusu**: 3. rebirth'ten itibaren her yükseltmenin tavanına rebirth × 3 seviye (`Config.GetRebirthUpgradeBonus`, R3 +9, R10 +30). `GetUpgradeMaxLevel`/`GetUpgradeCost` rebirth alıyor. Kapsülün bonus seviyeleri yavaş büyüyor (`CapsuleExtraGrowth` %1.5/seviye, R10'da ~x1.56): hız kapıları bozulmuyor. Kat kartı katlar bitince "REBIRTH CAP BONUS".
+- **GEAR yükseltmeleri** (yeni bölüm): Sprint Boots (gemide yürüme/koşma, bobinle de, ~+%40; `MovementService`), Power Slap (tokat gücü/menzili), Stun Charge (şok süresi/menzili), Quick Recharge (bütün aletlerin beklemesi ~-%45; `Config.GetGearCooldown`, Hotbar ve GearFX de kullanıyor). Seviyeler `Upg_<id>` niteliğinden.
+- Testler (58)'deki bölmeye göre: yükseltme testleri `ServerTests.luau`'da (gear etkileri, rebirth tavanı).
+- **Pet kartı**: petler uçuş hızı vermiyor (`PetFlightMul = 0`); benim eklediğim "+fly" satırı yanlıştı, kaldırıldı. Index'te yeteneksiz petlerde "Ability -".
+
+---
+
 ## 2026-09-30 (58) — Batur (test dosyası; iki şerit de kullanıyor)
 
 Studio'ya aktarıldı, **183/183 test temiz** (5.272 kontrol).

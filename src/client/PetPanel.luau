@@ -399,9 +399,10 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		if key then
 			escape, luck = Config.GetPetKeyPerks(key)
 		end
+		-- Petler uçuş hızı VERMİYOR (Config.PetFlightMul = 0): yeteneksiz pette ikinci satır yok
 		local second = if escape > 0 then string.format('<font color="#8FD8FF">-%d%% chase</font>', math.floor(escape * 100 + 0.5))
 			elseif luck > 0 then string.format('<font color="#FFE36B">+%.1f%% lucky</font>', luck * 100)
-			else string.format('<font color="#8FD8FF">+%.2f fly</font>', speed)
+			else ""
 		stat.RichText = true
 		stat.TextSize = 13
 		stat.LineHeight = 0.95
@@ -534,7 +535,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			-- Kısa: sağda EQUIP BEST / UNEQUIP ALL var; "+" aynı petin bir kopyasını daha takar
 			hint.Text = string.format("%d / %d equipped", slotsUsed, Config.PetEquipSlots)
 			if slotsUsed > 0 then
-				hint.Text ..= string.format("  ·  +%d%% cash  ·  +%.1f fly", math.floor(income * 100 + 0.5), speed)
+				hint.Text ..= string.format("  ·  +%d%% cash", math.floor(income * 100 + 0.5))
 				local escape, luck = Config.GetPetPerks(equipped)
 				if escape > 0 then
 					hint.Text ..= string.format("  ·  monsters -%d%%", math.floor(escape * 100 + 0.5))

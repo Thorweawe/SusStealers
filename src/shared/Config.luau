@@ -1420,6 +1420,19 @@ Config.Upgrades = {
 	  blurb = "Stolen crewmates may turn mutated" },
 	{ id = "CrewMorale",      name = "Crew Morale",      category = "base",     baseMaxLevel = 6, baseCost = 800000, costGrowth = 2.9,
 	  blurb = "More cash from every podium" },
+	--[[
+		EKİPMAN (2026-09-30, "gear upgrade sistemi de gelmeli, lobide daha
+		hızlı koşalım"). Etkiler GearService / MovementService'te, seviyeler
+		"Upg_<id>" niteliğinden okunuyor. Diğerleri gibi rebirth'te sıfırlanıyor.
+	]]
+	{ id = "SprintBoots",     name = "Sprint Boots",     category = "gear",     baseMaxLevel = 5, baseCost = 300000, costGrowth = 2.8,
+	  blurb = "Run faster on the ship (with or without the Speed Coil)" },
+	{ id = "SlapPower",       name = "Power Slap",       category = "gear",     baseMaxLevel = 5, baseCost = 1000000, costGrowth = 2.9,
+	  blurb = "Slap Glove hits harder, farther and dazes longer" },
+	{ id = "StunCharge",      name = "Stun Charge",      category = "gear",     baseMaxLevel = 5, baseCost = 5000000, costGrowth = 3.0,
+	  blurb = "Stun Gun freezes longer and reaches farther" },
+	{ id = "GearRecharge",    name = "Quick Recharge",   category = "gear",     baseMaxLevel = 5, baseCost = 10000000, costGrowth = 3.0,
+	  blurb = "Every gear recharges faster" },
 } :: { UpgradeDef }
 
 --[[
@@ -1469,17 +1482,32 @@ function Config.GetRetiredUpgradeRefund(id: string, level: number): number
 end
 
 --[[
-	Açık kat sayısına göre tavan. Her kat tavanı ikiye katlıyor.
-	floors 1 -> baseMaxLevel, 2 -> x2, 3 -> x4.
+	Rebirth tavan bonusu (2026-09-30): katlar R2'de bitince tavan artık
+	büyümüyordu ("orası boş kalıyor"). 3. rebirth'ten itibaren her
+	yükseltmenin tavanına rebirth × 3 seviye ekleniyor (R3 +9, R10 +30).
+	Etkiler azalan getirili (saturate), kapsül ise tavandan sonra yavaş
+	büyüyor (GetCapsuleGain): bir anda aşırı güçlenme yok.
 ]]
-function Config.GetUpgradeMaxLevel(def: UpgradeDef, floors: number): number
+Config.RebirthUpgradeFrom = 3
+Config.RebirthUpgradePer = 3
+
+function Config.GetRebirthUpgradeBonus(rebirths: number?): number
+	local r = rebirths or 0
+	return if r >= Config.RebirthUpgradeFrom then Config.RebirthUpgradePer * r else 0
+end
+
+--[[
+	Açık kat sayısına göre tavan. Her kat tavanı ikiye katlıyor.
+	floors 1 -> baseMaxLevel, 2 -> x2, 3 -> x4. Üstüne rebirth bonusu.
+]]
+function Config.GetUpgradeMaxLevel(def: UpgradeDef, floors: number, rebirths: number?): number
 	local unlocked = math.clamp(floors, 1, Config.MaxFloors)
-	return def.baseMaxLevel * 2 ^ (unlocked - 1)
+	return def.baseMaxLevel * 2 ^ (unlocked - 1) + Config.GetRebirthUpgradeBonus(rebirths)
 end
 
 --[[ Oyunda ulaşılabilecek en yüksek tavan. Kayıt kırpması buna bakıyor. ]]
 function Config.GetUpgradeCeiling(def: UpgradeDef): number
-	return Config.GetUpgradeMaxLevel(def, Config.MaxFloors)
+	return Config.GetUpgradeMaxLevel(def, Config.MaxFloors, Config.MaxRebirths)
 end
 
 local upgradesById: { [string]: UpgradeDef } = {}
@@ -1497,13 +1525,13 @@ end
 	floors verilmezse en yüksek tavan varsayılıyor; sadece fiyat soran
 	(tavanı ayrıca kontrol eden) çağrılar için.
 ]]
-function Config.GetUpgradeCost(id: string, currentLevel: number, floors: number?): number?
+function Config.GetUpgradeCost(id: string, currentLevel: number, floors: number?, rebirths: number?): number?
 	local def = upgradesById[id]
 	if not def then
 		return nil
 	end
 
-	local max = if floors then Config.GetUpgradeMaxLevel(def, floors) else Config.GetUpgradeCeiling(def)
+	local max = if floors then Config.GetUpgradeMaxLevel(def, floors, rebirths) else Config.GetUpgradeCeiling(def)
 	if currentLevel >= max then
 		return nil
 	end
@@ -1567,6 +1595,32 @@ end
 --[[ Crew Morale: gelir çarpanı (1 → ~1.6). ]]
 function Config.GetMoraleMultiplier(level: number): number
 	return 1 + 0.6 * saturate(upgradeStep(level), 0.9)
+end
+
+--[[ Sprint Boots: gemideki yürüme/koşma hızı çarpanı (1 → ~1.4; bobinle de). ]]
+function Config.GetSprintMul(level: number): number
+	return 1 + 0.4 * saturate(upgradeStep(level), 0.88)
+end
+
+--[[ Power Slap: tokadın savurma ve sersemletme çarpanı (1 → ~1.6); menzil yarısı kadar. ]]
+function Config.GetSlapPower(level: number): number
+	return 1 + 0.6 * saturate(upgradeStep(level), 0.87)
+end
+
+--[[ Stun Charge: şok tabancasının sersemletme çarpanı (1 → ~1.6); menzil yarısı kadar. ]]
+function Config.GetStunCharge(level: number): number
+	return 1 + 0.6 * saturate(upgradeStep(level), 0.87)
+end
+
+--[[ Quick Recharge: bütün aletlerin bekleme süresi çarpanı (1 → ~0.55). ]]
+function Config.GetGearRecharge(level: number): number
+	return 1 - 0.45 * saturate(upgradeStep(level), 0.87)
+end
+
+--[[ Oyuncunun o aletteki bekleme süresi (Quick Recharge "Upg_GearRecharge" niteliğiyle). İki tarafta da. ]]
+function Config.GetGearCooldown(player: Player, cooldown: number?): number
+	local level = player:GetAttribute("Upg_GearRecharge")
+	return (cooldown or 1) * Config.GetGearRecharge(if typeof(level) == "number" then level else 0)
 end
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
@@ -3358,10 +3412,21 @@ function Config.GetFlightSpeed(spaceSpeed: number, petBonus: number?): number
 	return spaceSpeed + math.max(0, petBonus or 0) * Config.PetFlightMul
 end
 
+--[[
+	Rebirth tavan bonusunun seviyeleri (kat tavanının üstü) kapsülü yavaş
+	büyütüyor: seviye başına %1.5 (Growth 1.14 dört seviyede ~%3.3). R10'da
+	+30 seviye ~x1.56 — hız kapıları (rebirth canavarları) bozulmasın.
+]]
+Config.CapsuleExtraGrowth = 1.015
+
 function Config.GetCapsuleGain(level: number, speed: number): number
 	local c = Config.Capsule
 	local falloff = (c.Ref / (math.max(speed, Config.Space.BaseSpeed) + c.Ref - Config.Space.BaseSpeed)) ^ c.Pow
-	return c.Rate * c.Growth ^ upgradeStep(level) * falloff
+	local def = Config.GetUpgrade("SpaceCapsule")
+	local floorCap = if def then Config.GetUpgradeMaxLevel(def, Config.MaxFloors) else level
+	local base = math.min(level, floorCap)
+	local extra = math.max(0, level - floorCap)
+	return c.Rate * c.Growth ^ upgradeStep(base) * Config.CapsuleExtraGrowth ^ extra * falloff
 end
 
 -- ─── Jetpack alevleri (kozmetik) ────────────────────────────────────────────
