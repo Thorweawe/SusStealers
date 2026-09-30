@@ -168,6 +168,10 @@ export type Profile = {
 	settings: { music: number, sfx: number, shake: boolean, pets: boolean, myPets: boolean, lowGfx: boolean, autoDelete: { [string]: boolean } },
 	-- Pet indeksi: bir kez bile elde edilmiş (ya da otomatik silinmiş) pet kimlikleri
 	petsFound: { [string]: boolean },
+	--[[ Sınırlı etkinlik (LimitedEventService): hangi etkinliğin sayacı, şeker,
+	     dükkândan alınan adetler, günlük bonusun en son alındığı gün,
+	     etkinlikte toplam kazanılan şeker. Etkinlik değişince sıfırlanıyor. ]]
+	limited: { id: string, candy: number, bought: { [string]: number }, lastDaily: number, earned: number },
 }
 
 export type QuestEntry = {
@@ -281,6 +285,7 @@ local function newProfile(): Profile
 			autoDelete = {},
 		},
 		petsFound = {},
+		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0 },
 	}
 end
 
@@ -694,6 +699,25 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
+	-- Sınırlı etkinlik sayacı (LimitedEventService id değişince sıfırlıyor)
+	local lim = (raw :: any).limited
+	if typeof(lim) == "table" and typeof(lim.id) == "string" then
+		profile.limited.id = lim.id
+		for _, key in { "candy", "lastDaily", "earned" } do
+			local v = lim[key]
+			if typeof(v) == "number" and v == v and v >= 0 then
+				(profile.limited :: any)[key] = math.floor(v)
+			end
+		end
+		if typeof(lim.bought) == "table" then
+			for itemId, n in lim.bought do
+				if typeof(itemId) == "string" and typeof(n) == "number" and n > 0 then
+					profile.limited.bought[itemId] = math.floor(n)
+				end
+			end
+		end
+	end
+
 	return profile
 end
 
@@ -828,6 +852,8 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.petsFound = table.clone(profile.petsFound)
 	snapshot.pets = table.clone(profile.pets)
 	snapshot.equippedPets = table.clone(profile.equippedPets)
+	snapshot.limited = table.clone(profile.limited)
+	snapshot.limited.bought = table.clone(profile.limited.bought)
 
 	-- Görevler iki kat derin: vade -> entries -> görev
 	local quests: { [string]: QuestSlot } = {}

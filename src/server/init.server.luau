@@ -49,6 +49,7 @@ local NotifyService = require(script.NotifyService)
 local LobbyBoardService = require(script.LobbyBoardService)
 local AdminService = require(script.AdminService)
 local SoftShutdown = require(script.SoftShutdown)
+local LimitedEventService = require(script.LimitedEventService)
 
 --[[
 	Yeniden başlatmanın geçici durağı (SoftShutdown): oyunun hiçbir servisi
@@ -117,6 +118,8 @@ FunnelService.Start()
 ReferralService.Start()
 NotifyService.Start()
 LobbyBoardService.Start()
+-- Sınırlı etkinlik: şeker, dükkân, süs (Config.LimitedEvent; SpaceService'ten sonra)
+LimitedEventService.Start()
 -- Geliştirici konsolu komutları (ServerStorage.AdminCommand)
 AdminService.Start()
 -- "Restart servers": 10 sn geri sayım, sonra oyuncular yeni sürüme otomatik taşınıyor

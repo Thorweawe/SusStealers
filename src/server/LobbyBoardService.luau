@@ -28,6 +28,8 @@ local DARK = Color3.fromRGB(14, 16, 32)
 local OUTLINE = Color3.fromRGB(10, 12, 24)
 
 local countdown: TextLabel? = nil
+local countdownTitle: TextLabel? = nil
+local countdownSub: TextLabel? = nil
 
 local function label(parent: Instance, text: string, size: number, color: Color3, order: number): TextLabel
 	local t = Instance.new("TextLabel")
@@ -137,9 +139,9 @@ local function build()
 
 	local live = Config.LiveOps
 	local c1 = column(gui, 1, Color3.fromRGB(80, 200, 255))
-	label(c1, "NEXT UPDATE", 40, Color3.fromRGB(120, 220, 255), 1)
+	countdownTitle = label(c1, "NEXT UPDATE", 40, Color3.fromRGB(120, 220, 255), 1)
 	countdown = label(c1, LobbyBoardService.CountdownText(os.time()), 64, Color3.fromRGB(255, 225, 70), 2)
-	label(c1, live.nextUpdate.title, 32, Color3.new(1, 1, 1), 3)
+	countdownSub = label(c1, live.nextUpdate.title, 32, Color3.new(1, 1, 1), 3)
 
 	local c2 = column(gui, 2, Color3.fromRGB(80, 200, 255))
 	label(c2, "👍 LIKE GOAL", 40, Color3.fromRGB(130, 255, 140), 1)
@@ -154,6 +156,20 @@ local function build()
 	model.Parent = workspace
 end
 
+--[[
+	İlk sütun: sınırlı etkinlik bir haftadan yakınsa ya da sürüyorsa onun geri
+	sayımı (başlık, süre, alt satır), yoksa sıradaki güncelleme. nil = güncelleme.
+]]
+function LobbyBoardService.EventHeadline(now: number): (string?, string?, string?)
+	local e = Config.LimitedEvent
+	if now < e.startsAt and e.startsAt - now <= 7 * 86400 then
+		return "🎃 " .. e.name, "IN " .. clock(e.startsAt - now), "LIMITED EVENT · CANDY SHOP"
+	elseif Config.IsLimitedEventActive(now) then
+		return "🎃 " .. e.name, "ENDS " .. clock(e.endsAt - now), "HAUNTED CREW · LIMITED HATS"
+	end
+	return nil, nil, nil
+end
+
 function LobbyBoardService.Start()
 	build()
 	task.spawn(function()
@@ -161,9 +177,20 @@ function LobbyBoardService.Start()
 			task.wait(1)
 			local label = countdown
 			if label and label.Parent then
-				local text = LobbyBoardService.CountdownText(os.time())
+				local now = os.time()
+				local title, time, sub = LobbyBoardService.EventHeadline(now)
+				local text = time or LobbyBoardService.CountdownText(now)
 				if label.Text ~= text then
 					label.Text = text
+				end
+				local wantTitle = title or "NEXT UPDATE"
+				local wantSub = sub or Config.LiveOps.nextUpdate.title
+				if countdownTitle and countdownTitle.Text ~= wantTitle then
+					countdownTitle.Text = wantTitle
+					countdownTitle.TextColor3 = if title then Config.LimitedEvent.color else Color3.fromRGB(120, 220, 255)
+				end
+				if countdownSub and countdownSub.Text ~= wantSub then
+					countdownSub.Text = wantSub
 				end
 			end
 		end

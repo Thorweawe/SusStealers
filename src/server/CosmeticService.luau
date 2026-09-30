@@ -140,6 +140,10 @@ function CosmeticService.TryBuy(player: Player, id: string): boolean
 	if not (def and profile) then
 		return false
 	end
+	-- Sınırlı (etkinlik) kozmetiği parayla satılmıyor: yalnızca etkinlik dükkânı (LimitedEventService)
+	if Config.IsLimitedCosmetic(id) then
+		return false
+	end
 	if profile.cosmetics[id] then
 		return false
 	end
@@ -154,6 +158,24 @@ function CosmeticService.TryBuy(player: Player, id: string): boolean
 	CosmeticService.Publish(player)
 	DataService.RequestSave(player)
 	notify(player, string.format("%s unlocked!", def.name), false)
+	return true
+end
+
+--[[
+	Etkinlik dükkânından gelen kozmetiği verir ve takar (LimitedEventService).
+	Bedeli çağıran aldı; burada para yok. Zaten sahipse false.
+]]
+function CosmeticService.Grant(player: Player, id: string): boolean
+	local def = Config.GetCosmetic(id)
+	local profile = DataService.Get(player)
+	if not (def and profile) or profile.cosmetics[id] then
+		return false
+	end
+	profile.cosmetics[id] = true
+	;(profile :: any)[def.kind] = id
+	CosmeticService.Apply(player)
+	CosmeticService.Publish(player)
+	DataService.RequestSave(player)
 	return true
 end
 

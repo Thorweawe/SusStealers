@@ -157,6 +157,36 @@ local function pieces(id: string): { Piece }
 		table.insert(list, { name = "Planet", size = Vector3.one * 0.28, cf = CFrame.new(0.75, 0.75, 0), color = Color3.fromRGB(255, 120, 80), mesh = "Sphere", neon = true })
 		table.insert(list, { name = "Planet", size = Vector3.one * 0.22, cf = CFrame.new(-0.6, 0.85, 0.45), color = Color3.fromRGB(90, 170, 255), mesh = "Sphere", neon = true })
 		table.insert(list, { name = "Planet", size = Vector3.one * 0.18, cf = CFrame.new(0.1, 0.7, -0.74), color = Color3.fromRGB(255, 220, 110), mesh = "Sphere", neon = true })
+	elseif id == "PumpkinHead" then
+		-- SINIRLI (Spooky Space): oyulmuş balkabağı, gözleri ve ağzı içten parlıyor.
+		-- Yüz -Z'de (karakterin baktığı yön)
+		local pumpkin = Color3.fromRGB(245, 130, 30)
+		local rib = Color3.fromRGB(215, 100, 20)
+		local glowC = Color3.fromRGB(255, 220, 90)
+		table.insert(list, vcyl("Base", 0.05, 0.1, 0.7, rib, { transparency = 1 }))
+		table.insert(list, { name = "Pumpkin", size = Vector3.new(1.35, 1.05, 1.3), cf = CFrame.new(0, 0.5, 0), color = pumpkin, mesh = "Sphere" })
+		for i = 0, 5 do
+			local a = i / 6 * math.pi * 2
+			table.insert(list, { name = "Rib", size = Vector3.new(0.5, 1.02, 0.5), cf = CFrame.new(math.cos(a) * 0.45, 0.5, math.sin(a) * 0.45), color = rib, mesh = "Sphere" })
+		end
+		table.insert(list, vcyl("Stem", 1.1, 0.3, 0.16, Color3.fromRGB(80, 130, 50)))
+		table.insert(list, { name = "Leaf", size = Vector3.new(0.4, 0.06, 0.2), cf = CFrame.new(0.15, 1.12, 0) * CFrame.Angles(0, 0, math.rad(-25)), color = Color3.fromRGB(90, 170, 60), mesh = "Sphere" })
+		for _, x in { -0.25, 0.25 } do
+			table.insert(list, { name = "Eye", size = Vector3.new(0.22, 0.22, 0.08), cf = CFrame.new(x, 0.62, -0.64) * CFrame.Angles(0, 0, math.rad(45)), color = glowC, neon = true })
+		end
+		table.insert(list, { name = "Mouth", size = Vector3.new(0.55, 0.12, 0.08), cf = CFrame.new(0, 0.34, -0.63), color = glowC, neon = true })
+		for _, x in { -0.14, 0.14 } do
+			table.insert(list, { name = "Tooth", size = Vector3.new(0.1, 0.1, 0.1), cf = CFrame.new(x, 0.4, -0.66), color = pumpkin })
+		end
+	elseif id == "WitchHat" then
+		-- SINIRLI (Spooky Space): geniş kenarlı, eğik uçlu mor cadı şapkası, altın tokalı
+		local violet = Color3.fromRGB(90, 40, 150)
+		local dark = Color3.fromRGB(50, 22, 90)
+		table.insert(list, vcyl("Base", 0.05, 0.1, 1.9, dark))
+		table.insert(list, vcyl("Band", 0.2, 0.18, 0.98, Color3.fromRGB(150, 255, 180), { neon = true }))
+		cone(list, "Cone", 0.1, 1.3, 0.95, { violet, violet, dark })
+		table.insert(list, { name = "Tip", size = Vector3.new(0.22, 0.5, 0.22), cf = CFrame.new(0.18, 1.55, 0.05) * CFrame.Angles(0, 0, math.rad(-40)), color = violet, mesh = "Sphere" })
+		table.insert(list, { name = "Buckle", size = Vector3.new(0.26, 0.2, 0.06), cf = CFrame.new(0, 0.2, -0.5), color = GOLD, neon = true })
 	end
 	return list
 end

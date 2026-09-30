@@ -16,6 +16,7 @@
 	  game.ServerStorage.AdminCommand:Fire("setspeed", "OyuncuAdi", 120)
 	  game.ServerStorage.AdminCommand:Fire("cash", "OyuncuAdi", 100000)
 	  game.ServerStorage.AdminCommand:Fire("trainboost", 2, 15)        -- bu sunucuda 15 dk 2x antrenman
+	  game.ServerStorage.AdminCommand:Fire("candy", "OyuncuAdi", 100)  -- etkinlik şekeri (etkinlik sürerken)
 	  game.ServerStorage.AdminCommand:Fire("announce", "metin")        -- bütün sunucular
 	  game.ServerStorage.AdminCommand:Fire("restart", 60, "BUG FIX UPDATE")  -- bütün sunucularda geri sayım
 	Oyuncu adı yerine "all" = sunucudaki herkes. Ad baştan eşleşiyor
@@ -119,6 +120,22 @@ function AdminService.Run(command: any, a: any, b: any): string
 			end
 		end
 		return if #done > 0 then "nakit verildi: " .. table.concat(done, ", ") else "oyuncu bulunamadı"
+	elseif command == "candy" then
+		-- Etkinlik şekeri (yalnızca etkinlik sürerken): ("candy", "Ad", 100)
+		local amount = tonumber(b)
+		if not amount then
+			return "kullanım: candy, ad, sayı"
+		end
+		local LimitedEventService = require(script.Parent.LimitedEventService) :: any
+		local done = {}
+		for _, player in targets(a) do
+			local before = player:GetAttribute("EventCandy")
+			LimitedEventService.AddCandy(player, amount)
+			if player:GetAttribute("EventCandy") ~= before then
+				table.insert(done, player.Name)
+			end
+		end
+		return if #done > 0 then "şeker verildi: " .. table.concat(done, ", ") else "verilemedi (etkinlik sürmüyor ya da oyuncu yok)"
 	elseif command == "announce" then
 		if typeof(a) ~= "string" or a == "" then
 			return "kullanım: announce, metin"

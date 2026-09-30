@@ -103,6 +103,7 @@ export type Info = {
 	bonusId: string?,
 	bonusName: string?,
 	bonusCash: number?,
+	candy: number?,
 }
 
 --[[ Güverteye varınca (SpaceFX "delivered"). `name` sunucunun yazdığı ad. ]]
@@ -180,6 +181,11 @@ function StealReveal.Show(screen: Instance, name: string, info: Info?)
 	end
 	if bonusCash > 0 then
 		table.insert(lines, string.format("%s +$%s", data.bonusName or "BONUS!", Config.FormatCash(bonusCash)))
+	end
+	-- Sınırlı etkinlik şekeri (Config.LimitedEvent; sunucu aynı miktarı ekledi)
+	local candy = data.candy or 0
+	if candy > 0 then
+		table.insert(lines, string.format("+%d %s CANDY", candy, Config.LimitedEvent.icon))
 	end
 	local bonus = label(card, "", 22, Color3.fromRGB(120, 255, 140), Z + 5, 3)
 	bonus.AnchorPoint = Vector2.new(0, 1)

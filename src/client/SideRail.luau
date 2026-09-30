@@ -48,6 +48,10 @@ export type Spec = {
 	icon: string,      -- UiKit.Icon adı: bag | book | clipboard | coin | ...
 	onClick: () -> (),
 	unlockAt: number?, -- bu kadar öğretici adımı bitince görünüyor (yoksa hep)
+	-- 2026-09-30: zamana bağlı düğme (sınırlı etkinlik) — false iken gizli; 15 sn'de bir soruluyor
+	visible: (() -> boolean)?,
+	-- Simgeyi kendisi çizer (UiArt / UiKit simgesi yerine)
+	decorate: ((slot: Frame) -> ())?,
 }
 
 export type Rail = {
@@ -139,6 +143,10 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 				ls.Thickness = 2
 				ls.Parent = label
 			end
+		elseif spec.decorate then
+			-- Kendi simgesi (EVENT düğmesinin dönen balkabağı)
+			slot.Size = UDim2.fromOffset(46, 46)
+			spec.decorate(slot)
 		else
 			UiKit.Icon(slot, spec.icon, 32, spec.tint:Lerp(Color3.new(1, 1, 1), 0.25))
 		end
@@ -172,10 +180,14 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 	     sessizce görünüyor. ]]
 	local first = true
 	local function apply()
+		local function timely(entry: Entry): boolean
+			local visible = entry.spec.visible
+			return visible == nil or visible()
+		end
 		if player:GetAttribute("TutorialStep") == nil then
 			-- Profil daha gelmedi: yalnızca hep açık olanlar
 			for _, entry in entries do
-				local want = (entry.spec.unlockAt or 0) <= 0
+				local want = (entry.spec.unlockAt or 0) <= 0 and timely(entry)
 				entry.shown = want
 				entry.holder.Visible = want
 			end
@@ -183,7 +195,7 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 		end
 		local done = step()
 		for _, entry in entries do
-			local want = done >= (entry.spec.unlockAt or 0)
+			local want = done >= (entry.spec.unlockAt or 0) and timely(entry)
 			if want ~= entry.shown then
 				entry.shown = want
 				entry.holder.Visible = want
@@ -205,6 +217,16 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 	end
 	apply()
 	local conn = player:GetAttributeChangedSignal("TutorialStep"):Connect(apply)
+	-- Zamana bağlı düğmeler (spec.visible) için ara ara yeniden bak
+	local alive = true
+	task.spawn(function()
+		while alive do
+			task.wait(15)
+			if alive then
+				apply()
+			end
+		end
+	end)
 
 	return {
 		SetBadge = function(buttonName: string, count: number)
@@ -215,6 +237,7 @@ function SideRail.Create(screen: ScreenGui, name: string, specs: { Spec }): Rail
 			end
 		end,
 		Destroy = function()
+			alive = false
 			conn:Disconnect()
 			driver.destroy()
 			rail:Destroy()

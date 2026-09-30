@@ -50,6 +50,7 @@ local EVENTS = {
 	"SpinResult",   -- server -> client (rewardId, text, duration, sliceIndex, jitter, super) — çark sonucu
 	"SeasonClaim",  -- client -> server (tier, "free" | "premium") — Sezon Kartı ödülü
 	"ServerFX",     -- server -> client ("luck", by, endsAt) | ("troll", kind, by, seconds) — ServerBoostService
+	"EventShop",    -- client -> server (itemId: string) — sınırlı etkinlik dükkânı (LimitedEventService)
 }
 
 --[[
@@ -190,6 +191,13 @@ local CLIENT_TO_SERVER = {
 		ödül profilde işaretli (SeasonService.Claim).
 	]]
 	SeasonClaim = true,
+	--[[
+		EventShop oyuncunun KENDİ etkinlik şekerini harcıyor (LimitedEventService.Buy):
+		fiyat ve adet sınırı Config'te, şeker sunucudaki sayaçtan (yalnızca
+		soygun ve günlük bonus artırıyor), etkinlik süresi sunucu saatinden.
+		İstemci yalnızca ürün kimliğini söylüyor; tanınmayan reddediliyor.
+	]]
+	EventShop = true,
 }
 
 local Net = {}

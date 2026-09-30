@@ -52,6 +52,13 @@ local SpaceService = {}
 
 SpaceService.NotifyKind = "steal"
 
+--[[
+	Güverteye teslim edildi: (player, unitId, mutationId?, candy). Sınırlı
+	etkinlik (LimitedEventService) şekeri buradan veriyor — SpaceService onu
+	require etmiyor, bağımlılık tek yönlü.
+]]
+SpaceService.Delivered = Instance.new("BindableEvent")
+
 type Spot = {
 	planet: number,
 	index: number,
@@ -524,6 +531,11 @@ local function rollSpot(spot: Spot)
 		end
 	end
 	local mutationId = if mutation then mutation.id else nil
+	-- Sınırlı etkinlik (Config.LimitedEvent): mutasyonsuz doğuşların bir kısmı HAUNTED
+	if not mutationId and Config.IsLimitedEventActive(os.time())
+		and rng:NextNumber() < Config.LimitedEvent.hauntedChance then
+		mutationId = "Haunted"
+	end
 	placeSpot(spot, unit.id, mutationId, crewFolder :: Folder)
 
 	--[[
@@ -842,6 +854,10 @@ local function deliver(player: Player, root: BasePart)
 			AnnounceService.Paint("JACKPOT", Color3.fromRGB(255, 205, 60)), Config.FormatCash(bonusCash)))
 	end
 
+	-- Sınırlı etkinlik: şeker (LimitedEventService Delivered'ı dinleyip ekliyor; aynı hesap)
+	local candy = Config.GetHeistCandy(carry.unitId, carry.mutationId, os.time())
+	SpaceService.Delivered:Fire(player, carry.unitId, carry.mutationId, candy)
+
 	-- Bildirim yok: kutlama kartı (istemci StealReveal) aynı şeyi söylüyor
 	fx(player, "delivered", name, {
 		unitId = carry.unitId,
@@ -850,6 +866,7 @@ local function deliver(player: Player, root: BasePart)
 		bonusId = if bonus then bonus.id else nil,
 		bonusName = if bonus then bonus.name else nil,
 		bonusCash = bonusCash,
+		candy = candy,
 	})
 end
 
@@ -1352,7 +1369,7 @@ function SpaceService.PoolFor(player: Player, bonusTier: number?): Config.SpaceM
 	return Config.SpaceMonsters[target]
 end
 
-function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?): (string?, string?)
+function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTier: number?, mutationOverride: string?): (string?, string?)
 	local def = SpaceService.PoolFor(player, bonusTier)
 	local unit = Config.RollSpaceUnit(rng, def)
 	local mutation = Config.RollMutation(rng)
@@ -1362,6 +1379,10 @@ function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTie
 		end
 	end
 	local mutationId = if mutation then mutation.id else nil
+	-- Belirli mutasyon (etkinlik dükkânındaki HAUNTED karakter, LimitedEventService)
+	if mutationOverride and Config.GetMutation(mutationOverride) then
+		mutationId = mutationOverride
+	end
 	if not placeOnPodium(player, unit.id, mutationId, "got") then
 		return nil, nil
 	end

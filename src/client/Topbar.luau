@@ -65,6 +65,7 @@ local CLUTTER = {
 	"SpinPanel",
 	"WeeklyPanel",
 	"SeasonPanel",
+	"EventPanel",
 }
 
 local BUTTON = 44

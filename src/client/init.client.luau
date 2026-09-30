@@ -68,6 +68,7 @@ local Sprint = require(script.Sprint)
 local UpgradePanel = require(script.UpgradePanel)
 local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
+local EventPanel = require(script.EventPanel)
 local PetPanel = require(script.PetPanel)
 local HatchFX = require(script.HatchFX)
 local FuseFX = require(script.FuseFX)
@@ -740,7 +741,20 @@ mountPanel("SideRail", function()
 			end
 		end
 	end
+	-- Sınırlı etkinlik (EventPanel): raydaki düğme etkinlikten 3 gün önce görünüyor, bitince gidiyor
+	local eventPanel = EventPanel.Create(screen)
+	previews.Event = eventPanel.Open
 	local rail = SideRail.Create(screen, "SideRail", {
+		{
+			name = "Event",
+			label = "EVENT",
+			tint = Config.LimitedEvent.color,
+			icon = "crate",
+			onClick = eventPanel.Toggle,
+			unlockAt = 1,
+			visible = EventPanel.ShouldShow,
+			decorate = EventPanel.DecorateIcon,
+		},
 		{
 			name = "Shop",
 			label = "SHOP",
@@ -778,6 +792,25 @@ mountPanel("SideRail", function()
 	Inventory.BadgeChanged.Event:Connect(function(total: number)
 		rail.SetBadge("Inventory", total)
 	end)
+	-- EVENT rozeti: şekerin yettiği (ve sınırı dolmamış) dükkân ürünü sayısı
+	local function eventBadge()
+		local candy = player:GetAttribute("EventCandy")
+		candy = if typeof(candy) == "number" then candy else 0
+		local raw = player:GetAttribute("EventBought")
+		local n = 0
+		if Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then
+			for _, item in Config.LimitedEvent.shop do
+				local have = if typeof(raw) == "string" then tonumber(string.match(raw, item.id .. ":(%d+)")) or 0 else 0
+				if candy >= item.price and have < item.limit then
+					n += 1
+				end
+			end
+		end
+		rail.SetBadge("Event", n)
+	end
+	player:GetAttributeChangedSignal("EventCandy"):Connect(eventBadge)
+	player:GetAttributeChangedSignal("EventBought"):Connect(eventBadge)
+	eventBadge()
 	local function passBadge()
 		rail.SetBadge("Pass", SeasonPanel.Claimable())
 	end

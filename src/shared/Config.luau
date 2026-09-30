@@ -1864,11 +1864,26 @@ function Config.GetUnit(id: string): UnitDef?
 	return unitsById[id]
 end
 
+--[[
+	Etkinlik mutasyonları (Config.LimitedEvent): normal zarda HİÇ çıkmıyor
+	(RollMutation yalnızca Config.Mutations'a bakıyor, oran testleri de);
+	yalnızca etkinlikte gezegen doğuşunda ve etkinlik dükkânında veriliyor.
+	Karakter sonra da kaidede kalıyor: GetMutation onu tanımaya devam ediyor.
+]]
+Config.EventMutations = {
+	{ id = "Haunted", name = "HAUNTED", chance = 0, incomeMul = 6, tint = Color3.fromRGB(170, 255, 210) },
+} :: { MutationDef }
+
 function Config.GetMutation(id: string?): MutationDef?
 	if id == nil then
 		return nil
 	end
 	for _, mutation in Config.Mutations do
+		if mutation.id == id then
+			return mutation
+		end
+	end
+	for _, mutation in Config.EventMutations do
 		if mutation.id == id then
 			return mutation
 		end
@@ -2740,13 +2755,128 @@ Config.Cosmetics = {
 	  colors = { Color3.new(1, 1, 1), Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 90, 40), Color3.fromRGB(120, 20, 60) } },
 } :: { CosmeticDef }
 
+--[[
+	SINIRLI kozmetikler (2026-09-30, Config.LimitedEvent): yalnızca etkinlik
+	dükkânında etkinlik parasıyla alınıyor, parayla SATILMIYOR
+	(CosmeticService.TryBuy reddediyor) ve kozmetik penceresinde yalnızca
+	sahibine görünüyor. Ayrı liste: mağaza fiyat sırası testi bunları saymasın.
+	`limited` = hangi etkinliğin.
+]]
+export type LimitedCosmeticDef = CosmeticDef & { limited: string }
+Config.LimitedCosmetics = {
+	{ id = "PumpkinHead", name = "Pumpkin Head",  kind = "hat",   price = 0, rarity = "Legendary", color = Color3.fromRGB(245, 130, 30), limited = "Spooky2026" },
+	{ id = "WitchHat",    name = "Witch Hat",     kind = "hat",   price = 0, rarity = "Mythic",    color = Color3.fromRGB(120, 60, 190), limited = "Spooky2026" },
+	{ id = "GhostTrail",  name = "Ghost Trail",   kind = "trail", price = 0, rarity = "Legendary", color = Color3.fromRGB(190, 255, 220), limited = "Spooky2026",
+	  colors = { Color3.fromRGB(230, 255, 240), Color3.fromRGB(150, 255, 200), Color3.fromRGB(120, 60, 190) } },
+} :: { LimitedCosmeticDef }
+
 function Config.GetCosmetic(id: string): CosmeticDef?
 	for _, def in Config.Cosmetics do
 		if def.id == id then
 			return def
 		end
 	end
+	for _, def in Config.LimitedCosmetics do
+		if def.id == id then
+			return def
+		end
+	end
 	return nil
+end
+
+--[[ Kimlik sınırlı (etkinlik) kozmetiği mi? ]]
+function Config.IsLimitedCosmetic(id: string): boolean
+	for _, def in Config.LimitedCosmetics do
+		if def.id == id then
+			return true
+		end
+	end
+	return false
+end
+
+--[[
+	═══ SINIRLI ETKİNLİK (2026-09-30, LimitedEventService) ═════════════════
+
+	Bir haftalık, tarihe bağlı etkinlik. Kurallar (oyunun 11 kuralından):
+	  KITLIK / FOMO   — dükkân yalnızca etkinlik süresince açık; ödüller
+	                    sonra bir daha satılmıyor, sahibinde kalıyor
+	  DEĞİŞKEN ÖDÜL   — etkinlikte gezegenlerde HAUNTED mutasyonlu mürettebat
+	                    (hauntedChance), çalınca daha çok şeker
+	  HEDEF MERDİVENİ — dükkân fiyatları ucuzdan (herkes) pahalıya (sıkı
+	                    oynayan / geç oyun oyuncusu); şeker nadirlikle artıyor
+	  GERİ DÖNÜŞ      — her gün ilk girişte şeker (dailyBonus)
+	  ŞEFFAFLIK       — Haunted ihtimali dükkânda yazıyor
+	  SOSYAL KANIT    — sınırlı kozmetik alınınca sohbete duyuru
+	Zamanlar UTC saniye. Yeni etkinlik = yeni `id` (eski şeker sıfırlanıyor).
+]]
+Config.LimitedEvent = {
+	id = "Spooky2026",
+	name = "SPOOKY SPACE",
+	startsAt = 1790967600, -- 2 Eki 2026 Cuma 19:00 UTC (22:00 TR, 15:00 ABD doğu)
+	endsAt = 1791572400,   -- 9 Eki 2026 Cuma 19:00 UTC
+	currency = "Candy",
+	icon = "🍬",
+	color = Color3.fromRGB(255, 140, 40),
+	color2 = Color3.fromRGB(130, 60, 200),
+	-- Etkinlikte gezegen doğuşunda (başka mutasyon yoksa) HAUNTED ihtimali
+	hauntedChance = 0.08,
+	-- Soygun başına şeker: çalınan karakterin nadirliğine göre
+	candyByRarity = {
+		Common = 1, Uncommon = 2, Rare = 4, Epic = 7, Legendary = 12,
+		Mythic = 20, Secret = 35, Celestial = 50,
+	} :: { [string]: number },
+	mutationCandyMul = 2,  -- mutasyonlu çalınca
+	hauntedCandyMul = 3,   -- HAUNTED çalınca (mutasyon çarpanının yerine)
+	dailyBonus = 25,       -- etkinlikte her gün ilk girişte
+	--[[
+		Dükkân. kind: unit (en iyi gezegeninin havuzundan HAUNTED karakter,
+		kaideye) | superspin | cosmetic. limit = etkinlik başına en fazla.
+		Kaba hesap: günde ~1 saat oynayan ~150 şeker/gün → hafta ~1.000;
+		Witch Hat sıkı oynayana / geç oyuna hedef.
+	]]
+	shop = {
+		{ id = "HauntedCrew", name = "Haunted Crewmate", kind = "unit", price = 100, limit = 5,
+		  desc = "A HAUNTED crewmate from your best planet" },
+		{ id = "SpookySpin", name = "Spooky Super Spin", kind = "superspin", price = 180, limit = 3,
+		  desc = "A SUPER SPIN on the lucky wheel" },
+		{ id = "PumpkinHead", name = "Pumpkin Head", kind = "cosmetic", cosmetic = "PumpkinHead", price = 350, limit = 1,
+		  desc = "LIMITED hat, never sold again" },
+		{ id = "GhostTrail", name = "Ghost Trail", kind = "cosmetic", cosmetic = "GhostTrail", price = 600, limit = 1,
+		  desc = "LIMITED trail, never sold again" },
+		{ id = "WitchHat", name = "Witch Hat", kind = "cosmetic", cosmetic = "WitchHat", price = 1100, limit = 1,
+		  desc = "LIMITED hat for the true candy hunters" },
+	} :: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
+}
+
+--[[ Etkinlik şu an sürüyor mu (sunucu ve istemci aynı saatle). ]]
+function Config.IsLimitedEventActive(now: number): boolean
+	local e = Config.LimitedEvent
+	return now >= e.startsAt and now < e.endsAt
+end
+
+function Config.GetEventShopItem(id: string): any
+	for _, item in Config.LimitedEvent.shop do
+		if item.id == id then
+			return item
+		end
+	end
+	return nil
+end
+
+--[[ Bir soygunun şekeri (etkinlik dışında 0). ]]
+function Config.GetHeistCandy(unitId: string, mutationId: string?, now: number): number
+	if not Config.IsLimitedEventActive(now) then
+		return 0
+	end
+	local e = Config.LimitedEvent
+	local def = Config.GetUnit(unitId)
+	local base = if def then (e.candyByRarity[def.rarity] or 1) else 1
+	if mutationId == "Haunted" then
+		return base * e.hauntedCandyMul
+	elseif mutationId and mutationId ~= "" then
+		return base * e.mutationCandyMul
+	end
+	return base
 end
 
 -- ─── Gezen impostor (NPC) ───────────────────────────────────────────────────

@@ -204,7 +204,18 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 		cash = if typeof(cash) == "number" then cash else 0
 
 		local order = 0
+		--[[ Sınırlı (etkinlik) kozmetikleri yalnızca SAHİBİNE, en başta: satılmıyorlar
+		     ama etkinlik bitince de takılabilmeli (Config.LimitedCosmetics). ]]
+		local defs: { Config.CosmeticDef } = {}
+		for _, def in Config.LimitedCosmetics do
+			if have[def.id] then
+				table.insert(defs, def)
+			end
+		end
 		for _, def in Config.Cosmetics do
+			table.insert(defs, def)
+		end
+		for _, def in defs do
 			if def.kind ~= kind then
 				continue
 			end
@@ -249,7 +260,7 @@ function CosmeticPanel.Create(screen: ScreenGui, host: Frame?): Panel
 			tag.BackgroundTransparency = 1
 			tag.TextSize = 14
 			tag.TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.45)
-			tag.Text = string.upper(def.rarity)
+			tag.Text = if Config.IsLimitedCosmetic(def.id) then "LIMITED" else string.upper(def.rarity)
 			tag.ZIndex = Z + 3
 			tag.Parent = card
 			ink(tag, 1.6)
