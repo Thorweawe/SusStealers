@@ -109,13 +109,19 @@ local forcedLuck: number? = nil
 -- Aşağıda tanımlı; daha önceki fonksiyonlar (catch) da kullanıyor
 local keepOffPlanets: (p: Vector3) -> (Vector3, boolean)
 
---[[ Stealth Suit: hedef oyuncunun canavar uyanma süresi çarpanı (hedef yoksa 1). ]]
+--[[ Pet kaçış yeteneği (PetService yazıyor): 0..PetPerkCaps.escape. ]]
+local function escapeOf(player: Player?): number
+	local v = if player then player:GetAttribute("PetEscapeBonus") else nil
+	return if typeof(v) == "number" then math.clamp(v, 0, Config.PetPerkCaps.escape) else 0
+end
+
+--[[ Stealth Suit + pet kaçışı: hedef oyuncunun canavar uyanma süresi çarpanı (hedef yoksa 1). ]]
 local function stealthOf(player: Player?): number
 	if not player then
 		return 1
 	end
 	local wakeMul = Config.GetStealth(UpgradeService.GetLevel(player, "StealthSuit"))
-	return wakeMul
+	return wakeMul * (1 + escapeOf(player))
 end
 -- Testler döngüyü durduruyor (canavar test oyuncusunu yakalamasın)
 local paused = false
@@ -657,7 +663,11 @@ function onGrab(player: Player, spot: Spot)
 		Hangi mutasyon olacağı mutasyonların kendi nadirliğiyle (chance).
 	]]
 	local lucky = false
-	if not mutationId and luckRng:NextNumber() < Config.GetLuckyChance(UpgradeService.GetLevel(player, "LuckyScanner")) * Config.GetServerLuck() then
+	-- Celestial petlerinin şans yeteneği Lucky Scanner'ın şansına ekleniyor
+	local petLuck = player:GetAttribute("PetLuckBonus")
+	local luckChance = Config.GetLuckyChance(UpgradeService.GetLevel(player, "LuckyScanner"))
+		+ (if typeof(petLuck) == "number" then math.clamp(petLuck, 0, Config.PetPerkCaps.luck) else 0)
+	if not mutationId and luckRng:NextNumber() < math.min(0.9, luckChance * Config.GetServerLuck()) then
 		local total = 0
 		for _, m in Config.Mutations do
 			total += m.chance
@@ -1125,6 +1135,8 @@ local function stepMonsters(dt: number)
 					speed = need * lunge
 				end
 				speed *= eventMods.chaseMul
+				-- Nebula petlerinin kaçış yeteneği: canavar bu oranda yavaş
+				speed *= 1 - escapeOf(m.target)
 				if (body - root.Position).Magnitude <= reach and not SpaceField.InSafe(root.Position) then
 					catch(m, m.target :: Player)
 				end

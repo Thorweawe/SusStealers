@@ -488,6 +488,8 @@ function TitleScreen.Show(options: Options?): Handle
 	logo.BackgroundTransparency = 1
 
 	local top = label(logo, TITLE_TOP, Enum.Font.FredokaOne, 34, WHITE, 13)
+	-- Oyunun adı çevrilmesin: otomatik çeviri "STEAL A"yı "A KAÇIRMAK" yapıyordu
+	top.AutoLocalize = false
 	top.AnchorPoint = Vector2.new(0.5, 0)
 	top.Position = UDim2.fromScale(0.5, 0)
 	top.Size = UDim2.fromOffset(260, 46)
@@ -502,6 +504,7 @@ function TitleScreen.Show(options: Options?): Handle
 	ts.Parent = top
 
 	local main = label(logo, TITLE_MAIN, Enum.Font.FredokaOne, 124, WHITE, 12)
+	main.AutoLocalize = false
 	main.AnchorPoint = Vector2.new(0.5, 0)
 	main.Position = UDim2.fromOffset(380, 44)
 	main.Size = UDim2.fromOffset(760, 130)

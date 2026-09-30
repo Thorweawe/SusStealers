@@ -73,6 +73,17 @@ local STYLES: { [string]: Style } = {
 		glow = rgb(200, 150, 255), backdrop = rgb(8, 3, 18),
 		idle = "pulse", crack = "implode", bits = "stars", reflect = 0,
 	},
+	-- Rebirth yumurtaları (2026-09-30)
+	NebulaEgg = {
+		title = "NEBULA CLOUD", shell = rgb(150, 90, 230), accent = rgb(255, 140, 230),
+		glow = rgb(255, 175, 240), backdrop = rgb(22, 6, 32),
+		idle = "drift", crack = "implode", bits = "stars", reflect = 0.08,
+	},
+	CelestialEgg = {
+		title = "CELESTIAL GATE", shell = rgb(215, 255, 248), accent = rgb(255, 225, 110),
+		glow = rgb(150, 255, 238), backdrop = rgb(4, 26, 28),
+		idle = "spin", crack = "spin", bits = "stars", reflect = 0.18,
+	},
 }
 
 local DEFAULT: Style = {
@@ -127,6 +138,19 @@ function EggStyle.Draw(parent: Instance, size: number, eggId: string?): Frame
 		S(h, 0.52, 0.55, 0.04, 0.2, a, 4, 0, -28)
 		S(h, 0.47, 0.7, 0.04, 0.14, a, 4, 0, 22)
 		S(h, 0.66, 0.3, 0.05, 0.05, Color3.new(1, 1, 1), 5, 0.5)
+	elseif eggId == "NebulaEgg" then
+		-- Pembe nebula bulutları ve yıldızlar
+		S(h, 0.36, 0.36, 0.34, 0.2, a, 4, 0.5).BackgroundTransparency = 0.2
+		S(h, 0.62, 0.62, 0.4, 0.22, style.glow, 4, 0.5).BackgroundTransparency = 0.3
+		for _, c in { { 0.3, 0.7 }, { 0.7, 0.3 }, { 0.52, 0.48 } } do
+			S(h, c[1], c[2], 0.07, 0.07, Color3.new(1, 1, 1), 5, 0, 45)
+		end
+	elseif eggId == "CelestialEgg" then
+		-- Altın bant ve ortada yıldız
+		S(h, 0.5, 0.56, 0.9, 0.09, a, 4, 0.5)
+		S(h, 0.5, 0.36, 0.2, 0.2, a, 5, 0, 45)
+		S(h, 0.5, 0.36, 0.2, 0.2, a, 5, 0, 0)
+		UiKit.Ring(h, 0.5, 0.5, 1.08, 1.04, style.glow, 2, 0)
 	end
 	return h
 end
@@ -301,6 +325,53 @@ local function dress(s: Styled, folder: Instance, id: string)
 			d.radius = 3.5
 			d.phase = k / 3 * 360
 		end
+	elseif id == "NebulaEgg" then
+		-- Çevresinde süzülen pembe bulut topakları ve yıldız tozu
+		-- Neon değil ve saydam: pembe neon kapsülü fazla parlatıyordu
+		for k = 0, 3 do
+			local puff = ellipsoid(folder, "NebulaPuff", Vector3.new(1.2, 0.8, 1.2), if k % 2 == 0 then style.accent else style.glow)
+			puff.Transparency = 0.45
+			local d = add(puff, CFrame.new())
+			d.orbit = 40
+			d.radius = 2.9
+			d.phase = k / 4 * 360
+		end
+		local core = decoPart(folder, "NebulaDust", Vector3.new(0.2, 0.2, 0.2), style.glow)
+		core.Transparency = 1
+		local dust = Instance.new("ParticleEmitter")
+		dust.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		dust.Color = ColorSequence.new(style.accent, Color3.new(1, 1, 1))
+		dust.LightEmission = 0.5
+		dust.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0) })
+		dust.Lifetime = NumberRange.new(1.2, 2)
+		dust.Rate = 5
+		dust.Speed = NumberRange.new(0.3, 0.8)
+		dust.SpreadAngle = Vector2.new(180, 180)
+		dust.Parent = core
+		add(core, CFrame.new())
+	elseif id == "CelestialEgg" then
+		-- Altın bant, tepede yıldız, çevresinde dönen iki altın halka
+		band(0.1, 0.45, style.accent, false)
+		local star: Part? = nil
+		for k = 0, 1 do
+			local p = decoPart(folder, "CelestStar", Vector3.new(0.9, 0.9, 0.25), style.accent)
+			p.Material = Enum.Material.Neon
+			add(p, CFrame.new(0, H + 0.6, 0) * CFrame.Angles(0, 0, math.rad(45 * k)))
+			star = p
+		end
+		for k = 0, 3 do
+			local orb = decoPart(folder, "CelestOrb", Vector3.new(0.4, 0.4, 0.4), if k % 2 == 0 then style.accent else style.glow, Enum.PartType.Ball)
+			orb.Material = Enum.Material.Neon
+			local d = add(orb, CFrame.new(0, (k % 2) * 1.2 - 0.6, 0))
+			d.orbit = if k % 2 == 0 then 70 else -55
+			d.radius = 3.3
+			d.phase = k / 4 * 360
+		end
+		local light = Instance.new("PointLight")
+		light.Color = style.glow
+		light.Range = 10
+		light.Brightness = 0.7
+		light.Parent = star
 	end
 end
 

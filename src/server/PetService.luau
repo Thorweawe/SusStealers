@@ -159,6 +159,10 @@ local function apply(player: Player)
 	local income, speed = Config.GetPetBonus(profile.equippedPets)
 	player:SetAttribute("PetIncomeBonus", income)
 	player:SetAttribute("PetSpeedBonus", speed)
+	-- Rebirth yumurtalarının yetenekleri (SpaceService okuyor): kaçış, şans
+	local escape, luck = Config.GetPetPerks(profile.equippedPets)
+	player:SetAttribute("PetEscapeBonus", if escape > 0 then escape else nil)
+	player:SetAttribute("PetLuckBonus", if luck > 0 then luck else nil)
 
 	PetService.Respawn(player)
 	push(player)
@@ -393,6 +397,11 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 
 	local profile = DataService.Get(player)
 	if not profile then
+		return nil
+	end
+	-- Rebirth yumurtası: yeterli rebirth yoksa açılmıyor
+	if not Config.EggUnlocked(egg, profile.rebirths) then
+		notify(player, string.format("%s unlocks at REBIRTH %d!", egg.name, egg.rebirths or 0), true)
 		return nil
 	end
 
@@ -769,7 +778,8 @@ function PetService.WireHatchery(): boolean
 			ring.Color = tint
 		end
 		if screen and screen:IsA("BasePart") then
-			screenLabel(screen, string.upper(egg.name), tint, "$" .. Config.FormatCash(egg.price))
+			screenLabel(screen, string.upper(egg.name), tint, "$" .. Config.FormatCash(egg.price)
+				.. (if egg.rebirths then string.format("  ·  REBIRTH %d", egg.rebirths) else ""))
 		end
 
 		--[[
@@ -811,6 +821,7 @@ function PetService.WireHatchery(): boolean
 			prompt.Name = name
 			prompt.ActionText = action
 			prompt.ObjectText = string.format("%s  $%s", egg.name, Config.FormatCash(egg.price))
+				.. (if egg.rebirths then string.format("  (Rebirth %d)", egg.rebirths) else "")
 			prompt.KeyboardKeyCode = key
 			prompt.HoldDuration = 0.25
 			prompt.MaxActivationDistance = 10

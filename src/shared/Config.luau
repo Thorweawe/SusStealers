@@ -1941,6 +1941,9 @@ export type PetDef = {
 	incomeBonus: number,   -- gelire eklenen oran (0.25 = +%25)
 	speedBonus: number,    -- taşıma hızına eklenen stud/s
 	color: Color3,
+	-- Geç oyun yetenekleri (rebirth yumurtaları, PET_PERK): taban değer
+	escape: number?,       -- kovalayan canavar bu oranda yavaş, geç uyanıyor
+	luck: number?,         -- çalınan mürettebatın mutasyonlu çıkma şansına eklenen
 }
 
 --[[
@@ -1985,7 +1988,38 @@ local EGG_TIER = {
 	SkeldEgg  = { income = 1.6, speed = 1.25 },
 	PolusEgg  = { income = 2.5, speed = 1.55 },
 	VoidEgg   = { income = 4.0, speed = 1.9 },
+	-- Rebirth yumurtaları (2026-09-30): geç oyunda pet yeniden anlamlı
+	NebulaEgg    = { income = 6.5, speed = 2.3 },
+	CelestialEgg = { income = 10,  speed = 2.8 },
 }
+
+--[[
+	═══ GEÇ OYUN YETENEKLERİ ══════════════════════════════════════════════
+
+	2026-09-30: "petler geç oyunda sadece para veriyor". Rebirth
+	yumurtalarının petleri gelirin yanında bir YETENEK de taşıyor:
+
+	  Nebula Egg    → KAÇIŞ: kovalayan canavar yavaş ve geç uyanıyor. Zor
+	                  canavarlardan çalmak kolaylaşıyor ama çalabilmek için
+	                  gereken hız (Space Speed) aynı kalıyor — hız kapısı
+	                  bozulmuyor ("antrenman" yeteneği bu yüzden yok).
+	  Celestial Egg → ŞANS: çalınan mutasyonsuz mürettebatın mutasyonlu
+	                  çıkma şansına ekleniyor (Lucky Scanner ile toplanıyor).
+
+	Boyut ve mutasyon çarpanı yeteneğe KÖKÜYLE işliyor (Titan Cosmic x30
+	→ x5.5); üç pet toplanıyor ve toplam PetPerkCaps'te kesiliyor.
+]]
+local PET_PERK = {
+	escape = { Common = 0.02, Uncommon = 0.03, Rare = 0.045, Epic = 0.06, Legendary = 0.08, Mythic = 0.10, Secret = 0.13 },
+	luck   = { Common = 0.01, Uncommon = 0.015, Rare = 0.02, Epic = 0.03, Legendary = 0.04, Mythic = 0.055, Secret = 0.075 },
+}
+local EGG_PERK: { [string]: string } = {
+	NebulaEgg = "escape",
+	CelestialEgg = "luck",
+}
+
+-- Takılı petlerin yetenek toplamının tavanı
+Config.PetPerkCaps = { escape = 0.4, luck = 0.4 }
 
 --[[
 	═══ PET TİPİ (şu an kullanılmıyor) ═══════════════════════════════════
@@ -2011,6 +2045,7 @@ local function pet(id: string, name: string, rarity: Rarity, egg: string, color:
 	local function round(x: number): number
 		return math.floor(x * 1000 + 0.5) / 1000
 	end
+	local perk = EGG_PERK[egg]
 	return {
 		id = id,
 		name = name,
@@ -2019,6 +2054,8 @@ local function pet(id: string, name: string, rarity: Rarity, egg: string, color:
 		incomeBonus = round(tier.income * eggTier.income),
 		speedBonus = round(tier.speed * eggTier.speed),
 		color = color,
+		escape = if perk == "escape" then PET_PERK.escape[rarity] else nil,
+		luck = if perk == "luck" then PET_PERK.luck[rarity] else nil,
 	}
 end
 
@@ -2064,6 +2101,24 @@ Config.Pets = {
 	pet("MiniImp",    "Mini Impostor",    "Legendary", "VoidEgg",   Color3.fromRGB(190,   0,  55)),
 	pet("NebulaEye",  "Nebula Eye",       "Mythic",    "VoidEgg",   Color3.fromRGB(200,  90, 255)),
 	pet("VoidShard",  "Void Shard",       "Secret",    "VoidEgg",   Color3.fromRGB( 18,  18,  26)),
+
+	-- Nebula Egg (Rebirth 2): uzay tozu yaratıkları — KAÇIŞ yeteneği
+	pet("DustBunny",  "Stardust Bunny",   "Common",    "NebulaEgg", Color3.fromRGB(255, 170, 225)),
+	pet("NebSlime",   "Nebula Slime",     "Uncommon",  "NebulaEgg", Color3.fromRGB(150, 110, 255)),
+	pet("WarpDrone",  "Warp Drone",       "Rare",      "NebulaEgg", Color3.fromRGB( 80, 220, 255)),
+	pet("CosmoRay",   "Cosmo Ray",        "Epic",      "NebulaEgg", Color3.fromRGB( 70, 120, 255)),
+	pet("PhantomCrew","Phantom Crew",     "Legendary", "NebulaEgg", Color3.fromRGB(190, 160, 255)),
+	pet("StarWhale",  "Star Whale",       "Mythic",    "NebulaEgg", Color3.fromRGB( 60,  90, 200)),
+	pet("RiftWalker", "Rift Walker",      "Secret",    "NebulaEgg", Color3.fromRGB( 40,  10,  70)),
+
+	-- Celestial Egg (Rebirth 6): göksel şans getirenler — ŞANS yeteneği
+	pet("LuckyStar",  "Lucky Star",       "Common",    "CelestialEgg", Color3.fromRGB(255, 225,  90)),
+	pet("CloverBot",  "Clover Bot",       "Uncommon",  "CelestialEgg", Color3.fromRGB( 90, 220, 120)),
+	pet("FrostSprite","Frost Sprite",     "Rare",      "CelestialEgg", Color3.fromRGB(170, 235, 255)),
+	pet("SunBeetle",  "Sun Beetle",       "Epic",      "CelestialEgg", Color3.fromRGB(255, 170,  40)),
+	pet("PrismFox",   "Prism Fox",        "Legendary", "CelestialEgg", Color3.fromRGB(120, 255, 235)),
+	pet("CometKing",  "Comet King",       "Mythic",    "CelestialEgg", Color3.fromRGB(255, 110, 150)),
+	pet("CelestCore", "Celestial Core",   "Secret",    "CelestialEgg", Color3.fromRGB(110, 250, 230)),
 } :: { PetDef }
 
 -- Aynı anda takılabilecek pet sayısı. Üç: sıralı bir seçim yapacak kadar
@@ -2277,6 +2332,7 @@ export type EggDef = {
 	price: number,
 	weights: { [string]: number },  -- nadirlik -> ağırlık
 	tint: Color3,                   -- yumurtanın ışık/yazı rengi (kuluçka ve arayüz)
+	rebirths: number?,              -- açmak için gereken rebirth (yoksa herkese açık)
 }
 
 --[[
@@ -2306,7 +2362,19 @@ Config.Eggs = {
 	{ id = "VoidEgg",   name = "Void Egg",   price =    9000000000,
 		weights = { Common = 38, Uncommon = 27, Rare = 17, Epic = 10, Legendary = 5.5, Mythic = 2, Secret = 0.5 },
 		tint = Color3.fromRGB(30, 30, 40) },
+	-- Rebirth yumurtaları: fiyat o rebirth'teki gelirin birkaç dakikası
+	{ id = "NebulaEgg", name = "Nebula Egg", price =  500000000000, rebirths = 2,
+		weights = { Common = 38, Uncommon = 27, Rare = 17, Epic = 10, Legendary = 5.5, Mythic = 2, Secret = 0.5 },
+		tint = Color3.fromRGB(255, 120, 220) },
+	{ id = "CelestialEgg", name = "Celestial Egg", price = 100000000000000, rebirths = 6,
+		weights = { Common = 38, Uncommon = 27, Rare = 17, Epic = 10, Legendary = 5.5, Mythic = 2, Secret = 0.5 },
+		tint = Color3.fromRGB(110, 250, 230) },
 } :: { EggDef }
+
+--[[ Yumurta bu rebirth sayısında açılabiliyor mu. ]]
+function Config.EggUnlocked(egg: EggDef, rebirths: number): boolean
+	return (egg.rebirths or 0) <= rebirths
+end
 
 --[[ Bir yumurtanın petleri, kademe sırasıyla (Common önce). ]]
 function Config.GetEggPets(eggId: string): { PetDef }
@@ -2443,6 +2511,33 @@ function Config.GetPetBonus(equipped: { string }): (number, number)
 	return income, speed
 end
 
+--[[
+	Bir pet kopyasının yetenekleri (kaçış, şans). Boyut ve mutasyon çarpanı
+	kökle işliyor: Titan Cosmic (x30) yeteneği ~x5.5 büyütüyor, x30 değil.
+]]
+function Config.GetPetKeyPerks(key: string): (number, number)
+	local def, mutation, size = Config.ParsePetKey(key)
+	if not def then
+		return 0, 0
+	end
+	local mul = math.sqrt((if mutation then mutation.multiplier else 1) * (if size then size.multiplier else 1))
+	return (def.escape or 0) * mul, (def.luck or 0) * mul
+end
+
+--[[ Takılı petlerin toplam yeteneği, PetPerkCaps'te kesilmiş. ]]
+function Config.GetPetPerks(equipped: { string }): (number, number)
+	local escape, luck = 0, 0
+	for index, key in equipped do
+		if index > Config.PetEquipSlots then
+			break
+		end
+		local e, l = Config.GetPetKeyPerks(key)
+		escape += e
+		luck += l
+	end
+	return math.min(escape, Config.PetPerkCaps.escape), math.min(luck, Config.PetPerkCaps.luck)
+end
+
 -- ─── Ekipman (lobideki Gear Shop) ───────────────────────────────────────────
 --[[
 	Oyun içi parayla bir kez alınan, kalıcı aletler. Her doğuşta sırt
@@ -2542,6 +2637,9 @@ Config.Cosmetics = {
 	{ id = "Horns",       name = "Impostor Horns", kind = "hat", price = 150_000_000,  rarity = "Legendary", color = Color3.fromRGB(200, 20, 30) },
 	{ id = "Crown",       name = "Crown",         kind = "hat", price = 1_000_000_000, rarity = "Mythic",    color = Color3.fromRGB(250, 200, 60) },
 	{ id = "Halo",        name = "Halo",          kind = "hat", price = 5_000_000_000, rarity = "Secret",    color = Color3.fromRGB(255, 230, 120) },
+	-- Geç oyun (2026-09-30): rebirth gelirinde de harcanacak gösteriş
+	{ id = "NebulaCrown", name = "Nebula Crown",  kind = "hat", price = 5_000_000_000_000,   rarity = "Celestial", color = Color3.fromRGB(255, 140, 230) },
+	{ id = "OrbitRings",  name = "Planet Orbit",  kind = "hat", price = 500_000_000_000_000, rarity = "Celestial", color = Color3.fromRGB(110, 250, 230) },
 	-- İzler
 	{ id = "Stardust",    name = "Stardust Trail", kind = "trail", price = 1_000_000,     rarity = "Uncommon", color = Color3.fromRGB(235, 240, 255) },
 	{ id = "Toxic",       name = "Toxic Trail",    kind = "trail", price = 25_000_000,    rarity = "Epic",     color = Color3.fromRGB(110, 240, 140) },
@@ -2549,6 +2647,10 @@ Config.Cosmetics = {
 	  colors = { Color3.fromRGB(255, 70, 70), Color3.fromRGB(120, 0, 20) } },
 	{ id = "Rainbow",     name = "Rainbow Trail",  kind = "trail", price = 10_000_000_000, rarity = "Secret",  color = Color3.fromRGB(255, 120, 200),
 	  colors = { Color3.fromRGB(255, 80, 80), Color3.fromRGB(255, 200, 60), Color3.fromRGB(90, 220, 110), Color3.fromRGB(70, 150, 255), Color3.fromRGB(190, 90, 255) } },
+	{ id = "Aurora",      name = "Aurora Trail",   kind = "trail", price = 20_000_000_000_000, rarity = "Celestial", color = Color3.fromRGB(110, 250, 230),
+	  colors = { Color3.fromRGB(110, 255, 200), Color3.fromRGB(90, 170, 255), Color3.fromRGB(200, 120, 255) } },
+	{ id = "Supernova",   name = "Supernova Trail", kind = "trail", price = 2_000_000_000_000_000, rarity = "Celestial", color = Color3.fromRGB(255, 200, 90),
+	  colors = { Color3.new(1, 1, 1), Color3.fromRGB(255, 220, 90), Color3.fromRGB(255, 90, 40), Color3.fromRGB(120, 20, 60) } },
 } :: { CosmeticDef }
 
 function Config.GetCosmetic(id: string): CosmeticDef?
@@ -2703,7 +2805,8 @@ end
 
 --[[ 1234567 -> "1.23M" ]]
 function Config.FormatCash(amount: number): string
-	local suffixes = { "", "K", "M", "B", "T", "Qa", "Qi" }
+	-- Geç oyun (rebirth 10+) 1e21'i geçiyor: Sx, Sp, Oc
+	local suffixes = { "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc" }
 	local index = 1
 	local value = amount
 
@@ -3025,8 +3128,17 @@ export type JetpackDef = {
 	flame2: Color3,
 	wings: boolean?,
 	ring: boolean?,
+	star: boolean?,        -- halkanın ortasında parlayan yıldız çekirdeği
+	rebirths: number?,     -- satın almak için gereken rebirth (geç oyun jetpackleri)
 }
 
+--[[
+	2026-09-30: "roketler hemen bitiyor". Parayla alınan en iyisi Quasar'dı
+	(150B); rebirth gezegenleri Void Leviathan'ın 2-4 katı uzakta. Dört geç
+	oyun jetpack'i rebirth'le açılıyor. Jetpack yalnızca GİDİŞİ hızlandırıyor:
+	çalabilmek için gereken Space Speed ve kovalamaca değişmiyor, hız kapısı
+	bozulmuyor. Galaxy Jet (Robux, 2.9x) erken ve orta oyunun en iyisi kalıyor.
+]]
 Config.Jetpacks = {
 	{ id = "Starter", name = "Starter Pack", boost = 1.0,  price = 0,
 	  tanks = 1, tank = Color3.fromRGB(170, 178, 192), trim = Color3.fromRGB(90, 98, 112), flame = Color3.fromRGB(255, 180, 80), flame2 = Color3.fromRGB(255, 90, 40) },
@@ -3044,6 +3156,15 @@ Config.Jetpacks = {
 	  tanks = 2, tank = Color3.fromRGB(30, 30, 44), trim = Color3.fromRGB(255, 70, 110), flame = Color3.fromRGB(255, 150, 190), flame2 = Color3.fromRGB(255, 50, 110), wings = true, ring = true },
 	{ id = "Galaxy",  name = "Galaxy Jet",   boost = 2.9,  price = 0, pass = 1999461068, robux = 499,
 	  tanks = 2, tank = Color3.fromRGB(50, 30, 110), trim = Color3.fromRGB(120, 230, 255), flame = Color3.fromRGB(255, 255, 255), flame2 = Color3.fromRGB(120, 200, 255), wings = true, ring = true },
+	-- Geç oyun (rebirth kilidi)
+	{ id = "NebulaJet", name = "Nebula Jet",    boost = 3.2,  price = 2000000000000, rebirths = 2,
+	  tanks = 2, tank = Color3.fromRGB(170, 90, 230), trim = Color3.fromRGB(255, 150, 230), flame = Color3.fromRGB(255, 170, 240), flame2 = Color3.fromRGB(170, 80, 255), wings = true, ring = true },
+	{ id = "Stellar",   name = "Stellar Jet",   boost = 3.6,  price = 150000000000000, rebirths = 4,
+	  tanks = 2, tank = Color3.fromRGB(240, 240, 255), trim = Color3.fromRGB(255, 200, 60), flame = Color3.fromRGB(255, 240, 170), flame2 = Color3.fromRGB(255, 170, 40), wings = true, ring = true, star = true },
+	{ id = "Supernova", name = "Supernova Jet", boost = 4.1,  price = 10000000000000000, rebirths = 7,
+	  tanks = 3, tank = Color3.fromRGB(255, 90, 50), trim = Color3.fromRGB(40, 20, 20), flame = Color3.fromRGB(255, 220, 120), flame2 = Color3.fromRGB(255, 60, 30), wings = true, ring = true, star = true },
+	{ id = "CosmicJet", name = "Cosmic Jet",    boost = 4.8,  price = 1000000000000000000, rebirths = 10,
+	  tanks = 3, tank = Color3.fromRGB(20, 20, 40), trim = Color3.fromRGB(110, 250, 230), flame = Color3.fromRGB(150, 255, 240), flame2 = Color3.fromRGB(90, 120, 255), wings = true, ring = true, star = true },
 } :: { JetpackDef }
 
 function Config.GetJetpack(id: string?): JetpackDef?
@@ -3264,6 +3385,12 @@ Config.JetFlames = {
 		flame = Color3.fromRGB(255, 248, 180), flame2 = Color3.fromRGB(255, 180, 30), sparkle = Color3.fromRGB(255, 230, 120),
 		size = 1.2, trail = Color3.fromRGB(255, 215, 70), trail2 = Color3.fromRGB(255, 150, 20),
 		blurb = "Pure golden sunfire with glitter." },
+	-- Geç oyun (2026-09-30)
+	{ id = "Starfire", name = "Starfire",       price = 20_000_000_000_000,
+		flame = Color3.fromRGB(170, 255, 240), flame2 = Color3.fromRGB(90, 110, 255), core = Color3.new(1, 1, 1),
+		sparkle = Color3.fromRGB(255, 240, 170), embers = true, size = 1.4,
+		trail = Color3.fromRGB(120, 255, 230), trail2 = Color3.fromRGB(120, 90, 255),
+		blurb = "Celestial blue fire that sheds starlight." },
 	{ id = "Rainbow",  name = "Rainbow Rocket", price = 0, pass = 1997991334, robux = 149,
 		flame = Color3.fromRGB(255, 90, 90), flame2 = Color3.fromRGB(90, 120, 255), sparkle = Color3.new(1, 1, 1),
 		rainbow = true, trail = Color3.new(1, 1, 1),

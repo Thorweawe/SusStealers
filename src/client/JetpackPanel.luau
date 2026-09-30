@@ -101,11 +101,15 @@ end
 
 function JetpackPanel.Create(screen: ScreenGui): Panel
 	local HEADER = 66
-	local rows = math.ceil(#Config.Jetpacks / COLUMNS)
+	--[[
+		Pencerede en fazla iki sıra görünüyor, fazlası kaydırılıyor
+		(2026-09-30: geç oyun jetpackleriyle 12 kart, üç sıra ekrana sığmıyordu).
+	]]
+	local rows = math.min(2, math.ceil(#Config.Jetpacks / COLUMNS))
 	local root = UiKit.Window(screen, "JetpackPanel", ACCENT)
 	root.AnchorPoint = Vector2.new(0.5, 0.5)
 	root.Position = UDim2.fromScale(0.5, 0.5)
-	root.Size = UDim2.fromOffset(32 + COLUMNS * 176, HEADER + 44 + rows * 262)
+	root.Size = UDim2.fromOffset(40 + COLUMNS * 176, HEADER + 44 + rows * 262)
 	root.Visible = false
 	root.ZIndex = Z
 	local driver = FancyKit.driver(root)
@@ -144,15 +148,21 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 	makeTab("flames", "FLAMES", 1)
 	makeTab("packs", "PACKS", 2)
 
-	local grid = Instance.new("Frame")
+	local grid = Instance.new("ScrollingFrame")
 	grid.Name = "PackGrid"
 	grid.Position = UDim2.fromOffset(16, HEADER + 34)
-	grid.Size = UDim2.new(1, -32, 1, -(HEADER + 44))
+	grid.Size = UDim2.new(1, -24, 1, -(HEADER + 44))
 	grid.BackgroundTransparency = 1
+	grid.BorderSizePixel = 0
+	grid.ScrollBarThickness = 6
+	grid.ScrollBarImageColor3 = Color3.fromRGB(255, 226, 90)
+	grid.ScrollingDirection = Enum.ScrollingDirection.Y
+	grid.CanvasSize = UDim2.new()
+	grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	grid.ZIndex = Z + 1
 	grid.Parent = root
 	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.new(1 / COLUMNS, -10, 1 / rows, -10)
+	layout.CellSize = UDim2.fromOffset(166, 252)
 	layout.CellPadding = UDim2.fromOffset(10, 10)
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -204,6 +214,8 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 
 		if def.pass ~= nil then
 			tag(card, "ROBUX", ROBUX, Z + 7)
+		elseif def.rebirths then
+			tag(card, string.format("REBIRTH %d", def.rebirths), Color3.fromRGB(255, 120, 70), Z + 7)
 		end
 
 		local name = FancyKit.title(card, def.name, 21, Color3.new(1, 1, 1), Color3.fromRGB(255, 236, 190), Z + 5, driver)
@@ -247,7 +259,7 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 	local flameGrid = Instance.new("Frame")
 	flameGrid.Name = "FlameGrid"
 	flameGrid.Position = grid.Position
-	flameGrid.Size = grid.Size
+	flameGrid.Size = UDim2.new(1, -32, 1, -(HEADER + 44))
 	flameGrid.BackgroundTransparency = 1
 	flameGrid.Visible = false
 	flameGrid.ZIndex = Z + 1
@@ -398,6 +410,8 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 		local equipped = if typeof(equippedRaw) == "string" then equippedRaw else "Starter"
 		local cashValue = player:GetAttribute("Cash")
 		local cash = if typeof(cashValue) == "number" then cashValue else 0
+		local rbValue = player:GetAttribute("Rebirths")
+		local rebirths = if typeof(rbValue) == "number" then rbValue else 0
 		for _, card in cards do
 			local def = card.def
 			local isOn = equipped == def.id
@@ -406,6 +420,9 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 				card.buy.set("EQUIPPED", nil)
 			elseif owned[def.id] then
 				card.buy.set("EQUIP", ACCENT)
+			elseif def.rebirths and rebirths < def.rebirths then
+				-- Geç oyun jetpack'i: rebirth kilidi
+				card.buy.set(string.format("🔒 REBIRTH %d", def.rebirths), nil)
 			elseif def.pass ~= nil then
 				if def.pass <= 0 then
 					card.buy.set("SOON", nil)
@@ -476,7 +493,7 @@ function JetpackPanel.Create(screen: ScreenGui): Panel
 	showTab("packs")
 
 	local conns: { RBXScriptConnection } = {}
-	for _, attr in { "JetpacksOwned", "Jetpack", "FlamesOwned", "JetFlame" } do
+	for _, attr in { "JetpacksOwned", "Jetpack", "FlamesOwned", "JetFlame", "Rebirths" } do
 		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(refresh))
 	end
 	table.insert(conns, player:GetAttributeChangedSignal("Cash"):Connect(function()

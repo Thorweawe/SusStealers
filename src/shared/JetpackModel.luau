@@ -78,8 +78,9 @@ function JetpackModel.Build(def: Config.JetpackDef, origin: CFrame, scale: numbe
 	end
 
 	-- Tanklar
-	local xs = if def.tanks >= 2 then { -0.5, 0.5 } else { 0 }
-	local tankD = if def.tanks >= 2 then 0.78 else 1.1
+	-- Üç tank: geç oyun jetpackleri (Supernova, Cosmic)
+	local xs = if def.tanks >= 3 then { -0.66, 0, 0.66 } elseif def.tanks >= 2 then { -0.5, 0.5 } else { 0 }
+	local tankD = if def.tanks >= 3 then 0.62 elseif def.tanks >= 2 then 0.78 else 1.1
 	local nozzles = {}
 	for i, x in xs do
 		local cz = 0.95
@@ -134,6 +135,17 @@ function JetpackModel.Build(def: Config.JetpackDef, origin: CFrame, scale: numbe
 			part(model, "Halo", Vector3.new((p1 - p0).Magnitude + 0.04, 0.12 * S, 0.12 * S),
 				CFrame.lookAt(mid, p1) * CFrame.Angles(0, math.rad(90), 0), def.flame, { Material = Enum.Material.Neon })
 		end
+	end
+
+	-- Yıldız çekirdeği (geç oyun): halkanın ortasında parlayan küre ve ışık
+	if def.star then
+		local core = ball(model, "StarCore", 0.7, at(0, 0.2, 1.45), def.flame, { Material = Enum.Material.Neon })
+		ball(model, "StarShell", 1.0, at(0, 0.2, 1.45), def.flame2, { Material = Enum.Material.Neon, Transparency = 0.6 })
+		local light = Instance.new("PointLight")
+		light.Color = def.flame
+		light.Range = 10
+		light.Brightness = 1.5
+		light.Parent = core
 	end
 
 	model.PrimaryPart = plate

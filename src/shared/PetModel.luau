@@ -50,6 +50,14 @@ local FORMS: { [string]: string } = {
 	NebulaEye = "orb",
 	-- Tek nadirler: Supply'ın Legendary'si, Skeld'in Mythic'i
 	FuelCan = "bot",       PrimeShield = "orb",
+	-- Nebula yumurtası (Rebirth 2)
+	DustBunny = "blob",    NebSlime = "blob",    WarpDrone = "bot",
+	CosmoRay = "orb",      PhantomCrew = "blob", StarWhale = "orb",
+	RiftWalker = "shard",
+	-- Celestial yumurtası (Rebirth 6)
+	LuckyStar = "orb",     CloverBot = "bot",    FrostSprite = "blob",
+	SunBeetle = "crab",    PrismFox = "blob",    CometKing = "blob",
+	CelestCore = "shard",
 }
 
 --[[ Petin biçim adı. Arayüz (UiKit.PetFigure) aynı biçimi 2B çiziyor. ]]
@@ -436,6 +444,185 @@ local DETAILS: { [string]: (b: Builder, top: number) -> () } = {
 			local puff = b.ellipsoid("Nebula" .. i, Vector3.new(spec[2] * 2, spec[2] * 1.4, spec[2] * 2), CFrame.new(spec[1], top - 0.05 + i * 0.05, 0.1), Color3.fromRGB(120, 200, 255):Lerp(b.color, i / 3), Enum.Material.Neon)
 			puff.Transparency = 0.35
 		end
+	end,
+
+	-- ── Nebula yumurtası (Rebirth 2): kaçış ─────────────────────────────────
+	DustBunny = function(b, top)
+		-- Uzun tavşan kulakları, pofuduk kuyruk, yanaklarda yıldız tozu
+		for _, side in { -1, 1 } do
+			b.ellipsoid("Ear", Vector3.new(0.34, 1.0, 0.2), CFrame.new(side * 0.32, top + 0.3, 0.05) * CFrame.Angles(0, 0, math.rad(side * -12)), b.color)
+			b.ellipsoid("EarInner", Vector3.new(0.18, 0.7, 0.06), CFrame.new(side * 0.32, top + 0.3, -0.04) * CFrame.Angles(0, 0, math.rad(side * -12)), WHITE)
+		end
+		b.ellipsoid("Tail", Vector3.new(0.55, 0.55, 0.55), CFrame.new(0, 0.6, 0.95), WHITE)
+		for _, side in { -1, 1 } do
+			b.part("Dust", Vector3.new(0.14, 0.14, 0.05), CFrame.new(side * 0.55, 1.05, -0.58) * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(255, 240, 150), Enum.Material.Neon)
+		end
+	end,
+	NebSlime = function(b, top)
+		-- Jöle gövde (hafif saydam; cam malzeme simgede görünmüyordu), içinde yıldızlar, dibinde damlalar
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and (p.Name == "Body" or p.Name == "Backpack" or string.find(p.Name, "Leg")) then
+				p.Transparency = math.max(p.Transparency, 0.15)
+			end
+		end
+		for i, spec in { { -0.3, 1.1, 0.1 }, { 0.25, 0.8, 0.2 }, { 0.05, 1.4, 0.25 } } do
+			b.part("InnerStar" .. i, Vector3.new(0.2, 0.2, 0.05), CFrame.new(spec[1], spec[2], spec[3]) * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(255, 230, 120), Enum.Material.Neon)
+		end
+		for _, side in { -0.5, 0.2, 0.55 } do
+			b.ellipsoid("Drip", Vector3.new(0.22, 0.34, 0.22), CFrame.new(side, 0.12, -0.3), b.color).Transparency = 0.15
+		end
+		b.ellipsoid("SlimeTop", Vector3.new(0.5, 0.3, 0.5), CFrame.new(0.1, top - 0.05, 0), b.color:Lerp(Color3.new(1, 1, 1), 0.3)).Transparency = 0.1
+	end,
+	WarpDrone = function(b, top)
+		-- Çevresinde iki warp halkası, arkada iki itici
+		for i, tilt in { 20, -20 } do
+			local ring = b.cylinder("WarpRing" .. i, 0.1, 2.3, CFrame.new(0, 0.95, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(tilt), 0, 0), Color3.fromRGB(120, 240, 255), Enum.Material.Neon)
+			ring.Transparency = 0.25
+		end
+		for _, side in { -0.4, 0.4 } do
+			b.cylinder("Thruster", 0.5, 0.36, CFrame.new(side, 0.9, 0.72) * CFrame.Angles(0, math.rad(90), 0), METAL, Enum.Material.Metal)
+			b.ellipsoid("ThrustGlow", Vector3.new(0.3, 0.3, 0.2), CFrame.new(side, 0.9, 1.0), Color3.fromRGB(120, 240, 255), Enum.Material.Neon)
+		end
+	end,
+	CosmoRay = function(b, top)
+		-- Vatoz: halka yerine iki geniş kanat ve ince uzun kuyruk
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p:Destroy()
+			end
+		end
+		for _, side in { -1, 1 } do
+			b.ellipsoid("Wing", Vector3.new(1.7, 0.18, 1.2), CFrame.new(side * 1.05, 0.95, 0.1) * CFrame.Angles(0, math.rad(side * -15), math.rad(side * -10)), b.color)
+			b.ellipsoid("WingSpot", Vector3.new(0.5, 0.06, 0.4), CFrame.new(side * 1.25, 1.06, 0.1), Color3.fromRGB(160, 220, 255), Enum.Material.Neon)
+		end
+		b.part("Tail", Vector3.new(0.1, 0.1, 1.6), CFrame.new(0, 0.9, 1.5) * CFrame.Angles(math.rad(8), 0, 0), b.color:Lerp(Color3.new(0, 0, 0), 0.25))
+		b.ellipsoid("TailTip", Vector3.new(0.22, 0.22, 0.22), CFrame.new(0, 0.8, 2.3), Color3.fromRGB(160, 220, 255), Enum.Material.Neon)
+	end,
+	PhantomCrew = function(b, top)
+		-- Hayalet mürettebat: yarı saydam, parlayan mor vizör, altı dalgalı pelerin
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and not string.find(p.Name, "Glint") then
+				p.Transparency = math.max(p.Transparency, 0.35)
+			end
+			if p:IsA("BasePart") and p.Name == "Visor" then
+				p.Color = Color3.fromRGB(210, 140, 255)
+				p.Material = Enum.Material.Neon
+			end
+		end
+		for i = 0, 4 do
+			local a = math.rad(i * 72)
+			local wisp = b.ellipsoid("Wisp", Vector3.new(0.4, 0.55, 0.4), CFrame.new(math.cos(a) * 0.55, 0.15, math.sin(a) * 0.5), b.color, Enum.Material.Neon)
+			wisp.Transparency = 0.5
+		end
+		b.cylinder("Hood", 0.35, 1.3, CFrame.new(0, top - 0.1, 0.12) * CFrame.Angles(0, 0, math.rad(90)), b.color:Lerp(Color3.new(0, 0, 0), 0.4)).Transparency = 0.3
+	end,
+	StarWhale = function(b, top)
+		-- Balina: uzun gövde, kuyruk yüzgeci, yan yüzgeçler, tepesinden yıldız fıskiyesi
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p:Destroy()
+			end
+		end
+		b.ellipsoid("Belly", Vector3.new(1.3, 0.7, 1.9), CFrame.new(0, 0.7, 0.3), Color3.fromRGB(200, 220, 255))
+		b.ellipsoid("TailBody", Vector3.new(0.9, 0.8, 1.2), CFrame.new(0, 1.0, 1.1), b.color)
+		for _, side in { -1, 1 } do
+			b.ellipsoid("Fluke", Vector3.new(0.9, 0.12, 0.55), CFrame.new(side * 0.45, 1.15, 1.75) * CFrame.Angles(0, math.rad(side * 25), 0), b.color)
+			b.ellipsoid("Fin", Vector3.new(0.7, 0.12, 0.4), CFrame.new(side * 0.85, 0.75, 0.1) * CFrame.Angles(0, 0, math.rad(side * -30)), b.color)
+		end
+		for i, h in { 0.35, 0.65, 0.9 } do
+			local spout = b.part("Spout" .. i, Vector3.new(0.18, 0.18, 0.06), CFrame.new((i - 2) * 0.18, top + h, 0.1) * CFrame.Angles(0, 0, math.rad(45)), Color3.fromRGB(255, 240, 140), Enum.Material.Neon)
+			spout.Transparency = 0.1 * i
+		end
+	end,
+	RiftWalker = function(b, top)
+		-- Karanlık kristal: çatlaklarından mor ışık, çevresinde dönen yarık parçaları
+		for i = -1, 1 do
+			b.part("Rift", Vector3.new(0.08, 0.9, 0.05), CFrame.new(i * 0.35, 0.85, -0.66) * CFrame.Angles(0, 0, math.rad(i * 20 + 10)), Color3.fromRGB(210, 90, 255), Enum.Material.Neon)
+		end
+		for k = 0, 3 do
+			local a = k / 4 * math.pi * 2
+			b.part("RiftShard", Vector3.new(0.26, 0.5, 0.26), CFrame.new(math.cos(a) * 1.2, 1.1 + (k % 2) * 0.35, math.sin(a) * 1.2) * CFrame.Angles(math.rad(30), a, math.rad(45)), Color3.fromRGB(150, 60, 230), Enum.Material.Neon)
+		end
+		b.cylinder("RiftHalo", 0.08, 1.2, CFrame.new(0, top + 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(210, 90, 255), Enum.Material.Neon)
+	end,
+
+	-- ── Celestial yumurtası (Rebirth 6): şans ───────────────────────────────
+	LuckyStar = function(b, top)
+		-- Yıldız: gövdeden çıkan beş parlak uç
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "Ring" then
+				p:Destroy()
+			end
+		end
+		for k = 0, 4 do
+			local a = math.rad(90 + k * 72)
+			b.part("StarPoint", Vector3.new(0.5, 0.5, 0.35), CFrame.new(math.cos(a) * 0.95, 0.95 + math.sin(a) * 0.95, 0.05) * CFrame.Angles(0, 0, a + math.rad(45)), b.color, Enum.Material.Neon)
+		end
+		for _, side in { -1, 1 } do
+			local blush = b.ellipsoid("Blush", Vector3.new(0.24, 0.12, 0.06), CFrame.new(side * 0.45, 0.78, -0.72), PINK)
+			blush.Transparency = 0.2
+		end
+	end,
+	CloverBot = function(b, top)
+		-- Antenin ucunda dört yapraklı yonca, ekranda yeşil gözler
+		for _, p in b.model:GetChildren() do
+			if p:IsA("BasePart") and p.Name == "AntennaTip" then
+				p:Destroy()
+			elseif p:IsA("BasePart") and p.Name == "ScreenEye" then
+				p.Color = Color3.fromRGB(120, 255, 140)
+			end
+		end
+		for k = 0, 3 do
+			local a = math.rad(45 + k * 90)
+			b.ellipsoid("Leaf", Vector3.new(0.36, 0.36, 0.1), CFrame.new(math.cos(a) * 0.2, 2.1 + math.sin(a) * 0.2, 0), Color3.fromRGB(60, 200, 90), Enum.Material.Neon)
+		end
+	end,
+	FrostSprite = function(b, top)
+		-- Buz perisi: sırtta iki cam kanat, tepede kar tanesi
+		for _, side in { -1, 1 } do
+			local wing = b.ellipsoid("Wing", Vector3.new(0.9, 1.3, 0.08), CFrame.new(side * 0.6, 1.4, 0.75) * CFrame.Angles(0, math.rad(side * 30), math.rad(side * -25)), Color3.fromRGB(200, 245, 255), Enum.Material.Glass)
+			wing.Transparency = 0.35
+		end
+		for k = 0, 2 do
+			b.part("Flake", Vector3.new(0.6, 0.08, 0.08), CFrame.new(0, top + 0.25, 0) * CFrame.Angles(0, 0, math.rad(k * 60)), WHITE, Enum.Material.Neon)
+		end
+	end,
+	SunBeetle = function(b, top)
+		-- Altın kabuklu böcek: sırtta kubbe ve güneş diski
+		b.ellipsoid("Shell", Vector3.new(1.6, 0.8, 1.3), CFrame.new(0, 1.05, 0.1), Color3.fromRGB(255, 200, 60), Enum.Material.Metal).Reflectance = 0.2
+		b.part("ShellSeam", Vector3.new(0.06, 0.1, 1.3), CFrame.new(0, 1.45, 0.1), Color3.fromRGB(120, 70, 10))
+		local sun = b.cylinder("SunDisk", 0.08, 0.8, CFrame.new(0, 1.62, 0.1) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 240, 150), Enum.Material.Neon)
+		sun.Transparency = 0.05
+	end,
+	PrismFox = function(b, top)
+		-- Tilki: sivri kulaklar, prizma (cam) kuyruk
+		for _, side in { -1, 1 } do
+			b.part("Ear", Vector3.new(0.4, 0.6, 0.18), CFrame.new(side * 0.42, top - 0.05, 0) * CFrame.Angles(0, 0, math.rad(side * -18)), b.color)
+		end
+		for i, s in { 0.7, 0.55, 0.4 } do
+			local tail = b.part("Prism" .. i, Vector3.new(s, s, s), CFrame.new(0, 0.7 + i * 0.25, 0.8 + i * 0.35) * CFrame.Angles(math.rad(45), math.rad(45), 0), Color3.fromRGB(180, 255, 240), Enum.Material.Glass)
+			tail.Transparency = 0.2
+		end
+	end,
+	CometKing = function(b, top)
+		-- Taç ve arkasında kuyruklu yıldız izi
+		b.cylinder("CrownBand", 0.3, 1.0, CFrame.new(0, top + 0.05, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 205, 60), Enum.Material.Metal)
+		for k = 0, 4 do
+			local a = math.rad(k * 72)
+			b.part("CrownSpike", Vector3.new(0.14, 0.34, 0.14), CFrame.new(math.cos(a) * 0.45, top + 0.35, math.sin(a) * 0.45), Color3.fromRGB(255, 205, 60), Enum.Material.Metal)
+		end
+		for i, s in { 0.6, 0.45, 0.3 } do
+			local tail = b.ellipsoid("CometTail", Vector3.new(s, s, s * 1.4), CFrame.new(0, 1.0 + i * 0.1, 0.8 + i * 0.45), Color3.fromRGB(255, 170, 200), Enum.Material.Neon)
+			tail.Transparency = 0.15 + i * 0.18
+		end
+	end,
+	CelestCore = function(b, top)
+		-- Göksel çekirdek: iki çapraz yörünge halkası ve tepede hale
+		for i, tilt in { 35, -35 } do
+			local ring = b.cylinder("Orbit" .. i, 0.08, 2.2, CFrame.new(0, 0.85, 0) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(math.rad(tilt), 0, 0), Color3.fromRGB(150, 255, 240), Enum.Material.Neon)
+			ring.Transparency = 0.2
+		end
+		b.cylinder("Halo", 0.08, 1.1, CFrame.new(0, top + 0.35, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 240, 160), Enum.Material.Neon)
 	end,
 }
 

@@ -13,6 +13,21 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (55) — Batur (Yusuf'un şeridine de yazıldı: pet/jetpack arayüzü, yumurta stili, harita)
+
+Studio'ya aktarıldı, **183/183 test temiz**. Petler ve kapsüller Studio'da render edilip bakıldı. Harita değişti (Hatchery): **yayınlamadan önce Studio'daki hâli kaydet**.
+
+- **Rebirth yumurtaları**: Nebula Egg ($500B, Rebirth 2) ve Celestial Egg ($100T, Rebirth 6), her birinde 7 yeni pet (Common→Secret, `PetModel` biçim + detay). Güç Void'in üstünde (`EGG_TIER` 6.5x / 10x). `Config.EggUnlocked`; `PetService.TryHatch` kilitliyi reddediyor.
+- **Pet yetenekleri** (`Config.GetPetPerks`, `PetPerkCaps` %40): Nebula → **kaçış** (kovalayan canavar yavaş + geç uyanıyor, `PetEscapeBonus`), Celestial → **şans** (çalınan mürettebatın mutasyon şansı Lucky Scanner'a ekleniyor, `PetLuckBonus`). Boyut/mutasyon yeteneğe kökle işliyor. Hız kapısına dokunmuyor (antrenman yeteneği bilerek yok).
+- **Pet kartı** artık iki satır: nakit + (yetenek ya da uçuş hızı); panel özeti toplam uçuş/yetenek. Index'te son satır yetenek. Yumurta paneli kilitliyken "🔒 REBIRTH N".
+- **Harita**: MedBay'e Egg5/Egg6 kapsülleri (`tools/map/wings.luau`, tarayıcı tarafında). Açık renkleri parlak olduğu için efektleri daha sönük. `EggStyle`'a iki stil.
+- **Geç oyun jetpackleri** (rebirth kilitli, `JetpackDef.rebirths`): Nebula Jet 3.2x ($2T, R2), Stellar 3.6x ($150T, R4), Supernova 4.1x ($10Qa, R7), Cosmic 4.8x ($1Qi, R10). `JetpackModel`: 3 tank + yıldız çekirdeği. Panel 2 sıra görünüyor, kaydırılıyor.
+- **Geç oyun kozmetikleri**: Nebula Crown, Planet Orbit (şapka), Aurora / Supernova Trail, Starfire alevi. `FormatCash` Sx/Sp/Oc.
+- **Çeviri**: başlık logosu ve harita tabelaları (`DecorFX`) otomatik çevrilmiyor ("STEAL A" → "A KAÇIRMAK", "FUSE" → "LEVHAK" oluyordu).
+- `GearFX`'te kalan eski önyükleme satırı hata veriyordu, silindi.
+
+---
+
 ## 2026-09-30 (54) — Batur (Yusuf'un şeridine yazıldı: animasyon, ses)
 
 Studio'ya aktarıldı; istemcide eklem değerleri okunarak denendi.

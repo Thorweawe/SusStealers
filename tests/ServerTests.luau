@@ -2660,7 +2660,8 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 		byEgg[def.egg][def.rarity] = byEgg[def.egg][def.rarity] or {}
 		table.insert(byEgg[def.egg][def.rarity], def)
 	end
-	eq("pet sayısı (yumurta başına kademe başına bir)", #Config.Pets, 25)
+	-- 25 + iki rebirth yumurtası x 7
+	eq("pet sayısı (yumurta başına kademe başına bir)", #Config.Pets, 39)
 
 	local function minIncome(list: { Config.PetDef }): number
 		local m = math.huge
@@ -4093,6 +4094,58 @@ case("Rebirth canavarları: kilit, özel Celestial havuzu, antrenman", function(
 	end
 	ctx.profile.rebirths = saved
 	local _ = seen
+end)
+
+case("Rebirth yumurtaları: kilit, yetenekler, tavan", function(ctx)
+	local nebula = Config.GetEgg("NebulaEgg")
+	local celestial = Config.GetEgg("CelestialEgg")
+	ok("yumurtalar var", nebula ~= nil and celestial ~= nil)
+	if not (nebula and celestial) then
+		return
+	end
+	ok("Nebula R1'de kilitli", not Config.EggUnlocked(nebula, 1))
+	ok("Nebula R2'de açık", Config.EggUnlocked(nebula, 2))
+	ok("Void herkese açık", Config.EggUnlocked(Config.GetEgg("VoidEgg") :: any, 0))
+	-- Her rebirth petinin tek yeteneği var, eski petlerin yok
+	for _, def in Config.Pets do
+		if def.egg == "NebulaEgg" then
+			ok(def.id .. " kaçış", (def.escape or 0) > 0 and def.luck == nil)
+		elseif def.egg == "CelestialEgg" then
+			ok(def.id .. " şans", (def.luck or 0) > 0 and def.escape == nil)
+		else
+			ok(def.id .. " yeteneksiz", def.escape == nil and def.luck == nil)
+		end
+	end
+	-- Titan Cosmic yetenek kökle büyüyor, toplam tavanda kesiliyor
+	local e1 = Config.GetPetKeyPerks("RiftWalker")
+	local eT = Config.GetPetKeyPerks(Config.PetKey("RiftWalker", "Cosmic", "Titan"))
+	ok("Titan Cosmic ~x5.5", math.abs(eT / e1 - math.sqrt(30)) < 0.01, tostring(eT / e1))
+	local key = Config.PetKey("RiftWalker", "Cosmic", "Titan")
+	local escape = Config.GetPetPerks({ key, key, key })
+	eq("kaçış tavanı", escape, Config.PetPerkCaps.escape)
+	-- Nebula petleri Void'den güçlü
+	local void = Config.GetPetKeyBonus("VoidShard")
+	ok("Rift Walker > Void Shard", Config.GetPetKeyBonus("RiftWalker") > void)
+	-- Sunucu: kilitliyken açılmıyor, nitelikler yazılıyor
+	local saved = ctx.profile.rebirths
+	ctx.profile.rebirths = 0
+	PetService._ResetBusy(ctx.player)
+	setCash(ctx.player, nebula.price * 2)
+	eq("kilitli yumurta açılmadı", PetService.TryHatch(ctx.player, "NebulaEgg", 1, false), nil)
+	ctx.profile.rebirths = 2
+	PetService._ResetBusy(ctx.player)
+	local keys = PetService.TryHatch(ctx.player, "NebulaEgg", 1, false)
+	ok("R2'de açıldı", keys ~= nil and #keys == 1)
+	ctx.profile.pets = { [key] = 1 }
+	ctx.profile.equippedPets = { key }
+	PetService.Apply(ctx.player)
+	ok("kaçış niteliği", (ctx.player:GetAttribute("PetEscapeBonus") or 0) > 0.3)
+	ctx.profile.equippedPets = {}
+	PetService.Apply(ctx.player)
+	eq("çıkarınca nitelik yok", ctx.player:GetAttribute("PetEscapeBonus"), nil)
+	ctx.profile.rebirths = saved
+	ctx.profile.pets = {}
+	PetService._ResetBusy(ctx.player)
 end)
 
 case("Uzay: canavar gezegenin içine gömülmüyor", function()

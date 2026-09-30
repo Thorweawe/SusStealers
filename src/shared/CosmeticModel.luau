@@ -125,6 +125,38 @@ local function pieces(id: string): { Piece }
 				neon = true,
 			})
 		end
+	elseif id == "NebulaCrown" then
+		-- Mor taç, uçlarında pembe yıldız taşları, ortasında nebula küresi
+		local violet = Color3.fromRGB(150, 90, 230)
+		local pink = Color3.fromRGB(255, 140, 230)
+		table.insert(list, vcyl("Base", 0.2, 0.4, 1.08, violet))
+		table.insert(list, vcyl("Band", 0.2, 0.12, 1.12, pink, { neon = true }))
+		for i = 0, 6 do
+			local a = i / 7 * math.pi * 2
+			table.insert(list, { name = "Spike", size = Vector3.new(0.16, 0.5, 0.16), cf = CFrame.new(math.cos(a) * 0.46, 0.62, math.sin(a) * 0.46) * CFrame.Angles(math.rad(45), 0, math.rad(45)), color = violet })
+			table.insert(list, { name = "Gem", size = Vector3.new(0.16, 0.16, 0.16), cf = CFrame.new(math.cos(a) * 0.5, 0.92, math.sin(a) * 0.5), color = pink, mesh = "Sphere", neon = true })
+		end
+		table.insert(list, { name = "Nebula", size = Vector3.new(0.45, 0.45, 0.45), cf = CFrame.new(0, 0.7, 0), color = pink, mesh = "Sphere", neon = true, transparency = 0.2 })
+	elseif id == "OrbitRings" then
+		-- Başın üstünde iki eğik yörünge halkası ve üzerlerinde küçük gezegenler
+		local teal = Color3.fromRGB(110, 250, 230)
+		table.insert(list, vcyl("Base", 0.02, 0.04, 0.2, teal, { transparency = 1 }))
+		for ring = 0, 1 do
+			local tilt = CFrame.Angles(math.rad(if ring == 0 then 18 else -18), math.rad(ring * 60), 0)
+			for i = 0, 13 do
+				local a = i / 14 * math.pi * 2
+				table.insert(list, {
+					name = "Orbit",
+					size = Vector3.new(0.3, 0.06, 0.08),
+					cf = CFrame.new(0, 0.75, 0) * tilt * CFrame.new(math.cos(a) * 0.75, 0, math.sin(a) * 0.75) * CFrame.Angles(0, -a + math.pi / 2, 0),
+					color = if ring == 0 then teal else Color3.fromRGB(255, 220, 110),
+					neon = true,
+				})
+			end
+		end
+		table.insert(list, { name = "Planet", size = Vector3.one * 0.28, cf = CFrame.new(0.75, 0.75, 0), color = Color3.fromRGB(255, 120, 80), mesh = "Sphere", neon = true })
+		table.insert(list, { name = "Planet", size = Vector3.one * 0.22, cf = CFrame.new(-0.6, 0.85, 0.45), color = Color3.fromRGB(90, 170, 255), mesh = "Sphere", neon = true })
+		table.insert(list, { name = "Planet", size = Vector3.one * 0.18, cf = CFrame.new(0.1, 0.7, -0.74), color = Color3.fromRGB(255, 220, 110), mesh = "Sphere", neon = true })
 	end
 	return list
 end

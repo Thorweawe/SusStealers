@@ -70,6 +70,14 @@ function DecorFX.Start(): FX
 			return
 		end
 		registered[obj] = true
+		--[[
+			Harita tabelaları (MEDBAY, FUSE...) otomatik çevrilmesin: makine
+			çevirisi "FUSE"u "LEVHAK" yapıyordu. Kısa oda adları İngilizce kalıyor.
+		]]
+		if obj:IsA("GuiBase2d") then
+			(obj :: any).AutoLocalize = false
+			return
+		end
 		if obj:IsA("BasePart") then
 			local speed = obj:GetAttribute("SpinSpeed")
 			if typeof(speed) == "number" then

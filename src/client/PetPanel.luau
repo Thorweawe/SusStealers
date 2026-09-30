@@ -390,7 +390,22 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		-- Soluk gri koyu kartta okunmuyordu: açık ton
 		stat.TextColor3 = if key then Color3.fromRGB(150, 255, 120) else UiKit.DIM
 		ink(stat, 1.6)
-		stat.Text = string.format("+%d%% cash", math.floor(income * 100 + 0.5))
+		--[[
+			İkinci satır: rebirth petlerinde yeteneği (kaçış / şans), diğerlerinde
+			uçuş hızı. Eskiden yalnızca "+%X cash" yazıyordu ve pet "sadece
+			para veriyor" sanılıyordu.
+		]]
+		local escape, luck = def.escape or 0, def.luck or 0
+		if key then
+			escape, luck = Config.GetPetKeyPerks(key)
+		end
+		local second = if escape > 0 then string.format('<font color="#8FD8FF">-%d%% chase</font>', math.floor(escape * 100 + 0.5))
+			elseif luck > 0 then string.format('<font color="#FFE36B">+%.1f%% lucky</font>', luck * 100)
+			else string.format('<font color="#8FD8FF">+%.2f fly</font>', speed)
+		stat.RichText = true
+		stat.TextSize = 13
+		stat.LineHeight = 0.95
+		stat.Text = string.format("+%d%% cash\n%s", math.floor(income * 100 + 0.5), if key then second else second:gsub("<[^>]+>", ""))
 		stat.ZIndex = 44
 		stat.Parent = card
 
@@ -519,7 +534,14 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			-- Kısa: sağda EQUIP BEST / UNEQUIP ALL var; "+" aynı petin bir kopyasını daha takar
 			hint.Text = string.format("%d / %d equipped", slotsUsed, Config.PetEquipSlots)
 			if slotsUsed > 0 then
-				hint.Text ..= string.format("  ·  +%d%% cash", math.floor(income * 100 + 0.5))
+				hint.Text ..= string.format("  ·  +%d%% cash  ·  +%.1f fly", math.floor(income * 100 + 0.5), speed)
+				local escape, luck = Config.GetPetPerks(equipped)
+				if escape > 0 then
+					hint.Text ..= string.format("  ·  monsters -%d%%", math.floor(escape * 100 + 0.5))
+				end
+				if luck > 0 then
+					hint.Text ..= string.format("  ·  +%d%% lucky", math.floor(luck * 100 + 0.5))
+				end
 			else
 				hint.Text ..= if (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then "  ·  tap a pet to equip" else "  ·  click a pet to equip"
 			end

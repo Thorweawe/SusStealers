@@ -146,6 +146,11 @@ function JetpackService.Buy(player: Player, id: string): boolean
 		-- Robux: satın alma penceresi istemcide açılıyor (PromptGamePassPurchase)
 		return false
 	end
+	-- Geç oyun jetpackleri rebirth'le açılıyor
+	if def.rebirths and profile.rebirths < def.rebirths then
+		notify(player, string.format("%s unlocks at REBIRTH %d!", def.name, def.rebirths), true)
+		return false
+	end
 	if not EconomyService.TrySpend(player, def.price) then
 		notify(player, string.format("%s costs $%s", def.name, Config.FormatCash(def.price)), true)
 		return false

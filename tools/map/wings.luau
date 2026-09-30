@@ -5,7 +5,7 @@
 	MEDBAY (doğu) — yumurta kuluçkası. Dört numune kapsülü (cam tüp içinde
 	süzülen yumurta) ve koridorun sonunda Skeld'in MedBay tarayıcısı:
 	oyunda BİRLEŞTİRME makinesi. Yan duvarlarda hasta yatakları.
-	  Adı sabit: Hatchery.Egg1..4, PodRing1..4, PodScreen1..4, FuseCore
+	  Adı sabit: Hatchery.Egg1..6, PodRing1..6, PodScreen1..6, FuseCore
 
 	WEAPONS (batı) — ekipman dükkânı. Tezgâh + görevli, üç vitrin kaidesi,
 	duvarda silah rafları, güney duvarında asteroit hedef ekranı ve topçu
@@ -82,10 +82,12 @@ return {
 				K.boxAt(h, "Chevron", CFrame.new(ax, FLOOR + 0.12 + M.LIFT, wcz + 1.6) * CFrame.Angles(0, math.rad(40), 0), Vector3.new(4.4, 0.06, 0.9), C.white)
 			end
 
-			-- Numune kapsülleri: kuzey sırası (Egg1, Egg2) ve güney sırası (Egg3, Egg4)
+			-- Numune kapsülleri: kuzey sırası (Egg1, Egg2) ve güney sırası (Egg3, Egg4);
+			-- rebirth yumurtaları (Egg5 Nebula, Egg6 Celestial) tarayıcıya yakın uçta
 			local pods = {
 				{ xa + 26, wz0 + 15, 1 }, { xa + 50, wz0 + 15, 1 },
 				{ xa + 26, wz1 - 15, -1 }, { xa + 50, wz1 - 15, -1 },
+				{ xa + 74, wz0 + 15, 1 }, { xa + 74, wz1 - 15, -1 },
 			}
 			--[[
 				Kapsül efektleri yumurtanın FİYATIYLA büyüyor (1 en ucuz, 4 en
@@ -121,6 +123,13 @@ return {
 
 			for i, p in pods do
 				local px, pz, face = p[1], p[2], p[3]
+				--[[
+					Rebirth kapsülleri (5, 6) en üst kademenin efektlerini alıyor ama
+					DAHA SÖNÜK: renkleri açık (pembe, turkuaz) ve Void'in koyu
+					renginden çok daha parlak çıkıyordu ("çok parlak olmuş").
+				]]
+				local soft = i >= 5
+				local tier = math.min(i, 4)
 				K.vcyl(h, "PodBase", px, FLOOR + 0.8, pz, 1.6, 10.4, C.frame)
 				local ring = K.vcyl(h, "PodRing" .. i, px, FLOOR + 1.75, pz, 0.5, 10.9, C.cyan, { emit = "Screen" })
 				ring.CastShadow = false
@@ -128,8 +137,8 @@ return {
 				tinted(K.vcyl(h, "PodCradle", px, FLOOR + 3.85, pz, 0.3, 4.4, C.cyan, { emit = "Indicator" }), i)
 				local egg = K.ellipsoid(h, "Egg" .. i, CFrame.new(px, FLOOR + 7.4, pz), Vector3.new(4.6, 6, 4.6), rgb(236, 228, 210))
 				-- Pahalı yumurta daha hareketli süzülüyor
-				egg:SetAttribute("BobHeight", 0.25 + i * 0.12)
-				egg:SetAttribute("BobPeriod", 2.9 - i * 0.2)
+				egg:SetAttribute("BobHeight", 0.25 + tier * 0.12)
+				egg:SetAttribute("BobPeriod", 2.9 - tier * 0.2)
 
 				if i >= 2 then
 					-- Halkalar camın İÇİNDE (cam yarıçapı 4.2, yumurta 2.3)
@@ -137,7 +146,7 @@ return {
 				end
 				if i >= 3 then
 					local beam = K.vcyl(h, "PodBeam", px, (FLOOR + 14.9 + H) / 2, pz, H - FLOOR - 15.1, 3.2, C.cyan,
-						{ emit = "Fixture", transparency = 0.8 })
+						{ emit = "Fixture", transparency = if soft then 0.92 else 0.8 })
 					beam.CastShadow = false
 					tinted(beam, i)
 					local spark = K.box(h, "PodSparkle", px, FLOOR + 7.4, pz, 1, 1, 1, C.cyan, { transparency = 1 })
@@ -147,7 +156,7 @@ return {
 					emitter.LightEmission = 1
 					emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
 					emitter.Lifetime = NumberRange.new(0.9, 1.6)
-					emitter.Rate = if i >= 4 then 14 else 6
+					emitter.Rate = if soft then 7 elseif i >= 4 then 14 else 6
 					-- Yavaş: zerreler camın içinde kalsın
 					emitter.Speed = NumberRange.new(0.5, 1.1)
 					emitter.SpreadAngle = Vector2.new(180, 180)
@@ -168,7 +177,7 @@ return {
 						tinted(shard, i)
 					end
 					local aura = K.vcyl(h, "PodAura", px, FLOOR + 0.05 + M.LIFT, pz, 0.1, 17, C.cyan,
-						{ emit = "Screen", transparency = 0.55 })
+						{ emit = "Screen", transparency = if soft then 0.82 else 0.55 })
 					aura.CastShadow = false
 					tinted(aura, i)
 				end
@@ -177,7 +186,7 @@ return {
 				glass.CastShadow = false
 				K.vcyl(h, "PodCap", px, FLOOR + 14.3, pz, 1.2, 9.6, C.frame)
 				local lamp = K.vcyl(h, "PodLamp", px, FLOOR + 13.6, pz, 0.2, 5, C.lamp, { emit = "Fixture" })
-				K.light(lamp, C.lamp, 8 + i * 3, 0.6 + i * 0.25)
+				K.light(lamp, C.lamp, 8 + tier * 3, if soft then 0.8 else 0.6 + tier * 0.25)
 				if i >= 2 then
 					tinted(lamp, i)
 				end

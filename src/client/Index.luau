@@ -854,7 +854,10 @@ function Index.Create(screen: ScreenGui): Catalog
 			{ "Rarity", string.upper(def.rarity), tone },
 			{ "Chance", if pct >= 1 then string.format("%.1f%%", pct) else string.format("%.2f%%", pct), UiKit.INK },
 			{ "Cash bonus", if isKnown then string.format("+%.1f%%", def.incomeBonus * 100) else "???", UiKit.CREW.LIME },
-			{ "Flight speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
+			-- Rebirth petleri: son satırda yetenek (kaçış / şans), diğerlerinde uçuş hızı
+			if def.escape then { "Monster slow", if isKnown then string.format("-%d%%", math.floor(def.escape * 100 + 0.5)) else "???", UiKit.CREW.CYAN }
+			elseif def.luck then { "Lucky steal", if isKnown then string.format("+%.1f%%", def.luck * 100) else "???", UiKit.CREW.YELLOW }
+			else { "Flight speed", if isKnown then string.format("+%.2f", def.speedBonus) else "???", UiKit.CREW.CYAN },
 		}
 		for i, row in statRows do
 			local v = values[i]
@@ -885,7 +888,8 @@ function Index.Create(screen: ScreenGui): Catalog
 			row.BackgroundTransparency = 1
 			row.ZIndex = Z + 2
 			row.Parent = petList
-			header(row, string.format("%s  ·  $%s", string.upper(egg.name), Config.FormatCash(egg.price)), tone, Z + 3)
+			header(row, string.format("%s  ·  $%s%s", string.upper(egg.name), Config.FormatCash(egg.price),
+				if egg.rebirths then string.format("  ·  REBIRTH %d", egg.rebirths) else ""), tone, Z + 3)
 			local strip = Instance.new("ScrollingFrame")
 			strip.Position = UDim2.fromOffset(0, 22)
 			strip.Size = UDim2.new(1, 0, 0, CARD_H + 8)

@@ -278,10 +278,14 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		corner(title, 12)
 		stroke(title, WHITE, 3)
 
-		local price = text(c, "$" .. Config.FormatCash(egg.price), 16, UiKit.CREW.LIME, 7)
+		-- Rebirth yumurtası kilitliyken fiyat yerine kilit
+		local rb = game:GetService("Players").LocalPlayer:GetAttribute("Rebirths")
+		local locked = not Config.EggUnlocked(egg, if typeof(rb) == "number" then rb else 0)
+		local price = text(c, if locked then string.format("🔒 REBIRTH %d", egg.rebirths or 0) else "$" .. Config.FormatCash(egg.price), 16,
+			if locked then Color3.fromRGB(255, 154, 107) else UiKit.CREW.LIME, 7)
 		price.AnchorPoint = Vector2.new(1, 0)
 		price.Position = UDim2.fromOffset(378, 34)
-		price.Size = UDim2.fromOffset(100, 22)
+		price.Size = UDim2.fromOffset(if locked then 140 else 100, 22)
 		price.TextXAlignment = Enum.TextXAlignment.Right
 		local ps = Instance.new("UIStroke")
 		ps.Color = INK

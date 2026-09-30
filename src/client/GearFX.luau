@@ -526,12 +526,6 @@ function GearFX.Start(shaker: Shaker?): Handle
 		end
 	end))
 
-	-- Klipler ilk kullanımda beklemesin: şimdiden kaydet
-	task.spawn(function()
-		for gearId in CLIPS do
-			animationId(gearId)
-		end
-	end)
 
 	return {
 		Destroy = function()
