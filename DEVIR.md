@@ -13,6 +13,20 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (60) — Yusuf / Claude (Batur'un şeridine de yazıldı: sunucu servisleri, Config, DataService, Net)
+
+Studio'ya aktarıldı, **184/184 test temiz** (6.217 kontrol). Son birkaç günün Yusuf tarafı işleri toplu (DEVIR'e yazılmamıştı):
+
+- **SINIRLI ETKİNLİK "SPOOKY SPACE"** (`Config.LimitedEvent`, yeni `LimitedEventService`, istemci `EventPanel`): 2 Eki 19:00 UTC → 9 Eki 19:00 UTC, tarihe bağlı (yayınlamak yeter). Şeker: soygun başına nadirliğe göre (`Config.GetHeistCandy`), günlük bonus. Etkinlikte gezegen doğuşlarının %8'i **HAUNTED** (`Config.EventMutations` — normal zarda yok, `GetMutation` tanıyor). Dükkân: Haunted karakter, süper çark, sınırlı Pumpkin Head / Ghost Trail / Witch Hat (`Config.LimitedCosmetics`, `GetCosmetic` iki listeye bakıyor, `CosmeticService.TryBuy` sınırlıyı reddediyor, yeni `CosmeticService.Grant`). Bütün sunucularda şeker sıralaması (OrderedDataStore `LimitedEvent_<id>`), bitince ilk 10'a yalnızca ödül **Candy Crown** (girişte bir kez). Güverte/kafeteryada balkabakları. Sol rayda EVENT düğmesi (3 gün önceden görünür; `SideRail` spec'e `visible`/`decorate` eklendi). Lobi tabelası etkinlik geri sayımı. Yeni etkinlik için: `id`, tarihler, dükkân — eski şeker id değişince sıfırlanıyor.
+- **Profil alanları**: `limited` (id, candy, bought, lastDaily, earned, awarded), `referrals`, `referredBy`. Snapshot/sanitize güncel.
+- **Yeni remote `EventShop`** (client→server, 23/23 — sınır dolu; yenisi gerekirse testteki sınırı bilinçli artır). Gerekçesi Net.luau'da.
+- **SpaceService**: `SpaceService.Delivered` (BindableEvent: player, unitId, mutationId, candy), `GrantUnit(..., mutationOverride)`, teslimde Lucky Steal / Close Call (`Config.Hype`), kıl payı mesafesi, nadir doğuş alarmı (`rarespawn`), `_SetLuckRoll` (testler). "is on your podium" bildirimi yok (kart söylüyor).
+- **Yeni servisler**: `ReferralService` (davet ödülü, LaunchData `ref:<id>`), `NotifyService` (Open Cloud bildirim; şablon `Config.Notifications.daily`, Secrets'ta `OpenCloudKey`; **HttpEnabled açık olmalı** — Studio'da yine kapalıydı), `LobbyBoardService` (panoların üstünde şerit), `AdminService` (konsol: `game.ServerStorage.AdminCommand:Fire("addspeed"|"setspeed"|"cash"|"candy"|"trainboost"|"announce"|"restart", ...)`), `SoftShutdown` (Restart servers → 10 sn sayım, geçici ayrılmış sunucu üzerinden otomatik geri dönüş; geçici sunucuda init.server erken çıkıyor).
+- **Diğer**: Premium +%10 gelir; `GlobalBoardService` değeri int64'e kırpıyor (kentilyon reddediliyordu); Impostor Alarm trolü alana da görünüyor + gerçek impostor çıkarıyor; `trainboost` (workspace `TrainBoostMul/Until`, CapsuleService çarpıyor); LuckyRoll mağaza kartında mutasyon ihtimalleri (`Config.GuaranteedMutationOdds`, ücretli rastgele ödül kuralı); çark penceresinde ODDS.
+- **İstemci (Yusuf şeridi, bilgi için)**: StealReveal kartı, Engagement (welcome back, favori, bildirim izni), MonsterStyle (senin 5 stilinle birleşti), MapLife yürüyenler oyuncuya yol veriyor, yükseltme panelinde "REBIRTH →".
+
+---
+
 ## 2026-09-30 (59) — Batur (Yusuf'un şeridine de yazıldı: yükseltme paneli, hotbar, pet paneli)
 
 Studio'ya aktarıldı, **183/183 test temiz**. Yusuf'un `cb600ea` (panelde "REBIRTH →") ile birleştirildi.
