@@ -216,11 +216,25 @@ def star_crewmate(h):
     return crewmate(h, (150, 215, 255), face=1, tex=tex.filter(ImageFilter.GaussianBlur(1.5)), visor_col=(255, 245, 190))
 
 
+def pill(canvas, txt, center, size):
+    """Siyah yuvarlak hap üstünde beyaz yazı (sosyal medya "POV:" görünümü)."""
+    t = text_art(txt, size, fill=(255, 255, 255), stroke=(0, 0, 0), sw=0.05, extrude=0.0, gloss=False)
+    pw, ph = t.width + size * 0.8, t.height + size * 0.3
+    s = Sprite(pw + 30, ph + 30, 6)
+    s.put(rrect(s.m(), (15, 15, pw + 15, ph + 15), ph / 2), (15, 15, 20), flat=True, ocol=(255, 255, 255))
+    s.img.alpha_composite(t, (int((pw + 30 - t.width) / 2), int((ph + 30 - t.height) / 2)))
+    place(canvas, s.img, (s.size[0] / 2, s.size[1] / 2), center, angle=-4, shadow=80)
+
+
 # ─── Sahneler ────────────────────────────────────────────────────────────
 
 
-def scene_chomp():
-    """Pembe Chomper ağzını açmış, sen gökkuşağı SECRET mürettebatla kaçıyorsun (panik!)."""
+def scene_chomp(face="cry", headline="secret"):
+    """Pembe Chomper ağzını açmış, sen gökkuşağı SECRET mürettebatla kaçıyorsun.
+
+    face: "cry" (panik) / "smug" (kendinden emin — 16+ kitle için)
+    headline: "secret" (SECRET! + $/s) / "pov" (POV: meme formatı) / "worth" (WORTH IT? risk sorusu)
+    """
     c = space_bg((110, 40, 200), (255, 120, 200), [(700, 500, 800, (255, 90, 200), 130), (3200, 300, 700, (120, 170, 255), 120),
                                                   (2900, 1000, 800, (255, 200, 120), 110)], (2950, 900), glow=(255, 240, 200), glow_r=1050)
     speed_lines(c, (2950, 900), 55, seed=3, alpha=110)
@@ -232,7 +246,7 @@ def scene_chomp():
     place(c, mon, mi["feet"], (1080, 2150), angle=-10, rim=((255, 255, 255), 12))
 
     held = crewmate(820, (255, 255, 255), tex=rainbow_tex((1000, 1000)), face=1)
-    av, ai = avatar(245, "run", "cry", held=held, look=1)
+    av, ai = avatar(245, "run", face, held=held, look=1)
     ground_shadow(c, 3000, 2090, 560, 85)
     ta = place(c, av, ai["feet"], (3000, 2110), angle=-6, rim=((255, 255, 255), 10), under=aura(c, ai, (255, 250, 170), k=1.2, alpha=220))
     hc = ta(ai["held"])
@@ -240,8 +254,17 @@ def scene_chomp():
         sparkle(c, hc[0] + dx, hc[1] + dy, r, (255, 240, 120))
 
     exclaim(c, 330, 420, 400, angle=-10)
-    put_text(c, "SECRET!", (2750, 230), 310, angle=-4, fill=rainbow_fill())
-    put_text(c, "$1.2B/s", (2750, 470), 190, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
+    if headline == "pov":
+        # TikTok'un "POV:" kalıbı: siyah hap üstünde beyaz, altında dev SECRET
+        pill(c, "POV: YOU STOLE A", (2750, 170), 120)
+        put_text(c, "SECRET!", (2750, 400), 300, angle=-4, fill=rainbow_fill())
+        put_text(c, "$1.2B/s", (2250, 640), 160, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
+    elif headline == "worth":
+        put_text(c, "WORTH IT?", (2700, 230), 290, angle=-4, fill=(255, 255, 255), stroke=(180, 20, 60))
+        put_text(c, "$1.2B/s", (2750, 480), 200, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
+    else:
+        put_text(c, "SECRET!", (2750, 230), 310, angle=-4, fill=rainbow_fill())
+        put_text(c, "$1.2B/s", (2750, 470), 190, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
     vignette(c, 40)
     return c
 
@@ -308,7 +331,7 @@ def scene_planets():
     return c
 
 
-def scene_kraken():
+def scene_kraken(hush="SHHH..."):
     """Uyuyan Nebula Kraken'in dibinden GOLDEN mürettebatı aşırmak (sessiz ol!)."""
     c = space_bg((20, 140, 210), (70, 225, 205), [(900, 500, 800, (120, 255, 200), 120), (3000, 400, 800, (170, 110, 255), 130),
                                                  (2200, 1100, 700, (255, 255, 255), 60)], (1000, 900), glow=(240, 255, 220), glow_r=950, seed=31)
@@ -331,13 +354,20 @@ def scene_kraken():
     hc = ta(flipx(ai["held"]))
     for dx, dy, r in ((-420, -300, 70), (420, -330, 60), (-420, 230, 45), (440, 200, 50)):
         sparkle(c, hc[0] + dx, hc[1] + dy, r, (255, 225, 90))
-    put_text(c, "SHHH...", (950, 250), 250, angle=6, fill=(255, 255, 255), stroke=(20, 60, 120))
+    put_text(c, hush, (950, 250), 250, angle=6, fill=(255, 255, 255), stroke=(20, 60, 120))
     put_text(c, "GOLDEN!", (2650, 200), 250, angle=-4, fill=gold_fill(), stroke=(110, 60, 0))
     vignette(c, 40)
     return c
 
 
-SCENES = [("1_chomp", scene_chomp), ("2_starfall", scene_starfall), ("3_planets", scene_planets), ("4_kraken", scene_kraken)]
+SCENES = [
+    ("1_chomp", scene_chomp), ("2_starfall", scene_starfall), ("3_planets", scene_planets), ("4_kraken", scene_kraken),
+    # 16+ kitle (reklam yalnızca 16+'ya gösteriliyor): çocuksu panik yerine özgüven,
+    # meme dili (POV, SUS) ve risk sorusu. A/B için aynı sahnenin varyantları.
+    ("5_pov", lambda: scene_chomp("smug", "pov")),
+    ("6_worthit", lambda: scene_chomp("smug", "worth")),
+    ("7_sus", lambda: scene_kraken("SUS...")),
+]
 
 
 def main(only=None):
