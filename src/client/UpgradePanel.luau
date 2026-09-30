@@ -392,8 +392,21 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 	local floorNote = line(floorCard, 40, 17)
 	local floorBuy = makeBuy(floorCard)
 	local floorRemote = Net.Get("FloorBuy")
+	--[[
+		2026-09-30 (oyuncu: "there's no upgrade button"): her şey tavandayken
+		bütün düğmeler gri "MAX" oluyordu ve panel sıradaki adımı söylemiyordu.
+		Artık sıradaki adım rebirth ise kat kartının düğmesi yeşil "REBIRTH →"
+		oluyor ve REBIRTH sekmesini açıyor; alt yazı da durumu söylüyor.
+	]]
+	local floorGoesRebirth = false
 	floorBuy.button.MouseButton1Click:Connect(function()
-		if floorBuy.button.Active then
+		if not floorBuy.button.Active then
+			return
+		end
+		if floorGoesRebirth then
+			current = "rebirth"
+			paintTabs()
+		else
 			floorRemote:FireServer()
 		end
 	end)
@@ -540,6 +553,8 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		paintTabs()
 		refreshRebirth(cash)
 
+		-- Hâlâ alınabilen yükseltme sayısı (0 = hepsi tavanda)
+		local buyable = 0
 		for _, row in rows do
 			local lvl = number("Upg_" .. row.def.id, 0)
 			local maxLevel = Config.GetUpgradeMaxLevel(row.def, floors)
@@ -558,6 +573,7 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 			end
 
 			if price then
+				buyable += 1
 				-- Parası yetmiyorsa düğme sönük ama tıklanabilir: sunucu fiyatı söylüyor
 				row.buy.set("$" .. Config.FormatCash(price), if cash >= price then CardKit.GREEN else CardKit.GREEN:Lerp(CardKit.GREY, 0.55))
 			elseif floors < Config.MaxFloors then
@@ -571,19 +587,48 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		local bought = number("FloorsBought", 0)
 		local rebirths = number("Rebirths", 0)
 		local nextFloor = Config.GetNextFloor(bought)
+		local canRebirth = rebirths < Config.MaxRebirths and tutorialFinished()
+		floorGoesRebirth = false
 		if not nextFloor then
 			floorName.Text = "ALL FLOORS OPEN"
-			floorNote.Text = "Every upgrade cap is at its highest"
-			floorBuy.set("MAX", nil)
+			if canRebirth then
+				-- Sıradaki adım rebirth: düğme oraya götürüyor
+				floorNote.Text = '<font color="#7CFF5B">Next step: REBIRTH</font> for more income forever'
+				floorBuy.set("REBIRTH →", CardKit.GREEN)
+				floorGoesRebirth = true
+			else
+				floorNote.Text = "Every upgrade cap is at its highest"
+				floorBuy.set("MAX", nil)
+			end
 		elseif rebirths < nextFloor.rebirths then
 			floorName.Text = string.format("NEW FLOOR %d", nextFloor.floor)
 			floorNote.Text = string.format('Needs <font color="#FFE13C">%d rebirth%s</font> (you have %d)',
 				nextFloor.rebirths, if nextFloor.rebirths == 1 then "" else "s", rebirths)
-			floorBuy.set("LOCKED", nil)
+			if canRebirth then
+				floorBuy.set("REBIRTH →", CardKit.GREEN)
+				floorGoesRebirth = true
+			else
+				floorBuy.set("LOCKED", nil)
+			end
 		else
 			floorName.Text = string.format("NEW FLOOR %d", nextFloor.floor)
 			floorNote.Text = '<font color="#7CFF5B">More podiums</font> + doubles every upgrade cap'
 			floorBuy.set("$" .. Config.FormatCash(nextFloor.cost), if cash >= nextFloor.cost then CardKit.GREEN else CardKit.GREEN:Lerp(CardKit.GREY, 0.55))
+		end
+
+		-- Alt yazı: alınacak yükseltme kalmadıysa sıradaki adımı söyle
+		if buyable > 0 then
+			foot.Text = "Upgrades reset on rebirth  ·  every new floor doubles each cap  ·  scroll for more"
+			foot.TextColor3 = Color3.fromRGB(190, 200, 220)
+		elseif nextFloor and rebirths >= nextFloor.rebirths then
+			foot.Text = "ALL CAPS REACHED!  Scroll down and buy the NEW FLOOR to double every cap"
+			foot.TextColor3 = CardKit.YELLOW
+		elseif canRebirth then
+			foot.Text = "ALL UPGRADES MAXED!  Next step: open the REBIRTH tab"
+			foot.TextColor3 = CardKit.YELLOW
+		else
+			foot.Text = "Everything is maxed. You finished the upgrades!"
+			foot.TextColor3 = CardKit.YELLOW
 		end
 	end
 

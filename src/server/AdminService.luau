@@ -15,6 +15,7 @@
 	  game.ServerStorage.AdminCommand:Fire("addspeed", "OyuncuAdi", 50)
 	  game.ServerStorage.AdminCommand:Fire("setspeed", "OyuncuAdi", 120)
 	  game.ServerStorage.AdminCommand:Fire("cash", "OyuncuAdi", 100000)
+	  game.ServerStorage.AdminCommand:Fire("trainboost", 2, 15)        -- bu sunucuda 15 dk 2x antrenman
 	  game.ServerStorage.AdminCommand:Fire("announce", "metin")        -- bütün sunucular
 	  game.ServerStorage.AdminCommand:Fire("restart", 60, "BUG FIX UPDATE")  -- bütün sunucularda geri sayım
 	Oyuncu adı yerine "all" = sunucudaki herkes. Ad baştan eşleşiyor
@@ -27,6 +28,8 @@
 local MessagingService = game:GetService("MessagingService")
 local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
+
+local Net = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Net)
 
 local AnnounceService = require(script.Parent.AnnounceService)
 local CapsuleService = require(script.Parent.CapsuleService)
@@ -122,6 +125,19 @@ function AdminService.Run(command: any, a: any, b: any): string
 		end
 		AnnounceService.Global(a)
 		return "duyuruldu"
+	elseif command == "trainboost" then
+		-- Bu sunucudaki herkese kapsül antrenmanı çarpanı: ("trainboost", 2, 15) = 15 dk 2x
+		local mul = math.clamp(tonumber(a) or 2, 1, 10)
+		local minutes = math.clamp(tonumber(b) or 15, 0, 240)
+		workspace:SetAttribute("TrainBoostMul", mul)
+		workspace:SetAttribute("TrainBoostUntil", workspace:GetServerTimeNow() + minutes * 60)
+		if minutes > 0 and mul > 1 then
+			-- Yalnızca bu sunucu (takviye de yalnızca burada): sohbet + bildirim
+			local text = string.format("%gx SPACE SPEED TRAINING for %g minutes! Get in your capsule!", mul, minutes)
+			AnnounceService.Summon(text)
+			Net.Get("Notify"):FireAllClients(text, false, "reward")
+		end
+		return string.format("antrenman x%g, %g dk", mul, minutes)
 	elseif command == "restart" then
 		local seconds = math.clamp(tonumber(a) or 60, 5, 600)
 		local title = if typeof(b) == "string" and b ~= "" then string.sub(b, 1, 60) else "UPDATE"
@@ -131,7 +147,7 @@ function AdminService.Run(command: any, a: any, b: any): string
 				MessagingService:PublishAsync(TOPIC, { s = seconds, t = title, j = game.JobId })
 			end)
 		end)
-		return string.format("geri sayım başladı (%d sn, bütün sunucular)", seconds)
+		return string.format("geri sayım başladı (%g sn, bütün sunucular)", seconds)
 	end
 	return "bilinmeyen komut: " .. tostring(command)
 end

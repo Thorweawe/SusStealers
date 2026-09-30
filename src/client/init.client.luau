@@ -308,10 +308,30 @@ refreshCash()
 local function refreshSpeed()
 	local speed = player:GetAttribute("SpaceSpeed") :: number?
 	speedValue.Text = string.format("%.1f", speed or Config.Space.BaseSpeed)
-	speedSub.Text = "SPACE SPEED"
+	-- Sunucu geneli antrenman takviyesi sürüyorsa (AdminService "trainboost") burada yazıyor
+	local mul = workspace:GetAttribute("TrainBoostMul")
+	local untilAt = workspace:GetAttribute("TrainBoostUntil")
+	local left = if typeof(untilAt) == "number" then math.floor(untilAt - workspace:GetServerTimeNow()) else 0
+	if typeof(mul) == "number" and mul > 1 and left > 0 then
+		speedSub.Text = string.format("%gx TRAINING  %d:%02d", mul, left // 60, left % 60)
+		speedSub.TextColor3 = Color3.fromRGB(255, 225, 70)
+	else
+		speedSub.Text = "SPACE SPEED"
+		speedSub.TextColor3 = Color3.fromRGB(215, 222, 245)
+	end
 end
 
 player:GetAttributeChangedSignal("SpaceSpeed"):Connect(refreshSpeed)
+workspace:GetAttributeChangedSignal("TrainBoostUntil"):Connect(refreshSpeed)
+-- Takviye sayacı saniyede bir (takviye yokken tek karşılaştırma)
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if typeof(workspace:GetAttribute("TrainBoostUntil")) == "number" then
+			refreshSpeed()
+		end
+	end
+end)
 refreshSpeed()
 
 -- ─── Üs durumu ──────────────────────────────────────────────────────────────

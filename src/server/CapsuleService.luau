@@ -53,6 +53,20 @@ local function publish(player: Player, speed: number)
 	end
 end
 
+--[[
+	Sunucu geneli antrenman takviyesi (2026-09-30, AdminService "trainboost"):
+	workspace "TrainBoostMul" (çarpan) ve "TrainBoostUntil" (sunucu saati).
+	Süresi dolunca 1. İstemci hız hapında gösteriyor.
+]]
+local function boostMul(): number
+	local mul = workspace:GetAttribute("TrainBoostMul")
+	local untilAt = workspace:GetAttribute("TrainBoostUntil")
+	if typeof(mul) == "number" and typeof(untilAt) == "number" and workspace:GetServerTimeNow() < untilAt then
+		return math.clamp(mul, 1, 10)
+	end
+	return 1
+end
+
 function CapsuleService.GetSpeed(player: Player): number
 	local profile = DataService.Get(player)
 	return if profile then profile.spaceSpeed else Config.Space.BaseSpeed
@@ -212,7 +226,7 @@ local function tick(dt: number)
 				training = true
 				local level = UpgradeService.GetLevel(owner, UPGRADE_ID)
 				-- Rebirth antrenmanı hızlandırıyor (rebirth canavarlarının hızına çıkılsın)
-				local gain = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * dt
+				local gain = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * boostMul() * dt
 				profile.spaceSpeed = math.min(Config.Space.MaxSpeed, profile.spaceSpeed + gain)
 				publish(owner, profile.spaceSpeed)
 				owner:SetAttribute("CapsuleGain", math.floor(gain / dt * 1000 + 0.5) / 1000)
@@ -253,7 +267,7 @@ function CapsuleService.TryCatch(player: Player, perfect: boolean?): number?
 	end
 	lastCatch[player] = now
 	local level = UpgradeService.GetLevel(player, UPGRADE_ID)
-	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * c.CatchBonusSeconds
+	local bonus = Config.GetCapsuleGain(level, profile.spaceSpeed) * Config.GetRebirthTrainingMul(profile.rebirths) * boostMul() * c.CatchBonusSeconds
 	if perfect == true then
 		bonus *= c.PerfectCatchMul
 	end
