@@ -79,6 +79,13 @@ local PLAYLIST: { [string]: { string } } = {
 		"rbxassetid://9041894478",   -- The Light of Zetar Alternate (Cezame)
 		"rbxassetid://1840199347",   -- Dot Matrix (B)
 	},
+	-- Sınırlı etkinlik haftası lobisi (Config.LimitedEvent sürerken): yıldızlı,
+	-- geniş uzay parçası önce, sonra normal lobi parçaları
+	lobbyEvent = {
+		"rbxassetid://9042379064",   -- Space Stars (Stereoscopic)
+		"rbxassetid://1836693755",   -- Sci Fidelity (Thomas Kane)
+		"rbxassetid://9041894478",   -- The Light of Zetar Alternate (Cezame)
+	},
 	station = {
 		"rbxassetid://9045117617",   -- Sneaky Schemes - Alt4, NoPerc
 		"rbxassetid://9043067384",   -- House Of Intrigue B
@@ -191,7 +198,10 @@ function Music.Start(): Handle
 		zamanlayıcı kurmuyoruz çünkü parça uzunluğu yüklenmeden bilinmiyor.
 	]]
 	local function playZone(zone: string)
-		local list = PLAYLIST[zone]
+		-- Etkinlik haftası lobide kendi listesi
+		local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config)
+		local key = if zone == "lobby" and Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then "lobbyEvent" else zone
+		local list = PLAYLIST[key]
 		if not list or #list == 0 then
 			-- O bölgede müzik yok: çalanı sustur, yenisini başlatma
 			if current then

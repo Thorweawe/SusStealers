@@ -78,6 +78,13 @@ local ID = {
 	HatchReveal = "rbxassetid://9119447936",  -- Sparkle Bell Tree Wind Chimes 1
 	HatchJackpot = "rbxassetid://1836860398", -- Winning Spirit (Roblox müzik kütüphanesi, kısa kesit)
 
+	-- Sınırlı etkinlik (2026-09-30): yıldız teması. Pro Sound Effects ve
+	-- KPM/APM arşivinden (Roblox lisanslı), bu yerde yüklendikleri ölçüldü.
+	StarChime = "rbxassetid://9116394545",   -- Magic Glows Soft Clusters Of Chiming Hits 1
+	Harp      = "rbxassetid://1840525342",   -- Harp Glissando (A) (Jim Rattigan)
+	Fanfare   = "rbxassetid://1846266827",   -- Short Fanfare
+	StarFall  = "rbxassetid://9125646917",   -- Magic Whooshes Pass Bys Metallic Shimmering
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -390,6 +397,15 @@ local function playOnce(cue: Config.NotifyCue, pitch: number)
 		kutlama sesleri birbirine giriyordu.
 	]]
 	local window = cue.length
+	-- Uzun (müzikli) kesit sert kesilmesin: son `fade` saniyede sönsün
+	if window and cue.fade then
+		local fade = math.min(cue.fade, window)
+		task.delay(math.max(0, window - fade) / math.max(0.1, pitch), function()
+			if s.Parent then
+				TweenService:Create(s, TweenInfo.new(fade / math.max(0.1, pitch)), { Volume = 0 }):Play()
+			end
+		end)
+	end
 	if window then
 		task.delay(window / math.max(0.1, pitch), function()
 			if s.IsPlaying then
@@ -404,7 +420,7 @@ local function playOnce(cue: Config.NotifyCue, pitch: number)
 	end
 
 	-- Ended bazı durumlarda hiç gelmiyor (ses yüklenemezse); sızıntı olmasın
-	game:GetService("Debris"):AddItem(s, 6)
+	game:GetService("Debris"):AddItem(s, math.max(6, (cue.length or 0) + 2))
 end
 
 --[[
@@ -444,6 +460,24 @@ function SoundFX.Event(kind: string?, isError: boolean)
 			end
 		end
 	end)
+end
+
+--[[
+	Dünyada bir parçaya bağlı 3B ses (yaklaştıkça yükselen). Efekt grubunda,
+	oyuncunun ses ayarına uyuyor. Parça silinince ses de gidiyor.
+	Şimdilik: gökten düşen etkinlik yıldızının vınlaması (SpaceEventsFX).
+]]
+function SoundFX.AttachOneShot(parent: Instance, key: string, volume: number, maxDistance: number, pitch: number?)
+	local id = ID[key]
+	if not id then
+		return
+	end
+	local s = newSound(id, parent, effectGroup, volume, false)
+	s.RollOffMode = Enum.RollOffMode.InverseTapered
+	s.RollOffMinDistance = 12
+	s.RollOffMaxDistance = maxDistance
+	s.PlaybackSpeed = pitch or 1
+	s:Play()
 end
 
 --[[ Bir türün tanımlı olup olmadığı. Testler ve tanı için. ]]

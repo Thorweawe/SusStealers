@@ -758,6 +758,7 @@ export type NotifyCue = {
 	volume: number,
 	repeats: number?,
 	gap: number?,
+	fade: number?,   -- kesitin son `fade` saniyesi sönerek bitsin (uzun müzikli kesitler)
 }
 
 Config.NotifyCues = {
@@ -809,6 +810,15 @@ Config.NotifyCues = {
 	welcome  = { source = "UiB", startAt = 8.00, length = 0.30, pitch = 1.00, volume = 0.38, repeats = 2, gap = 0.15 },
 	plot     = { source = "UiC", startAt = 11.0, length = 0.24, pitch = 0.90, volume = 0.32 },
 	income   = { source = "UiB", startAt = 12.0, length = 0.20, pitch = 0.95, volume = 0.25 },
+
+	--[[ Sınırlı etkinlik (2026-09-30): temaya uygun, sihirli/yıldızlı tınılar.
+	     Roblox'un lisanslı kütüphanesinden (SoundFX'teki ID tablosu). ]]
+	-- Yağmurda yıldız yakalandı: yumuşak çan kümesi (sık çalıyor, kısa ve kısık)
+	stardust  = { source = "StarChime", startAt = 0, length = 1.2, pitch = 1.05, volume = 0.45, fade = 0.4 },
+	-- SUPERNOVA: arp glissandosu, büyük an
+	supernova = { source = "Harp", startAt = 0, length = 3.2, pitch = 1.00, volume = 0.60, fade = 1.0 },
+	-- Ortak hedef kademesi / yıldız yolu bitti / sınırlı eşya: kısa fanfar
+	fanfare   = { source = "Fanfare", startAt = 0, length = 3.6, pitch = 1.00, volume = 0.50, fade = 1.2 },
 } :: { [string]: NotifyCue }
 
 --[[ Bu türün tanımlı bir sesi var mı. Testler buna bakıyor. ]]

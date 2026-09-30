@@ -24,6 +24,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local MeteorShower = require(Shared.MeteorShower)
 
+local SoundFX = require(script.Parent.SoundFX)
+
 local SpaceEventsFX = {}
 
 export type Handle = { Destroy: () -> () }
@@ -272,6 +274,9 @@ function SpaceEventsFX.Start(): Handle
 		trail.Transparency = NumberSequence.new(0, 1)
 		trail.WidthScale = NumberSequence.new(1, 0)
 		trail.Parent = meteor
+		-- Düşerken ışıltılı vınlama (3B: yakındaysan duyuyorsun); perde biraz rastgele
+		SoundFX.AttachOneShot(meteor, "StarFall", if star:GetAttribute("Super") then 0.9 else 0.55, 220,
+			0.9 + math.random() * 0.25)
 		local tween = TweenService:Create(meteor, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = target })
 		tween.Completed:Connect(function()
 			meteor:Destroy()

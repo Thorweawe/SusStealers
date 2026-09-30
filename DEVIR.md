@@ -13,6 +13,10 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (64) — Yusuf / Claude (Config.NotifyCues, LimitedEventService bildirim türleri)
+- Yeni ses türleri (Config.NotifyCues): `stardust` (yıldız yakalandı), `supernova`, `fanfare` (ortak hedef kademesi, yıldız yolu bitti, sınırlı eşya alındı, ilk 10 ödülü). NotifyCue'ya `fade` alanı eklendi (uzun kesit sönerek bitsin). Kaynaklar SoundFX'te: StarChime, Harp, Fanfare, StarFall (Roblox lisanslı kütüphane, yüklendikleri ölçüldü). Test (ServerTests "her tınının kaynağı") listesi güncellendi.
+- Batur: kendi servisinde yeni bildirim türü kullanırsan Config.NotifyCues'a da ekle (test zorluyor).
+
 ## 2026-09-30 (63) — Yusuf / Claude (Batur'un şeridine de yazıldı: LimitedEventService, LobbyBoardService, DataService, Config)
 - GALAXY GOAL (ortak hedef, `Config.LimitedEvent.community`): bütün sunucuların etkinlikte kazandığı toplam. LimitedEventService her sunucuda dakikada bir DataStore "LimitedEventGoal" (anahtar = etkinlik id) üstünde UpdateAsync yapıyor, kapanışta (BindToClose) bekleyeni yazıyor; `workspace.EventGlobal` niteliği. Kademeler 10k / 25k / 50k: etkinlikte para kazanmış HERKESE 3 çark / süper çark / Starborn mürettebat (profil `limited.gt`).
 - Lobi tabelasının orta sütunu etkinlikte (ve bittikten sonraki 1 gün) beğeni hedefi yerine GALAXY GOAL gösteriyor (LobbyBoardService.GoalColumn). Tabelanın önünde süzülen dev yıldız (EventDecor/EventStarBeacon) hedef ilerledikçe parlıyor.

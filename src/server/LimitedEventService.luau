@@ -61,9 +61,10 @@ local function now(): number
 	return nowOverride or os.time()
 end
 
-local function notify(player: Player, text: string, isError: boolean)
+-- `kind`: ses türü (Config.NotifyCues); yoksa "reward"
+local function notify(player: Player, text: string, isError: boolean, kind: string?)
 	if notifyRemote and player.Parent then
-		notifyRemote:FireClient(player, text, isError, LimitedEventService.NotifyKind)
+		notifyRemote:FireClient(player, text, isError, kind or LimitedEventService.NotifyKind)
 	end
 end
 
@@ -206,7 +207,7 @@ function LimitedEventService.CheckCommunity(player: Player): number
 		end
 		profile.limited.gt += 1
 		given += 1
-		notify(player, string.format("%s reached! Everyone gets %s - you got %s!", e.community.name, tier.label, got :: string), false)
+		notify(player, string.format("%s reached! Everyone gets %s - you got %s!", e.community.name, tier.label, got :: string), false, "fanfare")
 	end
 	if given > 0 then
 		DataService.RequestSave(player)
@@ -281,7 +282,8 @@ function LimitedEventService.CheckMilestones(player: Player): number
 		end
 		profile.limited.ms = index
 		given += 1
-		notify(player, string.format("%s %d/%d: you got %s!", e.text.path, index, #e.milestones, got :: string), false)
+		notify(player, string.format("%s %d/%d: you got %s!", e.text.path, index, #e.milestones, got :: string), false,
+			if index == #e.milestones then "fanfare" else nil)
 		if index == #e.milestones then
 			AnnounceService.Summon(string.format("%s finished the %s!", player.DisplayName, AnnounceService.Paint(e.text.path, e.color)))
 		end
@@ -507,7 +509,7 @@ function LimitedEventService.Settle(player: Player, top: { Row }?): number?
 	if rank and rank <= e.leaderboard.rewardTop then
 		local def = Config.GetCosmetic(e.leaderboard.reward)
 		if def and CosmeticService.Grant(player, def.id) then
-			notify(player, string.format("You were #%d in %s! You got the LIMITED %s!", rank, e.name, def.name), false)
+			notify(player, string.format("You were #%d in %s! You got the LIMITED %s!", rank, e.name, def.name), false, "fanfare")
 			AnnounceService.Summon(string.format("%s was #%d in %s and got the LIMITED %s!", player.DisplayName, rank, e.name,
 				AnnounceService.Paint(def.name, e.color)))
 		end
@@ -598,11 +600,11 @@ local function collectStar(player: Player, index: number): number
 	local e = Config.LimitedEvent
 	LimitedEventService.AddCandy(player, star.amount)
 	if star.super then
-		notify(player, string.format("%s! +%d %s %s", e.shower.superName, star.amount, e.icon, e.currency), false)
+		notify(player, string.format("%s! +%d %s %s", e.shower.superName, star.amount, e.icon, e.currency), false, "supernova")
 		AnnounceService.Summon(string.format("%s caught a %s! +%d %s", player.DisplayName,
 			AnnounceService.Paint(e.shower.superName, SUPER_COLOR), star.amount, e.icon))
 	else
-		notify(player, string.format("+%d %s %s", star.amount, e.icon, e.currency), false)
+		notify(player, string.format("+%d %s %s", star.amount, e.icon, e.currency), false, "stardust")
 	end
 	return star.amount
 end
@@ -880,7 +882,9 @@ function LimitedEventService.Start()
 		end
 		lastBuy[player] = t
 		local ok, message = LimitedEventService.Buy(player, itemId)
-		notify(player, message, not ok)
+		-- Sınırlı eşya alındı: fanfar
+		local item = Config.GetEventShopItem(itemId)
+		notify(player, message, not ok, if ok and item and item.kind == "cosmetic" then "fanfare" else nil)
 	end)
 
 	workspace:SetAttribute("EventTop", "[]")

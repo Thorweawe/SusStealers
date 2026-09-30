@@ -44,6 +44,10 @@ local ROW_H = 46
 	son satır ONUN satırı oluyor (gerçek sırasıyla): kendini her zaman görüyor.
 ]]
 -- 2026-09-28: 6 → 4 (üçüncül öğe: ekranda az yer kaplasın)
+-- 2026-09-30: bu artık GÖRÜNEN satır sayısı; satırlar kaydırılabilir bir
+-- alanda ve sunucudaki HERKES listede ("4'ten fazla oyuncu varsa ötekiler
+-- görünmüyor"). Aşağı kaydırınca geri kalanlar.
+-- MAX_ROWS değişince tablo büyümüyor, yalnızca kaç satırın görüneceği değişiyor.
 -- Telefonda 3: hız/para hapları tablonun altında (DeviceLayout); 4 satırda
 -- dolu sunucuda küçük telefonlarda zıplama tuşunun bölgesine iniyorlardı
 local UserInputService = game:GetService("UserInputService")
@@ -261,11 +265,28 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 	-- ─── Satırlar ───────────────────────────────────────────────────────────
 
+	-- Kaydırılabilir alan: tablo MAX_ROWS satır boyunda, fazlası aşağıda
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Name = "Rows"
+	scroll.Position = UDim2.fromOffset(0, HEADER + 1)
+	scroll.Size = UDim2.new(1, 0, 1, -(HEADER + 1))
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	scroll.ScrollBarThickness = 5
+	scroll.ScrollBarImageColor3 = CardKit.YELLOW
+	scroll.ScrollBarImageTransparency = 0.2
+	scroll.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+	scroll.CanvasSize = UDim2.new()
+	scroll.ElasticBehavior = Enum.ElasticBehavior.Never
+	scroll.ZIndex = 2
+	scroll.Parent = holder
+
 	local rows: { Row } = {}
-	for index = 1, MAX_ROWS do
-		local card = CardKit.card(holder, UiKit.VISOR, UDim2.new(1, -12, 0, ROW_H - 5), 2, UDim2.fromScale(0.2, 0.5), 200)
+	for index = 1, math.max(Config.ServerSize, Players.MaxPlayers, MAX_ROWS) do
+		local card = CardKit.card(scroll, UiKit.VISOR, UDim2.new(1, -8, 0, ROW_H - 5), 2, UDim2.fromScale(0.2, 0.5), 200)
 		card.Name = "Row" .. index
-		card.Position = UDim2.fromOffset(6, HEADER + 5 + (index - 1) * ROW_H)
+		card.Position = UDim2.fromOffset(4, 4 + (index - 1) * ROW_H)
 		card.Visible = false
 		-- Kendi satırın: sarı kalın çerçeve (göz seni arıyor)
 		local mine = Instance.new("UIStroke")
@@ -341,15 +362,12 @@ function Leaderboard.Create(screen: ScreenGui): Board
 
 		count.Text = string.format("%d / %d", #list, Config.ServerSize)
 
-		-- Gösterilecekler: ilk altı; oyuncu dışarıda kaldıysa son satır onun
+		-- Herkes sırayla; görünmeyenler kaydırınca
 		local shownRanks: { number } = {}
-		for index = 1, math.min(#list, MAX_ROWS) do
+		for index = 1, math.min(#list, #rows) do
 			shownRanks[index] = index
 		end
-		local myRank = table.find(list, player)
-		if myRank and myRank > MAX_ROWS then
-			shownRanks[MAX_ROWS] = myRank
-		end
+		scroll.CanvasSize = UDim2.fromOffset(0, 6 + math.min(#list, #rows) * ROW_H)
 
 		for index, row in rows do
 			local rank = shownRanks[index]
