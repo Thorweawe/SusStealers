@@ -272,7 +272,7 @@ def scene_chomp(face="cry", headline="secret"):
     return c
 
 
-def scene_starfall():
+def scene_starfall(text=True):
     """STARFALL etkinliği: yıldızlar yağıyor, sen dev STARBORN mürettebatı kaldırıyorsun."""
     c = space_bg((20, 50, 160), (110, 200, 255), [(700, 400, 700, (160, 90, 255), 120), (3300, 350, 650, (80, 200, 255), 120),
                                                  (2600, 900, 800, (255, 255, 255), 70)], (2650, 800), glow=(220, 245, 255), glow_r=900, seed=17)
@@ -299,14 +299,15 @@ def scene_starfall():
     for dx, dy, r in ((-600, -200, 85), (580, -330, 70), (640, 230, 55), (-560, 330, 55), (0, -560, 50)):
         sparkle(c, hc[0] + dx, hc[1] + dy, r, (200, 240, 255))
 
-    ribbon(c, "NEW EVENT!", (900, 300), 150, angle=-6)
-    put_text(c, "STARFALL", (1000, 620), 300, angle=-6, fill=gold_fill(), stroke=(110, 60, 0))
-    put_text(c, "LIMITED!", (1000, 900), 150, angle=-6, fill=(255, 255, 255), stroke=(200, 30, 60))
+    if text:
+        ribbon(c, "NEW EVENT!", (900, 300), 150, angle=-6)
+        put_text(c, "STARFALL", (1000, 620), 300, angle=-6, fill=gold_fill(), stroke=(110, 60, 0))
+        put_text(c, "LIMITED!", (1000, 900), 150, angle=-6, fill=(255, 255, 255), stroke=(200, 30, 60))
     vignette(c, 35)
     return c
 
 
-def scene_planets():
+def scene_planets(text=True):
     """Gezegen gezegen büyüyen ödül (oyundaki ilerleme): her gezegende daha nadir mürettebat."""
     c = space_bg((20, 90, 210), (90, 200, 255), [(600, 600, 700, (120, 90, 255), 120), (3300, 500, 800, (80, 230, 255), 110),
                                                 (2000, 300, 700, (255, 150, 240), 90)], (3300, 800), glow=(255, 255, 230), glow_r=1000, seed=21)
@@ -320,7 +321,8 @@ def scene_planets():
         planet(c, x, gy + pr * 0.92, pr, pcol)
         cm, ci = crewmate(hgt, col, face=1)
         place(c, cm, ci["feet"], (x, gy + 20), rim=((255, 255, 255), 8))
-        put_text(c, label, (x, gy - hgt - 70), ts, angle=-3, fill=money_fill(), stroke=(10, 70, 20))
+        if text:
+            put_text(c, label, (x, gy - hgt - 70), ts, angle=-3, fill=money_fill(), stroke=(10, 70, 20))
     planet(c, 3480, 1900, 470, (190, 110, 255), ring=(255, 230, 170))
     held = crewmate(430, (255, 255, 255), tex=rainbow_tex((1000, 1000)), face=-1)
     av, ai = avatar(128, "lift", "smug", held=held, look=-1)
@@ -328,8 +330,9 @@ def scene_planets():
     hc = ta(ai["held"])
     for dx, dy, r in ((-420, -150, 65), (400, -280, 55), (-400, 230, 45), (420, 220, 45)):
         sparkle(c, hc[0] + dx, hc[1] + dy, r, (255, 240, 120))
-    put_text(c, "$1B/s", (3300, 190), 230, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
-    arrow(c, (330, 1300), (2250, 560), -330, 140, col=(60, 210, 70))
+    if text:
+        put_text(c, "$1B/s", (3300, 190), 230, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
+        arrow(c, (330, 1300), (2250, 560), -330, 140, col=(60, 210, 70))
     vignette(c, 35)
     return c
 

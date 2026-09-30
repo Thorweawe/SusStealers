@@ -1,0 +1,78 @@
+{
+  "voice": "en-US-BrianNeural",
+  "rate": "+12%",
+  "lines": [
+    {
+      "name": "hook",
+      "file": "line_01_hook.mp3",
+      "speech": "They told me not to steal from the space monster.",
+      "caption": "they said DON'T steal from the space monster",
+      "key": "DON'T",
+      "color": "red",
+      "seconds": 2.88
+    },
+    {
+      "name": "fly",
+      "file": "line_02_fly.mp3",
+      "speech": "So obviously, I flew straight to its planet.",
+      "caption": "so obviously I flew straight to its PLANET",
+      "key": "PLANET",
+      "color": "cyan",
+      "seconds": 2.66
+    },
+    {
+      "name": "grab",
+      "file": "line_03_grab.mp3",
+      "speech": "Grabbed the rarest crewmate it had.",
+      "caption": "grabbed the RAREST crewmate it had",
+      "key": "RAREST",
+      "color": "rainbow",
+      "seconds": 2.26
+    },
+    {
+      "name": "chase",
+      "file": "line_04_chase.mp3",
+      "speech": "And yeah. It woke up.",
+      "caption": "and yeah... it WOKE UP",
+      "key": "WOKE UP",
+      "color": "red",
+      "seconds": 1.75
+    },
+    {
+      "name": "escape",
+      "file": "line_05_escape.mp3",
+      "speech": "Made it back with half a second to spare.",
+      "caption": "made it back with HALF A SECOND to spare",
+      "key": "HALF A SECOND",
+      "color": "yellow",
+      "seconds": 2.4
+    },
+    {
+      "name": "event",
+      "file": "line_06_event.mp3",
+      "speech": "And this week, stars are literally falling from the sky.",
+      "caption": "this week stars are FALLING from the sky",
+      "key": "FALLING",
+      "color": "cyan",
+      "seconds": 3.72
+    },
+    {
+      "name": "ask",
+      "file": "line_07_ask.mp3",
+      "speech": "Would you risk it? Yes or no.",
+      "caption": "would you RISK IT? yes or no",
+      "key": "RISK IT?",
+      "color": "yellow",
+      "seconds": 2.26
+    },
+    {
+      "name": "end",
+      "file": "line_08_end.mp3",
+      "speech": "Steal a Crewmate. It's on Roblox.",
+      "caption": "",
+      "key": "",
+      "color": "",
+      "seconds": 2.64
+    }
+  ]
+}

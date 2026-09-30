@@ -10,6 +10,56 @@ karakter; aşağıdaki uzun sürüm ~950.
 
 ---
 
+## 0. ŞU AN KULLAN: 16+ dönemi + STARFALL (2026-10-01)
+
+Oyun şimdilik yalnızca 16+ hesaplara açık, reklam da 16+'ya gidiyor. Metinler
+bu kitleye göre: çocuksu ünlem yağmuru yok; risk, strateji, nadirlik, adil
+yarış ve "sınırlı" vurgusu var. Bu bölümdeki metinler aşağıdaki eski
+sürümlerin (1-6) yerine geçiyor. 16+ kısıtı kalkınca eski tona dönülebilir.
+
+**Oyun adı (etkinlik boyunca, 2-9 Ekim):**
+
+> [🌠 EVENT] Steal a Crewmate
+
+Etkinlik bitince `[🌠 EVENT]` etiketini kaldır.
+
+**Açıklama (~900 karakter):**
+
+> 🌠 STARFALL EVENT LIVE: limited hats, falling stars, one week only.
+>
+> Fly to alien planets and steal the rarest crewmates from sleeping space monsters. Wake one up and it hunts you down; get caught and you're thrown back to the ship. Make it home and your crew earns cash every second.
+>
+> 🪐 6 planets, 6 monsters, each guarding rarer crew
+> 💎 Common to SECRET, plus Golden and Starborn mutations
+> 📈 Grow from $10/s to billions per second
+> 🚀 Train your flight speed to reach the dangerous planets
+> 🏆 Top 10 Stardust collectors win the LIMITED Galaxy Halo. Bought Stardust doesn't count, only what you earn.
+> 🔁 Rebirths, pets, quests, spin wheel and live station events
+>
+> 🎁 CODES: TIKTOK · RELEASE · CREWMATE · SUS
+> ⭐ Favorite so you don't miss the next event.
+
+**Oyun sayfası kapak sırası (Creator Hub > Places > Thumbnails):**
+`thumbnails/v2/` içinden:
+
+1. `thumb_2_starfall.png` (etkinlik boyunca ilk sırada, bitince kaldır)
+2. `thumb_6_worthit.png`
+3. `thumb_5_pov.png`
+4. `thumb_3_planets.png`
+5. `thumb_7_sus.png`
+
+Ağlayan yüzlü `thumb_1_chomp` sayfada yok, o yalnızca reklamda karşılaştırma için.
+
+**Reklam (Ads Manager, yalnızca 16+):** `ads/v2/` içinden 1. tur:
+6 WORTH IT?, 5 POV, 2 STARFALL, 1 CHOMP (karşılaştırma). 2-3 gün sonra en düşük
+iki tanesini kapat, yerlerine 7 SUS ve 3 PLANETS.
+
+**Grup duyurusu (Shout):**
+
+> 🌠 STARFALL EVENT IS LIVE! Stars are falling in space, limited hats in the event shop, top 10 win the Galaxy Halo. Code TIKTOK = free egg 🎁
+
+---
+
 ## 1. Oyun adı
 
 Şu anki ad: **Steal a Crewmate** — değiştirmek gerekmiyor. Güncelleme
