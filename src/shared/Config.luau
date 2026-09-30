@@ -2850,6 +2850,9 @@ end
 	  ŞEFFAFLIK       — mutasyon ihtimali, yıldız miktarları ve SUPERNOVA
 	                    ihtimali dükkânda yazıyor
 	  SOSYAL KANIT    — sınırlı kozmetik alınınca sohbete duyuru
+	  ORTAK HEDEF     — GALAXY GOAL (community): bütün sunucuların topladığı
+	                    toplam; her kademede OYUNDAKİ HERKESE ödül (paylaşılan
+	                    hedef, "biz" hissi, arkadaş çağırma sebebi)
 	Zamanlar UTC saniye. Yeni etkinlik = yeni `id` (eski para sıfırlanıyor).
 
 	TEMADAN BAĞIMSIZ (2026-09-30): ad, simge, para, mutasyon, süs, metinler
@@ -2879,6 +2882,9 @@ export type LimitedEventDef = {
 	     sırayla kendiliğinden veriliyor. reward.kind: RewardService türleri ya da
 	     "unit" (etkinlik mutasyonlu mürettebat). ]]
 	milestones: { { at: number, label: string, reward: RewardDef } },
+	--[[ Ortak hedef: bütün sunucuların bu etkinlikte kazandığı toplam para.
+	     Kademeye varınca etkinlikte oynamış HERKES ödülü alıyor (girişte). ]]
+	community: { name: string, tiers: { { at: number, label: string, reward: RewardDef } } },
 	decor: string,           -- "stars" | "pumpkins"
 	railHat: string,         -- sol raydaki EVENT düğmesinde dönen şapka
 	text: { teaser: string, live: string, hunters: string, path: string },
@@ -2915,7 +2921,7 @@ Config.LimitedEvent = {
 	finalDayMul = 2,
 	shower = {
 		name = "STARFALL SHOWER", every = 1800, offset = 15 * 60, duration = 90,
-		stars = 18, min = 4, max = 12, superChance = 0.08, superAmount = 50, superName = "SUPERNOVA STAR",
+		stars = 18, min = 4, max = 12, superChance = 1 / 12, superAmount = 50, superName = "SUPERNOVA STAR",
 	},
 	milestones = {
 		{ at = 40,   label = "3 FREE SPINS",      reward = { kind = "spins", count = 3 } },
@@ -2925,6 +2931,14 @@ Config.LimitedEvent = {
 		{ at = 700,  label = "2 POTIONS",         reward = { kind = "potion", count = 2 } },
 		{ at = 1000, label = "STARBORN CREWMATE",  reward = { kind = "unit" } },
 		{ at = 1500, label = "3 SUPER SPINS",     reward = { kind = "superspin", count = 3 } },
+	},
+	community = {
+		name = "🌌 GALAXY GOAL",
+		tiers = {
+			{ at = 10000, label = "3 FREE SPINS",     reward = { kind = "spins", count = 3 } },
+			{ at = 25000, label = "SUPER SPIN",       reward = { kind = "superspin", count = 1 } },
+			{ at = 50000, label = "STARBORN CREWMATE", reward = { kind = "unit" } },
+		},
 	},
 	decor = "stars",
 	railHat = "CometCrown",
@@ -2977,7 +2991,7 @@ Config.SpookyEventDraft = {
 	finalDayMul = 2,
 	shower = {
 		name = "CANDY RAIN", every = 1800, offset = 15 * 60, duration = 90,
-		stars = 18, min = 4, max = 12, superChance = 0.08, superAmount = 50, superName = "GOLDEN CANDY",
+		stars = 18, min = 4, max = 12, superChance = 1 / 12, superAmount = 50, superName = "GOLDEN CANDY",
 	},
 	milestones = {
 		{ at = 40,   label = "3 FREE SPINS",      reward = { kind = "spins", count = 3 } },
@@ -2987,6 +3001,14 @@ Config.SpookyEventDraft = {
 		{ at = 700,  label = "2 POTIONS",         reward = { kind = "potion", count = 2 } },
 		{ at = 1000, label = "HAUNTED CREWMATE",  reward = { kind = "unit" } },
 		{ at = 1500, label = "3 SUPER SPINS",     reward = { kind = "superspin", count = 3 } },
+	},
+	community = {
+		name = "🎃 SPOOKY GOAL",
+		tiers = {
+			{ at = 10000, label = "3 FREE SPINS",     reward = { kind = "spins", count = 3 } },
+			{ at = 25000, label = "SUPER SPIN",       reward = { kind = "superspin", count = 1 } },
+			{ at = 50000, label = "HAUNTED CREWMATE", reward = { kind = "unit" } },
+		},
 	},
 	decor = "pumpkins",
 	railHat = "PumpkinHead",
@@ -3067,6 +3089,17 @@ end
 function Config.EventNextMilestone(claimed: number): (any, number)
 	local list = Config.LimitedEvent.milestones
 	return list[claimed + 1], claimed + 1
+end
+
+--[[ Ortak hedefte `total` ile ulaşılan kademe sayısı. ]]
+function Config.EventCommunityReached(total: number): number
+	local n = 0
+	for _, tier in Config.LimitedEvent.community.tiers do
+		if total >= tier.at then
+			n += 1
+		end
+	end
+	return n
 end
 
 --[[ Takvimdeki bir olay `at` anında gerçekten var mı (etkinlik olayları yalnızca etkinlikte). ]]

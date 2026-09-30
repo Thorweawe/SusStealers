@@ -13,6 +13,11 @@
 	              Son 24 saat hepsi finalDayMul katı.
 	  YOL       — kazanılan toplam (earned) basamaklara varınca bedava ödül
 	              (Config.LimitedEvent.milestones), sırayla, kendiliğinden
+	  ORTAK     — GALAXY GOAL (community): bütün sunucuların kazandığı toplam
+	              DataStore'da (sunucu başına dakikada bir UpdateAsync), her
+	              kademe etkinlikte oynamış herkese ödül; workspace.EventGlobal.
+	              Lobi tabelasının orta sütunu ve kafeteryadaki dev yıldız
+	              (EventStarBeacon, ilerledikçe parlıyor) bunu gösteriyor.
 	  MUTASYON  — gezegen doğuşlarında (SpaceService.rollSpot) etkinlik
 	              mutasyonu (Config.LimitedEvent.mutation); çalınca 3x para
 	  DÜKKÂN    — "EventShop" remote'u (itemId): para sunucudaki sayaçtan,
@@ -20,7 +25,7 @@
 	  SÜS       — güvertede ve kafeteryada (decor: yıldız kristali / balkabağı)
 
 	Profil: `limited` (id, candy, bought, lastDaily, earned, awarded, days, ms);
-	etkinlik kimliği değişince sıfırlanıyor. İstemciye nitelikler: EventCandy,
+	etkinlik kimliği değişince sıfırlanıyor. `gt` = alınan ortak hedef kademesi. İstemciye nitelikler: EventCandy,
 	EventEarned, EventBought ("id:n,id:n"), EventDays (giriş yapılan gün),
 	EventDayDone (bugünkü alındı mı), EventMs (alınan yol basamağı).
 ]]
@@ -65,7 +70,7 @@ end
 --[[ Profilin sayacı bu etkinliğin mi; değilse sıfırla. ]]
 local function roll(profile: any)
 	if profile.limited.id ~= Config.LimitedEvent.id then
-		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0 }
+		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0, gt = 0 }
 	end
 end
 
@@ -86,6 +91,160 @@ function LimitedEventService.Publish(player: Player)
 	player:SetAttribute("EventDays", profile.limited.days)
 	player:SetAttribute("EventDayDone", profile.limited.lastDaily == Config.DayIndex(now()))
 	player:SetAttribute("EventMs", profile.limited.ms)
+end
+
+-- ─── Ortak hedef (Config.LimitedEvent.community) ───────────────────────────
+
+local goalStore: DataStore? = nil
+local goalFor = ""
+local goalTotal = 0      -- DataStore'dan son okunan toplam (bütün sunucular)
+local goalPending = 0    -- bu sunucuda kazanılıp henüz yazılmamış
+local goalSeen: number? = nil -- bu sunucunun gördüğü kademe (duyuru için)
+-- Testler sürerken gerçek DataStore'a (ortak toplam, sıralama) yazılmıyor
+local testing = false
+
+--[[ Bu sunucuda kazanılan parayı ortak toplama ekler (dakikada bir yazılıyor). ]]
+function LimitedEventService.AddCommunity(amount: number)
+	if amount > 0 then
+		goalPending += amount
+	end
+end
+
+--[[ Bilinen ortak toplam (yazılmayı bekleyen dahil). ]]
+function LimitedEventService.CommunityTotal(): number
+	return goalTotal + goalPending
+end
+
+local function communityStore(): DataStore?
+	local id = Config.LimitedEvent.id
+	if goalFor ~= id then
+		goalFor = id
+		goalTotal, goalPending, goalSeen = 0, 0, nil
+		local ok, result = pcall(function()
+			return DataStoreService:GetDataStore("LimitedEventGoal")
+		end)
+		goalStore = if ok then result else nil
+	end
+	return goalStore
+end
+
+--[[
+	Bekleyeni DataStore'a ekler ve güncel toplamı okur. DataStore yoksa
+	(Studio) toplam bu sunucuda tutuluyor.
+]]
+local function flushCommunity()
+	local store = communityStore()
+	local key = Config.LimitedEvent.id
+	if testing or not (store and DataService.IsAvailable()) then
+		goalTotal += goalPending
+		goalPending = 0
+		return
+	end
+	local sending = goalPending
+	local ok, result = pcall(function()
+		if sending > 0 then
+			return (store :: DataStore):UpdateAsync(key, function(old)
+				return (if typeof(old) == "number" then old else 0) + sending
+			end)
+		end
+		return (store :: DataStore):GetAsync(key)
+	end)
+	if ok then
+		goalPending -= sending
+		if typeof(result) == "number" then
+			goalTotal = math.max(goalTotal, result)
+		end
+	end
+end
+
+local function publishCommunity()
+	local total = LimitedEventService.CommunityTotal()
+	workspace:SetAttribute("EventGlobal", total)
+	-- Kafeteryadaki dev yıldız ilerledikçe parlıyor
+	local beacon = workspace:FindFirstChild("EventDecor")
+	beacon = beacon and beacon:FindFirstChild("EventStarBeacon")
+	local core = beacon and beacon:FindFirstChild("Crystal")
+	local light = core and core:FindFirstChildOfClass("PointLight")
+	if light then
+		local tiers = Config.LimitedEvent.community.tiers
+		local progress = math.clamp(total / tiers[#tiers].at, 0, 1)
+		light.Brightness = 1 + progress * 3
+		light.Range = 20 + progress * 30
+	end
+end
+
+--[[
+	Ortak hedefin ulaşılan kademelerini oyuncuya verir (etkinlikte hiç para
+	kazandıysa). Mürettebat ödülü boş kaide yoksa bekliyor. Döner: verilen sayı.
+]]
+function LimitedEventService.CheckCommunity(player: Player): number
+	local profile = DataService.Get(player)
+	if not profile then
+		return 0
+	end
+	roll(profile)
+	if profile.limited.earned <= 0 then
+		return 0
+	end
+	local e = Config.LimitedEvent
+	local reached = Config.EventCommunityReached(LimitedEventService.CommunityTotal())
+	local given = 0
+	while profile.limited.gt < reached do
+		local tier = e.community.tiers[profile.limited.gt + 1]
+		local got: string? = nil
+		if tier.reward.kind == "unit" then
+			got = SpaceService.GrantUnit(player, false, nil, e.mutation)
+			if not got then
+				notify(player, string.format("%s reward waiting: free a podium to get your %s!", e.community.name, tier.label), true)
+				break
+			end
+		else
+			got = RewardService.Give(player, tier.reward)
+			if not got then
+				break
+			end
+		end
+		profile.limited.gt += 1
+		given += 1
+		notify(player, string.format("%s reached! Everyone gets %s - you got %s!", e.community.name, tier.label, got :: string), false)
+	end
+	if given > 0 then
+		DataService.RequestSave(player)
+	end
+	return given
+end
+
+--[[ Dakikada bir: yaz/oku, yayınla, yeni kademeyi duyur, oyuncuların payı. ]]
+local function communityTick()
+	flushCommunity()
+	publishCommunity()
+	local e = Config.LimitedEvent
+	local reached = Config.EventCommunityReached(LimitedEventService.CommunityTotal())
+	if goalSeen and reached > goalSeen then
+		local tier = e.community.tiers[reached]
+		AnnounceService.Summon(string.format("%s REACHED! Everyone who played gets %s!",
+			AnnounceService.Paint(e.community.name, e.color), tier.label))
+	end
+	goalSeen = reached
+	for _, player in Players:GetPlayers() do
+		LimitedEventService.CheckCommunity(player)
+	end
+end
+
+--[[ Testler: ortak toplamı sabitler (DataStore'a dokunmadan). ]]
+function LimitedEventService._SetCommunity(total: number)
+	communityStore()
+	goalTotal, goalPending = total, 0
+end
+
+--[[ Testler: açıkken DataStore'a yazılmıyor (test paraları gerçek toplama karışmasın). ]]
+function LimitedEventService._SetTesting(on: boolean)
+	testing = on
+end
+
+--[[ Testler: ortak hedef adımı (dakikalık döngünün işi). ]]
+function LimitedEventService._CommunityTick()
+	communityTick()
 end
 
 --[[
@@ -143,6 +302,7 @@ function LimitedEventService.AddCandy(player: Player, amount: number)
 	roll(profile)
 	profile.limited.candy += math.floor(amount)
 	profile.limited.earned += math.floor(amount)
+	LimitedEventService.AddCommunity(math.floor(amount))
 	LimitedEventService.Publish(player)
 	DataService.RequestSave(player)
 	LimitedEventService.CheckMilestones(player)
@@ -252,7 +412,7 @@ local function writeBoard(player: Player)
 		return
 	end
 	local s = boardStore()
-	if not (s and DataService.IsAvailable()) then
+	if testing or not (s and DataService.IsAvailable()) then
 		return
 	end
 	local value = math.floor(profile.limited.earned)
@@ -626,6 +786,35 @@ local function starCrystal(parent: Instance, at: Vector3, size: number)
 	model.Parent = parent
 end
 
+--[[
+	Kafeteryadaki dev yıldız: lobi tabelasının önünde, tavana değmeyecek
+	yükseklikte süzülüyor; ortak hedef ilerledikçe ışığı büyüyor.
+]]
+local function beacon(parent: Instance, params: RaycastParams)
+	local base = Vector3.new(204, 42, 403)
+	local up = workspace:Raycast(base, Vector3.new(0, 14, 0), params)
+	local y = if up then up.Position.Y - 4 else base.Y + 6
+	if y < base.Y + 1 then
+		return
+	end
+	local model = Instance.new("Model")
+	model.Name = "EventStarBeacon"
+	model.Parent = parent
+	starCrystal(model, Vector3.new(base.X, y - 3 * 1.3, base.Z), 3)
+	local inner = model:FindFirstChild("StarCrystal")
+	if inner then
+		-- Kaidesi yok: havada süzülsün; parçaları dışarı al
+		local pedestal = inner:FindFirstChild("Pedestal")
+		if pedestal then
+			pedestal:Destroy()
+		end
+		for _, child in inner:GetChildren() do
+			child.Parent = model
+		end
+		inner:Destroy()
+	end
+end
+
 local function buildDecor()
 	if workspace:FindFirstChild("EventDecor") then
 		return
@@ -658,7 +847,11 @@ local function buildDecor()
 			starCrystal(folder, ground, size)
 		end
 	end
+	if style == "stars" then
+		beacon(folder, params)
+	end
 	folder.Parent = workspace
+	publishCommunity()
 end
 
 local function clearDecor()
@@ -691,13 +884,21 @@ function LimitedEventService.Start()
 	end)
 
 	workspace:SetAttribute("EventTop", "[]")
+	workspace:SetAttribute("EventGlobal", 0)
+	-- Sunucu açılınca ortak toplamı hemen oku (tabela 0 göstermesin)
+	task.spawn(function()
+		if Config.IsLimitedEventActive(now()) or now() >= Config.LimitedEvent.endsAt then
+			communityTick()
+		end
+	end)
 	local function onPlayer(player: Player)
 		task.spawn(function()
 			if DataService.WaitForProfile(player, 30) and player.Parent then
 				LimitedEventService.Publish(player)
 				LimitedEventService.Daily(player)
-				-- Bekleyen yol ödülü (ör. kaide doluydu) girişte tekrar denenir
+				-- Bekleyen yol / ortak hedef ödülü (ör. kaide doluydu) girişte tekrar denenir
 				LimitedEventService.CheckMilestones(player)
+				LimitedEventService.CheckCommunity(player)
 				LimitedEventService.Settle(player)
 				if Config.IsEventFinalDay(now()) then
 					local e = Config.LimitedEvent
@@ -710,6 +911,12 @@ function LimitedEventService.Start()
 		onPlayer(player)
 	end
 	Players.PlayerAdded:Connect(onPlayer)
+	-- Sunucu kapanırken bekleyen ortak toplam kaybolmasın
+	game:BindToClose(function()
+		if goalPending > 0 then
+			flushCommunity()
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastBuy[player] = nil
 		if Config.IsLimitedEventActive(now()) then
@@ -769,6 +976,7 @@ function LimitedEventService.Start()
 						writeBoard(player)
 					end
 					publishBoard()
+					task.spawn(communityTick)
 				end
 			elseif now() >= Config.LimitedEvent.endsAt and tickNo % 4 == 0 then
 				for _, player in Players:GetPlayers() do
@@ -776,6 +984,7 @@ function LimitedEventService.Start()
 				end
 				if tickNo % 10 == 0 then
 					publishBoard()
+					task.spawn(communityTick)
 				end
 			end
 			task.wait(30)

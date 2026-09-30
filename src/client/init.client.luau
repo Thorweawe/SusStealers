@@ -69,6 +69,8 @@ local UpgradePanel = require(script.UpgradePanel)
 local ShopPanel = require(script.ShopPanel)
 local SideRail = require(script.SideRail)
 local EventPanel = require(script.EventPanel)
+local EventIntro = require(script.EventIntro)
+local LimitedFX = require(script.LimitedFX)
 local PetPanel = require(script.PetPanel)
 local HatchFX = require(script.HatchFX)
 local FuseFX = require(script.FuseFX)
@@ -110,6 +112,8 @@ TitleScreen.Show({
 		Intro.PlayIfNew()
 		-- Geri dönen oyuncunun "WELCOME BACK" kartı perde açılınca
 		Engagement.Ready()
+		-- Sınırlı etkinliğin karşılama kartı (WELCOME BACK'ten sonra, oturumda bir kez)
+		EventIntro.Ready()
 	end,
 })
 
@@ -743,6 +747,7 @@ mountPanel("SideRail", function()
 	end
 	-- Sınırlı etkinlik (EventPanel): raydaki düğme etkinlikten 3 gün önce görünüyor, bitince gidiyor
 	local eventPanel = EventPanel.Create(screen)
+	EventIntro.Start(screen, eventPanel.Open)
 	previews.Event = eventPanel.Open
 	local rail = SideRail.Create(screen, "SideRail", {
 		{
@@ -958,6 +963,11 @@ end)
 -- Uzay istasyonu olaylarının görünüşü (göktaşları, karartma, güneş rüzgârı)
 mountPanel("SpaceEventsFX", function()
 	SpaceEventsFX.Start()
+end)
+
+-- Sınırlı etkinliğin havası: gökte kayan yıldızlar, "+N ✨" (LimitedFX)
+mountPanel("LimitedFX", function()
+	LimitedFX.Start(screen)
 end)
 
 -- Haftalık sıralama: CREW tablosundaki 🏆 düğmesi ve lobideki panonun promptu

@@ -2133,6 +2133,9 @@ function ServerTests2.Register(kit: Kit)
 		local keepCos, keepHat, keepTrail = table.clone(p.cosmetics), p.hat, p.trail
 		local keepSuper = p.superSpins
 		local keepTokens = p.spinTokens
+		-- Test paraları gerçek ortak toplama / sıralamaya yazılmasın
+		LimitedEventService._SetTesting(true)
+		local keepGoal = LimitedEventService.CommunityTotal()
 
 		--[[ Tanım denetimi: aktif etkinlik VE Cadılar Bayramı taslağı (ileride
 		     Config.LimitedEvent'e konunca bozuk çıkmasın). Fiyat ucuzdan pahalıya
@@ -2183,6 +2186,14 @@ function ServerTests2.Register(kit: Kit)
 			ok(tag .. "yağmur periyot içinde", sh.duration + Config.EventWarning < sh.every and sh.offset < sh.every)
 			ok(tag .. "son gün çarpanı", ev.finalDayMul >= 1)
 			ok(tag .. "yol adı", #ev.text.path > 0)
+			local prevGoal = 0
+			for i, tier in ev.community.tiers do
+				ok(tag .. "ortak hedef sıralı " .. i, tier.at > prevGoal)
+				prevGoal = tier.at
+				local kind = tier.reward.kind
+				ok(tag .. "ortak hedef ödülü " .. i, kind == "unit" or kind == "spins" or kind == "superspin" or kind == "cash" or kind == "potion")
+			end
+			ok(tag .. "ortak hedef adı", #ev.community.name > 0)
 		end
 		checkDef(e, "aktif: ")
 		checkDef(Config.SpookyEventDraft, "cadılar: ")
@@ -2266,11 +2277,12 @@ function ServerTests2.Register(kit: Kit)
 		e.endsAt = os.time() + 3 * 86400
 
 		-- Eski etkinliğin sayacı sıfırlanıyor
-		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0, days = 4, ms = 3 }
+		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0, days = 4, ms = 3, gt = 2 }
 		LimitedEventService.Publish(ctx.player)
 		eq("yeni etkinlikte şeker sıfır", p.limited.candy, 0)
 		eq("yeni etkinlikte takvim sıfır", p.limited.days, 0)
 		eq("yeni etkinlikte yol sıfır", p.limited.ms, 0)
+		eq("yeni etkinlikte ortak kademe sıfır", p.limited.gt, 0)
 		eq("nitelik", ctx.player:GetAttribute("EventCandy"), 0)
 
 		ok("günlük bonus", LimitedEventService.Daily(ctx.player))
@@ -2318,6 +2330,39 @@ function ServerTests2.Register(kit: Kit)
 		clearPlot(ctx.plot)
 		p.limited.ms = #ms
 		eq("yolun sonu", (Config.EventNextMilestone(#ms)), nil)
+
+		-- Ortak hedef: toplam artıyor, kademeye varınca oynamış herkese, bir kez
+		local tiers = e.community.tiers
+		LimitedEventService._SetCommunity(0)
+		local beforeGoal = LimitedEventService.CommunityTotal()
+		LimitedEventService.AddCandy(ctx.player, 7)
+		eq("ortak toplama eklendi", LimitedEventService.CommunityTotal(), beforeGoal + 7)
+		p.limited.gt = 0
+		LimitedEventService._SetCommunity(tiers[1].at - 1)
+		eq("kademe altında ödül yok", LimitedEventService.CheckCommunity(ctx.player), 0)
+		local goalTokens = p.spinTokens
+		LimitedEventService._SetCommunity(tiers[1].at)
+		eq("1. kademe", LimitedEventService.CheckCommunity(ctx.player), 1)
+		eq("kademe sayacı", p.limited.gt, 1)
+		if tiers[1].reward.kind == "spins" then
+			eq("1. kademe çarkları", p.spinTokens, goalTokens + (tiers[1].reward.count or 1))
+		end
+		eq("aynı kademe ikinci kez yok", LimitedEventService.CheckCommunity(ctx.player), 0)
+		clearPlot(ctx.plot)
+		LimitedEventService._SetCommunity(tiers[#tiers].at)
+		LimitedEventService.CheckCommunity(ctx.player)
+		eq("bütün kademeler", p.limited.gt, #tiers)
+		clearPlot(ctx.plot)
+		local keepEarned = p.limited.earned
+		p.limited.earned, p.limited.gt = 0, 0
+		eq("oynamayana ortak ödül yok", LimitedEventService.CheckCommunity(ctx.player), 0)
+		p.limited.earned, p.limited.gt = keepEarned, #tiers
+		LimitedEventService._CommunityTick()
+		eq("toplam yayınlandı", workspace:GetAttribute("EventGlobal"), tiers[#tiers].at)
+		local g1, g2 = LobbyBoardService.GoalColumn(os.time(), 12345)
+		ok("tabela ortak hedef", g1 == e.community.name and g2 ~= nil and string.find(g2 :: string, "12,345") ~= nil, tostring(g2))
+		ok("tabela hepsi bitti", (select(2, LobbyBoardService.GoalColumn(os.time(), tiers[#tiers].at))) == "ALL GOALS DONE!")
+		eq("etkinlik öncesi beğeni hedefi", (LobbyBoardService.GoalColumn(e.startsAt - 10, 0)), nil)
 
 		-- Yağmur: yıldızlar uzaya düşüyor, ilk dokunan alıyor, bitince kayboluyor
 		local stop = LimitedEventService.StartShower()
@@ -2391,6 +2436,9 @@ function ServerTests2.Register(kit: Kit)
 		p.cosmetics, p.hat, p.trail = keepCos, keepHat, keepTrail
 		p.superSpins = keepSuper
 		p.spinTokens = keepTokens
+		LimitedEventService._SetCommunity(keepGoal)
+		workspace:SetAttribute("EventGlobal", keepGoal)
+		LimitedEventService._SetTesting(false)
 		ctx.player:SetAttribute("SpinTokens", keepTokens)
 		ctx.player:SetAttribute("SuperSpins", keepSuper)
 		CosmeticService.Apply(ctx.player)

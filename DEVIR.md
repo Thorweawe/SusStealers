@@ -13,6 +13,12 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (63) — Yusuf / Claude (Batur'un şeridine de yazıldı: LimitedEventService, LobbyBoardService, DataService, Config)
+- GALAXY GOAL (ortak hedef, `Config.LimitedEvent.community`): bütün sunucuların etkinlikte kazandığı toplam. LimitedEventService her sunucuda dakikada bir DataStore "LimitedEventGoal" (anahtar = etkinlik id) üstünde UpdateAsync yapıyor, kapanışta (BindToClose) bekleyeni yazıyor; `workspace.EventGlobal` niteliği. Kademeler 10k / 25k / 50k: etkinlikte para kazanmış HERKESE 3 çark / süper çark / Starborn mürettebat (profil `limited.gt`).
+- Lobi tabelasının orta sütunu etkinlikte (ve bittikten sonraki 1 gün) beğeni hedefi yerine GALAXY GOAL gösteriyor (LobbyBoardService.GoalColumn). Tabelanın önünde süzülen dev yıldız (EventDecor/EventStarBeacon) hedef ilerledikçe parlıyor.
+- Testler `LimitedEventService._SetTesting(true)` ile gerçek DataStore'a (ortak toplam + etkinlik sıralaması) yazmıyor.
+- İstemci: EventIntro (oturumda bir kez etkinlik karşılama kartı), LimitedFX (gökte kayan yıldızlar, "+N ✨"), EventPanel'de ortak hedef kartı.
+
 ## 2026-09-30 (62) — Yusuf / Claude (Batur'un şeridine de yazıldı: EventService, LimitedEventService, DataService, LobbyBoardService, Config)
 - STARFALL WEEK genişledi: (1) STARFALL SHOWER — Config.Events'e `EventShower` eklendi (`limited = true`, yalnızca etkinlikte, saat :15 ve :45, 90 sn). EventService bunu `Config.IsEventScheduled` ile atlıyor; başlatınca LimitedEventService.StartShower uzaya 18 yıldız düşürüyor (workspace.EventStars), ilk dokunan 4-12 Stardust, %8 SUPERNOVA 50. (2) STAR PATH — kazanılan toplama göre 7 bedava ödül basamağı (`milestones`), AddCandy sonrası kendiliğinden veriliyor. (3) 7 günlük giriş takvimi (`dailyLadder` 25→150; `dailyBonus` KALKTI). (4) Son 24 saat her şey 2x (`finalDayMul`, Config.EventCandyMul), etkinlik başlangıcı / son gün / son saat duyuruları.
 - Profil: `limited.days`, `limited.ms` eklendi (DataService tipi, varsayılan, sanitize). Yeni nitelikler: EventDays, EventDayDone, EventMs.

@@ -189,7 +189,7 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- Yıldız yağmuru: ne zaman, ne kadar (ihtimal açık)
 	local sh = e.shower
-	local showerCard = section(-3, 68, e.color:Lerp(Color3.new(0, 0, 0), 0.25))
+	local showerCard = section(-4, 68, e.color:Lerp(Color3.new(0, 0, 0), 0.25))
 	local showerTitle = line(showerCard, "", 20, Color3.new(1, 1, 1), 8)
 	line(showerCard, string.format("Stars give %d-%d %s  ·  1 in %d is a %s (%d %s)  ·  first to touch wins!",
 		sh.min, sh.max, e.icon, math.floor(1 / sh.superChance + 0.5), sh.superName, sh.superAmount, e.icon),
@@ -203,7 +203,7 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- Yıldız yolu: bedava ödül basamakları
 	local milestones = e.milestones
-	local pathCard = section(-2, 124, e.color2)
+	local pathCard = section(-3, 124, e.color2)
 	line(pathCard, e.text.path .. "  ·  FREE REWARDS", 20, CardKit.YELLOW, 8)
 	local pathNext = line(pathCard, "", 15, Color3.new(1, 1, 1), 34)
 	local track = Instance.new("Frame")
@@ -247,6 +247,56 @@ function EventPanel.Create(screen: Instance): Panel
 		at.Position = UDim2.new(i / #milestones, 0, 1, 10)
 		at.Size = UDim2.fromOffset(60, 14)
 		table.insert(dots, dot)
+	end
+
+	-- Ortak hedef: bütün sunucuların toplamı, her kademe herkese
+	local tiers = e.community.tiers
+	local goalCard = section(-2, 118, Color3.fromRGB(40, 30, 90):Lerp(e.color2, 0.4))
+	line(goalCard, e.community.name .. "  ·  ALL SERVERS TOGETHER", 20, Color3.fromRGB(200, 230, 255), 8)
+	local goalText = line(goalCard, "", 15, Color3.new(1, 1, 1), 34)
+	local goalTrack = Instance.new("Frame")
+	goalTrack.Position = UDim2.new(0, 26, 0, 66)
+	goalTrack.Size = UDim2.new(1, -52, 0, 12)
+	goalTrack.BackgroundColor3 = Color3.fromRGB(20, 22, 40)
+	goalTrack.BorderSizePixel = 0
+	goalTrack.ZIndex = Z + 4
+	goalTrack.Parent = goalCard
+	trackCorner:Clone().Parent = goalTrack
+	local goalFill = Instance.new("Frame")
+	goalFill.Size = UDim2.fromScale(0, 1)
+	goalFill.BackgroundColor3 = Color3.fromRGB(170, 140, 255)
+	goalFill.BorderSizePixel = 0
+	goalFill.ZIndex = Z + 5
+	goalFill.Parent = goalTrack
+	trackCorner:Clone().Parent = goalFill
+	local goalDots: { Frame } = {}
+	for i, tier in tiers do
+		local dot = Instance.new("Frame")
+		dot.AnchorPoint = Vector2.new(0.5, 0.5)
+		dot.Position = UDim2.fromScale(i / #tiers, 0.5)
+		dot.Size = UDim2.fromOffset(24, 24)
+		dot.BackgroundColor3 = CardKit.GREY
+		dot.BorderSizePixel = 0
+		dot.ZIndex = Z + 6
+		dot.Parent = goalTrack
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = dot
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 2
+		stroke.Color = Color3.fromRGB(10, 12, 24)
+		stroke.Parent = dot
+		local tag = CardKit.bold(goalTrack, tier.label, 12, Color3.fromRGB(220, 226, 245), Z + 6, 1.5)
+		tag.AnchorPoint = Vector2.new(if i == #tiers then 1 else 0.5, 0)
+		tag.Position = UDim2.new(i / #tiers, if i == #tiers then 12 else 0, 1, 10)
+		tag.Size = UDim2.fromOffset(150, 14)
+		tag.TextXAlignment = if i == #tiers then Enum.TextXAlignment.Right else Enum.TextXAlignment.Center
+		CardKit.fit(tag, 12, 8)
+		table.insert(goalDots, dot)
+	end
+	local function commas(n: number): string
+		local out = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse()
+		return (out:gsub("^,", ""))
 	end
 
 	-- Giriş takvimi: 7 gün, her gün artıyor
@@ -327,6 +377,24 @@ function EventPanel.Create(screen: Instance): Panel
 			pathNext.Text = string.format("Next: %s at %d %s  ·  only %d to go!", pending.label, pending.at, e.icon, pending.at - earned)
 		end
 
+		-- Ortak hedef
+		local rawTotal = workspace:GetAttribute("EventGlobal")
+		local total = if typeof(rawTotal) == "number" then rawTotal else 0
+		local reachedTiers = Config.EventCommunityReached(total)
+		local tierSeg = 0
+		local nextTier = tiers[reachedTiers + 1]
+		if nextTier then
+			local prevAt = if reachedTiers > 0 then tiers[reachedTiers].at else 0
+			tierSeg = math.clamp((total - prevAt) / math.max(1, nextTier.at - prevAt), 0, 1)
+			goalText.Text = string.format("%s / %s %s  ·  every %s you earn counts!", commas(total), commas(nextTier.at), e.icon, e.currency)
+		else
+			goalText.Text = string.format("ALL GOALS DONE! %s %s collected together", commas(total), e.icon)
+		end
+		goalFill.Size = UDim2.fromScale(math.clamp((reachedTiers + tierSeg) / #tiers, 0, 1), 1)
+		for i, dot in goalDots do
+			dot.BackgroundColor3 = if i <= reachedTiers then CardKit.YELLOW else CardKit.GREY
+		end
+
 		-- Giriş takvimi
 		local days = numberAttr("EventDays")
 		local doneToday = player:GetAttribute("EventDayDone") == true
@@ -338,7 +406,7 @@ function EventPanel.Create(screen: Instance): Panel
 				b.top.Text = "✓ DAY " .. i
 			elseif i == nextDay then
 				b.box.BackgroundColor3 = e.color:Lerp(Color3.new(0, 0, 0), 0.1)
-				b.top.Text = if doneToday then "TOMORROW" else "TODAY"
+				b.top.Text = if not active then "DAY " .. i elseif doneToday then "TOMORROW" else "TODAY"
 			else
 				b.box.BackgroundColor3 = Color3.fromRGB(24, 26, 46)
 				b.top.Text = "DAY " .. i
@@ -548,6 +616,11 @@ function EventPanel.Create(screen: Instance): Panel
 		elapsed += dt
 		if elapsed >= 1 then
 			elapsed = 0
+			redraw()
+		end
+	end)
+	workspace:GetAttributeChangedSignal("EventGlobal"):Connect(function()
+		if root.Visible then
 			redraw()
 		end
 	end)

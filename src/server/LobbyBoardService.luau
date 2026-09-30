@@ -30,6 +30,7 @@ local OUTLINE = Color3.fromRGB(10, 12, 24)
 local countdown: TextLabel? = nil
 local countdownTitle: TextLabel? = nil
 local countdownSub: TextLabel? = nil
+local goalLabels: { TextLabel } = {}
 
 local function label(parent: Instance, text: string, size: number, color: Color3, order: number): TextLabel
 	local t = Instance.new("TextLabel")
@@ -144,9 +145,11 @@ local function build()
 	countdownSub = label(c1, live.nextUpdate.title, 32, Color3.new(1, 1, 1), 3)
 
 	local c2 = column(gui, 2, Color3.fromRGB(80, 200, 255))
-	label(c2, "👍 LIKE GOAL", 40, Color3.fromRGB(130, 255, 140), 1)
-	label(c2, string.format("%d LIKES", live.likeGoal.goal), 64, Color3.fromRGB(255, 225, 70), 2)
-	label(c2, "= " .. live.likeGoal.reward, 32, Color3.new(1, 1, 1), 3)
+	goalLabels = {
+		label(c2, "👍 LIKE GOAL", 40, Color3.fromRGB(130, 255, 140), 1),
+		label(c2, string.format("%d LIKES", live.likeGoal.goal), 64, Color3.fromRGB(255, 225, 70), 2),
+		label(c2, "= " .. live.likeGoal.reward, 32, Color3.new(1, 1, 1), 3),
+	}
 
 	local c3 = column(gui, 3, Color3.fromRGB(80, 200, 255))
 	label(c3, "⭐ FAVORITE", 40, Color3.fromRGB(255, 190, 90), 1)
@@ -173,6 +176,32 @@ function LobbyBoardService.EventHeadline(now: number): (string?, string?, string
 	return nil, nil, nil
 end
 
+local function commas(n: number): string
+	local s = tostring(math.floor(n))
+	local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	return (out:gsub("^,", ""))
+end
+
+--[[
+	Orta sütun: etkinlik sürerken (ve bittikten sonraki gün) ortak hedef —
+	bütün sunucuların toplamı ve sıradaki kademenin ödülü; yoksa beğeni hedefi.
+	`total` workspace.EventGlobal (LimitedEventService). nil = beğeni hedefi.
+]]
+function LobbyBoardService.GoalColumn(now: number, total: number): (string?, string?, string?)
+	local e = Config.LimitedEvent
+	if now < e.startsAt or now >= e.endsAt + 86400 then
+		return nil, nil, nil
+	end
+	local tiers = e.community.tiers
+	local reached = Config.EventCommunityReached(total)
+	local nextTier = tiers[reached + 1]
+	if not nextTier then
+		return e.community.name, "ALL GOALS DONE!", string.format("%s %s collected together", commas(total), e.icon)
+	end
+	return e.community.name, string.format("%s / %s %s", commas(total), commas(nextTier.at), e.icon),
+		string.format("= %s FOR EVERYONE", nextTier.label)
+end
+
 function LobbyBoardService.Start()
 	build()
 	task.spawn(function()
@@ -194,6 +223,22 @@ function LobbyBoardService.Start()
 				end
 				if countdownSub and countdownSub.Text ~= wantSub then
 					countdownSub.Text = wantSub
+				end
+				local raw = workspace:GetAttribute("EventGlobal")
+				local g1, g2, g3 = LobbyBoardService.GoalColumn(now, if typeof(raw) == "number" then raw else 0)
+				local like = Config.LiveOps.likeGoal
+				local want = {
+					g1 or "👍 LIKE GOAL",
+					g2 or string.format("%d LIKES", like.goal),
+					g3 or ("= " .. like.reward),
+				}
+				for i, l in goalLabels do
+					if l.Parent and l.Text ~= want[i] then
+						l.Text = want[i]
+						if i == 1 then
+							l.TextColor3 = if g1 then Config.LimitedEvent.color2:Lerp(Color3.new(1, 1, 1), 0.45) else Color3.fromRGB(130, 255, 140)
+						end
+					end
 				end
 			end
 		end
