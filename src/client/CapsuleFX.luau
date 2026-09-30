@@ -545,6 +545,9 @@ function CapsuleFX.Start(screen: Instance): Handle
 	local lastCatchAt = -math.huge
 	local crashedThisRound = false
 	local perfectStreak = 0
+	-- Yıldız sesi serisi (SoundFX.StarPickup)
+	local starCombo = 0
+	local lastStarAt = -math.huge
 	local nextMeteorAt = 0
 	local clock = 0
 
@@ -727,6 +730,10 @@ function CapsuleFX.Start(screen: Instance): Handle
 			local hit = (Vector2.new(rock.x, rock.y) - Vector2.new(rx, ry)).Magnitude < rock.r + 10
 			if hit and rock.star then
 				progress = math.min(1, progress + 0.05)
+				-- Art arda yıldız: ses her seferinde biraz tizleşiyor (1.5 sn içinde)
+				starCombo = if now - lastStarAt < 1.5 then starCombo + 1 else 1
+				lastStarAt = now
+				SoundFX.StarPickup(starCombo)
 				popup(gameFrame, "+BOOST", CardKit.YELLOW, 18, UDim2.fromOffset(14 + rx, TRACK_Y + ry - 20))
 				rock.frame:Destroy()
 				table.remove(rocks, i)
@@ -736,7 +743,7 @@ function CapsuleFX.Start(screen: Instance): Handle
 				perfectStreak = 0
 				invulnUntil = now + 1.1
 				progress = math.max(0, progress - t.penalty)
-				SoundFX.RockBreak()
+				SoundFX.ShipCrash()
 				popup(gameFrame, "CRASH!", Color3.fromRGB(255, 110, 110), 20, UDim2.fromOffset(14 + rx, TRACK_Y + ry - 24))
 				vx = (if rx < rock.x then -1 else 1) * 260
 				rock.frame:Destroy()

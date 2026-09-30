@@ -5,17 +5,11 @@
 	═══ ANİMASYON ══════════════════════════════════════════════════════════
 
 	Hazır animasyon varlığı (yüklenmiş Animation) yok; yüklemek hesap ve
-	izin ister. Onun yerine klipler çalışma anında KeyframeSequence olarak
-	kuruluyor ve KeyframeSequenceProvider'a kaydediliyor: dönen geçici
-	kimlikle Roblox'un kendi Animator'ı oynatıyor. Öncelik Action4, yani
-	aleti tutma pozunun üstüne biniyor; bitince tutuş pozu geri geliyor.
+	izin ister. Klipler anahtar kare tablosu (CLIPS) ve her karede kol ile
+	bel ekleminin Transform'u elle yazılıyor (RunService.Stepped, Animator'dan
+	sonra). KeyframeSequenceProvider denendi: yalnızca Studio'da çalışıyor.
 
-	Neden eklemleri elle döndürmüyoruz: iki yol denendi. Motor6D.Transform'u
-	Animator bizden sonra yeniden yazıyor; yeni avatarlarda eklem
-	AnimationConstraint ve çerçevesini elle değiştirmek kolu oynatmıyor.
-	Animator ise iki eklem türünde de çalışıyor.
-
-	Geçici kimlik yalnızca bu istemcide geçerli ve oynatma ağdan GİTMİYOR.
+	Oynatma yalnızca bu istemcide ve ağdan GİTMİYOR.
 	Bu yüzden sunucu her kullanımı herkese duyuruyor ("use") ve her
 	istemci o karakterde klibi kendisi oynatıyor. Kullanan oyuncu kendi
 	animasyonunu beklemeden, tıkladığı anda başlatıyor (sunucunun yankısını
@@ -92,88 +86,87 @@ local CLIPS: { [string]: Clip } = {
 }
 
 --[[
-	Klibi KeyframeSequence'a çevirip kaydeder; kimlik önbellekte. Poz
-	ağacı R15 hiyerarşisi: kök > alt gövde > üst gövde (bel) > sağ üst kol
-	(omuz). Ağırlığı 0 olan pozlar yalnızca yolu taşıyor, eklemi
-	etkilemiyor.
-]]
-local registered: { [string]: string } = {}
+	Klibi eklemlerin Transform'uyla oynatır (CarryPose ile aynı yol):
+	RunService.Stepped Animator'dan SONRA çalışıyor, yani aleti tutma
+	animasyonunun üstüne biniyor; klip bitince Animator kaldığı yerden
+	sürüyor. Motor6D ve yeni avatarların AnimationConstraint eklemi, ikisinde
+	de Transform var.
 
-local function animationId(gearId: string): string?
-	local cached = registered[gearId]
-	if cached then
-		return cached
-	end
-	local clip = CLIPS[gearId]
-	if not clip then
-		return nil
-	end
-	local kfs = Instance.new("KeyframeSequence")
-	kfs.Priority = Enum.AnimationPriority.Action4
-	kfs.Loop = false
-	for _, k in clip.keys do
-		local frame = Instance.new("Keyframe")
-		frame.Time = k[1] * clip.duration
-		local function pose(name: string, parent: Instance, weight: number, cf: CFrame?): Pose
-			local p = Instance.new("Pose")
-			p.Name = name
-			p.Weight = weight
-			p.CFrame = cf or CFrame.identity
-			p.EasingStyle = Enum.PoseEasingStyle.Cubic
-			p.EasingDirection = Enum.PoseEasingDirection.InOut
-			p.Parent = parent
-			return p
-		end
-		local root = pose("HumanoidRootPart", frame, 0)
-		local lower = pose("LowerTorso", root, 0)
-		local upper = pose("UpperTorso", lower, if clip.waist ~= 0 then 1 else 0,
-			CFrame.Angles(0, math.rad(k[2] * clip.waist), 0))
-		pose("RightUpperArm", upper, 1, CFrame.Angles(0, math.rad(k[2]), 0) * CFrame.Angles(math.rad(k[3]), 0, 0))
-		frame.Parent = kfs
-	end
-	local ok, id = pcall(function()
-		return game:GetService("KeyframeSequenceProvider"):RegisterKeyframeSequence(kfs)
-	end)
-	if not ok or typeof(id) ~= "string" then
-		return nil
-	end
-	registered[gearId] = id
-	return id
+	2026-09-30: eskiden klip KeyframeSequenceProvider'a kaydedilip
+	Animator'la oynatılıyordu. O kimlik yalnızca Studio'da çalışıyor;
+	yayındaki oyunda tokat hiç görünmüyordu.
+]]
+type Active = { clip: Clip, startAt: number, duration: number }
+local active: { [Model]: Active } = setmetatable({}, { __mode = "k" }) :: any
+local stepping: RBXScriptConnection? = nil
+
+local function smooth(u: number): number
+	return u * u * (3 - 2 * u)
 end
 
--- Animator -> alet -> yüklü iz (karakter gidince anahtar da gidiyor)
-local tracks: { [Animator]: { [string]: AnimationTrack } } = setmetatable({}, { __mode = "k" }) :: any
+--[[ Klibin u (0..1) anındaki kol yönü: iki anahtar kare arası yumuşak geçiş. ]]
+local function sample(clip: Clip, u: number): (number, number)
+	local keys = clip.keys
+	for index = 2, #keys do
+		local k1, k0 = keys[index], keys[index - 1]
+		if u <= k1[1] then
+			local span = k1[1] - k0[1]
+			local w = if span > 0 then smooth((u - k0[1]) / span) else 1
+			return k0[2] + (k1[2] - k0[2]) * w, k0[3] + (k1[3] - k0[3]) * w
+		end
+	end
+	local last = keys[#keys]
+	return last[2], last[3]
+end
+
+local function jointOf(character: Model, partName: string, jointName: string): any
+	local part = character:FindFirstChild(partName)
+	local joint = part and part:FindFirstChild(jointName)
+	if joint and (joint:IsA("Motor6D") or joint:IsA("AnimationConstraint")) then
+		return joint
+	end
+	return nil
+end
+
+local function step()
+	local now = os.clock()
+	for character, a in active do
+		local u = (now - a.startAt) / a.duration
+		if u >= 1 or not character.Parent then
+			active[character] = nil
+			continue
+		end
+		local yaw, pitch = sample(a.clip, u)
+		local shoulder = jointOf(character, "RightUpperArm", "RightShoulder")
+		if shoulder then
+			shoulder.Transform = CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(pitch), 0, 0)
+		end
+		if a.clip.waist ~= 0 then
+			local waist = jointOf(character, "UpperTorso", "Waist")
+			if waist then
+				waist.Transform = CFrame.Angles(0, math.rad(yaw * a.clip.waist), 0)
+			end
+		end
+	end
+	if next(active) == nil and stepping then
+		stepping:Disconnect()
+		stepping = nil
+	end
+end
 
 local function play(character: Model?, gearId: string, slow: number?)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
-	if not (animator and humanoid and humanoid.RigType == Enum.HumanoidRigType.R15) then
+	if not (character and humanoid and humanoid.RigType == Enum.HumanoidRigType.R15) then
 		return
 	end
-	local id = animationId(gearId)
-	if not id then
+	local clip = CLIPS[gearId]
+	if not clip then
 		return
 	end
-	local list = tracks[animator]
-	if not list then
-		list = {}
-		tracks[animator] = list
+	active[character] = { clip = clip, startAt = os.clock(), duration = clip.duration * (slow or 1) }
+	if not stepping then
+		stepping = RunService.Stepped:Connect(step)
 	end
-	local track = list[gearId]
-	if not track then
-		local anim = Instance.new("Animation")
-		anim.AnimationId = id
-		local ok, loaded = pcall(function()
-			return animator:LoadAnimation(anim)
-		end)
-		if not ok then
-			return
-		end
-		track = loaded
-		list[gearId] = loaded
-	end
-	local t = track :: AnimationTrack
-	t:Play(0.05, 1, 1 / (slow or 1))
 end
 
 --[[ Bir karakterde aletin kol animasyonunu oynatır. `slow` > 1 yavaşlatır (önizleme). ]]

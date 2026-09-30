@@ -8,6 +8,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
@@ -49,7 +50,14 @@ local ID = {
 	-- Asteroit oyunu (Weapons): atış ve kaya kırılması. Among Us'ın kendi
 	-- sesleri telifli; bunlar Roblox kütüphanesinden benzer tınılar.
 	Laser   = "rbxassetid://9116225257",   -- Laser Blast 101 (Pro Sound Effects)
-	Rock    = "rbxassetid://9118588165",   -- Rock Drop On Concrete Breaks 10
+	-- 2026-09-30: "Rock Drop On Concrete" kalitesizdi; kayaya kaya çarpması
+	Rock    = "rbxassetid://9125869504",   -- Rock Cracks Rock Hitting Rock Impact Debris
+
+	-- Kapsül mini oyunu (CapsuleFX): yıldız toplama ve asteroide çarpma.
+	-- Çarpma iki katman: kısa patlama + gövde sacı
+	Star       = "rbxassetid://9126073001",   -- Synth Sparkle Tone High Pitch Bell Tone Ding
+	CrashBoom  = "rbxassetid://9119236749",   -- Small Explosion 1
+	CrashMetal = "rbxassetid://9116546326",   -- Metal Crash 2
 
 	-- Oda görevleri (TaskGames): kablo tutma / bağlama, kart kaydırma / onay
 	WireGrab   = "rbxassetid://9120489791",   -- Wall Switch Click 12
@@ -241,7 +249,57 @@ function SoundFX.Laser()
 end
 
 function SoundFX.RockBreak()
-	fire("Rock", 0, 0.6)
+	fire("Rock", 0, 0.9)
+end
+
+--[[
+	Uzun kaydın başını çalıp son `fade` saniyede sesi kısarak keser: sert
+	Stop() kesiği tık diye duyuluyordu.
+]]
+local function fireFaded(key: string, length: number, fade: number, pitch: number?)
+	local s = effects[key]
+	if not s then
+		return
+	end
+	local volume = s:GetAttribute("BaseVolume")
+	if typeof(volume) ~= "number" then
+		volume = s.Volume
+		s:SetAttribute("BaseVolume", volume)
+	end
+	s:Stop()
+	s.Volume = volume
+	s.PlaybackSpeed = pitch or 1
+	s.TimePosition = 0
+	s:Play()
+	local playId = (s:GetAttribute("PlayId") or 0) + 1
+	s:SetAttribute("PlayId", playId)
+	task.delay(math.max(0, length - fade), function()
+		if s:GetAttribute("PlayId") ~= playId then
+			return
+		end
+		TweenService:Create(s, TweenInfo.new(fade), { Volume = 0 }):Play()
+		task.delay(fade, function()
+			if s:GetAttribute("PlayId") == playId then
+				s:Stop()
+				s.Volume = volume
+			end
+		end)
+	end)
+end
+
+--[[
+	Kapsül oyununda yıldız: parlak "ding". `combo` art arda toplanan yıldız
+	sayısı; her biri biraz daha tiz (en fazla 5 basamak).
+]]
+function SoundFX.StarPickup(combo: number?)
+	local step = math.clamp((combo or 1) - 1, 0, 5)
+	fireFaded("Star", 0.7, 0.25, 1 + step * 0.06)
+end
+
+--[[ Kapsül oyununda asteroide çarpma: kısa patlama + metal gövde çarpması. ]]
+function SoundFX.ShipCrash()
+	fireFaded("CrashBoom", 0.9, 0.35)
+	fireFaded("CrashMetal", 0.7, 0.3)
 end
 
 --[[
@@ -540,7 +598,10 @@ function SoundFX.Preload()
 	effect("Deny", ID.Deny, 0.55)
 	effect("Alarm", ID.Alarm, 0.55)
 	effect("Laser", ID.Laser, 0.35)
-	effect("Rock", ID.Rock, 0.45)
+	effect("Rock", ID.Rock, 0.5)
+	effect("Star", ID.Star, 0.5)
+	effect("CrashBoom", ID.CrashBoom, 0.55)
+	effect("CrashMetal", ID.CrashMetal, 0.35)
 	effect("WireGrab", ID.WireGrab, 0.5)
 	effect("WireZap", ID.WireZap, 0.4)
 	effect("CardSwipe", ID.CardSwipe, 0.6)

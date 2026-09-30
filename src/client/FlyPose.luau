@@ -12,16 +12,24 @@
 	          bacaklar bitişik ve düz, baş ileri bakıyor. Gövdenin eğimini
 	          (~45°) çağıran AlignOrientation'la veriyor; bu klip uzuvlar.
 
-	Klipler GearFX'teki gibi çalışma anında KeyframeSequence olarak
-	kuruluyor (KeyframeSequenceProvider, yalnızca R15). Karakterin kendi
-	Animator'ında oynadığı için diğer oyuncular da görüyor.
+	Klipler GearFX ve CarryPose'taki gibi eklemlerin Transform'uyla
+	oynuyor (RunService.Stepped, Animator'dan sonra; Motor6D ya da yeni
+	avatarların AnimationConstraint eklemi, yalnızca R15). 2026-09-30'a
+	kadar KeyframeSequenceProvider'la Animator'da oynuyordu: o kimlik
+	yalnızca Studio'da çalışıyor, yayında karakter heykel gibi kalıyordu.
+
+	Transform ağdan gitmiyor: diğer oyuncuları da her istemci kendisi
+	oynatıyor (sunucunun InSpace niteliği, hızı gövdenin hızından). Mürettebat
+	taşıyanın kollarını CarryPose tutuyor (SpaceCarry): burada yalnızca
+	gövde ve bacaklar.
 
 	Açılar R15 eklem uzayında: kolda pitch 0 aşağı sarkık, 90 önde yatay,
 	180 yukarıda; roll + sağ kolu dışa açar (sol kolda -). Bacakta pitch +
 	ileri, dizde - geriye büküm. Başta pitch + yukarı bakış.
 ]]
 
-local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local FlyPose = {}
 
@@ -94,118 +102,159 @@ local MOVE: Clip = {
 	},
 }
 
--- R15 hiyerarşisi: parça -> üst parça (kök HumanoidRootPart)
-local PARENT: { [string]: string } = {
-	LowerTorso = "HumanoidRootPart",
-	UpperTorso = "LowerTorso",
-	Head = "UpperTorso",
-	RightUpperArm = "UpperTorso",
-	RightLowerArm = "RightUpperArm",
-	LeftUpperArm = "UpperTorso",
-	LeftLowerArm = "LeftUpperArm",
-	RightUpperLeg = "LowerTorso",
-	RightLowerLeg = "RightUpperLeg",
-	LeftUpperLeg = "LowerTorso",
-	LeftLowerLeg = "LeftUpperLeg",
+-- Parça -> onu üst parçaya bağlayan eklem (R15; eklem parçanın içinde)
+local JOINTS: { [string]: string } = {
+	UpperTorso = "Waist",
+	Head = "Neck",
+	RightUpperArm = "RightShoulder",
+	RightLowerArm = "RightElbow",
+	LeftUpperArm = "LeftShoulder",
+	LeftLowerArm = "LeftElbow",
+	RightUpperLeg = "RightHip",
+	RightLowerLeg = "RightKnee",
+	LeftUpperLeg = "LeftHip",
+	LeftLowerLeg = "LeftKnee",
 }
-local ORDER = { "LowerTorso", "UpperTorso", "Head", "RightUpperArm", "RightLowerArm", "LeftUpperArm", "LeftLowerArm",
-	"RightUpperLeg", "RightLowerLeg", "LeftUpperLeg", "LeftLowerLeg" }
+local ARMS = { RightUpperArm = true, RightLowerArm = true, LeftUpperArm = true, LeftLowerArm = true }
 
-local registered: { [Clip]: string } = {}
+-- Açılma / kapanma süresi (sn)
+local FADE_IN = 0.3
+local FADE_OUT = 0.25
 
-local function register(clip: Clip): string?
-	local cached = registered[clip]
-	if cached then
-		return cached
-	end
-	local kfs = Instance.new("KeyframeSequence")
-	kfs.Priority = Enum.AnimationPriority.Action2
-	kfs.Loop = true
-	for _, f in clip.frames do
-		local frame = Instance.new("Keyframe")
-		frame.Time = f.t * clip.duration
-		local made: { [string]: Instance } = {}
-		local root = Instance.new("Pose")
-		root.Name = "HumanoidRootPart"
-		root.Weight = 0
-		root.Parent = frame
-		made.HumanoidRootPart = root
-		for _, name in ORDER do
-			local p = Instance.new("Pose")
-			p.Name = name
-			local a = f.pose[name]
-			p.Weight = if a then 1 else 0
-			p.CFrame = if a then CFrame.Angles(0, math.rad(a[2]), 0) * CFrame.Angles(math.rad(a[1]), 0, math.rad(a[3])) else CFrame.identity
-			p.EasingStyle = Enum.PoseEasingStyle.Cubic
-			p.EasingDirection = Enum.PoseEasingDirection.InOut
-			p.Parent = made[PARENT[name]]
-			made[name] = p
+local function smooth(u: number): number
+	return u * u * (3 - 2 * u)
+end
+
+--[[ Döngü klibinin `phase` (0..1) anında parçanın açıları (yoksa nil). ]]
+local function sample(clip: Clip, name: string, phase: number): (number?, number?, number?)
+	local frames = clip.frames
+	for index = 2, #frames do
+		local f1, f0 = frames[index], frames[index - 1]
+		if phase <= f1.t then
+			local a, b = f0.pose[name], f1.pose[name]
+			if not (a and b) then
+				return nil
+			end
+			local span = f1.t - f0.t
+			local w = if span > 0 then smooth((phase - f0.t) / span) else 1
+			return a[1] + (b[1] - a[1]) * w, a[2] + (b[2] - a[2]) * w, a[3] + (b[3] - a[3]) * w
 		end
-		frame.Parent = kfs
 	end
-	local ok, id = pcall(function()
-		return KeyframeSequenceProvider:RegisterKeyframeSequence(kfs)
-	end)
-	if not ok or typeof(id) ~= "string" then
-		return nil
-	end
-	registered[clip] = id
-	return id
+	return nil
 end
 
-local function load(animator: Animator, clip: Clip): AnimationTrack?
-	local id = register(clip)
-	if not id then
-		return nil
+type Entry = {
+	blend: number,       -- 0 süzülme, 1 atılma
+	hoverT: number,      -- klip saatleri (sn)
+	moveT: number,
+	weight: number,      -- 0..1 açılma
+	closing: boolean,    -- kapanıyor (bitince kayıt siliniyor)
+	remote: boolean,     -- başka oyuncu: blend gövde hızından
+	player: Player?,
+}
+
+local entries: { [Model]: Entry } = setmetatable({}, { __mode = "k" }) :: any
+
+local function applyPose(character: Model, e: Entry, skipArms: boolean)
+	local w = smooth(math.clamp(e.weight, 0, 1))
+	local hp = (e.hoverT / HOVER.duration) % 1
+	local mp = (e.moveT / MOVE.duration) % 1
+	for name, jointName in JOINTS do
+		if skipArms and ARMS[name] then
+			continue
+		end
+		local part = character:FindFirstChild(name)
+		local joint = part and part:FindFirstChild(jointName)
+		if not (joint and (joint:IsA("Motor6D") or joint:IsA("AnimationConstraint"))) then
+			continue
+		end
+		local h1, h2, h3 = sample(HOVER, name, hp)
+		local m1, m2, m3 = sample(MOVE, name, mp)
+		if not (h1 and m1) then
+			continue
+		end
+		local b = e.blend
+		local pitch = (h1 :: number) + ((m1 :: number) - (h1 :: number)) * b
+		local yaw = (h2 :: number) + ((m2 :: number) - (h2 :: number)) * b
+		local roll = (h3 :: number) + ((m3 :: number) - (h3 :: number)) * b
+		local target = CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(pitch), 0, math.rad(roll))
+		local j = joint :: any
+		j.Transform = if w >= 1 then target else (j.Transform :: CFrame):Lerp(target, w)
 	end
-	local anim = Instance.new("Animation")
-	anim.AnimationId = id
-	local ok, track = pcall(function()
-		return animator:LoadAnimation(anim)
-	end)
-	return if ok then track else nil
 end
+
+local function step(_: number, dt: number)
+	-- Diğer oyuncular: uzaydayken (sunucunun niteliği) poz, hız gövdeden
+	local localPlayer = Players.LocalPlayer
+	for _, other in Players:GetPlayers() do
+		if other == localPlayer then
+			continue
+		end
+		local character = other.Character
+		if not character then
+			continue
+		end
+		local e = entries[character]
+		local inSpace = other:GetAttribute("InSpace") == true
+		if inSpace and not e then
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+				entries[character] = { blend = 0, hoverT = 0, moveT = 0, weight = 0, closing = false, remote = true, player = other }
+			end
+		elseif e and e.remote then
+			e.closing = not inSpace
+		end
+	end
+
+	for character, e in entries do
+		if not character.Parent then
+			entries[character] = nil
+			continue
+		end
+		if e.remote then
+			local root = character:FindFirstChild("HumanoidRootPart")
+			local speed = if root and root:IsA("BasePart") then root.AssemblyLinearVelocity.Magnitude else 0
+			local target = math.clamp((speed - 8) / 40, 0, 1)
+			e.blend += (target - e.blend) * math.min(1, dt * 5)
+		end
+		e.hoverT += dt
+		-- Hızlanınca bacak çırpması da hızlansın
+		e.moveT += dt * (0.8 + e.blend * 0.6)
+		if e.closing then
+			e.weight -= dt / FADE_OUT
+			if e.weight <= 0 then
+				entries[character] = nil
+				continue
+			end
+		else
+			e.weight = math.min(1, e.weight + dt / FADE_IN)
+		end
+		local owner = e.player or Players:GetPlayerFromCharacter(character)
+		local carrying = owner ~= nil and owner:GetAttribute("SpaceCarry") == true
+		applyPose(character, e, carrying)
+	end
+end
+
+RunService.Stepped:Connect(step)
 
 --[[ Karakterde uçuş pozunu başlatır. R15 değilse boş (hiçbir şey yapmayan) nesne. ]]
 function FlyPose.Start(character: Model): Handle
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
-	local hover: AnimationTrack? = nil
-	local move: AnimationTrack? = nil
-	if animator and humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-		hover = load(animator, HOVER)
-		move = load(animator, MOVE)
+	local e: Entry? = nil
+	if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+		e = { blend = 0, hoverT = 0, moveT = 0, weight = 0, closing = false, remote = false, player = nil }
+		entries[character] = e :: Entry
 	end
-	if hover then
-		hover:Play(0.3, 1, 1)
-	end
-	if move then
-		move:Play(0.3, 0.01, 1)
-	end
-	local blend = 0
 
 	local pose = {} :: any
 	function pose.SetBlend(_self: Handle, moving: number)
-		local b = math.clamp(moving, 0, 1)
-		if math.abs(b - blend) < 0.02 then
-			return
-		end
-		blend = b
-		if hover then
-			hover:AdjustWeight(math.max(0.01, 1 - b), 0.2)
-		end
-		if move then
-			move:AdjustWeight(math.max(0.01, b), 0.2)
-			-- Hızlanınca bacak çırpması da hızlansın
-			move:AdjustSpeed(0.8 + b * 0.6)
+		if e then
+			(e :: Entry).blend = math.clamp(moving, 0, 1)
 		end
 	end
 	function pose.Destroy(_self: Handle)
-		if hover then
-			hover:Stop(0.25)
-		end
-		if move then
-			move:Stop(0.25)
+		if e then
+			(e :: Entry).closing = true
 		end
 	end
 	return pose :: Handle

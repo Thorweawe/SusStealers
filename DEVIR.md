@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (54) — Batur (Yusuf'un şeridine yazıldı: animasyon, ses)
+
+Studio'ya aktarıldı; istemcide eklem değerleri okunarak denendi.
+
+- **Tokat ve alet animasyonları yayında görünmüyordu** (`GearFX`): klipler `KeyframeSequenceProvider:RegisterKeyframeSequence` ile oynuyordu, o kimlik yalnızca Studio'da çalışıyor. Artık CarryPose gibi eklem `Transform`'u `RunService.Stepped`'de yazılıyor (Motor6D + AnimationConstraint). Klip tablosu (CLIPS) aynı.
+- **Uçuş pozu da aynı sorunla yayında heykel gibiydi** (`FlyPose`): aynı yönteme geçti. Transform ağdan gitmediği için diğer oyuncuların uçuş pozunu her istemci kendisi oynatıyor (`InSpace` niteliği, hız gövdeden). Mürettebat taşırken (`SpaceCarry`) kollar CarryPose'ta kalıyor.
+- **Kapsül mini oyunu sesleri** (`SoundFX`, `CapsuleFX`): yıldıza "ding" (art arda toplayınca tizleşiyor), asteroide çarpınca kısa patlama + metal gövde sesi (eskiden "betona düşen taş"). Asteroit görevinin kaya sesi de değişti. Uzun kayıtlar sert kesilmesin diye sonunda kısılıyor.
+
+---
+
 ## 2026-09-30 (53) — Batur (Yusuf'un şeridine de yazıldı: canavar görünümü, uzay arayüzü)
 
 Studio'ya aktarıldı, **182/182 test temiz**. Beş canavar Studio'da render edilip bakıldı.
