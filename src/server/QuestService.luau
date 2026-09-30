@@ -323,7 +323,7 @@ function QuestService.Claim(player: Player, tierId: string, questId: string): bo
 		entry.claimed = true
 		DataService.Bump(player, "questsClaimed")
 
-		local reward = Config.GetQuestReward(tier, EconomyService.GetIncome(player))
+		local reward = Config.GetQuestReward(tier, EconomyService.GetRewardIncome(player))
 		EconomyService.AddCash(player, reward)
 
 		local def = Config.GetQuest(questId)
@@ -408,7 +408,7 @@ function QuestService.Publish(player: Player, force: boolean?)
 			id = tier.id,
 			name = tier.name,
 			secondsLeft = math.max(0, slot.expiresAt - now),
-			reward = Config.GetQuestReward(tier, EconomyService.GetIncome(player)),
+			reward = Config.GetQuestReward(tier, EconomyService.GetRewardIncome(player)),
 			entries = entries,
 		})
 	end

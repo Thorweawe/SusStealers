@@ -3523,13 +3523,21 @@ Config.Season = {
 	startsAt = 1790553600,   -- 2026-09-28 00:00 UTC
 	days = 30,
 	tiers = 30,
-	xpBase = 120,            -- 1. kademe
-	xpGrowth = 14,           -- her kademede bu kadar fazla
+	xpBase = 100,            -- 1. kademe
+	xpGrowth = 4,            -- her kademede bu kadar fazla
 	pass = { id = 1999563376, robux = 399, name = "Season Pass" },
+	--[[
+		2026-09-30 ("pass'te bir süre sonra kimse bir şey kazanamıyor"):
+		eski eğri (120 + 14/kademe, toplam ~9.700 XP) ve kapsül antrenmanının
+		hiç XP vermemesi (sayaç Bump'lanmıyordu) sezonu bitirilemez yapıyordu.
+		Şimdi toplam ~4.700 XP; aktif bir saat ~450 XP (oynama dakikası 2,
+		soygun 15, antrenman 3...), yani sezon ~10-12 saatlik oyun.
+	]]
 	xp = {
-		salvaged = 12, bossSteals = 30, trainings = 4, spins = 6,
-		questsClaimed = 25, dailyClaims = 20, tasksDone = 5,
+		salvaged = 15, bossSteals = 30, trainings = 3, spins = 8,
+		questsClaimed = 30, dailyClaims = 50, tasksDone = 6,
 	} :: { [string]: number },
+	playXpPerMinute = 2,     -- oyunda geçen her dakika (SeasonService)
 }
 
 function Config.SeasonTierXp(tier: number): number
@@ -3555,37 +3563,63 @@ function Config.SeasonEndsAt(): number
 	return Config.Season.startsAt + Config.Season.days * 86400
 end
 
---[[ Kademe ödülleri: bedava ve premium. Kilometre taşları büyük. ]]
+--[[
+	Kademe ödülleri: bedava ve premium. Kilometre taşları büyük.
+
+	2026-09-30: nakit iki katından fazla (bedava 2.3..12 dk, premium 6..30 dk
+	gelir; taban oyuncunun ulaştığı en yüksek gelir, EconomyService
+	.GetRewardIncome). Yumurtalar sabit Supply/Station'dı, geç oyunda
+	değersizdi: "best" = oyuncunun açabildiği en iyi yumurta
+	(Config.ResolveRewardEgg).
+]]
 function Config.GetSeasonRewards(tier: number): (SeasonReward, SeasonReward)
 	local free: SeasonReward
 	local premium: SeasonReward
 	if tier == 10 then
-		free = { kind = "egg", egg = "SupplyEgg" }
-		premium = { kind = "superspin", count = 1 }
+		free = { kind = "egg", egg = "best" }
+		premium = { kind = "superspin", count = 2 }
 	elseif tier == 15 then
 		free = { kind = "superspin", count = 1 }
-		premium = { kind = "egg", egg = "SkeldEgg" }
+		premium = { kind = "egg", egg = "best" }
 	elseif tier == 20 then
-		free = { kind = "egg", egg = "SkeldEgg" }
+		free = { kind = "egg", egg = "best" }
 		premium = { kind = "flame", flame = "Nebula" }
 	elseif tier == 25 then
-		free = { kind = "spins", count = 2 }
-		premium = { kind = "superspin", count = 2 }
+		free = { kind = "spins", count = 3 }
+		premium = { kind = "superspin", count = 3 }
 	elseif tier == 30 then
-		free = { kind = "superspin", count = 1 }
-		premium = { kind = "cash", seconds = 3600, minimum = 500_000 }
+		free = { kind = "superspin", count = 2 }
+		premium = { kind = "cash", seconds = 7200, minimum = 5_000_000 }
 	elseif tier % 5 == 0 then
-		free = { kind = "spins", count = 1 }
+		free = { kind = "spins", count = 2 }
 		premium = { kind = "superspin", count = 1 }
 	elseif tier % 3 == 0 then
 		free = { kind = "potion", count = 1 }
 		premium = { kind = "potion", count = 2 }
 	else
-		-- Gelirle ölçekli (Config.QuestTiers'taki merdiven): bedava 70..350 sn, premium 175..875 sn
-		free = { kind = "cash", seconds = 60 + tier * 10, minimum = 1500 * tier }
-		premium = { kind = "cash", seconds = 150 + tier * 25, minimum = 4000 * tier }
+		-- Gelirle ölçekli: bedava 140..700 sn, premium 350..1800 sn
+		free = { kind = "cash", seconds = 120 + tier * 20, minimum = 10000 * tier }
+		premium = { kind = "cash", seconds = 300 + tier * 50, minimum = 30000 * tier }
 	end
 	return free, premium
+end
+
+--[[
+	Ödül yumurtası: "best" ise oyuncunun rebirth'le açabildiği ve fiyatı
+	yarım saatlik gelirini aşmayan en iyi yumurta (hiçbiri değilse ilki).
+	Diğer kimlikler olduğu gibi.
+]]
+function Config.ResolveRewardEgg(eggId: string, rebirths: number, incomePerSecond: number): string
+	if eggId ~= "best" then
+		return eggId
+	end
+	local best = Config.Eggs[1].id
+	for _, egg in Config.Eggs do
+		if Config.EggUnlocked(egg, rebirths) and egg.price <= math.max(incomePerSecond * 1800, Config.Eggs[1].price) then
+			best = egg.id
+		end
+	end
+	return best
 end
 
 -- ─── Çark jetonları ve süper çark ──────────────────────────────────────────

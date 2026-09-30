@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (57) — Batur (Yusuf'un şeridine de yazıldı: sezon/ödül paneli)
+
+Studio'ya aktarıldı, **183/183 test temiz**.
+
+- **Sezon Kartı bitirilemiyordu**: kapsül antrenmanı XP vermiyordu (`CapsuleService` sayacı `Bump`'lamıyordu) ve eğri dikti (~9.700 XP). Şimdi 100 + 4/kademe (~4.700 XP), XP değerleri arttı, oyunda geçen her dakika +2 XP (`SeasonService`). Hedef ~10-12 saat.
+- **Ödüller büyüdü**: sezon nakdi bedava 2.3..12 dk, premium 6..30 dk gelir; 30. premium 2 saat. Yumurta ödülleri `egg = "best"` → oyuncunun açabildiği en iyi yumurta (`Config.ResolveRewardEgg`).
+- **Ödül tabanı en yüksek gelir** (`profile.peakIncome`, `EconomyService.GetRewardIncome`, nitelik `RewardIncome`): rebirth sonrası kaideler boşken görev/sezon ödülleri minimuma (5K-10K) düşüyordu. Görevler, sezon ve ödüller paneli buna geçti.
+- ⚠ `tests/ServerTests.luau` Roblox'un 200.000 karakter betik sınırına dayandı (199.5K). Yeni test eklemeden önce dosyayı ikiye bölmek gerekiyor.
+
+---
+
 ## 2026-09-30 (56) — Batur (Yusuf'un şeridine de yazıldı: rebirth paneli)
 
 Studio'ya aktarıldı, **183/183 test temiz**.

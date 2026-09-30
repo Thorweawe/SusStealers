@@ -4,8 +4,8 @@
 
 	XP DataService sayaçlarından geliyor (DataService.Bumped): soygun, Void
 	Leviathan soygunu, mini oyun, çark, görev, günlük giriş, oda görevi
-	(Config.Season.xp). Başka bir yerden XP verilmiyor, yani
-	istemci XP kazandıramıyor.
+	(Config.Season.xp) ve oyunda geçen her dakika (playXpPerMinute). Başka
+	bir yerden XP verilmiyor, yani istemci XP kazandıramıyor.
 
 	Her kademede BEDAVA bir ödül; Sezon Kartı gamepass'i olana ayrıca
 	PREMIUM ödül. Ödüller elle toplanıyor: "SeasonClaim"(kademe, "free" |
@@ -184,6 +184,16 @@ function SeasonService.Start()
 		onPlayer(player)
 	end
 	Players.PlayerAdded:Connect(onPlayer)
+
+	-- Oynama XP'si: her dakika (Config.Season.playXpPerMinute); herkes ilerlesin
+	task.spawn(function()
+		while true do
+			task.wait(60)
+			for _, player in Players:GetPlayers() do
+				SeasonService.AddXp(player, Config.Season.playXpPerMinute)
+			end
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		passOwned[player] = nil
 		lastClaim[player] = nil

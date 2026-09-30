@@ -258,7 +258,8 @@ function CapsuleService.TryCatch(player: Player, perfect: boolean?): number?
 		bonus *= c.PerfectCatchMul
 	end
 	profile.spaceSpeed = math.min(Config.Space.MaxSpeed, profile.spaceSpeed + bonus)
-	profile.trainings += 1
+	-- Bump: sayaç dinleyicileri (Sezon XP'si) de duysun; eskiden doğrudan artıyordu, XP vermiyordu
+	DataService.Bump(player, "trainings")
 	publish(player, profile.spaceSpeed)
 	return bonus
 end

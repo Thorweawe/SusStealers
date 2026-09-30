@@ -73,6 +73,17 @@ end
 
 -- ─── Gelir ──────────────────────────────────────────────────────────────────
 
+--[[
+	Ödül nakdinin tabanı: şu anki gelir ile ulaşılmış en yüksek gelirin
+	büyüğü. Rebirth'ten hemen sonra kaideler boşken görev / sezon ödülü
+	"5K, 10K" gibi minimuma düşüyordu.
+]]
+function EconomyService.GetRewardIncome(player: Player): number
+	local income = EconomyService.GetIncome(player)
+	local profile = DataService.Get(player)
+	return math.max(income, if profile then profile.peakIncome else 0)
+end
+
 --[[ Oyuncunun kaidelerindeki karakterlerin toplam saniyelik geliri. ]]
 function EconomyService.GetIncome(player: Player): number
 	local plot = PlotService.GetPlotOf(player)
@@ -233,6 +244,8 @@ function EconomyService.Start()
 				local profile = DataService.Get(player)
 				if profile then
 					profile.incomePerSecond = income
+					profile.peakIncome = math.max(profile.peakIncome, income)
+					player:SetAttribute("RewardIncome", profile.peakIncome)
 				end
 			end
 		end

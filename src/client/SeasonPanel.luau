@@ -65,9 +65,17 @@ local function text(parent: Instance, value: string, size: number, color: Color3
 	return l
 end
 
+-- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık ya da en yüksek gelir
 local function income(): number
 	local v = player:GetAttribute("Income")
-	return if typeof(v) == "number" then v else 0
+	local peak = player:GetAttribute("RewardIncome")
+	return math.max(if typeof(v) == "number" then v else 0, if typeof(peak) == "number" then peak else 0)
+end
+
+-- "best" yumurta: sunucuyla aynı seçim (Config.ResolveRewardEgg)
+local function resolveEgg(eggId: string?): string
+	local rb = player:GetAttribute("Rebirths")
+	return Config.ResolveRewardEgg(eggId or "", if typeof(rb) == "number" then rb else 0, income())
 end
 
 local function describe(reward: Config.SeasonReward): string
@@ -76,7 +84,7 @@ local function describe(reward: Config.SeasonReward): string
 	elseif reward.kind == "potion" then
 		return if (reward.count or 1) > 1 then (reward.count :: number) .. " Potions" else "Potion"
 	elseif reward.kind == "egg" then
-		local egg = Config.GetEgg(reward.egg or "")
+		local egg = Config.GetEgg(resolveEgg(reward.egg))
 		return if egg then egg.name else "Egg"
 	elseif reward.kind == "superspin" then
 		return if (reward.count or 1) > 1 then (reward.count :: number) .. " Super Spins" else "Super Spin"
@@ -115,7 +123,7 @@ local function drawIcon(slot: Frame, reward: Config.SeasonReward, size: number)
 	elseif reward.kind == "potion" then
 		UiKit.Vial(slot, size, Color3.fromRGB(150, 236, 160), 0.8, true)
 	elseif reward.kind == "egg" then
-		EggStyle.Draw(slot, size, reward.egg)
+		EggStyle.Draw(slot, size, resolveEgg(reward.egg))
 	elseif reward.kind == "superspin" then
 		UiKit.Wheel(slot, size, GOLD)
 	elseif reward.kind == "spins" then

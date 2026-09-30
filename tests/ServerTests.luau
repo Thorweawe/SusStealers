@@ -671,15 +671,12 @@ end)
 
 case("Rebirth: tavanda duruyor", function(ctx)
 	local saved = ctx.profile.rebirths
-	-- Tavan son rebirth kilidinin (R10) üstünde: canavarlar açılabilsin
 	ok("tavan son kilidin üstünde", Config.MaxRebirths >= 10)
 	ctx.profile.rebirths = Config.MaxRebirths
 	setCash(ctx.player, 1e30)
 	eq("tavanda reddedildi", RebirthService.TryRebirth(ctx.player), false)
 	eq("seviye değişmedi", ctx.profile.rebirths, Config.MaxRebirths)
-	-- Kat tavanını geçince (R2) rebirth devam ediyor
 	ctx.profile.rebirths = Config.MaxFloors - 1
-	-- Önce sıfırla: 1e30'dan geri inerken kayan nokta hassasiyeti kayboluyor
 	setCash(ctx.player, 0)
 	setCash(ctx.player, Config.GetRebirthCost(ctx.profile.rebirths))
 	ok("kat tavanından sonra rebirth", RebirthService.TryRebirth(ctx.player))
@@ -2671,7 +2668,6 @@ case("Pet: her yumurtanın kendi takımı var, güç yumurtayla artıyor", funct
 		byEgg[def.egg][def.rarity] = byEgg[def.egg][def.rarity] or {}
 		table.insert(byEgg[def.egg][def.rarity], def)
 	end
-	-- 25 + iki rebirth yumurtası x 7
 	eq("pet sayısı (yumurta başına kademe başına bir)", #Config.Pets, 39)
 
 	local function minIncome(list: { Config.PetDef }): number
@@ -4117,7 +4113,6 @@ case("Rebirth yumurtaları: kilit, yetenekler, tavan", function(ctx)
 	ok("Nebula R1'de kilitli", not Config.EggUnlocked(nebula, 1))
 	ok("Nebula R2'de açık", Config.EggUnlocked(nebula, 2))
 	ok("Void herkese açık", Config.EggUnlocked(Config.GetEgg("VoidEgg") :: any, 0))
-	-- Her rebirth petinin tek yeteneği var, eski petlerin yok
 	for _, def in Config.Pets do
 		if def.egg == "NebulaEgg" then
 			ok(def.id .. " kaçış", (def.escape or 0) > 0 and def.luck == nil)
@@ -4127,17 +4122,14 @@ case("Rebirth yumurtaları: kilit, yetenekler, tavan", function(ctx)
 			ok(def.id .. " yeteneksiz", def.escape == nil and def.luck == nil)
 		end
 	end
-	-- Titan Cosmic yetenek kökle büyüyor, toplam tavanda kesiliyor
 	local e1 = Config.GetPetKeyPerks("RiftWalker")
 	local eT = Config.GetPetKeyPerks(Config.PetKey("RiftWalker", "Cosmic", "Titan"))
 	ok("Titan Cosmic ~x5.5", math.abs(eT / e1 - math.sqrt(30)) < 0.01, tostring(eT / e1))
 	local key = Config.PetKey("RiftWalker", "Cosmic", "Titan")
 	local escape = Config.GetPetPerks({ key, key, key })
 	eq("kaçış tavanı", escape, Config.PetPerkCaps.escape)
-	-- Nebula petleri Void'den güçlü
 	local void = Config.GetPetKeyBonus("VoidShard")
 	ok("Rift Walker > Void Shard", Config.GetPetKeyBonus("RiftWalker") > void)
-	-- Sunucu: kilitliyken açılmıyor, nitelikler yazılıyor
 	local saved = ctx.profile.rebirths
 	ctx.profile.rebirths = 0
 	PetService._ResetBusy(ctx.player)
@@ -4570,8 +4562,14 @@ case("Sezon Kartı: XP kademesi, bedava ve premium ödül", function(ctx)
 		ok(tier .. ". premium ödül tanımlı", premium.kind ~= "")
 	end
 	eq("tavan", (Config.SeasonProgress(total + 999)), Config.Season.tiers)
-	-- XP kaynağı bir soygun saatlerce değil: 30 kademe ~ yüzlerce soygun
-	ok("30 kademe emek istiyor", total / Config.Season.xp.salvaged >= 300, tostring(total))
+	local steals = total / Config.Season.xp.salvaged
+	ok("30 kademe emek istiyor", steals >= 200, tostring(total))
+	ok("30 kademe bitirilebilir", steals <= 450, tostring(total))
+	ok("antrenman XP veriyor", (Config.Season.xp.trainings or 0) > 0 and Config.Season.playXpPerMinute > 0)
+	eq("yeni oyuncuya Supply", Config.ResolveRewardEgg("best", 0, 0), "SupplyEgg")
+	eq("zengin ama R0: Void", Config.ResolveRewardEgg("best", 0, 1e15), "VoidEgg")
+	eq("R6 zengin: Celestial", Config.ResolveRewardEgg("best", 6, 1e15), "CelestialEgg")
+	eq("sabit kimlik aynen", Config.ResolveRewardEgg("SkeldEgg", 0, 0), "SkeldEgg")
 
 	ctx.profile.season = { id = Config.Season.id, xp = Config.SeasonTierXp(1), free = {}, premium = {} }
 	SeasonService._SetPass(ctx.player, false)

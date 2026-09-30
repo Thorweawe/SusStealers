@@ -150,7 +150,7 @@ end
 ]]
 local function give(player: Player, reward: Config.RewardDef): string?
 	if reward.kind == "cash" then
-		local amount = Config.GetRewardCash(reward, EconomyService.GetIncome(player))
+		local amount = Config.GetRewardCash(reward, EconomyService.GetRewardIncome(player))
 		EconomyService.AddCash(player, amount)
 		return "$" .. Config.FormatCash(amount)
 	elseif reward.kind == "potion" then
@@ -167,12 +167,15 @@ local function give(player: Player, reward: Config.RewardDef): string?
 		end
 		return if given == 1 then "a potion" else given .. " potions"
 	elseif reward.kind == "egg" and reward.egg then
-		local key = PetService.GiveEggRoll(player, reward.egg)
+		-- "best": oyuncunun açabildiği en iyi yumurta (sezon ödülleri)
+		local profile = DataService.Get(player)
+		local eggId = Config.ResolveRewardEgg(reward.egg, if profile then profile.rebirths else 0, EconomyService.GetRewardIncome(player))
+		local key = PetService.GiveEggRoll(player, eggId)
 		if not key then
 			notify(player, "Could not hatch the reward egg (pet stack full?)", true)
 			return nil
 		end
-		local egg = Config.GetEgg(reward.egg)
+		local egg = Config.GetEgg(eggId)
 		return if egg then "a free " .. egg.name else "a free egg"
 	elseif reward.kind == "superspin" or reward.kind == "spins" then
 		-- Çark hakları (SpinService kullanıyor; pencere niteliklerden sayıyor)

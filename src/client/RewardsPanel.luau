@@ -77,9 +77,11 @@ local function clock(seconds: number): string
 	return string.format("%d:%02d", m, s)
 end
 
+-- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık ya da en yüksek gelir
 local function income(): number
 	local value = player:GetAttribute("Income")
-	return if typeof(value) == "number" then value else 0
+	local peak = player:GetAttribute("RewardIncome")
+	return math.max(if typeof(value) == "number" then value else 0, if typeof(peak) == "number" then peak else 0)
 end
 
 --[[ Ödülün kısa metni ve ikonu. Nakit tutarı oyuncunun gelirine göre. ]]
