@@ -15,7 +15,10 @@
 	  Tiny  — alan hariç herkes küçülüyor (uzaydakiler hariç: uçuş kısıtları
 	          boyutla bozuluyor). Süre bitince eski boy.
 	  Moon  — workspace.Gravity düşüyor (herkes); süre bitince eski değer.
-	  Alarm — yalnızca istemci efekti.
+	  Alarm — siren ve kırmızı ekran (istemci) + 2026-09-30: gerçekten bir
+	          gezen impostor çıkıyor (RogueService.Spawn; zaten biri varsa
+	          yenisi yok). Eskiden yalnızca efektti ve alana hiç görünmüyordu:
+	          tek başına alan oyuncu "hiçbir şey olmadı" diyordu.
 	Aynı trol tekrar alınırsa süre uzuyor.
 ]]
 
@@ -27,6 +30,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 
 local AnnounceService = require(script.Parent.AnnounceService)
 local MonetizationService = require(script.Parent.MonetizationService)
+local RogueService = require(script.Parent.RogueService)
 
 local ServerBoostService = {}
 
@@ -100,6 +104,22 @@ function ServerBoostService.Troll(player: Player, kind: string): boolean
 		shrinkAll(player, cfg.scale or 0.5)
 	elseif kind == "Moon" then
 		workspace.Gravity = cfg.gravity or 50
+	elseif kind == "Alarm" then
+		-- Alarmın sebebi: bir impostor gerçekten çıkıyor (yol arama bekletebilir)
+		-- Çıkış vent'i rastgele; oradan yol bulunamazsa Spawn false dönüyor: birkaç kez dene
+		task.spawn(function()
+			for _ = 1, 6 do
+				if RogueService.GetCurrent() then
+					return
+				end
+				local ok, spawned = pcall(RogueService.Spawn)
+				if ok and spawned then
+					return
+				end
+				task.wait(1)
+			end
+			warn("[ServerBoost] Impostor Alarm: impostor çıkarılamadı (dolu kaide / yol yok)")
+		end)
 	end
 	if fxRemote then
 		fxRemote:FireAllClients("troll", kind, player.DisplayName, cfg.seconds, player.UserId)

@@ -302,8 +302,12 @@ function ServerBoostFX.Create(screen: ScreenGui)
 			local mine = d == player.UserId
 			banner(TROLL_TEXT[a] or a, whoText(if mine then "You" else b, "trolled the server!"),
 				Color3.fromRGB(255, 170, 230), Color3.fromRGB(230, 60, 170), if typeof(d) == "number" then d else nil)
-			if a == "Alarm" and not mine then
-				startAlarm(seconds)
+			--[[
+				2026-09-30: alan da görüyor (kısa). Eskiden yalnızca başkalarında
+				çalıyordu; tek başına alan oyuncu Robux ödeyip hiçbir şey görmüyordu.
+			]]
+			if a == "Alarm" then
+				startAlarm(if mine then math.min(seconds, 4) else seconds)
 			end
 		end
 	end)
