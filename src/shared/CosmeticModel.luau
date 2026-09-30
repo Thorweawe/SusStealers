@@ -178,6 +178,56 @@ local function pieces(id: string): { Piece }
 		for _, x in { -0.14, 0.14 } do
 			table.insert(list, { name = "Tooth", size = Vector3.new(0.1, 0.1, 0.1), cf = CFrame.new(x, 0.4, -0.66), color = pumpkin })
 		end
+	elseif id == "StarVisor" then
+		-- SINIRLI (Starfall Week): alında parlayan vizör bandı, üstünde beş köşeli yıldız
+		local cyan = Color3.fromRGB(120, 210, 255)
+		table.insert(list, vcyl("Base", 0.02, 0.04, 0.3, cyan, { transparency = 1 }))
+		table.insert(list, vcyl("Band", -0.2, 0.18, 1.18, Color3.fromRGB(40, 44, 70)))
+		table.insert(list, { name = "Visor", size = Vector3.new(1.1, 0.34, 0.3), cf = CFrame.new(0, -0.42, -0.52), color = cyan, mesh = "Sphere", neon = true, transparency = 0.25 })
+		local starCenter = Vector3.new(0, 0.45, -0.3)
+		table.insert(list, { name = "StarCore", size = Vector3.one * 0.22, cf = CFrame.new(starCenter), color = Color3.fromRGB(255, 230, 120), mesh = "Sphere", neon = true })
+		for i = 0, 4 do
+			local a = i / 5 * math.pi * 2
+			table.insert(list, {
+				name = "StarPoint",
+				size = Vector3.new(0.1, 0.3, 0.06),
+				cf = CFrame.new(starCenter) * CFrame.Angles(0, 0, a) * CFrame.new(0, 0.2, 0),
+				color = Color3.fromRGB(255, 220, 90),
+				neon = true,
+			})
+		end
+	elseif id == "CometCrown" then
+		-- SINIRLI (Starfall Week): altın taç, uçlarında mavi yıldız taşları, üstünde kuyruklu yıldız
+		table.insert(list, vcyl("Base", 0.2, 0.4, 1.06, GOLD))
+		table.insert(list, vcyl("Band", 0.2, 0.1, 1.1, Color3.fromRGB(120, 210, 255), { neon = true }))
+		for i = 0, 4 do
+			local a = i / 5 * math.pi * 2
+			table.insert(list, { name = "Spike", size = Vector3.new(0.16, 0.42, 0.16), cf = CFrame.new(math.cos(a) * 0.45, 0.58, math.sin(a) * 0.45) * CFrame.Angles(math.rad(45), 0, math.rad(45)), color = GOLD })
+			table.insert(list, { name = "Gem", size = Vector3.one * 0.15, cf = CFrame.new(math.cos(a) * 0.5, 0.85, math.sin(a) * 0.5), color = Color3.fromRGB(120, 210, 255), mesh = "Sphere", neon = true })
+		end
+		-- Kuyruklu yıldız: öne eğik baş, arkaya doğru incelen kuyruk
+		table.insert(list, { name = "Comet", size = Vector3.one * 0.34, cf = CFrame.new(0, 1.15, -0.15), color = Color3.new(1, 1, 1), mesh = "Sphere", neon = true })
+		for k = 1, 4 do
+			local s = 0.3 - k * 0.055
+			table.insert(list, { name = "Tail", size = Vector3.one * s, cf = CFrame.new(0, 1.15 + k * 0.1, -0.15 + k * 0.22), color = Color3.fromRGB(150, 120, 255):Lerp(Color3.fromRGB(120, 210, 255), k / 4), mesh = "Sphere", neon = true, transparency = k * 0.12 })
+		end
+	elseif id == "GalaxyHalo" then
+		-- SINIRLI ÖDÜL (Starfall ilk 10): iki eğik halka, mor ve mavi yıldızlar
+		table.insert(list, vcyl("Base", 0.02, 0.04, 0.2, GOLD, { transparency = 1 }))
+		for ring = 0, 1 do
+			local tilt = CFrame.Angles(math.rad(if ring == 0 then 12 else -12), math.rad(ring * 45), 0)
+			for i = 0, 15 do
+				local a = i / 16 * math.pi * 2
+				table.insert(list, {
+					name = "Star",
+					size = Vector3.new(0.14, 0.14, 0.14),
+					cf = CFrame.new(0, 0.8, 0) * tilt * CFrame.new(math.cos(a) * (0.6 + ring * 0.12), 0, math.sin(a) * (0.6 + ring * 0.12)) * CFrame.Angles(math.rad(45), a, math.rad(45)),
+					color = if (i + ring) % 2 == 0 then Color3.fromRGB(190, 140, 255) else Color3.fromRGB(120, 210, 255),
+					neon = true,
+				})
+			end
+		end
+		table.insert(list, { name = "Core", size = Vector3.one * 0.26, cf = CFrame.new(0, 0.8, 0), color = Color3.new(1, 1, 1), mesh = "Sphere", neon = true, transparency = 0.2 })
 	elseif id == "CandyCrown" then
 		-- SINIRLI ÖDÜL (Spooky Space ilk 10): şeker çubuğu dikenli taç, lolipop taşlı
 		local red = Color3.fromRGB(235, 50, 70)

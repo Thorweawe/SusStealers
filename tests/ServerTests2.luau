@@ -2121,7 +2121,7 @@ function ServerTests2.Register(kit: Kit)
 
 	-- ─── Sınırlı etkinlik (2026-09-30) ──────────────────────────────────────────
 
-	case("Sınırlı etkinlik: şeker, günlük bonus, dükkân, HAUNTED, sınırlı kozmetik", function(ctx)
+	case("Sınırlı etkinlik: para, günlük bonus, dükkân, etkinlik mutasyonu, sınırlı kozmetik", function(ctx)
 		local e = Config.LimitedEvent
 		local p = ctx.profile
 		local keepStart, keepEnd = e.startsAt, e.endsAt
@@ -2129,25 +2129,55 @@ function ServerTests2.Register(kit: Kit)
 		local keepCos, keepHat, keepTrail = table.clone(p.cosmetics), p.hat, p.trail
 		local keepSuper = p.superSpins
 
-		-- Tanımlar: fiyat ucuzdan pahalıya (hedef merdiveni), kozmetikler sınırlı listede
-		local prev = 0
+		--[[ Tanım denetimi: aktif etkinlik VE Cadılar Bayramı taslağı (ileride
+		     Config.LimitedEvent'e konunca bozuk çıkmasın). Fiyat ucuzdan pahalıya
+		     (hedef merdiveni), kozmetikler bu etkinliğin sınırlı listesinde,
+		     mutasyon normal zarda yok, rayın şapkası ve ödül tanımlı. ]]
+		local function checkDef(ev: any, tag: string)
+			local prev = 0
+			for _, item in ev.shop do
+				ok(tag .. item.id .. " fiyatı sıralı", item.price > prev)
+				prev = item.price
+				ok(tag .. item.id .. " sınırı", item.limit >= 1)
+				ok(tag .. item.id .. " türü", item.kind == "unit" or item.kind == "superspin" or item.kind == "cosmetic")
+				if item.kind == "cosmetic" then
+					local def = if item.cosmetic then Config.GetCosmetic(item.cosmetic) else nil
+					ok(tag .. item.id .. " bu etkinliğin sınırlı kozmetiği", def ~= nil and (def :: any).limited == ev.id)
+				end
+			end
+			local mutation = Config.GetMutation(ev.mutation)
+			ok(tag .. "mutasyon tanınıyor", mutation ~= nil and mutation.incomeMul > 1)
+			for _, m in Config.Mutations do
+				ok(tag .. "mutasyon normal zarda yok", m.id ~= ev.mutation)
+			end
+			local reward = Config.GetCosmetic(ev.leaderboard.reward)
+			ok(tag .. "ödül bu etkinliğin sınırlı kozmetiği", reward ~= nil and (reward :: any).limited == ev.id)
+			local rail = CosmeticModel.BuildHat(ev.railHat, true)
+			ok(tag .. "ray şapkası kuruluyor", rail ~= nil)
+			if rail then
+				rail:Destroy()
+			end
+			ok(tag .. "süs türü", ev.decor == "stars" or ev.decor == "pumpkins")
+			ok(tag .. "süre", ev.endsAt > ev.startsAt)
+		end
+		checkDef(e, "aktif: ")
+		checkDef(Config.SpookyEventDraft, "cadılar: ")
+		ok("taslak aktifle çakışmıyor", Config.SpookyEventDraft.startsAt >= e.endsAt)
+
+		local unitItem, spinItem, hatItem
 		for _, item in e.shop do
-			ok(item.id .. " fiyatı sıralı", item.price > prev)
-			prev = item.price
-			ok(item.id .. " sınırı", item.limit >= 1)
-			ok(item.id .. " türü", item.kind == "unit" or item.kind == "superspin" or item.kind == "cosmetic")
-			if item.kind == "cosmetic" then
-				ok(item.id .. " sınırlı kozmetik", item.cosmetic ~= nil and Config.IsLimitedCosmetic(item.cosmetic :: string))
+			if item.kind == "unit" and not unitItem then
+				unitItem = item
+			elseif item.kind == "superspin" and not spinItem then
+				spinItem = item
+			elseif item.kind == "cosmetic" and not hatItem then
 				local def = Config.GetCosmetic(item.cosmetic :: string)
 				if def and def.kind == "hat" then
-					local model = CosmeticModel.BuildHat(def.id, true)
-					ok(def.id .. " modeli kuruluyor", model ~= nil and model.PrimaryPart ~= nil)
-					if model then
-						model:Destroy()
-					end
+					hatItem = item
 				end
 			end
 		end
+		ok("dükkânda karakter, çark ve şapka var", unitItem ~= nil and spinItem ~= nil and hatItem ~= nil)
 		for _, def in Config.LimitedCosmetics do
 			ok(def.id .. " sınırlı listede etkinliğe bağlı", def.limited ~= "")
 			if def.kind == "hat" then
@@ -2158,15 +2188,7 @@ function ServerTests2.Register(kit: Kit)
 				end
 			end
 		end
-		ok("ödül kozmetiği tanımlı", Config.IsLimitedCosmetic(e.leaderboard.reward))
-		local haunted = Config.GetMutation("Haunted")
-		ok("HAUNTED tanınıyor", haunted ~= nil and haunted.incomeMul > 1)
-		local inRoll = false
-		for _, m in Config.Mutations do
-			inRoll = inRoll or m.id == "Haunted"
-		end
-		ok("HAUNTED normal zarda yok", not inRoll)
-		ok("sınırlı kozmetik parayla alınmıyor", not CosmeticService.TryBuy(ctx.player, "PumpkinHead"))
+		ok("sınırlı kozmetik parayla alınmıyor", not CosmeticService.TryBuy(ctx.player, hatItem.cosmetic))
 
 		-- Lobi tabelası: yaklaşırken ve sürerken etkinlik, bitince güncelleme
 		ok("tabela: yaklaşırken etkinlik", (LobbyBoardService.EventHeadline(e.startsAt - 3600)) ~= nil)
@@ -2176,14 +2198,14 @@ function ServerTests2.Register(kit: Kit)
 		-- Etkinlik dışında: şeker yok, dükkân kapalı
 		e.startsAt, e.endsAt = os.time() + 3600, os.time() + 7200
 		eq("dışarıda soygun şekeri yok", Config.GetHeistCandy("RedCrew", nil, os.time()), 0)
-		ok("dışarıda dükkân kapalı", not (LimitedEventService.Buy(ctx.player, "SpookySpin")))
+		ok("dışarıda dükkân kapalı", not (LimitedEventService.Buy(ctx.player, spinItem.id)))
 
 		-- Etkinlik sürerken
 		e.startsAt, e.endsAt = os.time() - 60, os.time() + 3600
 		local common = e.candyByRarity.Common
 		eq("sade soygun", Config.GetHeistCandy("RedCrew", nil, os.time()), common)
 		eq("mutasyonlu soygun", Config.GetHeistCandy("RedCrew", "Golden", os.time()), common * e.mutationCandyMul)
-		eq("HAUNTED soygun", Config.GetHeistCandy("RedCrew", "Haunted", os.time()), common * e.hauntedCandyMul)
+		eq("etkinlik mutasyonlu soygun", Config.GetHeistCandy("RedCrew", e.mutation, os.time()), common * e.eventMutationMul)
 
 		-- Eski etkinliğin sayacı sıfırlanıyor
 		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0 }
@@ -2197,30 +2219,31 @@ function ServerTests2.Register(kit: Kit)
 
 		-- Dükkân
 		p.limited.candy = 0
-		ok("şekersiz alınmıyor", not (LimitedEventService.Buy(ctx.player, "SpookySpin")))
+		ok("parasız alınmıyor", not (LimitedEventService.Buy(ctx.player, spinItem.id)))
 		LimitedEventService.AddCandy(ctx.player, 5000)
-		eq("şeker eklendi", p.limited.candy, 5000)
+		eq("para eklendi", p.limited.candy, 5000)
 		local spins = p.superSpins
-		ok("süper çark alındı", (LimitedEventService.Buy(ctx.player, "SpookySpin")))
+		ok("süper çark alındı", (LimitedEventService.Buy(ctx.player, spinItem.id)))
 		eq("süper çark hakkı", p.superSpins, spins + 1)
-		eq("şeker düştü", p.limited.candy, 5000 - (Config.GetEventShopItem("SpookySpin") :: any).price)
+		eq("para düştü", p.limited.candy, 5000 - spinItem.price)
 
-		p.cosmetics.PumpkinHead = nil
-		ok("balkabağı alındı", (LimitedEventService.Buy(ctx.player, "PumpkinHead")))
-		ok("sahibi", p.cosmetics.PumpkinHead == true)
-		eq("takıldı", p.hat, "PumpkinHead")
-		ok("sınır dolunca alınmıyor", not (LimitedEventService.Buy(ctx.player, "PumpkinHead")))
+		local hatId = hatItem.cosmetic :: string
+		p.cosmetics[hatId] = nil
+		ok("sınırlı şapka alındı", (LimitedEventService.Buy(ctx.player, hatItem.id)))
+		ok("sahibi", p.cosmetics[hatId] == true)
+		eq("takıldı", p.hat, hatId)
+		ok("sınır dolunca alınmıyor", not (LimitedEventService.Buy(ctx.player, hatItem.id)))
 		ok("bilinmeyen ürün yok", not (LimitedEventService.Buy(ctx.player, "Nope")))
 
 		clearPlot(ctx.plot)
-		ok("HAUNTED karakter alındı", (LimitedEventService.Buy(ctx.player, "HauntedCrew")))
+		ok("etkinlik mutasyonlu karakter alındı", (LimitedEventService.Buy(ctx.player, unitItem.id)))
 		local placed = false
 		for _, podium in PlotService.GetUnlockedPodiums(ctx.plot) do
-			if podium:GetAttribute("MutationId") == "Haunted" then
+			if podium:GetAttribute("MutationId") == e.mutation then
 				placed = true
 			end
 		end
-		ok("kaidede HAUNTED", placed)
+		ok("kaidede etkinlik mutasyonu", placed)
 		clearPlot(ctx.plot)
 
 		-- Sıralama ödülü: etkinlik sürerken yok; bitince ilk 10'a sınırlı taç, bir kez

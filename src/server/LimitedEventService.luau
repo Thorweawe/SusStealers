@@ -1,18 +1,20 @@
 --!strict
 --[[
 	Sınırlı etkinlik (2026-09-30, Config.LimitedEvent): bir haftalık, tarihe
-	bağlı etkinlik ("SPOOKY SPACE"). Kurallar Config'teki başlıkta.
+	bağlı, temadan bağımsız etkinlik (şu an 🌠 STARFALL WEEK; Cadılar
+	Bayramı taslağı Config.SpookyEventDraft). Kurallar Config'teki başlıkta.
+	İç adlarda "candy" = etkinlik parası (oyuncuya Config'teki `currency`).
 
-	  ŞEKER     — her soygunda (SpaceService.Delivered; miktar
+	  PARA      — her soygunda (SpaceService.Delivered; miktar
 	              Config.GetHeistCandy, istemci kartında da aynısı yazıyor)
 	              ve etkinlikte her gün ilk girişte (dailyBonus)
-	  HAUNTED   — gezegen doğuşlarında (SpaceService.rollSpot) etkinlik
-	              mutasyonu; çalınca 3x şeker
-	  DÜKKÂN    — "EventShop" remote'u (itemId): şeker sunucudaki sayaçtan,
+	  MUTASYON  — gezegen doğuşlarında (SpaceService.rollSpot) etkinlik
+	              mutasyonu (Config.LimitedEvent.mutation); çalınca 3x para
+	  DÜKKÂN    — "EventShop" remote'u (itemId): para sunucudaki sayaçtan,
 	              fiyat/adet Config'ten, yalnızca etkinlik sürerken
-	  SÜS       — etkinlikte güvertede ve kafeteryada balkabakları
+	  SÜS       — güvertede ve kafeteryada (decor: yıldız kristali / balkabağı)
 
-	Profil: `limited` (id, candy, bought, lastDaily, earned); etkinlik
+	Profil: `limited` (id, candy, bought, lastDaily, earned, awarded); etkinlik
 	kimliği değişince sıfırlanıyor. İstemciye nitelikler: EventCandy,
 	EventBought ("id:n,id:n").
 ]]
@@ -101,8 +103,8 @@ function LimitedEventService.Daily(player: Player): boolean
 	end
 	profile.limited.lastDaily = day
 	LimitedEventService.AddCandy(player, Config.LimitedEvent.dailyBonus)
-	notify(player, string.format("%s daily bonus: +%d %s Candy!", Config.LimitedEvent.name,
-		Config.LimitedEvent.dailyBonus, Config.LimitedEvent.icon), false)
+	local e = Config.LimitedEvent
+	notify(player, string.format("%s daily bonus: +%d %s %s!", e.name, e.dailyBonus, e.icon, e.currency), false)
 	return true
 end
 
@@ -125,12 +127,12 @@ function LimitedEventService.Buy(player: Player, itemId: string): (boolean, stri
 		return false, "You already got the max of " .. item.name
 	end
 	if profile.limited.candy < item.price then
-		return false, string.format("You need %d %s Candy", item.price, Config.LimitedEvent.icon)
+		return false, string.format("You need %d %s %s", item.price, Config.LimitedEvent.icon, Config.LimitedEvent.currency)
 	end
 
 	local got: string? = nil
 	if item.kind == "unit" then
-		local name = SpaceService.GrantUnit(player, false, nil, "Haunted")
+		local name = SpaceService.GrantUnit(player, false, nil, Config.LimitedEvent.mutation)
 		if not name then
 			return false, "No free podium! Sell or rebirth to make room"
 		end
@@ -286,7 +288,7 @@ function LimitedEventService.Settle(player: Player, top: { Row }?): number?
 		local def = Config.GetCosmetic(e.leaderboard.reward)
 		if def and CosmeticService.Grant(player, def.id) then
 			notify(player, string.format("You were #%d in %s! You got the LIMITED %s!", rank, e.name, def.name), false)
-			AnnounceService.Summon(string.format("%s was #%d candy hunter and got the LIMITED %s!", player.DisplayName, rank,
+			AnnounceService.Summon(string.format("%s was #%d in %s and got the LIMITED %s!", player.DisplayName, rank, e.name,
 				AnnounceService.Paint(def.name, e.color)))
 		end
 	end
@@ -334,12 +336,56 @@ local function pumpkin(parent: Instance, at: Vector3, size: number)
 	model.Parent = parent
 end
 
+--[[ Yıldız kristali (Starfall): kaidenin üstünde süzülen parlak elmas + ışıltı. ]]
+local function starCrystal(parent: Instance, at: Vector3, size: number)
+	local model = Instance.new("Model")
+	model.Name = "StarCrystal"
+	local e = Config.LimitedEvent
+	local function part(name: string, s: Vector3, cf: CFrame, color: Color3, neon: boolean?): BasePart
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = s
+		p.CFrame = cf
+		p.Color = color
+		p.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Parent = model
+		return p
+	end
+	part("Pedestal", Vector3.new(size * 0.9, size * 0.3, size * 0.9), CFrame.new(at + Vector3.new(0, size * 0.15, 0)), Color3.fromRGB(40, 44, 70))
+	local center = at + Vector3.new(0, size * 1.3, 0)
+	local core = part("Crystal", Vector3.new(size * 0.7, size * 0.7, size * 0.7), CFrame.new(center) * CFrame.Angles(math.rad(45), 0, math.rad(45)), e.color, true)
+	part("Crystal2", Vector3.new(size * 0.5, size * 0.5, size * 0.5), CFrame.new(center) * CFrame.Angles(0, math.rad(45), math.rad(45)), e.color2, true)
+	local light = Instance.new("PointLight")
+	light.Color = e.color
+	light.Range = size * 4
+	light.Brightness = 1.4
+	light.Parent = core
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkle.Color = ColorSequence.new(Color3.new(1, 1, 1), e.color)
+	sparkle.LightEmission = 1
+	sparkle.Size = NumberSequence.new(0.4, 0)
+	sparkle.Lifetime = NumberRange.new(1, 1.8)
+	sparkle.Speed = NumberRange.new(1, 3)
+	sparkle.SpreadAngle = Vector2.new(180, 180)
+	sparkle.Rate = 6
+	sparkle.Parent = core
+	model.PrimaryPart = core
+	model.Parent = parent
+end
+
 local function buildDecor()
-	if workspace:FindFirstChild("SpookyDecor") then
+	if workspace:FindFirstChild("EventDecor") then
 		return
 	end
 	local folder = Instance.new("Folder")
-	folder.Name = "SpookyDecor"
+	folder.Name = "EventDecor"
+	local style = Config.LimitedEvent.decor
 	local s = Config.Space
 	local deck = SpaceField.DeckCenter()
 	local spots = {}
@@ -358,13 +404,18 @@ local function buildDecor()
 	for i, p in spots do
 		local hit = workspace:Raycast(p + Vector3.new(0, 30, 0), Vector3.new(0, -80, 0), params)
 		local ground = if hit then hit.Position else p
-		pumpkin(folder, ground, if i <= 4 then 4 else 3)
+		local size = if i <= 4 then 4 else 3
+		if style == "pumpkins" then
+			pumpkin(folder, ground, size)
+		else
+			starCrystal(folder, ground, size)
+		end
 	end
 	folder.Parent = workspace
 end
 
 local function clearDecor()
-	local old = workspace:FindFirstChild("SpookyDecor")
+	local old = workspace:FindFirstChild("EventDecor")
 	if old then
 		old:Destroy()
 	end

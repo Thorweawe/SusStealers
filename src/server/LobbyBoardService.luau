@@ -163,9 +163,9 @@ end
 function LobbyBoardService.EventHeadline(now: number): (string?, string?, string?)
 	local e = Config.LimitedEvent
 	if now < e.startsAt and e.startsAt - now <= 7 * 86400 then
-		return "🎃 " .. e.name, "IN " .. clock(e.startsAt - now), "LIMITED EVENT · CANDY SHOP"
+		return e.emoji .. " " .. e.name, "IN " .. clock(e.startsAt - now), e.text.teaser
 	elseif Config.IsLimitedEventActive(now) then
-		return "🎃 " .. e.name, "ENDS " .. clock(e.endsAt - now), "HAUNTED CREW · LIMITED HATS"
+		return e.emoji .. " " .. e.name, "ENDS " .. clock(e.endsAt - now), e.text.live
 	end
 	return nil, nil, nil
 end

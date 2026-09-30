@@ -5,7 +5,8 @@
 
 	  Üst: etkinlik adı, geri sayım (başlamadıysa "STARTS IN", sürüyorsa
 	       "ENDS IN" — kıtlık hissi), şeker bakiyesi
-	  Orta: şeker nasıl kazanılır + HAUNTED ihtimali (şeffaflık)
+	  Orta: etkinlik parası nasıl kazanılır + etkinlik mutasyonu ihtimali (şeffaflık)
+	  Metinler, renkler, simge Config.LimitedEvent'ten (temadan bağımsız).
 	  Alt: dükkân — beş ürün, ucuzdan pahalıya (hedef merdiveni); fiyat,
 	       alınan / en fazla, BUY düğmesi. Kozmetiklerde dönen 3B önizleme.
 
@@ -82,7 +83,7 @@ function EventPanel.DecorateIcon(slot: Frame)
 	vp.LightColor = Color3.new(1, 1, 1)
 	vp.ZIndex = slot.ZIndex + 1
 	vp.Parent = slot
-	local model = CosmeticModel.BuildHat("PumpkinHead", true)
+	local model = CosmeticModel.BuildHat(Config.LimitedEvent.railHat, true)
 	if not model then
 		return
 	end
@@ -105,7 +106,7 @@ function EventPanel.Create(screen: Instance): Panel
 	root.Visible = false
 	root.ZIndex = Z
 	local driver = FancyKit.driver(root)
-	local shell = FancyKit.shell(root, "🎃 " .. e.name, { e.color, e.color2, Color3.fromRGB(255, 90, 60) }, HEADER, Z, driver, 44)
+	local shell = FancyKit.shell(root, e.emoji .. " " .. e.name, { e.color, e.color2, e.color:Lerp(Color3.new(1, 1, 1), 0.3) }, HEADER, Z, driver, 44)
 	local body = shell.body
 
 	-- ─── Üst: geri sayım + şeker ────────────────────────────────────────
@@ -120,7 +121,7 @@ function EventPanel.Create(screen: Instance): Panel
 	countText.Size = UDim2.new(0.55, -16, 0, 44)
 	countText.TextXAlignment = Enum.TextXAlignment.Left
 	CardKit.fit(countText, 36, 18)
-	local candyTitle = CardKit.bold(top, "YOUR CANDY", 18, Color3.fromRGB(255, 225, 180), Z + 4, 2)
+	local candyTitle = CardKit.bold(top, "YOUR " .. string.upper(e.currency), 18, Color3.fromRGB(255, 225, 180), Z + 4, 2)
 	candyTitle.AnchorPoint = Vector2.new(1, 0)
 	candyTitle.Position = UDim2.new(1, -16, 0, 10)
 	candyTitle.Size = UDim2.new(0.45, -16, 0, 22)
@@ -134,13 +135,14 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- ─── Nasıl kazanılır ────────────────────────────────────────────────
 	local how = CardKit.bold(body, string.format(
-		"Steal crewmates to earn %s (rarer = more)  ·  HAUNTED crewmates give %dx  ·  +%d every day",
-		e.icon, e.hauntedCandyMul, e.dailyBonus), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
+		"Steal crewmates to earn %s %s (rarer = more)  ·  %s crewmates give %dx  ·  +%d every day",
+		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul, e.dailyBonus), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
 	how.Position = UDim2.fromOffset(12, 108)
 	how.Size = UDim2.new(1, -24, 0, 20)
 	CardKit.fit(how, 15, 10)
-	local odds = CardKit.bold(body, string.format("During the event %d%% of planet crewmates spawn HAUNTED (x%d income)",
-		math.floor(e.hauntedChance * 100 + 0.5), (Config.GetMutation("Haunted") :: any).incomeMul), 14,
+	local eventMutation = Config.GetMutation(e.mutation)
+	local odds = CardKit.bold(body, string.format("During the event %d%% of planet crewmates spawn %s (x%d income)",
+		math.floor(e.mutationChance * 100 + 0.5), string.upper(e.mutation), if eventMutation then eventMutation.incomeMul else 1), 14,
 		Color3.fromRGB(170, 255, 210), Z + 2, 2)
 	odds.Position = UDim2.fromOffset(12, 128)
 	odds.Size = UDim2.new(1, -24, 0, 18)
@@ -205,7 +207,7 @@ function EventPanel.Create(screen: Instance): Panel
 				table.insert(spinners, model)
 			end
 		else
-			local emoji = if item.kind == "unit" then "👻" elseif item.kind == "superspin" then "🎡" else "✨"
+			local emoji = if item.kind == "unit" then e.emoji elseif item.kind == "superspin" then "🎡" else e.icon
 			local icon = CardKit.bold(iconSlot, emoji, 44, Color3.new(1, 1, 1), Z + 5, 0)
 			icon.Size = UDim2.fromScale(1, 1)
 		end
@@ -243,9 +245,9 @@ function EventPanel.Create(screen: Instance): Panel
 	board.BackgroundTransparency = 1
 	board.ZIndex = Z + 2
 	board.Parent = list
-	local boardCard = CardKit.hero(board, Color3.fromRGB(200, 60, 80), UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.85, 0.2), 360)
+	local boardCard = CardKit.hero(board, e.color2, UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.85, 0.2), 360)
 	local rewardDef = Config.GetCosmetic(e.leaderboard.reward)
-	local boardTitle = CardKit.bold(boardCard, "🏆 TOP CANDY HUNTERS", 24, CardKit.YELLOW, Z + 4, 3)
+	local boardTitle = CardKit.bold(boardCard, "🏆 " .. e.text.hunters, 24, CardKit.YELLOW, Z + 4, 3)
 	boardTitle.Position = UDim2.fromOffset(14, 8)
 	boardTitle.Size = UDim2.new(1, -28, 0, 28)
 	boardTitle.TextXAlignment = Enum.TextXAlignment.Left

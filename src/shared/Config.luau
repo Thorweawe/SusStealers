@@ -1873,6 +1873,7 @@ end
 	Karakter sonra da kaidede kalıyor: GetMutation onu tanımaya devam ediyor.
 ]]
 Config.EventMutations = {
+	{ id = "Starborn", name = "STARBORN", chance = 0, incomeMul = 6, tint = Color3.fromRGB(150, 215, 255) },
 	{ id = "Haunted", name = "HAUNTED", chance = 0, incomeMul = 6, tint = Color3.fromRGB(170, 255, 210) },
 } :: { MutationDef }
 
@@ -2787,6 +2788,14 @@ Config.Cosmetics = {
 ]]
 export type LimitedCosmeticDef = CosmeticDef & { limited: string }
 Config.LimitedCosmetics = {
+	-- STARFALL WEEK (2-9 Eki 2026)
+	{ id = "StarVisor",     name = "Star Visor",      kind = "hat",   price = 0, rarity = "Legendary", color = Color3.fromRGB(120, 210, 255), limited = "Starfall2026" },
+	{ id = "CometCrown",    name = "Comet Crown",     kind = "hat",   price = 0, rarity = "Mythic",    color = Color3.fromRGB(255, 210, 90),  limited = "Starfall2026" },
+	{ id = "StarfallTrail", name = "Starfall Trail",  kind = "trail", price = 0, rarity = "Legendary", color = Color3.fromRGB(170, 220, 255), limited = "Starfall2026",
+	  colors = { Color3.new(1, 1, 1), Color3.fromRGB(120, 210, 255), Color3.fromRGB(150, 90, 255) } },
+	-- Yalnızca ödül: Starfall sıralamasının ilk 10'u
+	{ id = "GalaxyHalo",    name = "Galaxy Halo",     kind = "hat",   price = 0, rarity = "Secret",    color = Color3.fromRGB(190, 140, 255), limited = "Starfall2026" },
+	-- SPOOKY SPACE (Cadılar Bayramı, taslak: Config.SpookyEventDraft)
 	{ id = "PumpkinHead", name = "Pumpkin Head",  kind = "hat",   price = 0, rarity = "Legendary", color = Color3.fromRGB(245, 130, 30), limited = "Spooky2026" },
 	{ id = "WitchHat",    name = "Witch Hat",     kind = "hat",   price = 0, rarity = "Mythic",    color = Color3.fromRGB(120, 60, 190), limited = "Spooky2026" },
 	{ id = "GhostTrail",  name = "Ghost Trail",   kind = "trail", price = 0, rarity = "Legendary", color = Color3.fromRGB(190, 255, 220), limited = "Spooky2026",
@@ -2825,46 +2834,117 @@ end
 	Bir haftalık, tarihe bağlı etkinlik. Kurallar (oyunun 11 kuralından):
 	  KITLIK / FOMO   — dükkân yalnızca etkinlik süresince açık; ödüller
 	                    sonra bir daha satılmıyor, sahibinde kalıyor
-	  DEĞİŞKEN ÖDÜL   — etkinlikte gezegenlerde HAUNTED mutasyonlu mürettebat
-	                    (hauntedChance), çalınca daha çok şeker
+	  DEĞİŞKEN ÖDÜL   — etkinlikte gezegenlerde etkinlik mutasyonlu mürettebat
+	                    (mutationChance), çalınca daha çok etkinlik parası
 	  HEDEF MERDİVENİ — dükkân fiyatları ucuzdan (herkes) pahalıya (sıkı
-	                    oynayan / geç oyun oyuncusu); şeker nadirlikle artıyor
-	  GERİ DÖNÜŞ      — her gün ilk girişte şeker (dailyBonus)
-	  ŞEFFAFLIK       — Haunted ihtimali dükkânda yazıyor
+	                    oynayan / geç oyun oyuncusu); para nadirlikle artıyor
+	  GERİ DÖNÜŞ      — her gün ilk girişte para (dailyBonus)
+	  ŞEFFAFLIK       — etkinlik mutasyonu ihtimali dükkânda yazıyor
 	  SOSYAL KANIT    — sınırlı kozmetik alınınca sohbete duyuru
-	Zamanlar UTC saniye. Yeni etkinlik = yeni `id` (eski şeker sıfırlanıyor).
+	Zamanlar UTC saniye. Yeni etkinlik = yeni `id` (eski para sıfırlanıyor).
+
+	TEMADAN BAĞIMSIZ (2026-09-30): ad, simge, para, mutasyon, süs, metinler
+	buradan. Yeni etkinlik = bu tabloyu değiştir (ör. Config.SpookyEventDraft'ı
+	buraya koy) + Config.LimitedCosmetics / EventMutations / CosmeticModel.
+	İç adlar ("candy", EventCandy niteliği, profile.limited.candy) etkinlik
+	parasının genel adı; oyuncuya `currency` görünüyor.
+]]
+export type LimitedEventDef = {
+	id: string, name: string, emoji: string,
+	startsAt: number, endsAt: number,
+	currency: string, icon: string,
+	color: Color3, color2: Color3,
+	mutation: string, mutationChance: number,
+	candyByRarity: { [string]: number },
+	mutationCandyMul: number, eventMutationMul: number, dailyBonus: number,
+	decor: string,           -- "stars" | "pumpkins"
+	railHat: string,         -- sol raydaki EVENT düğmesinde dönen şapka
+	text: { teaser: string, live: string, hunters: string },
+	leaderboard: { rows: number, rewardTop: number, reward: string },
+	shop: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
+}
+
+--[[
+	🌠 STARFALL WEEK — 2 Eki 2026 Cuma 19:00 UTC (22:00 TR, 15:00 ABD doğu)
+	→ 9 Eki 19:00 UTC. Yıldız yağmuru: para STARDUST, etkinlik mutasyonu
+	STARBORN (x6 gelir), sınırlı Star Visor / Starfall Trail / Comet Crown,
+	ilk 10'a Galaxy Halo. Kaba hesap: günde ~1 saat oynayan ~150/gün → hafta
+	~1.000; Comet Crown sıkı oynayana / geç oyuna hedef.
 ]]
 Config.LimitedEvent = {
+	id = "Starfall2026",
+	name = "STARFALL WEEK",
+	emoji = "🌠",
+	startsAt = 1790967600,
+	endsAt = 1791572400,
+	currency = "Stardust",
+	icon = "✨",
+	color = Color3.fromRGB(90, 170, 255),
+	color2 = Color3.fromRGB(120, 70, 220),
+	mutation = "Starborn",
+	mutationChance = 0.08,
+	candyByRarity = {
+		Common = 1, Uncommon = 2, Rare = 4, Epic = 7, Legendary = 12,
+		Mythic = 20, Secret = 35, Celestial = 50,
+	},
+	mutationCandyMul = 2,   -- başka mutasyonlu çalınca
+	eventMutationMul = 3,   -- STARBORN çalınca (mutasyon çarpanının yerine)
+	dailyBonus = 25,
+	decor = "stars",
+	railHat = "CometCrown",
+	text = {
+		teaser = "LIMITED EVENT · STARDUST SHOP",
+		live = "STARBORN CREW · LIMITED HATS",
+		hunters = "TOP STARDUST COLLECTORS",
+	},
+	leaderboard = { rows = 10, rewardTop = 10, reward = "GalaxyHalo" },
+	shop = {
+		{ id = "StarbornCrew", name = "Starborn Crewmate", kind = "unit", price = 100, limit = 5,
+		  desc = "A STARBORN crewmate from your best planet" },
+		{ id = "StarSpin", name = "Starfall Super Spin", kind = "superspin", price = 180, limit = 3,
+		  desc = "A SUPER SPIN on the lucky wheel" },
+		{ id = "StarVisor", name = "Star Visor", kind = "cosmetic", cosmetic = "StarVisor", price = 350, limit = 1,
+		  desc = "LIMITED hat, never sold again" },
+		{ id = "StarfallTrail", name = "Starfall Trail", kind = "cosmetic", cosmetic = "StarfallTrail", price = 600, limit = 1,
+		  desc = "LIMITED trail, never sold again" },
+		{ id = "CometCrown", name = "Comet Crown", kind = "cosmetic", cosmetic = "CometCrown", price = 1100, limit = 1,
+		  desc = "LIMITED crown for true star hunters" },
+	},
+} :: LimitedEventDef
+
+--[[
+	🎃 CADILAR BAYRAMI TASLAĞI (2026-09-30): hazır ama KAPALI. Ekim sonunda
+	Config.LimitedEvent'i bununla değiştirmek yeter (tarihler taslak: 23 Eki
+	→ 1 Kas 19:00 UTC). Kozmetikler (Pumpkin Head, Witch Hat, Ghost Trail,
+	Candy Crown), HAUNTED mutasyonu ve balkabağı süsü zaten oyunda.
+]]
+Config.SpookyEventDraft = {
 	id = "Spooky2026",
 	name = "SPOOKY SPACE",
-	startsAt = 1790967600, -- 2 Eki 2026 Cuma 19:00 UTC (22:00 TR, 15:00 ABD doğu)
-	endsAt = 1791572400,   -- 9 Eki 2026 Cuma 19:00 UTC
+	emoji = "🎃",
+	startsAt = 1792782000,
+	endsAt = 1793559600,
 	currency = "Candy",
 	icon = "🍬",
 	color = Color3.fromRGB(255, 140, 40),
 	color2 = Color3.fromRGB(130, 60, 200),
-	-- Etkinlikte gezegen doğuşunda (başka mutasyon yoksa) HAUNTED ihtimali
-	hauntedChance = 0.08,
-	-- Soygun başına şeker: çalınan karakterin nadirliğine göre
+	mutation = "Haunted",
+	mutationChance = 0.08,
 	candyByRarity = {
 		Common = 1, Uncommon = 2, Rare = 4, Epic = 7, Legendary = 12,
 		Mythic = 20, Secret = 35, Celestial = 50,
-	} :: { [string]: number },
-	mutationCandyMul = 2,  -- mutasyonlu çalınca
-	hauntedCandyMul = 3,   -- HAUNTED çalınca (mutasyon çarpanının yerine)
-	dailyBonus = 25,       -- etkinlikte her gün ilk girişte
-	--[[
-		Geç oyun / rekabet: bütün sunucularda etkinlikte kazanılan toplam şeker
-		sıralaması (harcanan düşmüyor). Etkinlik bitince ilk `rewardTop` kişi
-		yalnızca ödül olan sınırlı kozmetiği alıyor (girişte, bir kez).
-	]]
+	},
+	mutationCandyMul = 2,
+	eventMutationMul = 3,
+	dailyBonus = 25,
+	decor = "pumpkins",
+	railHat = "PumpkinHead",
+	text = {
+		teaser = "LIMITED EVENT · CANDY SHOP",
+		live = "HAUNTED CREW · LIMITED HATS",
+		hunters = "TOP CANDY HUNTERS",
+	},
 	leaderboard = { rows = 10, rewardTop = 10, reward = "CandyCrown" },
-	--[[
-		Dükkân. kind: unit (en iyi gezegeninin havuzundan HAUNTED karakter,
-		kaideye) | superspin | cosmetic. limit = etkinlik başına en fazla.
-		Kaba hesap: günde ~1 saat oynayan ~150 şeker/gün → hafta ~1.000;
-		Witch Hat sıkı oynayana / geç oyuna hedef.
-	]]
 	shop = {
 		{ id = "HauntedCrew", name = "Haunted Crewmate", kind = "unit", price = 100, limit = 5,
 		  desc = "A HAUNTED crewmate from your best planet" },
@@ -2876,8 +2956,8 @@ Config.LimitedEvent = {
 		  desc = "LIMITED trail, never sold again" },
 		{ id = "WitchHat", name = "Witch Hat", kind = "cosmetic", cosmetic = "WitchHat", price = 1100, limit = 1,
 		  desc = "LIMITED hat for the true candy hunters" },
-	} :: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
-}
+	},
+} :: LimitedEventDef
 
 --[[ Etkinlik şu an sürüyor mu (sunucu ve istemci aynı saatle). ]]
 function Config.IsLimitedEventActive(now: number): boolean
@@ -2902,8 +2982,8 @@ function Config.GetHeistCandy(unitId: string, mutationId: string?, now: number):
 	local e = Config.LimitedEvent
 	local def = Config.GetUnit(unitId)
 	local base = if def then (e.candyByRarity[def.rarity] or 1) else 1
-	if mutationId == "Haunted" then
-		return base * e.hauntedCandyMul
+	if mutationId == e.mutation then
+		return base * e.eventMutationMul
 	elseif mutationId and mutationId ~= "" then
 		return base * e.mutationCandyMul
 	end

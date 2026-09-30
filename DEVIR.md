@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (61) — Yusuf / Claude (Config, LimitedEventService, CosmeticModel)
+
+- **Bu Cuma'nın etkinliği değişti: 🌠 STARFALL WEEK** (2-9 Eki). Para Stardust ✨, etkinlik mutasyonu **STARBORN** (x6), sınırlı Star Visor / Starfall Trail / Comet Crown, ilk 10'a Galaxy Halo, süs yıldız kristalleri.
+- **Cadılar Bayramı ertelendi, hazır bekliyor**: `Config.SpookyEventDraft` (23 Eki → 1 Kas taslak). Ekim sonunda `Config.LimitedEvent`'i onunla değiştirmek yeter; Haunted, balkabağı kozmetikleri ve süs oyunda.
+- Etkinlik sistemi artık temadan bağımsız (`LimitedEventDef`: emoji, currency, mutation, decor, railHat, text). Test hem aktif etkinliği hem taslağı denetliyor.
+- Not: "Top Crew" kürsü testi canlı genel sıralamaya baktığı için gerçek bir oyuncu birinciyken düşebiliyor (bu koşuda öyle oldu).
+
+---
+
 ## 2026-09-30 (60) — Yusuf / Claude (Batur'un şeridine de yazıldı: sunucu servisleri, Config, DataService, Net)
 
 Studio'ya aktarıldı, **184/184 test temiz** (6.217 kontrol). Son birkaç günün Yusuf tarafı işleri toplu (DEVIR'e yazılmamıştı):

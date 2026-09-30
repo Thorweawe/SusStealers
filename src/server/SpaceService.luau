@@ -531,10 +531,10 @@ local function rollSpot(spot: Spot)
 		end
 	end
 	local mutationId = if mutation then mutation.id else nil
-	-- Sınırlı etkinlik (Config.LimitedEvent): mutasyonsuz doğuşların bir kısmı HAUNTED
+	-- Sınırlı etkinlik (Config.LimitedEvent): mutasyonsuz doğuşların bir kısmı etkinlik mutasyonlu
 	if not mutationId and Config.IsLimitedEventActive(os.time())
-		and rng:NextNumber() < Config.LimitedEvent.hauntedChance then
-		mutationId = "Haunted"
+		and rng:NextNumber() < Config.LimitedEvent.mutationChance then
+		mutationId = Config.LimitedEvent.mutation
 	end
 	placeSpot(spot, unit.id, mutationId, crewFolder :: Folder)
 
