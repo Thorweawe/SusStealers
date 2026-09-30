@@ -17,6 +17,8 @@
 	EventBought ("id:n,id:n").
 ]]
 
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -53,7 +55,7 @@ end
 --[[ Profilin sayacı bu etkinliğin mi; değilse sıfırla. ]]
 local function roll(profile: any)
 	if profile.limited.id ~= Config.LimitedEvent.id then
-		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0 }
+		profile.limited = { id = Config.LimitedEvent.id, candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0 }
 	end
 end
 
@@ -69,6 +71,7 @@ function LimitedEventService.Publish(player: Player)
 	end
 	table.sort(parts)
 	player:SetAttribute("EventCandy", profile.limited.candy)
+	player:SetAttribute("EventEarned", profile.limited.earned)
 	player:SetAttribute("EventBought", table.concat(parts, ","))
 end
 
@@ -158,6 +161,136 @@ end
 --[[ Testler için saati sabitler (nil = gerçek saat). ]]
 function LimitedEventService._SetNow(t: number?)
 	nowOverride = t
+end
+
+-- ─── Sıralama ve ilk 10 ödülü (Config.LimitedEvent.leaderboard) ─────────────
+
+type Row = { n: string, v: number, u: number }
+local store: OrderedDataStore? = nil
+local storeFor = ""
+local finalTop: { Row }? = nil
+
+local function boardStore(): OrderedDataStore?
+	local id = Config.LimitedEvent.id
+	if storeFor ~= id then
+		storeFor = id
+		finalTop = nil
+		local ok, result = pcall(function()
+			return DataStoreService:GetOrderedDataStore("LimitedEvent_" .. id)
+		end)
+		store = if ok then result else nil
+	end
+	return store
+end
+
+--[[ Oyuncunun etkinlik toplamını sıralamaya yazar. ]]
+local function writeBoard(player: Player)
+	local profile = DataService.Get(player)
+	if not profile or profile.limited.id ~= Config.LimitedEvent.id or profile.limited.earned <= 0 then
+		return
+	end
+	local s = boardStore()
+	if not (s and DataService.IsAvailable()) then
+		return
+	end
+	local value = math.floor(profile.limited.earned)
+	pcall(function()
+		(s :: OrderedDataStore):SetAsync(tostring(player.UserId), value)
+	end)
+end
+
+--[[ İlk N (bütün sunucular). DataStore yoksa nil. ]]
+local function readBoard(): { Row }?
+	local s = boardStore()
+	if not (s and DataService.IsAvailable()) then
+		return nil
+	end
+	local rows = Config.LimitedEvent.leaderboard.rows
+	local ok, page = pcall(function()
+		return (s :: OrderedDataStore):GetSortedAsync(false, rows + 5):GetCurrentPage()
+	end)
+	if not ok or typeof(page) ~= "table" then
+		return nil
+	end
+	local out: { Row } = {}
+	for _, entry in page do
+		local userId = tonumber(entry.key)
+		if userId and not Config.LeaderboardHidden[userId] and entry.value > 0 and #out < rows then
+			local online = Players:GetPlayerByUserId(userId)
+			local name = if online then online.DisplayName else nil
+			if not name then
+				local okName, result = pcall(function()
+					return Players:GetNameFromUserIdAsync(userId)
+				end)
+				name = if okName and typeof(result) == "string" then result else "Crewmate"
+			end
+			table.insert(out, { n = name :: string, v = entry.value, u = userId })
+		end
+	end
+	return out
+end
+
+--[[ Yedek: bu sunucudaki oyuncular (Studio / DataStore kapalı). ]]
+local function localBoard(): { Row }
+	local out: { Row } = {}
+	for _, player in Players:GetPlayers() do
+		local profile = DataService.Get(player)
+		if profile and profile.limited.id == Config.LimitedEvent.id and profile.limited.earned > 0
+			and not Config.LeaderboardHidden[player.UserId] then
+			table.insert(out, { n = player.DisplayName, v = profile.limited.earned, u = player.UserId })
+		end
+	end
+	table.sort(out, function(a, b)
+		return a.v > b.v
+	end)
+	while #out > Config.LimitedEvent.leaderboard.rows do
+		table.remove(out)
+	end
+	return out
+end
+
+local function publishBoard()
+	local rows = readBoard()
+	workspace:SetAttribute("EventTop", HttpService:JSONEncode(rows or localBoard()))
+end
+
+--[[
+	Etkinlik bitince ödül: ilk `rewardTop` sıradaysa yalnızca ödül olan
+	sınırlı kozmetik. Bir kez (profile.limited.awarded). `top` testler için.
+	Döner: sıra (yoksa nil). DataStore'a ulaşılamazsa işaretlemiyor (sonra tekrar).
+]]
+function LimitedEventService.Settle(player: Player, top: { Row }?): number?
+	local e = Config.LimitedEvent
+	local profile = DataService.Get(player)
+	if not profile or now() < e.endsAt or profile.limited.id ~= e.id or (profile.limited.awarded or 0) ~= 0 then
+		return nil
+	end
+	local list = top or finalTop
+	if not list then
+		list = readBoard()
+		if not list then
+			return nil
+		end
+		finalTop = list
+	end
+	profile.limited.awarded = 1
+	DataService.RequestSave(player)
+	local rank: number? = nil
+	for i, row in list :: { Row } do
+		if row.u == player.UserId then
+			rank = i
+			break
+		end
+	end
+	if rank and rank <= e.leaderboard.rewardTop then
+		local def = Config.GetCosmetic(e.leaderboard.reward)
+		if def and CosmeticService.Grant(player, def.id) then
+			notify(player, string.format("You were #%d in %s! You got the LIMITED %s!", rank, e.name, def.name), false)
+			AnnounceService.Summon(string.format("%s was #%d candy hunter and got the LIMITED %s!", player.DisplayName, rank,
+				AnnounceService.Paint(def.name, e.color)))
+		end
+	end
+	return rank
 end
 
 -- ─── Süs: balkabakları ──────────────────────────────────────────────────────
@@ -259,11 +392,13 @@ function LimitedEventService.Start()
 		notify(player, message, not ok)
 	end)
 
+	workspace:SetAttribute("EventTop", "[]")
 	local function onPlayer(player: Player)
 		task.spawn(function()
 			if DataService.WaitForProfile(player, 30) and player.Parent then
 				LimitedEventService.Publish(player)
 				LimitedEventService.Daily(player)
+				LimitedEventService.Settle(player)
 			end
 		end)
 	end
@@ -273,12 +408,21 @@ function LimitedEventService.Start()
 	Players.PlayerAdded:Connect(onPlayer)
 	Players.PlayerRemoving:Connect(function(player)
 		lastBuy[player] = nil
+		if Config.IsLimitedEventActive(now()) then
+			task.spawn(writeBoard, player)
+		end
 	end)
 
-	-- Etkinlik başlayınca / bitince süs; gün dönünce oyundakilere bonus
+	--[[
+		Etkinlik başlayınca / bitince süs; gün dönünce oyundakilere bonus;
+		etkinlikte dakikada bir sıralamaya yazıp ilk 10'u yayınla; bittikten
+		sonra oyundakilerin ödülüne bak (DataStore o an ulaşılamadıysa).
+	]]
 	task.spawn(function()
 		local wasActive: boolean? = nil
+		local tickNo = 0
 		while true do
+			tickNo += 1
 			local active = Config.IsLimitedEventActive(now())
 			if active ~= wasActive then
 				wasActive = active
@@ -291,6 +435,19 @@ function LimitedEventService.Start()
 			if active then
 				for _, player in Players:GetPlayers() do
 					LimitedEventService.Daily(player)
+				end
+				if tickNo % 2 == 0 then
+					for _, player in Players:GetPlayers() do
+						writeBoard(player)
+					end
+					publishBoard()
+				end
+			elseif now() >= Config.LimitedEvent.endsAt and tickNo % 4 == 0 then
+				for _, player in Players:GetPlayers() do
+					LimitedEventService.Settle(player)
+				end
+				if tickNo % 10 == 0 then
+					publishBoard()
 				end
 			end
 			task.wait(30)

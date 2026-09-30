@@ -178,6 +178,20 @@ local function pieces(id: string): { Piece }
 		for _, x in { -0.14, 0.14 } do
 			table.insert(list, { name = "Tooth", size = Vector3.new(0.1, 0.1, 0.1), cf = CFrame.new(x, 0.4, -0.66), color = pumpkin })
 		end
+	elseif id == "CandyCrown" then
+		-- SINIRLI ÖDÜL (Spooky Space ilk 10): şeker çubuğu dikenli taç, lolipop taşlı
+		local red = Color3.fromRGB(235, 50, 70)
+		table.insert(list, vcyl("Base", 0.18, 0.36, 1.05, WHITE))
+		table.insert(list, vcyl("Stripe", 0.18, 0.12, 1.08, red))
+		for i = 0, 5 do
+			local a = i / 6 * math.pi * 2
+			local p = Vector3.new(math.cos(a) * 0.46, 0, math.sin(a) * 0.46)
+			for k = 0, 2 do
+				table.insert(list, { name = "Cane", size = Vector3.new(0.14, 0.16, 0.14), cf = CFrame.new(p + Vector3.new(0, 0.42 + k * 0.15, 0)), color = if k % 2 == 0 then red else WHITE })
+			end
+			table.insert(list, { name = "Lolly", size = Vector3.new(0.2, 0.2, 0.08), cf = CFrame.new(p * 1.05 + Vector3.new(0, 0.9, 0)) * CFrame.Angles(0, -a + math.pi / 2, 0),
+				color = if i % 2 == 0 then Color3.fromRGB(255, 140, 40) else Color3.fromRGB(170, 90, 255), mesh = "Sphere", neon = true })
+		end
 	elseif id == "WitchHat" then
 		-- SINIRLI (Spooky Space): geniş kenarlı, eğik uçlu mor cadı şapkası, altın tokalı
 		local violet = Color3.fromRGB(90, 40, 150)

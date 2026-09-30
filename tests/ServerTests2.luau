@@ -2136,6 +2136,17 @@ function ServerTests2.Register(kit: Kit)
 				end
 			end
 		end
+		for _, def in Config.LimitedCosmetics do
+			ok(def.id .. " sınırlı listede etkinliğe bağlı", def.limited ~= "")
+			if def.kind == "hat" then
+				local model = CosmeticModel.BuildHat(def.id, true)
+				ok(def.id .. " (sınırlı) modeli", model ~= nil and model.PrimaryPart ~= nil)
+				if model then
+					model:Destroy()
+				end
+			end
+		end
+		ok("ödül kozmetiği tanımlı", Config.IsLimitedCosmetic(e.leaderboard.reward))
 		local haunted = Config.GetMutation("Haunted")
 		ok("HAUNTED tanınıyor", haunted ~= nil and haunted.incomeMul > 1)
 		local inRoll = false
@@ -2158,7 +2169,7 @@ function ServerTests2.Register(kit: Kit)
 		eq("HAUNTED soygun", Config.GetHeistCandy("RedCrew", "Haunted", os.time()), common * e.hauntedCandyMul)
 
 		-- Eski etkinliğin sayacı sıfırlanıyor
-		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999 }
+		p.limited = { id = "OldEvent", candy = 999, bought = { X = 1 }, lastDaily = 0, earned = 999, awarded = 0 }
 		LimitedEventService.Publish(ctx.player)
 		eq("yeni etkinlikte şeker sıfır", p.limited.candy, 0)
 		eq("nitelik", ctx.player:GetAttribute("EventCandy"), 0)
@@ -2194,6 +2205,26 @@ function ServerTests2.Register(kit: Kit)
 		end
 		ok("kaidede HAUNTED", placed)
 		clearPlot(ctx.plot)
+
+		-- Sıralama ödülü: etkinlik sürerken yok; bitince ilk 10'a sınırlı taç, bir kez
+		local reward = e.leaderboard.reward
+		p.cosmetics[reward] = nil
+		local top = { { n = "A", v = 900, u = 1 }, { n = "B", v = 800, u = 2 }, { n = "Me", v = 700, u = ctx.player.UserId } }
+		eq("sürerken ödül yok", LimitedEventService.Settle(ctx.player, top), nil)
+		e.startsAt, e.endsAt = os.time() - 7200, os.time() - 10
+		p.limited.awarded = 0
+		eq("bitince sıra", LimitedEventService.Settle(ctx.player, top), 3)
+		ok("sınırlı taç verildi", p.cosmetics[reward] == true)
+		eq("ikinci kez yok", LimitedEventService.Settle(ctx.player, top), nil)
+		p.cosmetics[reward] = nil
+		p.limited.awarded = 0
+		local far = {}
+		for i = 1, e.leaderboard.rewardTop do
+			table.insert(far, { n = "X" .. i, v = 1000 - i, u = i })
+		end
+		table.insert(far, { n = "Me", v = 1, u = ctx.player.UserId })
+		eq("ilk 10 dışında sıra", LimitedEventService.Settle(ctx.player, far), e.leaderboard.rewardTop + 1)
+		ok("ilk 10 dışına taç yok", p.cosmetics[reward] == nil)
 
 		-- Geri yükle
 		e.startsAt, e.endsAt = keepStart, keepEnd

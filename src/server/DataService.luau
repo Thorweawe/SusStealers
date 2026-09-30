@@ -171,7 +171,7 @@ export type Profile = {
 	--[[ Sınırlı etkinlik (LimitedEventService): hangi etkinliğin sayacı, şeker,
 	     dükkândan alınan adetler, günlük bonusun en son alındığı gün,
 	     etkinlikte toplam kazanılan şeker. Etkinlik değişince sıfırlanıyor. ]]
-	limited: { id: string, candy: number, bought: { [string]: number }, lastDaily: number, earned: number },
+	limited: { id: string, candy: number, bought: { [string]: number }, lastDaily: number, earned: number, awarded: number },
 }
 
 export type QuestEntry = {
@@ -285,7 +285,7 @@ local function newProfile(): Profile
 			autoDelete = {},
 		},
 		petsFound = {},
-		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0 },
+		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0 },
 	}
 end
 
@@ -703,7 +703,7 @@ local function sanitize(raw: any): Profile
 	local lim = (raw :: any).limited
 	if typeof(lim) == "table" and typeof(lim.id) == "string" then
 		profile.limited.id = lim.id
-		for _, key in { "candy", "lastDaily", "earned" } do
+		for _, key in { "candy", "lastDaily", "earned", "awarded" } do
 			local v = lim[key]
 			if typeof(v) == "number" and v == v and v >= 0 then
 				(profile.limited :: any)[key] = math.floor(v)

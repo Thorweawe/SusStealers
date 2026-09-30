@@ -1991,6 +1991,27 @@ end
 ]]
 
 --[[ Mutasyon çeker, çıkmazsa nil döner. ]]
+--[[
+	"Garantili mutasyon" (Robux ürünü LuckyRoll, çarkın Mutated dilimi)
+	ihtimalleri: RollMutation mutasyon çıkana kadar tekrarlanıyor
+	(SpaceService.GrantUnit), yani sıralı zarın mutasyon çıktığı hâle göre
+	oranı. Parayla alınan rastgele ödül: mağazada gösteriliyor (Roblox kuralı).
+]]
+function Config.GuaranteedMutationOdds(): { { id: string, name: string, percent: number } }
+	local raw = {}
+	local none = 1
+	for _, mutation in Config.Mutations do
+		table.insert(raw, { id = mutation.id, name = mutation.name, p = none * mutation.chance })
+		none *= (1 - mutation.chance)
+	end
+	local total = 1 - none
+	local out = {}
+	for _, r in raw do
+		table.insert(out, { id = r.id, name = r.name, percent = if total > 0 then r.p / total * 100 else 0 })
+	end
+	return out
+end
+
 function Config.RollMutation(rng: Random, luck: number?): MutationDef?
 	-- luck: sunucu şansı (Config.GetServerLuck); her mutasyonun şansı bu kat
 	local mul = math.max(1, luck or 1)
@@ -2768,6 +2789,8 @@ Config.LimitedCosmetics = {
 	{ id = "WitchHat",    name = "Witch Hat",     kind = "hat",   price = 0, rarity = "Mythic",    color = Color3.fromRGB(120, 60, 190), limited = "Spooky2026" },
 	{ id = "GhostTrail",  name = "Ghost Trail",   kind = "trail", price = 0, rarity = "Legendary", color = Color3.fromRGB(190, 255, 220), limited = "Spooky2026",
 	  colors = { Color3.fromRGB(230, 255, 240), Color3.fromRGB(150, 255, 200), Color3.fromRGB(120, 60, 190) } },
+	-- Yalnızca ödül: etkinlik sıralamasının ilk 10'u (dükkânda yok)
+	{ id = "CandyCrown",  name = "Candy Crown",   kind = "hat",   price = 0, rarity = "Secret",    color = Color3.fromRGB(235, 50, 70), limited = "Spooky2026" },
 } :: { LimitedCosmeticDef }
 
 function Config.GetCosmetic(id: string): CosmeticDef?
@@ -2828,6 +2851,12 @@ Config.LimitedEvent = {
 	mutationCandyMul = 2,  -- mutasyonlu çalınca
 	hauntedCandyMul = 3,   -- HAUNTED çalınca (mutasyon çarpanının yerine)
 	dailyBonus = 25,       -- etkinlikte her gün ilk girişte
+	--[[
+		Geç oyun / rekabet: bütün sunucularda etkinlikte kazanılan toplam şeker
+		sıralaması (harcanan düşmüyor). Etkinlik bitince ilk `rewardTop` kişi
+		yalnızca ödül olan sınırlı kozmetiği alıyor (girişte, bir kez).
+	]]
+	leaderboard = { rows = 10, rewardTop = 10, reward = "CandyCrown" },
 	--[[
 		Dükkân. kind: unit (en iyi gezegeninin havuzundan HAUNTED karakter,
 		kaideye) | superspin | cosmetic. limit = etkinlik başına en fazla.

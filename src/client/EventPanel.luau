@@ -236,7 +236,78 @@ function EventPanel.Create(screen: Instance): Panel
 		table.insert(rows, { item = item, buy = buy, count = count })
 	end
 
+	-- ─── Sıralama (listenin sonunda): ilk 10 etkinlik bitince sınırlı taç ──
+	local board = Instance.new("Frame")
+	board.LayoutOrder = 100
+	board.Size = UDim2.new(1, -10, 0, 118 + e.leaderboard.rows * 22)
+	board.BackgroundTransparency = 1
+	board.ZIndex = Z + 2
+	board.Parent = list
+	local boardCard = CardKit.hero(board, Color3.fromRGB(200, 60, 80), UDim2.fromScale(1, 1), Z + 2, UDim2.fromScale(0.85, 0.2), 360)
+	local rewardDef = Config.GetCosmetic(e.leaderboard.reward)
+	local boardTitle = CardKit.bold(boardCard, "🏆 TOP CANDY HUNTERS", 24, CardKit.YELLOW, Z + 4, 3)
+	boardTitle.Position = UDim2.fromOffset(14, 8)
+	boardTitle.Size = UDim2.new(1, -28, 0, 28)
+	boardTitle.TextXAlignment = Enum.TextXAlignment.Left
+	local boardSub = CardKit.bold(boardCard, string.format("Top %d when the event ends win the LIMITED %s (all servers)",
+		e.leaderboard.rewardTop, if rewardDef then rewardDef.name else "reward"), 14, Color3.new(1, 1, 1), Z + 4, 2)
+	boardSub.Position = UDim2.fromOffset(14, 38)
+	boardSub.Size = UDim2.new(1, -28, 0, 18)
+	boardSub.TextXAlignment = Enum.TextXAlignment.Left
+	CardKit.fit(boardSub, 14, 9)
+	local mine = CardKit.bold(boardCard, "", 15, Color3.fromRGB(170, 255, 210), Z + 4, 2)
+	mine.Position = UDim2.fromOffset(14, 58)
+	mine.Size = UDim2.new(1, -28, 0, 20)
+	mine.TextXAlignment = Enum.TextXAlignment.Left
+	local boardRows: { TextLabel } = {}
+	for r = 1, e.leaderboard.rows do
+		local l = CardKit.bold(boardCard, "", 16, Color3.new(1, 1, 1), Z + 4, 2)
+		l.Position = UDim2.fromOffset(14, 82 + (r - 1) * 22)
+		l.Size = UDim2.new(1, -28, 0, 22)
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.RichText = true
+		table.insert(boardRows, l)
+	end
+
+	local function redrawBoard()
+		local rows = {}
+		local raw = workspace:GetAttribute("EventTop")
+		if typeof(raw) == "string" then
+			local ok, decoded = pcall(function()
+				return game:GetService("HttpService"):JSONDecode(raw)
+			end)
+			if ok and typeof(decoded) == "table" then
+				rows = decoded
+			end
+		end
+		local myRank: number? = nil
+		for i, label in boardRows do
+			local row = rows[i]
+			if typeof(row) == "table" then
+				local isMe = row.u == player.UserId
+				if isMe then
+					myRank = i
+				end
+				local medal = if i == 1 then "🥇" elseif i == 2 then "🥈" elseif i == 3 then "🥉" else tostring(i) .. "."
+				label.Text = string.format('%s %s<font color="#FFE13C">  %s %s</font>', medal,
+					if isMe then "<b>" .. tostring(row.n) .. " (you)</b>" else tostring(row.n), tostring(row.v), e.icon)
+			else
+				label.Text = if i == 1 then "No hunters yet. Be the first!" else ""
+			end
+		end
+		local earned = player:GetAttribute("EventEarned")
+		earned = if typeof(earned) == "number" then earned else 0
+		mine.Text = string.format("You earned %d %s this event%s", earned, e.icon,
+			if myRank then string.format("  ·  you are #%d!", myRank) else "")
+	end
+	workspace:GetAttributeChangedSignal("EventTop"):Connect(function()
+		if root.Visible then
+			redrawBoard()
+		end
+	end)
+
 	local function redraw()
+		redrawBoard()
 		local now = workspace:GetServerTimeNow()
 		local active = Config.IsLimitedEventActive(now)
 		if now < e.startsAt then

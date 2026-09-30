@@ -894,11 +894,29 @@ function ShopPanel.Create(screen: ScreenGui): Panel
 			name.AnchorPoint = Vector2.new(0.5, 0)
 			name.Position = UDim2.new(0.5, 0, 0, 130)
 			name.Size = UDim2.new(1, -12, 0, 30)
-			local blurb = bold(card, entry.blurb, 17, WHITE, Z + 5, 2)
+			local text = entry.blurb
+			if entry.key == "LuckyRoll" then
+				--[[ Parayla alınan rastgele ödül: ihtimaller satın almadan önce görünmeli
+				     (Roblox kuralı). Config'teki gerçek zardan hesaplanıyor. ]]
+				local parts = {}
+				for _, o in Config.GuaranteedMutationOdds() do
+					table.insert(parts, string.format("%s %s%%", o.name,
+						if o.percent >= 10 then tostring(math.floor(o.percent + 0.5)) else string.format("%.1f", o.percent)))
+				end
+				text = "Odds: " .. table.concat(parts, " · ")
+			end
+			local blurb = bold(card, text, 17, WHITE, Z + 5, 2)
 			blurb.AnchorPoint = Vector2.new(0.5, 0)
 			blurb.Position = UDim2.new(0.5, 0, 0, 160)
 			blurb.Size = UDim2.new(1, -16, 0, 38)
 			blurb.TextWrapped = true
+			if entry.key == "LuckyRoll" then
+				blurb.TextScaled = true
+				local limit = Instance.new("UITextSizeConstraint")
+				limit.MaxTextSize = 15
+				limit.MinTextSize = 8
+				limit.Parent = blurb
+			end
 			local buy = buyButton(card, UDim2.new(1, -24, 0, 52), Z + 5, 28)
 			buy.holder.AnchorPoint = Vector2.new(0.5, 1)
 			buy.holder.Position = UDim2.new(0.5, 0, 1, -10)
