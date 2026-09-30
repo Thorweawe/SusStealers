@@ -1377,6 +1377,18 @@ function ServerTests2.Register(kit: Kit)
 		ok("Epic + IMPOSTOR nadir doğuş", Config.IsHypeSpawn("Impostor", "Impostor"))
 		ok("Common + IMPOSTOR değil", not Config.IsHypeSpawn("RedCrew", "Impostor"))
 		ok("Mythic tek başına değil (her rotasyonda alarm olurdu)", not Config.IsHypeSpawn("DoubleImp", nil))
+		-- Rebirth gezegenlerinde Secret/Celestial sıradan: alarm yok; IMPOSTOR mutasyonu yine var
+		local rebirthPlanet: number? = nil
+		for i, m in Config.SpaceMonsters do
+			if (m :: any).rebirths and not rebirthPlanet then
+				rebirthPlanet = i
+			end
+		end
+		if rebirthPlanet then
+			ok("rebirth gezegeninde Secret alarm değil", not Config.IsHypeSpawn("TheCrewmate", nil, rebirthPlanet))
+			ok("rebirth gezegeninde IMPOSTOR alarm", Config.IsHypeSpawn("TheCrewmate", "Impostor", rebirthPlanet))
+		end
+		ok("temel gezegende Secret alarm", Config.IsHypeSpawn("TheCrewmate", nil, 6))
 
 		-- Çark ihtimalleri gösterilebilir: her ödülün ağırlığı var, toplamlar pozitif
 		local spinTotal, superTotal = 0, 0

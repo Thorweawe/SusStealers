@@ -3307,16 +3307,26 @@ function Config.RollLuckySteal(roll: number): { id: string, name: string, chance
 end
 
 --[[ Gezegende doğan bu karakter bütün sunucuya duyurulacak kadar nadir mi? ]]
-function Config.IsHypeSpawn(unitId: string, mutationId: string?): boolean
+function Config.IsHypeSpawn(unitId: string, mutationId: string?, planetIndex: number?): boolean
 	local def = Config.GetUnit(unitId)
 	if not def then
 		return false
 	end
-	if def.rarity == "Secret" or def.rarity == "Celestial" then
+	local order = Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0
+	-- IMPOSTOR mutasyonu (%0.4) her gezegende nadir
+	if mutationId == "Impostor" and order >= 4 then
 		return true
 	end
-	local order = Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0
-	return mutationId == "Impostor" and order >= 4
+	--[[
+		2026-09-30: rebirth gezegenlerinde Secret %30, Celestial %40-50 — orada
+		sıradan. Alarm her doğuşta çalıp bütün sunucuya siren oluyordu; artık
+		yalnızca temel gezegenlerde (Secret %2-12) ya da gezegen bilinmiyorsa.
+	]]
+	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
+	if planet and (planet :: any).rebirths then
+		return false
+	end
+	return def.rarity == "Secret" or def.rarity == "Celestial"
 end
 
 --[[

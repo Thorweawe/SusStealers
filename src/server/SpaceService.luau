@@ -542,7 +542,7 @@ local function rollSpot(spot: Spot)
 		Nadir doğuş alarmı (Config.Hype.RareSpawn): bütün sunucu görüyor,
 		hızı yeten yarışıyor, yetmeyen hedefini görüyor. Sohbete de düşüyor.
 	]]
-	if Config.IsHypeSpawn(unit.id, mutationId) and os.clock() - lastHypeAt >= Config.Hype.RareSpawnGap then
+	if Config.IsHypeSpawn(unit.id, mutationId, spot.planet) and os.clock() - lastHypeAt >= Config.Hype.RareSpawnGap then
 		lastHypeAt = os.clock()
 		local planet = Config.SpaceMonsters[spot.planet]
 		fxAll("rarespawn", unit.id, mutationId or "", spot.planet)
@@ -732,7 +732,7 @@ end
 	Kaideye koyar. Nadirse duyurur. Teslim ve bedava karakter (çark,
 	Robux ürünü) aynı yoldan geçiyor.
 ]]
-local function placeOnPodium(player: Player, unitId: string, mutationId: string?, origin: string): boolean
+local function placeOnPodium(player: Player, unitId: string, mutationId: string?, origin: string, planetIndex: number?): boolean
 	local plot = PlotService.GetPlotOf(player)
 	local podium = plot and PlotService.FindEmptyPodium(plot)
 	if not podium then
@@ -746,12 +746,21 @@ local function placeOnPodium(player: Player, unitId: string, mutationId: string?
 	if def and (def.rarity == "Secret" or def.rarity == "Celestial") then
 		BadgeService.Award(player, "SecretFind")
 	end
-	if def and ANNOUNCE_RARITIES[def.rarity] then
+	--[[
+		Duyuru: nadir olan duyuruluyor. 2026-09-30: rebirth gezegenlerinde
+		Secret/Celestial sıradan (%30-50) — oradan her soygun sohbeti ve bütün
+		sunucuları dolduruyordu. Orada yalnızca Config.IsHypeSpawn'ın saydığı
+		(IMPOSTOR mutasyonlu) duyuruluyor.
+	]]
+	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
+	local rebirthPlanet = planet ~= nil and (planet :: any).rebirths ~= nil
+	local hype = Config.IsHypeSpawn(unitId, mutationId, planetIndex)
+	if def and ((ANNOUNCE_RARITIES[def.rarity] and not rebirthPlanet) or hype) then
 		local rarity = Config.Rarities[def.rarity]
 		local text = string.format("%s %s %s!", player.DisplayName, origin,
 			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color))
-		-- Secret soygunu bütün sunuculara (Config.Hype, sosyal kanıt)
-		if (def.rarity == "Secret" or def.rarity == "Celestial") and origin == "stole" then
+		-- Çok nadir soygun bütün sunuculara (Config.Hype, sosyal kanıt)
+		if hype and origin == "stole" then
 			AnnounceService.Global(text)
 		else
 			AnnounceService.Summon(text)
@@ -799,7 +808,7 @@ local function deliver(player: Player, root: BasePart)
 		end
 	end
 
-	if not placeOnPodium(player, carry.unitId, carry.mutationId, "stole") then
+	if not placeOnPodium(player, carry.unitId, carry.mutationId, "stole", carry.planet) then
 		-- Bu arada kaide dolduysa karakter kaybolmasın: yerine dönsün
 		if spot and not spot.unitId and crewFolder then
 			placeSpot(spot, carry.unitId, carry.mutationId, crewFolder)
@@ -1383,7 +1392,7 @@ function SpaceService.GrantUnit(player: Player, forceMutation: boolean, bonusTie
 	if mutationOverride and Config.GetMutation(mutationOverride) then
 		mutationId = mutationOverride
 	end
-	if not placeOnPodium(player, unit.id, mutationId, "got") then
+	if not placeOnPodium(player, unit.id, mutationId, "got", table.find(Config.SpaceMonsters, def)) then
 		return nil, nil
 	end
 	return unitName(unit.id, mutationId), unit.id
