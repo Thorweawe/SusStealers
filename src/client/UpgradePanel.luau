@@ -481,10 +481,11 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		rebirths = if typeof(rebirths) == "number" then rebirths else 0
 		rbTitle.Text = if rebirths > 0 then string.format("REBIRTH %d", rebirths) else "REBIRTH"
 		local now = Config.GetIncomeMultiplier(rebirths)
-		-- Tavan: son kat açıldıktan sonra rebirth'ün verecek bir şeyi kalmıyor (sunucuyla aynı kural)
-		if rebirths >= Config.MaxFloors - 1 then
+		-- Tavan (sunucuyla aynı kural, Config.MaxRebirths)
+		if rebirths >= Config.MaxRebirths then
 			rbMult.Text = string.format("Income x%.2f  ·  every rebirth done", now)
 			gains[1].Text = '<font color="#9CFFA0">+</font>  Nothing left to unlock'
+			gains[2].Text = '<font color="#9CFFA0">+</font>  Every monster and egg is open'
 			rbBuy.set("MAXED", nil)
 			rbNote.Text = "You have every rebirth."
 			return
@@ -493,6 +494,28 @@ function UpgradePanel.Create(screen: ScreenGui): Panel
 		rbMult.Text = string.format('Income x%.2f  <font color="#7CFF5B">→ x%.2f</font>', now, nextMul)
 		rbMult.RichText = true
 		gains[1].Text = string.format('<font color="#9CFFA0">+</font>  <font color="#FFE13C">+%d%% income</font> forever', math.floor(Config.GetRebirthBonus(rebirths + 1) * 100 + 0.5))
+		--[[
+			İkinci satır: bir sonraki rebirth neyi açıyor. Önce rebirth
+			canavarı / yumurtası / jetpack'i, yoksa satın alınacak kat, o da
+			yoksa bir sonraki kilide kaç rebirth kaldığı.
+		]]
+		local unlocks = Config.RebirthUnlocks(rebirths + 1)
+		local floor = Config.GetNextFloor(player:GetAttribute("FloorsBought") :: any or 0)
+		if #unlocks > 0 then
+			gains[2].Text = '<font color="#9CFFA0">+</font>  Unlocks <font color="#78FFEB">' .. table.concat(unlocks, ", ") .. "</font>"
+		elseif floor and floor.rebirths == rebirths + 1 then
+			gains[2].Text = '<font color="#9CFFA0">+</font>  Unlocks the next floor to buy'
+		else
+			local ahead = ""
+			for r = rebirths + 2, Config.MaxRebirths do
+				local list = Config.RebirthUnlocks(r)
+				if #list > 0 then
+					ahead = string.format("%s at Rebirth %d", list[1], r)
+					break
+				end
+			end
+			gains[2].Text = '<font color="#9CFFA0">+</font>  ' .. (if ahead ~= "" then "Closer to " .. ahead else "Faster capsule training")
+		end
 		local cost = player:GetAttribute("RebirthCost")
 		cost = if typeof(cost) == "number" then cost else Config.GetRebirthCost(rebirths)
 		if cash >= cost then

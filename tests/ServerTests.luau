@@ -670,10 +670,21 @@ case("Rebirth: sıfırlıyor ve çarpan veriyor", function(ctx)
 end)
 
 case("Rebirth: tavanda duruyor", function(ctx)
-	ctx.profile.rebirths = Config.MaxFloors - 1
-	setCash(ctx.player, 1e15)
+	local saved = ctx.profile.rebirths
+	-- Tavan son rebirth kilidinin (R10) üstünde: canavarlar açılabilsin
+	ok("tavan son kilidin üstünde", Config.MaxRebirths >= 10)
+	ctx.profile.rebirths = Config.MaxRebirths
+	setCash(ctx.player, 1e30)
 	eq("tavanda reddedildi", RebirthService.TryRebirth(ctx.player), false)
-	eq("seviye değişmedi", ctx.profile.rebirths, Config.MaxFloors - 1)
+	eq("seviye değişmedi", ctx.profile.rebirths, Config.MaxRebirths)
+	-- Kat tavanını geçince (R2) rebirth devam ediyor
+	ctx.profile.rebirths = Config.MaxFloors - 1
+	-- Önce sıfırla: 1e30'dan geri inerken kayan nokta hassasiyeti kayboluyor
+	setCash(ctx.player, 0)
+	setCash(ctx.player, Config.GetRebirthCost(ctx.profile.rebirths))
+	ok("kat tavanından sonra rebirth", RebirthService.TryRebirth(ctx.player))
+	eq("R3", ctx.profile.rebirths, Config.MaxFloors)
+	ctx.profile.rebirths = saved
 end)
 
 -- ─── H. Para kazanma ────────────────────────────────────────────────────────

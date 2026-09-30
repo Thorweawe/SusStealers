@@ -863,6 +863,39 @@ Config.RebirthIncomeBonus = 0.25 -- ilk rebirth'ün artışı
 Config.RebirthIncomeStep = 0.05  -- her sonraki rebirth'te artışa eklenen
 
 --[[
+	Rebirth tavanı. Eskiden MaxFloors - 1'di (2): rebirth'ün tek ödülü yeni
+	kattı. 2026-09-30'dan beri rebirth canavarları (R2-R10), yumurtaları ve
+	jetpackleri açıyor; tavan R2'de kaldığı için hiçbiri açılamıyordu.
+	En son kilit R10 (Galaxy Titan, Cosmic Jet); birkaç rebirth daha gelir
+	için açık.
+]]
+Config.MaxRebirths = 15
+
+--[[
+	Tam bu rebirth'e ulaşınca açılanlar (canavar, yumurta, jetpack) — rebirth
+	panelinin "YOU GET" satırı. Hiçbiri yoksa boş liste.
+]]
+function Config.RebirthUnlocks(rebirths: number): { string }
+	local out: { string } = {}
+	for _, def in Config.SpaceMonsters do
+		if def.rebirths == rebirths then
+			table.insert(out, def.name)
+		end
+	end
+	for _, egg in Config.Eggs do
+		if egg.rebirths == rebirths then
+			table.insert(out, egg.name)
+		end
+	end
+	for _, jet in Config.Jetpacks do
+		if jet.rebirths == rebirths then
+			table.insert(out, jet.name)
+		end
+	end
+	return out
+end
+
+--[[
 	Üst katlar: rebirth AÇIYOR, para SATIN ALIYOR.
 
 	Eskiden kat doğrudan rebirth ödülüydü. Sorun şuydu: rebirth zaten

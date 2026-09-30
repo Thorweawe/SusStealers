@@ -60,7 +60,7 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 		return false
 	end
 
-	if profile.rebirths >= Config.MaxFloors - 1 then
+	if profile.rebirths >= Config.MaxRebirths then
 		notify(player, "You are already at max rebirth", true)
 		return false
 	end
@@ -115,7 +115,14 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 		açıldıysa onu söylüyoruz, açılmadıysa sadece çarpanı.
 	]]
 	local next = Config.GetNextFloor(profile.floorsBought)
-	if next and profile.rebirths >= next.rebirths then
+	local unlocks = Config.RebirthUnlocks(profile.rebirths)
+	if #unlocks > 0 then
+		-- Rebirth canavarı / yumurtası / jetpack'i açıldı
+		notify(player, string.format(
+			"REBIRTH %d! Income x%.1f  ·  Unlocked: %s",
+			profile.rebirths, multiplier, table.concat(unlocks, ", ")
+		), false)
+	elseif next and profile.rebirths >= next.rebirths then
 		notify(player, string.format(
 			"REBIRTH %d! Income x%.1f  ·  Floor %d now available for $%s",
 			profile.rebirths, multiplier, next.floor, Config.FormatCash(next.cost)

@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-09-30 (56) — Batur (Yusuf'un şeridine de yazıldı: rebirth paneli)
+
+Studio'ya aktarıldı, **183/183 test temiz**.
+
+- **Rebirth tavanı R2'de kalıyordu** (`MaxFloors - 1`): rebirth'ün tek ödülü kattı. Rebirth canavarları/yumurtaları/jetpackleri (R4-R10) hiç açılamıyordu. Yeni `Config.MaxRebirths = 15` (RebirthService, UpgradePanel). Kat kuralı aynı.
+- `Config.RebirthUnlocks(r)`: tam o rebirth'te açılanlar. Rebirth paneli "YOU GET" ikinci satırı ve rebirth bildirimi bunu yazıyor ("Unlocks Crystal Golem, Stellar Jet").
+
+---
+
 ## 2026-09-30 (55) — Batur (Yusuf'un şeridine de yazıldı: pet/jetpack arayüzü, yumurta stili, harita)
 
 Studio'ya aktarıldı, **183/183 test temiz**. Petler ve kapsüller Studio'da render edilip bakıldı. Harita değişti (Hatchery): **yayınlamadan önce Studio'daki hâli kaydet**.
