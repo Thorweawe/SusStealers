@@ -461,7 +461,23 @@ def avatar(u, pose="run", face="smug", held=None, look=1):
 
         ey = y0 + 0.58 * hh
         ex = [fc - 0.2 * hw, fc + 0.2 * hw]
-        if face == "cry":
+        if face == "shock":
+            # Şok: kocaman gözler, kalkık kaşlar, açık ağız (popüler kapakların "çığlık" yüzü)
+            for x in ex:
+                s.put(ell(s.m(), (x - 0.12 * hw, ey - 0.15 * hh, x + 0.12 * hw, ey + 0.13 * hh)), (255, 255, 255), ow=ow * 0.7, flat=True)
+                s.put(ell(s.m(), (x - 0.045 * hw + 0.02 * hw * look, ey - 0.045 * hh, x + 0.045 * hw + 0.02 * hw * look, ey + 0.05 * hh)), OUT, ow=0, flat=True)
+            for i, x in enumerate(ex):
+                sgn = -1 if i == 0 else 1
+                d.line([(x - 0.11 * hw, ey - 0.27 * hh - sgn * 0.04 * hh), (x + 0.11 * hw, ey - 0.27 * hh + sgn * 0.04 * hh)], fill=OUT, width=int(0.055 * hh))
+            mo = ell(s.m(), (fc - 0.15 * hw, y0 + 0.74 * hh, fc + 0.15 * hw, y0 + 1.0 * hh))
+            s.put(mo, (110, 15, 30), ow=ow * 0.8, light=(0.5, 0.8), hi=0.2)
+            s.put(ImageChops.multiply(ell(s.m(), (fc - 0.1 * hw, y0 + 0.88 * hh, fc + 0.1 * hw, y0 + 1.02 * hh)), mo), (255, 110, 130), ow=0)
+            s.put(ImageChops.multiply(rrect(s.m(), (fc - 0.13 * hw, y0 + 0.73 * hh, fc + 0.13 * hw, y0 + 0.79 * hh), 4), mo), (255, 255, 255), ow=0, flat=True)
+            dx, dy, r = x1 + 0.12 * hw, ey - 0.2 * hh, 0.07
+            drop = poly(s.m(), [(dx, dy - r * 2.2 * hw), (dx + r * hw, dy), (dx - r * hw, dy)])
+            ell(drop, (dx - r * hw, dy - r * hw, dx + r * hw, dy + r * hw))
+            s.put(drop, (110, 200, 255), ow=ow * 0.4, hi=0.6)
+        elif face == "cry":
             for i, x in enumerate(ex):
                 sgn = 1 if i == 0 else -1
                 d.line([(x - sgn * 0.08 * hw, ey - 0.08 * hh), (x + sgn * 0.06 * hw, ey), (x - sgn * 0.08 * hw, ey + 0.08 * hh)],
