@@ -709,6 +709,14 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		supportButtons[s.id] = b
 	end
 
+	-- Hız (Batur: "hızlandırma simgesi, canavarlar 2x hızda"): koşu boyunca
+	local speedB = button(hud, "⏩ 1x", UDim2.fromOffset(110, 52), Color3.fromRGB(255, 160, 40), Z - 10, 20)
+	speedB.holder.AnchorPoint = Vector2.new(1, 0)
+	speedB.holder.Position = UDim2.new(1, -12, 0, 360)
+	speedB.button.Activated:Connect(function()
+		hooks.send("speed")
+	end)
+
 	-- Sonuç bandı
 	local banner = panel(screen, UDim2.fromOffset(520, 120), UDim2.fromScale(0.5, 0.36), Vector2.new(0.5, 0.5), Z + 20)
 	banner.Visible = false
@@ -743,8 +751,9 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			local lines = { string.format("<b>%s</b>", run.plan.name) }
 			for _, id in { "Grub", "Skitter", "Spitter", "Brute", "Boss" } do
 				local n = run.plan.counts[id]
+				local def = DefenseConfig.Enemies[id]
 				if n then
-					table.insert(lines, string.format("%s × %d", id, n))
+					table.insert(lines, string.format("%s × %d", if def then def.name else id, n))
 				end
 			end
 			if run.plan.boss then
@@ -759,6 +768,11 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			hullText.Text = string.format("SHIP HULL %d", hull)
 		end
 		incoming.Visible = run ~= nil
+		speedB.holder.Visible = run ~= nil
+		if run then
+			local fast = (run.speed or 1) >= 2
+			speedB.set(if fast then "⏩ 2x" else "▶ 1x", if fast then Color3.fromRGB(255, 120, 40) else GREY)
+		end
 		bottom.Visible = mode ~= "fight"
 		supportBar.Visible = mode == "fight"
 		if mode == "idle" then

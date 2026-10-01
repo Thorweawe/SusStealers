@@ -296,24 +296,11 @@ function DefenseClient.Start(screen: ScreenGui)
 		DefenseFX.SetPlanet(index)
 		DefenseFX.SetArena(arena)
 		applyEnvironment(index)
-		-- KOMUTA konsolunun üstünde gökyüzüne uzanan ışık: nereye gidileceği belli olsun
+		-- (Konsolun üstündeki ışık sütunu kalktı: "bozuk görünüyor"; altta DEFEND düğmesi var)
 		if beacon then
 			beacon:Destroy()
+			beacon = nil
 		end
-		local consoleAt = DefenseConfig.ToWorld(arena, DefenseConfig.Layout.command, 0)
-		local b = Instance.new("Part")
-		b.Name = "DefendBeacon"
-		b.Anchored = true
-		b.CanCollide = false
-		b.CanQuery = false
-		b.CastShadow = false
-		b.Material = Enum.Material.Neon
-		b.Color = Color3.fromRGB(90, 255, 140)
-		b.Transparency = 0.55
-		b.Size = Vector3.new(1.6, 120, 1.6)
-		b.CFrame = CFrame.new(consoleAt + Vector3.new(0, 70, 0))
-		b.Parent = workspace
-		beacon = b
 		-- Kamera gökten gemiye süzülüyor
 		local ship = DefenseConfig.ToWorld(arena, Vector2.new(0, DefenseConfig.Layout.shipZ), 10)
 		local high = CFrame.lookAt(ship + Vector3.new(110, 120, 170), ship)

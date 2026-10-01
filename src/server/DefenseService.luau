@@ -82,6 +82,9 @@ type Run = {
 	wavesCleared: number,
 	goldEarned: number,
 	gear: string,                  -- seçilen gear ("" / "Lightsaber")
+	-- Oyun hızı (Batur: "hızlandırma simgesi, canavarlar 2x hızda"): 1 ya da 2.
+	-- Koşu boyunca kalıyor; simülasyon aynı, yalnızca daha sık adımlanıyor.
+	speed: number,
 }
 
 type Session = {
@@ -277,6 +280,7 @@ local function runPayload(run: Run): any
 		sectorLosses = run.sectorLosses,
 		carried = carried,
 		gear = run.gear,
+		speed = run.speed,
 		plan = { name = run.plan.name, pattern = run.plan.pattern, paths = run.plan.paths, counts = counts, boss = run.plan.boss },
 		goldEarned = run.goldEarned,
 	}
@@ -396,6 +400,7 @@ local function begin(player: Player, sector: number)
 		wavesCleared = 0,
 		goldEarned = 0,
 		gear = "",
+		speed = 1,
 	}
 	preparePlan(run)
 	s.run = run
@@ -791,9 +796,9 @@ local function stepAll(dt: number)
 		if not (run and sim) then
 			continue
 		end
-		run.acc += dt
+		run.acc += dt * run.speed
 		local steps = 0
-		while run.acc >= STEP and sim.state == "fight" and steps < 5 do
+		while run.acc >= STEP and sim.state == "fight" and steps < 10 do
 			run.acc -= STEP
 			steps += 1
 			DefenseSim.Step(sim, STEP)
@@ -1249,6 +1254,12 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 	elseif action == "pickup" then
 		if valid(a) then
 			pickup(player, math.floor(a))
+		end
+	elseif action == "speed" then
+		local run = s.run
+		if run then
+			run.speed = if run.speed >= 2 then 1 else 2
+			pushRun(player)
 		end
 	elseif action == "go" then
 		go(player)

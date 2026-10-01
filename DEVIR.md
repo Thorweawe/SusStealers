@@ -13,6 +13,17 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (79) — Batur (Yusuf'un şeridine de yazıldı: `DefenseFX/UI/Client`; ortak: `EnemyModel`, `DefenseConfig`)
+
+Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda bir dalga oynatıldı: silahlı crewmate'ler, Goo Slug'lar, 2x hız.
+
+- **Crewmate'ler** sahada 5.6 stud (boy ölçülüp ölçekleniyor), elinde rol silahı: Shooter blaster (geri tepme, namlu alevi), Brawler enerji kılıcı (savurma), Guard kalkan + cop (itme), Assassin çift hançer (saplama), Medic haçlı asa (kaldırma; hastada yeşil halka + ışıltı + büyük "+N"). Silah modelin içinde ayrı Model, her karede elin yerine konuyor (`weaponPose`).
+- **Düşmanlar** Gloopus'un balçık yaratıkları (`EnemyModel` yeniden): Goo Slug, Gloop Mite, Spore Spitter, Ooze Golem (%30 büyük, jöle gibi esneyen gövde, vurulunca beyaz parlama). Boss Glorp (15 stud, `MonsterModel`). Adlar `DefenseConfig.Enemies.name`.
+- **Hız düğmesi** (⏩ 1x/2x, sağda): `speed` eylemi, sunucu simülasyonu `dt × speed` adımlıyor.
+- `UnitSpacing` 4.5 (modeller büyüdü). Konsollar savunma çizgisinden geride, tabelaları küçük ve emojisiz; konsol üstündeki ışık sütunu kalktı. Dükkân gemicikleri gemiye yaklaştı.
+
+---
+
 ## 2026-10-01 (78) — Batur (Yusuf'un şeridine de yazıldı: `Hotbar`, `SpaceFX`, `DefenseClient/FX/UI`)
 
 Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda denendi: iniş → hazırlık → 4 crewmate çubukta (uzay gear'ları gizli) → alana yürüyüp bırakma → dalga başladı, Glorp'lar çiziliyor.

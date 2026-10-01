@@ -39,7 +39,7 @@ DefenseConfig.TickRate = 10              -- simülasyon adımı (Hz)
 DefenseConfig.WavesPerSector = 5         -- bir bölüm (yıldız + altın + kontrol noktası)
 DefenseConfig.ReviveMinutes = 15         -- hastane: crewmate'in bu kadar dakikalık kazancı
 DefenseConfig.MaxEnemies = 70            -- aynı anda sahada (güvenlik sınırı)
-DefenseConfig.UnitSpacing = 3.2          -- iki crewmate arası en az mesafe
+DefenseConfig.UnitSpacing = 4.5          -- iki crewmate arası en az mesafe (modeller büyüdü)
 DefenseConfig.PathClearance = 0          -- yolun üstüne de konabilir (bloklamak için)
 
 --[[
@@ -126,13 +126,14 @@ end
 DefenseConfig.Layout = {
 	shipZ = -60,
 	spawn = Vector2.new(-38, 10),
-	command = Vector2.new(18, 22),
-	takeoff = Vector2.new(-18, 22),
+	-- Konsollar savunma çizgisinden biraz geride (Batur: "alana çok yakın")
+	command = Vector2.new(20, 12),
+	takeoff = Vector2.new(-20, 12),
 	-- Dükkân gemicikleri alana dönük, yay biçiminde (Batur: "sıra halinde değil, biraz eğimli")
-	hospital = Vector2.new(-90, 22),
-	armory = Vector2.new(90, 22),
-	shop = Vector2.new(-110, -28),
-	market = Vector2.new(110, -28),
+	hospital = Vector2.new(-80, 14),
+	armory = Vector2.new(80, 14),
+	shop = Vector2.new(-98, -32),
+	market = Vector2.new(98, -32),
 	shopsFace = 120,      -- dükkânların baktığı nokta (alanın ortası, z)
 	groundRadius = 420,
 }
@@ -265,11 +266,11 @@ export type EnemyDef = {
 }
 
 DefenseConfig.Enemies = {
-	Grub    = { id = "Grub",    name = "Grub",    hp = 42,  speed = 6,   dmg = 5,  range = 3,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
-	Skitter = { id = "Skitter", name = "Skitter", hp = 22,  speed = 11,  dmg = 4,  range = 3,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
-	Spitter = { id = "Spitter", name = "Spitter", hp = 34,  speed = 5,   dmg = 7,  range = 13, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
-	Brute   = { id = "Brute",   name = "Brute",   hp = 170, speed = 3.8, dmg = 16, range = 3.4, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
-	Boss    = { id = "Boss",    name = "Boss",    hp = 520, speed = 3.2, dmg = 26, range = 4,  cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 4.5, boss = true },
+	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 6,   dmg = 5,  range = 3,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
+	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 11,  dmg = 4,  range = 3,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
+	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 5,   dmg = 7,  range = 13, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
+	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 3.8, dmg = 16, range = 3.4, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
+	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.2, dmg = 26, range = 4,  cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 4.5, boss = true },
 } :: { [string]: EnemyDef }
 
 DefenseConfig.EnemyOrder = { "Grub", "Skitter", "Spitter", "Brute" }

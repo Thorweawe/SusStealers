@@ -562,7 +562,8 @@ local function console(model: Model, arena: number, origin: Vector3, at: Vector2
 	cyl(f, "Pole", alongY(CFrame.new(p + Vector3.new(0, 6, 0))), 4.6, 0.4, METAL)
 	ball(f, "Beacon", CFrame.new(p + Vector3.new(0, 8.6, 0)), Vector3.one * 1.4, color, glow(color))
 	light(screen, color, 16, 2)
-	signBoard(f, "Label", CFrame.lookAt(p + Vector3.new(0, 11, 0), p + Vector3.new(0, 11, -10)), Vector2.new(9, 2), object, color)
+	-- Tabela konsolun üstünde, küçük ve emojisiz (büyüğü ve ⚔ "bozuk" görünüyordu)
+	signBoard(f, "Label", CFrame.lookAt(p + Vector3.new(0, 10, 0), p + Vector3.new(0, 10, -10)), Vector2.new(7, 1.6), object, color)
 	addPrompt(screen, arena, kind, action, object, 0.25)
 end
 
@@ -586,8 +587,8 @@ local function build(planet: number, arena: number): Model?
 	buildShip(model, origin)
 
 	local L = DefenseConfig.Layout
-	console(model, arena, origin, L.command, "command", "Defend", "⚔ DEFEND", Color3.fromRGB(90, 230, 140))
-	console(model, arena, origin, L.takeoff, "takeoff", "Take off", "🚀 TAKE OFF", Color3.fromRGB(120, 200, 255))
+	console(model, arena, origin, L.command, "command", "Defend", "DEFEND", Color3.fromRGB(90, 230, 140))
+	console(model, arena, origin, L.takeoff, "takeoff", "Take off", "TAKE OFF", Color3.fromRGB(120, 200, 255))
 	miniShip(model, arena, origin, L.hospital, STALLS.hospital)
 	miniShip(model, arena, origin, L.armory, STALLS.armory)
 	miniShip(model, arena, origin, L.shop, STALLS.shop)

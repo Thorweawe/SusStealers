@@ -29,7 +29,9 @@ local SoundFX = require(script.Parent.SoundFX)
 
 local DefenseFX = {}
 
-local UNIT_SCALE = 0.7
+-- Crewmate'lerin sahadaki boyu (stud) ve düşmanların büyütme çarpanı
+local UNIT_HEIGHT = 5.6
+local ENEMY_SCALE = 1.3
 local SNAP_GAP = 0.2          -- sunucunun anlık görüntü aralığı (DefenseService SEND_EVERY)
 local WHITE = Color3.new(1, 1, 1)
 
@@ -50,6 +52,10 @@ type EnemyView = {
 	rig: MonsterModel.Rig?,
 	height: number,
 	born: number,
+	body: BasePart?,           -- jöle gibi esneyen gövde
+	mesh: SpecialMesh?,
+	bodyColor: Color3,
+	flash: number,             -- vurulunca beyaz parlama 1 → 0
 }
 
 type UnitView = {
@@ -65,6 +71,10 @@ type UnitView = {
 	fallen: boolean,
 	born: number,              -- elden düşme animasyonu
 	prompt: ProximityPrompt,   -- hazırlıkta "Pick up"
+	weapon: Model?,            -- rol silahı
+	hand: CFrame,              -- silahın modele göre yeri
+	swing: number,             -- vuruş animasyonu 1 → 0
+	height: number,
 }
 
 local folder: Folder? = nil
@@ -187,6 +197,96 @@ end
 
 -- ─── Crewmate'ler ───────────────────────────────────────────────────────────
 
+--[[
+	Rol silahları (2026-10-01, Batur: "savaşırken belli olsun hangi silahı
+	kullanıyorlar, nasıl can basıyorlar, animasyonlar gelişsin"). Silah
+	crewmate modelinin içinde ayrı bir Model; her karede elin yerine
+	(sağ yan, göğüs hizası) + vuruş animasyonu (swing 1→0) ile konuyor.
+	Parçalar "Muzzle" adlı uçtan mermi / iyileştirme çıkıyor.
+]]
+local function weaponPart(model: Model, name: string, size: Vector3, cf: CFrame, color: Color3, neon: boolean?, shape: Enum.PartType?): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = if neon then Enum.Material.Neon else Enum.Material.Metal
+	if shape then
+		p.Shape = shape
+	end
+	p.Parent = model
+	return p
+end
+
+local METAL_DARK = Color3.fromRGB(60, 64, 76)
+
+local function buildWeapon(role: string, color: Color3, s: number): Model
+	local w = Instance.new("Model")
+	w.Name = "Weapon"
+	local grip = weaponPart(w, "Grip", Vector3.one * 0.2 * s, CFrame.new(), color)
+	grip.Transparency = 1
+	w.PrimaryPart = grip
+	if role == "Shooter" then
+		-- Blaster: gövde, namlu, enerji hücresi, namlu ucu (Muzzle)
+		weaponPart(w, "Body", Vector3.new(0.5, 0.7, 1.6) * s, CFrame.new(0, 0.1 * s, -0.3 * s), METAL_DARK)
+		weaponPart(w, "Barrel", Vector3.new(1.6 * s, 0.32 * s, 0.32 * s), CFrame.new(0, 0.25 * s, -1.6 * s) * CFrame.Angles(0, math.rad(90), 0), METAL_DARK, false, Enum.PartType.Cylinder)
+		weaponPart(w, "Cell", Vector3.new(0.3, 0.3, 0.8) * s, CFrame.new(0, 0.55 * s, -0.3 * s), color, true)
+		weaponPart(w, "Handle", Vector3.new(0.3, 0.7, 0.35) * s, CFrame.new(0, -0.35 * s, 0.1 * s) * CFrame.Angles(math.rad(-15), 0, 0), METAL_DARK)
+		local m = weaponPart(w, "Muzzle", Vector3.one * 0.36 * s, CFrame.new(0, 0.25 * s, -2.45 * s), color, true, Enum.PartType.Ball)
+		m.Transparency = 0.2
+	elseif role == "Brawler" then
+		-- Enerji kılıcı: yukarı tutuluyor, vururken öne iniyor
+		weaponPart(w, "Hilt", Vector3.new(0.3, 0.9, 0.3) * s, CFrame.new(0, 0, 0), METAL_DARK)
+		weaponPart(w, "Guard", Vector3.new(0.9, 0.18, 0.3) * s, CFrame.new(0, 0.5 * s, 0), METAL_DARK)
+		weaponPart(w, "Blade", Vector3.new(0.18, 3.2, 0.36) * s, CFrame.new(0, 2.15 * s, 0), color, true)
+		weaponPart(w, "Muzzle", Vector3.one * 0.1, CFrame.new(0, 3.6 * s, 0), color, true).Transparency = 1
+	elseif role == "Guard" then
+		-- Büyük kalkan (önde) ve kısa cop
+		weaponPart(w, "Shield", Vector3.new(2.2, 2.8, 0.35) * s, CFrame.new(-1.1 * s, 0.2 * s, -0.9 * s), Color3.fromRGB(200, 210, 225))
+		weaponPart(w, "ShieldRim", Vector3.new(2.4, 3, 0.25) * s, CFrame.new(-1.1 * s, 0.2 * s, -0.75 * s), color, true)
+		weaponPart(w, "ShieldBoss", Vector3.one * 0.8 * s, CFrame.new(-1.1 * s, 0.2 * s, -1.15 * s), color, true, Enum.PartType.Ball)
+		weaponPart(w, "Baton", Vector3.new(0.25, 1.8, 0.25) * s, CFrame.new(0, 0.6 * s, 0), METAL_DARK)
+		weaponPart(w, "Muzzle", Vector3.one * 0.1, CFrame.new(-1.1 * s, 0.2 * s, -1.4 * s), color, true).Transparency = 1
+	elseif role == "Assassin" then
+		-- Çift hançer (iki yanda)
+		for _, x in { 0, -2.0 } do
+			weaponPart(w, "Hilt", Vector3.new(0.22, 0.22, 0.6) * s, CFrame.new(x * s, 0, 0), METAL_DARK)
+			weaponPart(w, "Dagger", Vector3.new(0.12, 0.3, 1.4) * s, CFrame.new(x * s, 0, -0.95 * s), color, true)
+		end
+		weaponPart(w, "Muzzle", Vector3.one * 0.1, CFrame.new(-1 * s, 0, -1.6 * s), color, true).Transparency = 1
+	else
+		-- Medic: asa, tepesinde yeşil haçlı küre
+		weaponPart(w, "Staff", Vector3.new(0.22, 4, 0.22) * s, CFrame.new(0, 1 * s, 0), Color3.fromRGB(230, 230, 240))
+		local orb = weaponPart(w, "Muzzle", Vector3.one * 0.9 * s, CFrame.new(0, 3.2 * s, 0), color, true, Enum.PartType.Ball)
+		orb.Transparency = 0.15
+		weaponPart(w, "CrossV", Vector3.new(0.12, 0.7, 0.2) * s, CFrame.new(0, 3.2 * s, -0.42 * s), WHITE, true)
+		weaponPart(w, "CrossH", Vector3.new(0.7, 0.12, 0.2) * s, CFrame.new(0, 3.2 * s, -0.42 * s), WHITE, true)
+	end
+	return w
+end
+
+-- Vuruş animasyonu: swing 1 (vurdu) → 0. Elin çerçevesine göre.
+local function weaponPose(role: string, swing: number, t: number): CFrame
+	local k = math.sin(math.clamp(swing, 0, 1) * math.pi)
+	if role == "Shooter" then
+		return CFrame.new(0, 0, 0.6 * k) * CFrame.Angles(math.rad(12 * k), 0, 0)
+	elseif role == "Brawler" then
+		return CFrame.Angles(-math.rad(105 * k), 0, math.rad(-20 * k))
+	elseif role == "Guard" then
+		return CFrame.new(0, 0, -0.9 * k)
+	elseif role == "Assassin" then
+		return CFrame.new(0, 0.2 * k, -1.2 * k) * CFrame.Angles(-math.rad(50 * k), 0, 0)
+	end
+	-- Medic: asa kalkıyor, boştayken hafif sallanıyor
+	return CFrame.new(0, 0.7 * k, 0) * CFrame.Angles(0, 0, math.rad(math.sin(t * 2) * 4))
+end
+
+
 local function anchorAll(model: Model)
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -204,18 +304,30 @@ local function buildUnit(info: any): UnitView?
 	end
 	model.Name = "Crew_" .. tostring(info.uid)
 	anchorAll(model)
-	pcall(function()
-		model:ScaleTo(UNIT_SCALE)
-	end)
+	-- Boy ölçülüp UNIT_HEIGHT'a büyütülüyor (karakterlerin boyu farklı)
+	local rawHeight = model:GetExtentsSize().Y
+	if rawHeight > 0.1 then
+		pcall(function()
+			model:ScaleTo(model:GetScale() * UNIT_HEIGHT / rawHeight)
+		end)
+	end
+	local height = model:GetExtentsSize().Y
+	local width = model:GetExtentsSize().X
 	local role = DefenseConfig.Roles[info.role] or DefenseConfig.GetRole(info.unitId)
 	local pos = world(Vector2.new(info.x, info.z))
 	local base = CFrame.lookAt(pos, pos + Vector3.new(0, 0, 1))
 	model:PivotTo(base)
+	-- Silah: sağ yanda, göğüs hizasında
+	local s = height / 5
+	local weapon = buildWeapon(role.id, role.color, s)
+	local hand = CFrame.new(width * 0.5 + 0.2 * s, height * 0.42, -0.4 * s)
+	weapon:PivotTo(base * hand)
+	weapon.Parent = model
 	model:SetAttribute("DefenseUid", info.uid)
 	model.Parent = root()
 
 	local anchor = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart") :: BasePart
-	local gui, fill = hpBar(anchor, 5.4, 46, Color3.fromRGB(90, 230, 110))
+	local gui, fill = hpBar(anchor, height + 1.2, 60, Color3.fromRGB(90, 230, 110))
 	-- Rol simgesi
 	local icon = Instance.new("TextLabel")
 	icon.AnchorPoint = Vector2.new(0.5, 1)
@@ -228,7 +340,7 @@ local function buildUnit(info: any): UnitView?
 	icon.TextColor3 = WHITE
 	icon.AutoLocalize = false
 	icon.Parent = gui
-	gui.Size = UDim2.fromOffset(46, 7)
+	gui.Size = UDim2.fromOffset(60, 8)
 	gui.ClipsDescendants = false
 	local ic = Instance.new("UICorner")
 	ic.CornerRadius = UDim.new(1, 0)
@@ -264,6 +376,10 @@ local function buildUnit(info: any): UnitView?
 		fallen = false,
 		born = os.clock(),
 		prompt = prompt,
+		weapon = weapon,
+		hand = hand,
+		swing = 0,
+		height = height,
 	}
 end
 
@@ -333,7 +449,7 @@ end
 	Tür boyla ayırt ediliyor; ölçek ilk kurulumda bir kez ölçülüyor.
 ]]
 local KIND_HEIGHT: { [string]: number } = {
-	Skitter = 3.2, Grub = 4.2, Spitter = 4.8, Brute = 6.6, Boss = 10,
+	Skitter = 4.6, Grub = 7, Spitter = 7.2, Brute = 11, Boss = 15,
 }
 local unitHeight: { [string]: number } = {}
 
@@ -374,11 +490,19 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 	local rig: MonsterModel.Rig? = nil
 	local height = KIND_HEIGHT[kind] or 4
 	local monster = Config.SpaceMonsters[planet]
-	if monster then
+	if kind == "Boss" and monster then
+		-- Boss gezegenin canavarı (Glorp; Yusuf'un 3B şablonu varsa onunla)
 		model, rig, height = monsterModel(monster.id, kind)
 	else
+		-- Diğerleri gezegenin yaratıkları (EnemyModel), büyütülmüş
 		model = EnemyModel.Build(kind, palette.body, palette.dark, palette.glow)
+		pcall(function()
+			model:ScaleTo(ENEMY_SCALE)
+		end)
+		height = model:GetExtentsSize().Y
 	end
+	local body = model:FindFirstChild("Body") :: BasePart?
+	local mesh = body and body:FindFirstChildOfClass("SpecialMesh")
 	local start = DefenseConfig.Field.entrance
 	if paths and paths[pathIndex] then
 		start = paths[pathIndex][1]
@@ -402,6 +526,10 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 		rig = rig,
 		height = height,
 		born = os.clock(),
+		body = body,
+		mesh = mesh,
+		bodyColor = if body then body.Color else WHITE,
+		flash = 0,
 	}
 	enemies[eid] = view
 	if kind == "Boss" then
@@ -442,7 +570,7 @@ local function enemyBar(view: EnemyView, hp: number)
 	if hp < 0.999 and not view.bar then
 		local anchor = view.model.PrimaryPart :: BasePart
 		local h = view.height + 1
-		local gui, fill = hpBar(anchor, h, if view.kind == "Boss" then 70 else 30, Color3.fromRGB(255, 80, 80))
+		local gui, fill = hpBar(anchor, h, if view.kind == "Boss" then 100 else 44, Color3.fromRGB(255, 80, 80))
 		view.bar = fill
 		view.barGui = gui
 	end
@@ -507,21 +635,28 @@ local function onUnitAttack(uid: number, eid: number)
 	if not (u and e) or u.fallen then
 		return
 	end
-	local from = chest(u.model)
-	local to = e.model:GetPivot().Position + Vector3.new(0, 1.4, 0)
+	local muzzle = u.weapon and u.weapon:FindFirstChild("Muzzle") :: BasePart?
+	local from = if muzzle then muzzle.Position else chest(u.model)
+	local to = e.model:GetPivot().Position + Vector3.new(0, e.height * 0.45, 0)
 	local dir = (to - from) * Vector3.new(1, 0, 1)
 	if dir.Magnitude > 0.1 then
 		u.lungeDir = dir.Unit
 	end
+	u.swing = 1
+	e.flash = 1
 	local role = DefenseConfig.Roles[u.role]
 	if u.role == "Shooter" then
+		-- Namlu alevi + parlak mermi
+		local flare = fxPart("MuzzleFlash", Vector3.one * 0.9, CFrame.new(from), role.color, Enum.PartType.Ball)
+		flare.Transparency = 0.1
+		fadeAway(flare, 0.12, Vector3.one * 1.8)
 		bolt(from, to, role.color)
 		sound("shot", 0.09, function()
 			SoundFX.Laser()
 		end)
 	elseif u.role == "Assassin" then
 		u.lunge = 1
-		beam(from, to, role.color, 0.25, 0.18)
+		beam(from, to, role.color, 0.3, 0.18)
 		sound("stab", 0.1, function()
 			SoundFX.GearSound("GearSwing", from)
 		end)
@@ -529,8 +664,10 @@ local function onUnitAttack(uid: number, eid: number)
 		bolt(from, to, role.color)
 	else
 		u.lunge = 1
+		-- Kılıç / kalkan izi
+		beam(from, to, role.color, 0.2, 0.12)
 		sound("punch", 0.12, function()
-			SoundFX.GearSound("GearSlap", to)
+			SoundFX.GearSound(if u.role == "Brawler" then "GearSwing" else "GearSlap", to)
 		end)
 	end
 end
@@ -547,7 +684,7 @@ local function onUnitHit(uid: number, eid: number, amount: number)
 		end
 	end
 	if u and not u.fallen then
-		floatText(chest(u.model) + Vector3.new(0, 1.5, 0), "-" .. tostring(amount), Color3.fromRGB(255, 90, 90))
+		floatText(chest(u.model) + Vector3.new(0, 2.5, 0), "-" .. tostring(amount), Color3.fromRGB(255, 90, 90))
 	end
 end
 
@@ -557,8 +694,34 @@ local function onHeal(uid: number, target: number, amount: number)
 	if not (u and t) then
 		return
 	end
-	beam(chest(u.model), chest(t.model), Color3.fromRGB(110, 255, 150), 0.18, 0.3)
-	floatText(chest(t.model) + Vector3.new(0, 1.5, 0), "+" .. tostring(amount), Color3.fromRGB(110, 255, 150))
+	u.swing = 1
+	local green = Color3.fromRGB(110, 255, 150)
+	local muzzle = u.weapon and u.weapon:FindFirstChild("Muzzle") :: BasePart?
+	local from = if muzzle then muzzle.Position else chest(u.model)
+	beam(from, chest(t.model), green, 0.3, 0.35)
+	-- Hastanın ayağında büyüyen yeşil halka ve yükselen ışıltılar
+	local feet = t.base.Position + Vector3.new(0, 0.3, 0)
+	local ringPart = fxPart("HealRing", Vector3.new(0.2, 3, 3), CFrame.new(feet) * CFrame.Angles(0, 0, math.rad(90)), green, Enum.PartType.Cylinder)
+	ringPart.Transparency = 0.25
+	fadeAway(ringPart, 0.5, Vector3.new(0.2, 7, 7))
+	local host = fxPart("HealSparks", Vector3.one * 0.2, CFrame.new(feet + Vector3.new(0, 1, 0)), green)
+	host.Transparency = 1
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	e.Color = ColorSequence.new(green)
+	e.LightEmission = 1
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 0) })
+	e.Lifetime = NumberRange.new(0.6, 0.9)
+	e.Speed = NumberRange.new(3, 6)
+	e.SpreadAngle = Vector2.new(25, 25)
+	e.EmissionDirection = Enum.NormalId.Top
+	e.Rate = 0
+	e.Parent = host
+	e:Emit(14)
+	task.delay(1, function()
+		host:Destroy()
+	end)
+	floatText(chest(t.model) + Vector3.new(0, 2.5, 0), "+" .. tostring(amount), green)
 end
 
 local function onUnitFall(uid: number)
@@ -873,7 +1036,18 @@ function DefenseFX.Start()
 				end
 			end
 			-- Yürürken zıplama, vururken öne atılma
-			local bob = if move.Magnitude > 0.05 then math.abs(math.sin(now * 9 + view.t0)) * 0.35 else 0
+			local walking = move.Magnitude > 0.05
+			local bob = if walking then math.abs(math.sin(now * 9 + view.t0)) * 0.35 else 0
+			-- Jöle: gövde esneyip sıkışıyor (yürürken daha çok)
+			local mesh = view.mesh
+			if mesh then
+				local w = math.sin(now * (if walking then 9 else 4) + view.t0) * (if walking then 0.09 else 0.05)
+				mesh.Scale = Vector3.new(1 + w, 1 - w, 1 + w)
+			end
+			if view.flash > 0 and view.body then
+				view.flash = math.max(0, view.flash - dt * 6)
+				view.body.Color = view.bodyColor:Lerp(Color3.new(1, 1, 1), view.flash * 0.8)
+			end
 			view.lunge = math.max(0, view.lunge - dt * 5)
 			local lunge = face * (math.sin(view.lunge * math.pi) * 0.9)
 			local at = pos + Vector3.new(0, bob, 0) + lunge
@@ -904,8 +1078,15 @@ function DefenseFX.Start()
 					+ Vector3.new(0, DROP_HEIGHT * (1 - fall) * (1 - fall), 0)
 				local base = view.base
 				local look = if view.lungeDir.Magnitude > 0.01 then view.lungeDir else base.LookVector
-				local p = base.Position + offset
-				view.model:PivotTo(CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z)))
+				-- Boşta hafif nefes
+				local p = base.Position + offset + Vector3.new(0, math.sin(now * 2.2 + view.uid) * 0.06, 0)
+				local cf = CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z))
+				view.model:PivotTo(cf)
+				local weapon = view.weapon
+				if weapon and weapon.Parent then
+					view.swing = math.max(0, view.swing - dt * 4)
+					weapon:PivotTo(cf * view.hand * weaponPose(view.role, view.swing, now + view.uid))
+				end
 			end
 		end
 	end)
