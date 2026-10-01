@@ -74,34 +74,15 @@ local function targets(name: any): { Player }
 	return found
 end
 
---[[ Bu sunucuda ekranın ortasında geri sayım (Message: eski ama herkeste çalışıyor). ]]
+--[[
+	Bu sunucuda geri sayım: istemcideki temalı bant (RestartScreen) workspace
+	niteliklerinden çiziyor (RestartAt = bitiş anı, RestartTitle = başlık).
+	Sıfırdan 30 sn sonra bant kendiliğinden kapanıyor.
+]]
 local function countdown(seconds: number, title: string)
 	countdownToken += 1
-	local token = countdownToken
-	local old = workspace:FindFirstChild("AdminCountdown")
-	if old then
-		old:Destroy()
-	end
-	local message = Instance.new("Message")
-	message.Name = "AdminCountdown"
-	message.Parent = workspace
-	task.spawn(function()
-		for left = math.floor(seconds), 1, -1 do
-			if token ~= countdownToken then
-				return
-			end
-			message.Text = string.format("%s! Server restarting in %d... Your progress is saved, just rejoin!", title, left)
-			task.wait(1)
-		end
-		if token ~= countdownToken then
-			return
-		end
-		message.Text = "RESTARTING NOW! Rejoin in a few seconds."
-		task.wait(30)
-		if token == countdownToken then
-			message:Destroy()
-		end
-	end)
+	workspace:SetAttribute("RestartTitle", title)
+	workspace:SetAttribute("RestartAt", workspace:GetServerTimeNow() + seconds)
 end
 
 --[[ Komutu işler; ne yaptığını döner (testler de çağırıyor). ]]

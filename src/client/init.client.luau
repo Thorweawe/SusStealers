@@ -71,6 +71,7 @@ local SideRail = require(script.SideRail)
 local EventPanel = require(script.EventPanel)
 local EventIntro = require(script.EventIntro)
 local LimitedFX = require(script.LimitedFX)
+local RestartScreen = require(script.RestartScreen)
 local PetPanel = require(script.PetPanel)
 local HatchFX = require(script.HatchFX)
 local FuseFX = require(script.FuseFX)
@@ -456,6 +457,11 @@ local function mountPanel(name: string, mount: () -> ())
 		end
 	end)
 end
+
+-- Sunucu yeniden başlatma geri sayımı (temalı bant; en önce kurulsun)
+mountPanel("RestartScreen", function()
+	RestartScreen.Start(screen)
+end)
 
 -- Yeraltı odaları: Security'de kamera ekranı, Admin'de büyük harita
 mountPanel("SecurityCams", SecurityCams.Start)

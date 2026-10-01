@@ -77,7 +77,11 @@ function SoftShutdown.Start()
 		if RunService:IsStudio() or #Players:GetPlayers() == 0 then
 			return
 		end
+		-- Temalı bant (istemci RestartScreen); eski Message kutusu yedek olarak
+		workspace:SetAttribute("RestartTitle", "UPDATE")
+		workspace:SetAttribute("RestartAt", workspace:GetServerTimeNow() + COUNTDOWN)
 		local message = banner("")
+		message.Parent = nil
 		for left = COUNTDOWN, 1, -1 do
 			message.Text = string.format("UPDATE! Rejoining automatically in %d... Your progress is saved!", left)
 			task.wait(1)
