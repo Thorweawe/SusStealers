@@ -52,14 +52,14 @@ def apply(c, preset):
         put_text(c, "CAN YOU ROB THEM ALL?", (W / 2, H - 260), 230, angle=-2, fill=(255, 255, 255), stroke=(170, 10, 40))
     elif preset == "leviathan":
         # Void Leviathan: SECRET %12 (Config.SpaceMonsters) = ~1 in 8
-        V3.stack_title(c, 120, 60, [
-            ("SECRET", 230, {"fill": rainbow_fill()}),
-            ("1 in 8", 270, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
-            ("$40.6M/s", 220, {"fill": money_fill(), "stroke": (10, 70, 20)}),
+        V3.stack_title(c, 90, 20, [
+            ("SECRET", 175, {"fill": rainbow_fill()}),
+            ("1 in 8", 205, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
+            ("$40.6M/s", 145, {"fill": money_fill(), "stroke": (10, 70, 20)}),
         ])
     elif preset == "kraken":
-        put_text(c, "SHHH...", (780, 260), 250, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
-        put_text(c, "GOLDEN!", (780, 520), 230, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
+        put_text(c, "SHHH...", (600, 180), 205, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
+        put_text(c, "GOLDEN!", (560, 390), 185, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
     elif preset == "worth":
         put_text(c, "WORTH IT?", (2750, 230), 290, angle=-4, fill=(255, 255, 255), stroke=(180, 20, 60))
         put_text(c, "$40.6M/s", (2750, 480), 200, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
