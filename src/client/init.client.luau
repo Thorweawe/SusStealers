@@ -83,6 +83,7 @@ local DefenseClient = require(script.DefenseClient)
 local SettingsPanel = require(script.SettingsPanel)
 local SpinPanel = require(script.SpinPanel)
 local CrewAura = require(script.CrewAura)
+local StyleFX = require(script.StyleFX)
 local WeeklyPanel = require(script.WeeklyPanel)
 local SeasonPanel = require(script.SeasonPanel)
 local SpaceEventsFX = require(script.SpaceEventsFX)
@@ -959,6 +960,11 @@ end)
 -- Gezegenlerdeki mürettebatın nadirlik aurası (ışıltı, küre, ışık sütunu)
 mountPanel("CrewAura", function()
 	CrewAura.Start()
+end)
+
+-- Her şeye kendi tarzında efekt: gezegen, jetpack, şapka, yumurta
+mountPanel("StyleFX", function()
+	StyleFX.Start()
 end)
 
 -- Tek hedef kartı (üst orta): öğretici bitince "şimdi ne yapmalıyım"

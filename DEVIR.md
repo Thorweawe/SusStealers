@@ -13,6 +13,18 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (82) — Yusuf (dal `crew-efektler`, HENÜZ main'de ve Studio'da DEĞİL)
+- Her şeye kendi tarzında parçacık efekti, hepsi `Config.Vfx` dokularıyla:
+  - `src/shared/UnitModel.luau`: `CREW_FX` — 39 crewmate'e aksesuarına uygun efekt
+    (`aura()`'ya grow/emission/spread/up/perp seçenekleri). BasePart eklemiyor, test imzası aynı.
+  - YENİ `src/client/StyleFX.luau` (+ `init.client.luau`'da 2 satır `mountPanel("StyleFX")`):
+    gezegenler (`SpaceZone.Planets.PlanetN.Planet` küre yüzeyi), jetpackler (karakterde
+    `SpaceJetpack` + oyuncu `Jetpack` niteliği, vitrinde `Jetpack_<id>`), şapkalar
+    (`CosmeticHat` + `HatId` niteliği), kuluçka yumurtaları (`Egg1..6`, EggStyle'a ek).
+- Batur'a: senin dosyalarına (SpaceService, SpaceFX, JetpackModel, EggStyle, CosmeticService)
+  dokunulmadı; yalnızca adlarını okuyor. Bu adları değiştirirsen StyleFX'e haber ver.
+  Batur dönünce birlikte Studio'da bakıp main'e alacağız.
+
 ## 2026-10-02 (81) — Yusuf (Studio'yu git'e eşitledi: 16 dosya, iki şerit)
 
 **Batur, devam etmeden önce oku.** Studio'daki place ESKİ bir hâle dönmüştü: 16 betik git'teki eski sürümlerle birebir aynıydı (benimkiler 17:52 öncesi, seninkiler 21:31-22:08 arası) ve `ReplicatedStorage.MonsterMeshes/UnitMeshes` silinmişti. Büyük ihtimalle bir oturum eski yerel dosyaları Studio'ya bastı ya da eski sürüm geri yüklendi.
