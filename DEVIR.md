@@ -23,6 +23,9 @@ Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Arayüz Studio'da e
 - **DEFEND penceresi iki sayfa** (1 crew → NEXT → 2 bölüm + gear). Seçimde liste yeniden çizilmiyor (kaydırma en üste sıçrıyordu).
 - **Üst durum** ince tek satır (gezegen / S / dalga / altın + gövde çubuğu); ipucu şeridi kalktı, yönlendirme alttaki düğmelerin üstünde kutusuz. **NEXT WAVE** kartı: renkli başlık şeridi, rota rozeti, yaratık satırları (renkli nokta + adet rozeti), boss dalgasında kırmızı.
 - **Hotbar**: gezegende silah en sağda. **Objective** (GOL kartı) gezegende gizli: durum çubuğunun üstüne biniyordu.
+
+---
+
 ## 2026-10-02 (81) — Yusuf (Studio'yu git'e eşitledi: 16 dosya, iki şerit)
 
 **Batur, devam etmeden önce oku.** Studio'daki place ESKİ bir hâle dönmüştü: 16 betik git'teki eski sürümlerle birebir aynıydı (benimkiler 17:52 öncesi, seninkiler 21:31-22:08 arası) ve `ReplicatedStorage.MonsterMeshes/UnitMeshes` silinmişti. Büyük ihtimalle bir oturum eski yerel dosyaları Studio'ya bastı ya da eski sürüm geri yüklendi.
