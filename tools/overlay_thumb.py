@@ -2,7 +2,7 @@
 Dışarıda (yapay zeka görsel aracı / sanatçı) yapılmış YAZISIZ görselin üstüne
 bizim kapak yazılarını ve reklam düzenini ekler.
 
-    python tools/overlay_thumb.py <görsel.png> <kalıp> [ad]
+    python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right]   (son: 16:9 reklamda logo tarafı)
         kalıp: rift | split | starfall | bosses | worth | none
     ->  thumbnails/final/thumb_<ad>.png (1920x1080) + ads/final/ad_16x9_/ad_1x1_<ad>.png
 
@@ -57,6 +57,23 @@ def apply(c, preset):
     return c
 
 
+def make_wide_at(A, src, side):
+    """ad_art.make_wide gibi; side="right" ise logo + PLAY NOW sağ altta (karakter soldaysa)."""
+    if side != "right":
+        return A.make_wide(src)
+    S = A.S
+    base = Image.open(src).convert("RGBA").resize((1920 * S, 1080 * S), Image.LANCZOS)
+    grad = Image.new("L", (1, 256))
+    for y in range(256):
+        grad.putpixel((0, y), int(max(0, (y - 120) / 136) * 170))
+    shade = Image.new("RGBA", base.size, (10, 10, 20, 255))
+    shade.putalpha(grad.resize(base.size))
+    base.alpha_composite(shade)
+    A.logo(base, 1480 * S, 660 * S, 0.9)
+    A.play_button(base, 1480 * S, 975 * S, 0.95)
+    return base.resize((1920, 1080), Image.LANCZOS).convert("RGB")
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -69,7 +86,8 @@ def main():
     p = os.path.join(OUT_T, f"thumb_{name}.png")
     img.save(p)
     import ad_art as A
-    A.make_wide(p).save(os.path.join(OUT_A, f"ad_16x9_{name}.png"), optimize=True)
+    wide_side = sys.argv[4] if len(sys.argv) > 4 else "left"
+    make_wide_at(A, p, wide_side).save(os.path.join(OUT_A, f"ad_16x9_{name}.png"), optimize=True)
     A.make_square(p, 0.5).save(os.path.join(OUT_A, f"ad_1x1_{name}.png"), optimize=True)
     print("ok", p)
 
