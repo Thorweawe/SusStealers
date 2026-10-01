@@ -42,6 +42,8 @@ export type Hooks = {
 	recallSelected: () -> (),
 	deselect: () -> (),
 	exitView: () -> (),
+	openCommand: () -> (),
+	takeoff: () -> (),
 }
 
 export type UI = {
@@ -56,6 +58,7 @@ export type UI = {
 	SetTick: (snap: any) -> (),
 	Banner: (title: string, sub: string, color: Color3) -> (),
 	Hint: (text: string?) -> (),
+	SetPlanetHud: (visible: boolean) -> (),
 }
 
 -- ─── Küçük yardımcılar ──────────────────────────────────────────────────────
@@ -305,6 +308,16 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			return
 		end
 		if kind == "armory" then
+			local S = DefenseConfig.Saber
+			local level = data.saber or 0
+			local saberCost = if level == 0 then S.price else S.upgradeCosts[level]
+			shopRow(0, "⚔", if level == 0 then "LIGHTSABER" else string.format("LIGHTSABER  Lv %d/%d", level, #S.upgradeCosts + 1),
+				if level == 0 then "Fight with your crew! During a wave press EXIT VIEW and slash enemies yourself."
+					else "Hits every enemy in front of you. Higher level = more damage.",
+				if saberCost then "🪙 " .. saberCost else "MAX", if saberCost and gold >= saberCost then GREEN else GREY,
+				function()
+					hooks.send("buy", "saber")
+				end)
 			for i, id in DefenseConfig.RoleOrder do
 				local role = DefenseConfig.Roles[id]
 				local level = data.roles[id] or 0
@@ -451,6 +464,25 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		hooks.exitView()
 	end)
 
+	-- Nasıl oynanır (bölüm seçimi açıkken, solda)
+	local howTo = panel(hud, UDim2.fromOffset(330, 250), UDim2.new(0.5, -230, 0.5, 0), Vector2.new(1, 0.5), Z - 9,
+		Color3.fromRGB(30, 60, 50), Color3.fromRGB(18, 30, 28))
+	local howTitle = label(howTo, "HOW TO DEFEND", 22, Color3.fromRGB(120, 255, 160), Z - 8)
+	howTitle.Position = UDim2.fromOffset(0, 8)
+	howTitle.Size = UDim2.new(1, 0, 0, 26)
+	local howBody = label(howTo, table.concat({
+		"1. Pick a sector and press BEGIN",
+		"2. Tap a crewmate card below, then tap the field to place it near the orange arrows",
+		"3. Press START WAVE: your crew fights on its own",
+		"4. Got a Lightsaber? Press EXIT VIEW in a wave and slash enemies yourself",
+		"5. 5 waves = 1 sector: ★ and gold. Fallen crew go to the Hospital",
+	}, "\n"), 14, WHITE, Z - 8, 1.3)
+	howBody.Position = UDim2.fromOffset(14, 38)
+	howBody.Size = UDim2.new(1, -28, 1, -46)
+	howBody.TextWrapped = true
+	howBody.TextXAlignment = Enum.TextXAlignment.Left
+	howBody.TextYAlignment = Enum.TextYAlignment.Top
+
 	-- Gelen dalga kartı (sağda)
 	local incoming = panel(hud, UDim2.fromOffset(230, 210), UDim2.new(1, -12, 0, 96), Vector2.new(1, 0), Z - 9,
 		Color3.fromRGB(70, 34, 40), Color3.fromRGB(34, 18, 26))
@@ -568,6 +600,52 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	bannerSub.TextWrapped = true
 	local bannerToken = 0
 
+	-- ═══ Gezegende yürürken: DEFEND / TAKE OFF ve koşu durumu ════════════════
+	local planetHud = Instance.new("Frame")
+	planetHud.Name = "DefensePlanetHud"
+	planetHud.AnchorPoint = Vector2.new(0.5, 1)
+	planetHud.Position = UDim2.new(0.5, 0, 1, -96)
+	planetHud.Size = UDim2.fromOffset(420, 120)
+	planetHud.BackgroundTransparency = 1
+	planetHud.Visible = false
+	planetHud.ZIndex = Z - 12
+	planetHud.Parent = screen
+	local status = label(planetHud, "", 17, WHITE, Z - 11)
+	status.Size = UDim2.new(1, 0, 0, 24)
+	local defendB = button(planetHud, "⚔ DEFEND", UDim2.fromOffset(240, 66), GREEN, Z - 11, 28)
+	defendB.holder.Position = UDim2.fromOffset(0, 32)
+	local offB = button(planetHud, "🚀 TAKE OFF", UDim2.fromOffset(170, 58), BLUE, Z - 11, 18)
+	offB.holder.Position = UDim2.fromOffset(250, 36)
+	defendB.button.Activated:Connect(function()
+		hooks.openCommand()
+	end)
+	offB.button.Activated:Connect(function()
+		hooks.takeoff()
+	end)
+	-- DEFEND hafifçe nabız atıyor (ilk bakışta fark edilsin)
+	task.spawn(function()
+		while planetHud.Parent do
+			if planetHud.Visible then
+				local t = os.clock()
+				defendB.holder.Size = UDim2.fromOffset(240 + math.sin(t * 4) * 6, 66 + math.sin(t * 4) * 2)
+			end
+			task.wait(0.05)
+		end
+	end)
+
+	local function renderPlanetHud()
+		if run then
+			local fight = run.phase == "fight"
+			status.Text = string.format("SECTOR %d · WAVE %d/%d · HULL %d/%d%s", run.sector, run.waveInSector,
+				DefenseConfig.WavesPerSector, run.hull, run.maxHull,
+				if fight and data and (data.saber or 0) > 0 then "  ·  SLASH WITH YOUR LIGHTSABER!" elseif fight then "  ·  FIGHTING" else "")
+			defendB.set(if fight then "🎯 COMMAND" else "⚔ DEFEND", GREEN)
+		else
+			status.Text = ""
+			defendB.set("⚔ DEFEND", GREEN)
+		end
+	end
+
 	-- ═══ Çizim ══════════════════════════════════════════════════════════════
 	local function deployedSlots(): { [number]: boolean }
 		local set = {}
@@ -672,6 +750,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		local prep = run ~= nil and run.phase == "prep"
 		local fight = run ~= nil and run.phase == "fight"
 		start.Visible = run == nil
+		howTo.Visible = run == nil
 		incoming.Visible = run ~= nil
 		crewBar.Visible = prep
 		actions.Visible = prep
@@ -696,6 +775,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		end
 		renderCrew()
 		renderSupports()
+		renderPlanetHud()
 	end
 
 	-- ═══ Dışa açık ══════════════════════════════════════════════════════════
@@ -739,8 +819,15 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		renderHud()
 	end
 
+	function ui.SetPlanetHud(visible: boolean)
+		planetHud:SetAttribute("Wanted", visible)
+		planetHud.Visible = visible and not hud.Visible
+		renderPlanetHud()
+	end
+
 	function ui.SetCommand(visible: boolean)
 		hud.Visible = visible
+		planetHud.Visible = not visible and planetHud:GetAttribute("Wanted") == true
 		if visible then
 			pilotRoot.Visible = false
 			shopRoot.Visible = false
@@ -772,6 +859,9 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	function ui.SetTick(snap: any)
 		if run then
 			run.hull = snap.hull
+			if planetHud.Visible then
+				renderPlanetHud()
+			end
 			hullFill.Size = UDim2.fromScale(math.clamp(snap.hull / math.max(1, run.maxHull), 0, 1), 1)
 			hullText.Text = string.format("SHIP HULL %d / %d   ·   enemies %d", snap.hull, run.maxHull, #(snap.e or {}))
 		end

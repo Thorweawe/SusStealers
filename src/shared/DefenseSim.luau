@@ -526,6 +526,24 @@ function DefenseSim.Strike(sim: Sim, at: Vector2)
 	emit(sim, { "strike", at.X, at.Y })
 end
 
+--[[ Oyuncunun ışın kılıcı: `at` noktasında, `dir` yönündeki geniş yayda. Vurulan sayısı. ]]
+function DefenseSim.Slash(sim: Sim, at: Vector2, dir: Vector2, radius: number, damage: number): number
+	local hits = 0
+	local facing = if dir.Magnitude > 0.01 then dir.Unit else Vector2.new(0, 1)
+	for _, e in sim.enemies do
+		if e.hp > 0 then
+			local rel = e.pos - at
+			local d = rel.Magnitude
+			if d <= radius and (d < 1.5 or rel.Unit:Dot(facing) > -0.25) then
+				damageEnemy(sim, e, damage)
+				hits += 1
+			end
+		end
+	end
+	emit(sim, { "slash", at.X, at.Y, hits })
+	return hits
+end
+
 function DefenseSim.MedDrop(sim: Sim)
 	for _, u in sim.units do
 		if u.alive then

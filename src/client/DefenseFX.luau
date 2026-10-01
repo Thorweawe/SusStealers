@@ -67,6 +67,8 @@ type UnitView = {
 
 local folder: Folder? = nil
 local planet = 1
+-- Dünya konumu arenaya göre (her oyuncunun kendi gezegen kopyası)
+local arena = 1
 local palette = { body = WHITE, dark = WHITE, glow = WHITE }
 local enemies: { [number]: EnemyView } = {}
 local units: { [number]: UnitView } = {}
@@ -89,7 +91,7 @@ local function root(): Folder
 end
 
 local function world(p: Vector2, y: number?): Vector3
-	return DefenseConfig.ToWorld(planet, p, y)
+	return DefenseConfig.ToWorld(arena, p, y)
 end
 
 local function sound(key: string, gap: number, fn: () -> ())
@@ -160,6 +162,10 @@ local function hpBar(adornee: BasePart, offset: number, width: number, color: Co
 end
 
 -- ─── Gezegen ────────────────────────────────────────────────────────────────
+
+function DefenseFX.SetArena(index: number)
+	arena = index
+end
 
 function DefenseFX.SetPlanet(index: number)
 	planet = index
@@ -279,7 +285,7 @@ function DefenseFX.UnitNear(p: Vector2, radius: number): number?
 	local best, bestD = nil, radius
 	for uid, view in units do
 		if not view.fallen then
-			local rel = view.base.Position - DefenseConfig.WorldOrigin(planet)
+			local rel = view.base.Position - DefenseConfig.WorldOrigin(arena)
 			local d = (Vector2.new(rel.X, rel.Z) - p).Magnitude
 			if d < bestD then
 				best, bestD = uid, d
@@ -292,28 +298,32 @@ end
 -- ─── Düşmanlar ──────────────────────────────────────────────────────────────
 
 --[[
-	Dalga boss'u: gezegenin uzaydaki canavarının küçük hâli (MonsterModel,
-	3B ağ şablonu varsa onunla). Ölçek boyuna göre bir kez ölçülüp
-	önbellekte; boy BOSS_HEIGHT stud.
+	2026-10-01 (Batur: "ilk gezegenin canavarlarına bakalım"): bütün
+	düşmanlar gezegenin canavarının (Glorp) farklı boydaki yavruları;
+	Yusuf'un 3B ağ şablonu (ReplicatedStorage.MonsterMeshes) varsa onunla.
+	Tür boyla ayırt ediliyor; ölçek ilk kurulumda bir kez ölçülüyor.
 ]]
-local BOSS_HEIGHT = 9
-local bossScale: { [string]: number } = {}
+local KIND_HEIGHT: { [string]: number } = {
+	Skitter = 3.2, Grub = 4.2, Spitter = 4.8, Brute = 6.6, Boss = 10,
+}
+local unitHeight: { [string]: number } = {}
 
-local function bossModel(id: string): (Model, MonsterModel.Rig?, number)
-	local scale = bossScale[id]
-	if not scale then
+local function monsterModel(id: string, kind: string): (Model, MonsterModel.Rig?, number)
+	local target = KIND_HEIGHT[kind] or 4
+	local h1 = unitHeight[id]
+	if not h1 then
 		local ok, probe = pcall(MonsterModel.Build, id, 1)
-		local h = 0
+		h1 = 0
 		if ok and probe then
-			h = probe:GetExtentsSize().Y
+			h1 = probe:GetExtentsSize().Y
 			probe:Destroy()
 		end
-		scale = if h > 0.5 then BOSS_HEIGHT / h else 0.3
-		bossScale[id] = scale
+		unitHeight[id] = h1
 	end
+	local scale = if (h1 :: number) > 0.5 then target / (h1 :: number) else 0.3
 	local ok, model = pcall(MonsterModel.Build, id, scale)
 	if not (ok and model) then
-		return EnemyModel.Build("Boss", palette.body, palette.dark, palette.glow), nil, 8
+		return EnemyModel.Build(kind, palette.body, palette.dark, palette.glow), nil, target
 	end
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -324,7 +334,7 @@ local function bossModel(id: string): (Model, MonsterModel.Rig?, number)
 		end
 	end
 	local rigOk, rig = pcall(MonsterModel.Rig, model)
-	return model, if rigOk then rig else nil, BOSS_HEIGHT
+	return model, if rigOk then rig else nil, target
 end
 
 local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: number, paths: { { Vector2 } }?)
@@ -333,10 +343,10 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 	end
 	local model: Model
 	local rig: MonsterModel.Rig? = nil
-	local height = if kind == "Brute" then 4.6 else 3.4
+	local height = KIND_HEIGHT[kind] or 4
 	local monster = Config.SpaceMonsters[planet]
-	if kind == "Boss" and monster then
-		model, rig, height = bossModel(monster.id)
+	if monster then
+		model, rig, height = monsterModel(monster.id, kind)
 	else
 		model = EnemyModel.Build(kind, palette.body, palette.dark, palette.glow)
 	end
@@ -365,7 +375,7 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 		born = os.clock(),
 	}
 	enemies[eid] = view
-	if rig then
+	if kind == "Boss" then
 		SoundFX.GearSound("GearBlast", pos)
 	end
 	-- Kapıdan çıkış parıltısı
@@ -591,6 +601,21 @@ local function onFreeze(seconds: number)
 	SoundFX.GearSound("GearZap", world(Vector2.new(0, 110), 2))
 end
 
+--[[ Oyuncunun ışın kılıcı vuruşu: yay biçiminde parlama. ]]
+local function onSlash(x: number, z: number, hits: number)
+	local at = world(Vector2.new(x, z), 2.5)
+	local ring = fxPart("SlashRing", Vector3.new(0.3, 4, 4), CFrame.new(at) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(140, 220, 255), Enum.PartType.Cylinder)
+	ring.Transparency = 0.3
+	local r = DefenseConfig.Saber.radius * 2
+	fadeAway(ring, 0.25, Vector3.new(0.3, r, r))
+	if hits > 0 then
+		sound("saberhit", 0.08, function()
+			SoundFX.GearSound("GearZap", at)
+		end)
+	end
+end
+
 local function onMedDrop()
 	for _, u in units do
 		if not u.fallen then
@@ -634,6 +659,8 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 			onFreeze(ev[2])
 		elseif kind == "meddrop" then
 			onMedDrop()
+		elseif kind == "slash" then
+			onSlash(ev[2], ev[3], ev[4])
 		end
 	end
 

@@ -59,6 +59,7 @@ type Deployed = {
 
 type Run = {
 	planet: number,
+	arena: number,
 	sector: number,          -- başlanan bölüm
 	wave: number,            -- sıradaki (prep) ya da süren (fight) dalga
 	phase: string,           -- "prep" | "fight"
@@ -81,12 +82,16 @@ type Run = {
 
 type Session = {
 	planet: number?,
+	arena: number?,          -- oyuncunun gezegen kopyası (DefenseConfig.MaxArenas)
 	run: Run?,
 	busy: boolean,           -- iniş / kalkış animasyonu sürüyor
 	lastAction: number,
+	lastSlash: number,
 }
 
 local sessions: { [Player]: Session } = {}
+-- arena -> o arenadaki oyuncu
+local arenaOwner: { [number]: Player } = {}
 local stateRemote: RemoteEvent? = nil
 local notifyRemote: RemoteEvent? = nil
 local navSpot: CFrame? = nil
@@ -113,7 +118,7 @@ end
 local function session(player: Player): Session
 	local s = sessions[player]
 	if not s then
-		s = { planet = nil, run = nil, busy = false, lastAction = 0 }
+		s = { planet = nil, arena = nil, run = nil, busy = false, lastAction = 0, lastSlash = 0 }
 		sessions[player] = s
 	end
 	return s
@@ -218,6 +223,7 @@ local function dataPayload(player: Player): any?
 		gold = d.gold,
 		slots = DefenseConfig.GetSlots(d.slots),
 		slotLevel = d.slots,
+		saber = d.saber,
 		hull = DefenseConfig.GetHull(d.hull),
 		hullLevel = d.hull,
 		roles = table.clone(d.roles),
@@ -252,6 +258,7 @@ local function runPayload(run: Run): any
 	local per = DefenseConfig.WavesPerSector
 	return {
 		planet = run.planet,
+		arena = run.arena,
 		sector = math.floor((run.wave - 1) / per) + 1,
 		wave = run.wave,
 		waveInSector = (run.wave - 1) % per + 1,
@@ -354,6 +361,7 @@ local function begin(player: Player, sector: number)
 	local hull = DefenseConfig.GetHull(profile.defense.hull)
 	local run: Run = {
 		planet = s.planet,
+		arena = s.arena or 1,
 		sector = sector,
 		wave = (sector - 1) * DefenseConfig.WavesPerSector + 1,
 		phase = "prep",
@@ -739,6 +747,20 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 		end
 		d.hull += 1
 		notify(player, string.format("Ship hull: %d", DefenseConfig.GetHull(d.hull)), false, "upgrade")
+	elseif kind == "saber" then
+		local S = DefenseConfig.Saber
+		local cost = if d.saber == 0 then S.price else S.upgradeCosts[d.saber]
+		if not cost then
+			notify(player, "Lightsaber is maxed", true)
+			return false
+		end
+		if not spendGold(player, profile, cost) then
+			return false
+		end
+		d.saber += 1
+		notify(player, if d.saber == 1 then "Lightsaber unlocked! Swing it on the battlefield"
+			else string.format("Lightsaber level %d", d.saber), false, "upgrade")
+		DefenseService.GiveSaber(player)
 	elseif kind == "support" then
 		local def = id and DefenseConfig.GetSupport(id)
 		if not def then
@@ -830,12 +852,28 @@ function DefenseService.Land(player: Player, planet: number): boolean
 		notify(player, why or "Locked", true)
 		return false
 	end
-	local world = PlanetWorldService.Get(planet)
+	-- Boştaki ilk arena
+	local arena: number? = nil
+	for i = 1, DefenseConfig.MaxArenas do
+		local owner = arenaOwner[i]
+		if not owner or not owner.Parent or owner == player then
+			arena = i
+			break
+		end
+	end
+	if not arena then
+		notify(player, "All landing zones are busy - try again in a moment", true)
+		return false
+	end
+	arenaOwner[arena] = player
+	local world = PlanetWorldService.Get(planet, arena)
 	if not world then
+		arenaOwner[arena] = nil
 		return false
 	end
 	s.busy = true
-	send(player, "landing", planet)
+	s.arena = arena
+	send(player, "landing", { planet = planet, arena = arena })
 	task.delay(LAND_DELAY, function()
 		s.busy = false
 		if not player.Parent then
@@ -843,11 +881,21 @@ function DefenseService.Land(player: Player, planet: number): boolean
 		end
 		s.planet = planet
 		player:SetAttribute("DefensePlanet", planet)
-		teleport(player, PlanetWorldService.SpawnCFrame(planet))
-		send(player, "arrived", planet)
+		player:SetAttribute("DefenseArena", arena)
+		teleport(player, PlanetWorldService.SpawnCFrame(arena))
+		send(player, "arrived", { planet = planet, arena = arena })
 		DefenseService.PushData(player)
+		DefenseService.GiveSaber(player)
 	end)
 	return true
+end
+
+local function releaseArena(player: Player)
+	for i, owner in arenaOwner do
+		if owner == player then
+			arenaOwner[i] = nil
+		end
+	end
 end
 
 function DefenseService.TakeOff(player: Player): boolean
@@ -868,14 +916,116 @@ function DefenseService.TakeOff(player: Player): boolean
 	task.delay(LAUNCH_DELAY, function()
 		s.busy = false
 		s.planet = nil
+		s.arena = nil
+		releaseArena(player)
 		if not player.Parent then
 			return
 		end
 		player:SetAttribute("DefensePlanet", nil)
+		player:SetAttribute("DefenseArena", nil)
+		DefenseService.TakeSaber(player)
 		teleport(player, homeCFrame())
 		send(player, "home", nil)
 	end)
 	return true
+end
+
+-- ─── Işın kılıcı ────────────────────────────────────────────────────────────
+
+local SABER_COLORS = {
+	Color3.fromRGB(80, 170, 255), Color3.fromRGB(90, 255, 120), Color3.fromRGB(190, 90, 255),
+	Color3.fromRGB(255, 60, 70), Color3.fromRGB(255, 210, 60),
+}
+
+local function slash(player: Player)
+	local s = sessions[player]
+	local run = s and s.run
+	local sim = run and run.sim
+	local profile = DataService.Get(player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not (s and run and sim and profile and root and s.arena) or run.phase ~= "fight" then
+		return
+	end
+	local now = os.clock()
+	if now - s.lastSlash < DefenseConfig.Saber.cooldown then
+		return
+	end
+	s.lastSlash = now
+	local rel = root.Position - DefenseConfig.WorldOrigin(s.arena)
+	local look = root.CFrame.LookVector
+	DefenseSim.Slash(sim, Vector2.new(rel.X, rel.Z), Vector2.new(look.X, look.Z), DefenseConfig.Saber.radius,
+		DefenseConfig.SaberDamage(profile.defense.saber, sim.hpMul))
+	processEvents(player, run, sim)
+end
+
+--[[ Gezegendeyken ve kılıcı varsa sırt çantasına (seviyenin renginde) verir. ]]
+function DefenseService.GiveSaber(player: Player)
+	local s = sessions[player]
+	local profile = DataService.Get(player)
+	if not (s and s.arena and profile) or profile.defense.saber <= 0 then
+		return
+	end
+	DefenseService.TakeSaber(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack then
+		return
+	end
+	local level = profile.defense.saber
+	local color = SABER_COLORS[math.clamp(level, 1, #SABER_COLORS)]
+	local tool = Instance.new("Tool")
+	tool.Name = "Lightsaber"
+	tool.ToolTip = "Lightsaber Lv " .. level
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool:SetAttribute("DefenseSaber", level)
+	-- Klasik kılıç tutuşu: sap -Z ucunda, bıçak +Z yönünde yukarı
+	tool.GripPos = Vector3.new(0, 0, -3.1)
+	tool.GripForward = Vector3.new(-1, 0, 0)
+	tool.GripRight = Vector3.new(0, 1, 0)
+	tool.GripUp = Vector3.new(0, 0, 1)
+	local blade = Instance.new("Part")
+	blade.Name = "Handle"
+	blade.Size = Vector3.new(0.32, 0.32, 5)
+	blade.Material = Enum.Material.Neon
+	blade.Color = color
+	blade.CanCollide = false
+	blade.Massless = true
+	blade.Parent = tool
+	local hilt = Instance.new("Part")
+	hilt.Name = "Hilt"
+	hilt.Size = Vector3.new(0.5, 0.5, 1.4)
+	hilt.Color = Color3.fromRGB(70, 74, 86)
+	hilt.Material = Enum.Material.Metal
+	hilt.CanCollide = false
+	hilt.Massless = true
+	hilt.CFrame = blade.CFrame * CFrame.new(0, 0, -3.1)
+	hilt.Parent = tool
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = blade
+	weld.Part1 = hilt
+	weld.Parent = blade
+	local glowLight = Instance.new("PointLight")
+	glowLight.Color = color
+	glowLight.Range = 10
+	glowLight.Brightness = 2
+	glowLight.Parent = blade
+	tool.Activated:Connect(function()
+		slash(player)
+	end)
+	tool.Parent = backpack
+end
+
+function DefenseService.TakeSaber(player: Player)
+	for _, container in { player:FindFirstChildOfClass("Backpack"), player.Character } do
+		if container then
+			for _, item in container:GetChildren() do
+				if item:IsA("Tool") and item:GetAttribute("DefenseSaber") ~= nil then
+					item:Destroy()
+				end
+			end
+		end
+	end
 end
 
 -- ─── Remote ─────────────────────────────────────────────────────────────────
@@ -896,9 +1046,7 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 		pushRun(player)
 		return
 	elseif action == "land" then
-		if valid(a) then
-			DefenseService.Land(player, math.floor(a))
-		end
+		DefenseService.Land(player, DefenseConfig.OnlyPlanet)
 		return
 	elseif action == "revive" then
 		if valid(a) and s.planet then
@@ -923,6 +1071,11 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 	end
 	if action == "takeoff" then
 		DefenseService.TakeOff(player)
+	elseif action == "command" then
+		-- Ekrandaki DEFEND düğmesi: konsola yürümeden taktik görünüm
+		DefenseService.PushData(player)
+		pushRun(player)
+		send(player, "command", s.planet)
 	elseif action == "begin" then
 		if valid(a) then
 			begin(player, a)
@@ -950,9 +1103,9 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 	end
 end
 
-local function onPrompt(player: Player, planet: number, kind: string)
+local function onPrompt(player: Player, arena: number, kind: string)
 	local s = session(player)
-	if s.planet ~= planet then
+	if not s.planet or s.arena ~= arena then
 		return
 	end
 	if kind == "takeoff" then
@@ -962,7 +1115,7 @@ local function onPrompt(player: Player, planet: number, kind: string)
 	DefenseService.PushData(player)
 	if kind == "command" then
 		pushRun(player)
-		send(player, "command", planet)
+		send(player, "command", s.planet)
 	else
 		send(player, "open", kind)
 	end
@@ -998,8 +1151,8 @@ local function setupPilot()
 		if session(player).planet then
 			return
 		end
-		DefenseService.PushData(player)
-		send(player, "pilot", nil)
+		-- Tek gezegen: seçim penceresi yok, doğrudan iniş
+		DefenseService.Land(player, DefenseConfig.OnlyPlanet)
 	end)
 end
 
@@ -1011,11 +1164,12 @@ local function onCharacterAdded(player: Player, character: Model)
 		return
 	end
 	-- Gezegende ölen / sıfırlayan oyuncu gemide değil gezegende doğuyor
-	local planet = s.planet
+	local arena = s.arena
 	task.defer(function()
 		local root = character:WaitForChild("HumanoidRootPart", 10)
-		if root and s.planet == planet and player.Parent then
-			teleport(player, PlanetWorldService.SpawnCFrame(planet))
+		if root and arena and s.arena == arena and player.Parent then
+			teleport(player, PlanetWorldService.SpawnCFrame(arena))
+			DefenseService.GiveSaber(player)
 		end
 	end)
 end
@@ -1030,6 +1184,8 @@ function DefenseService.Start()
 	end
 	PlanetWorldService.Start()
 	PlanetWorldService.OnPrompt(onPrompt)
+	-- İlk inen beklemesin: ilk arena sunucu açılırken kuruluyor
+	task.spawn(PlanetWorldService.Get, DefenseConfig.OnlyPlanet, 1)
 	setupPilot()
 
 	-- Çıkışta: dalga ortasındaysa sahadakiler hastaneye, değilse kaideye
@@ -1055,6 +1211,7 @@ function DefenseService.Start()
 	end
 	Players.PlayerAdded:Connect(hook)
 	Players.PlayerRemoving:Connect(function(player)
+		releaseArena(player)
 		-- OnBeforeRelease koşuyu okuyabilsin diye biraz sonra
 		task.delay(5, function()
 			if not player.Parent then
@@ -1076,7 +1233,9 @@ DefenseService._go = go
 DefenseService._step = stepAll
 DefenseService._retreat = retreat
 function DefenseService._setPlanet(player: Player, planet: number?)
-	session(player).planet = planet
+	local s = session(player)
+	s.planet = planet
+	s.arena = if planet then 1 else nil
 end
 
 return DefenseService

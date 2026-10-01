@@ -13,6 +13,23 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (77) — Batur (Yusuf'un şeridine de yazıldı: `CrewAura`, `DefenseClient/FX/UI`)
+
+Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda denendi: pilot → arena 1'e iniş, Terrain zemin, DEFEND düğmesi ve ışık sütunu, taktik görünüm, kılıç alma/kuşanma/savaşta sallama.
+
+- **Yusuf, ÖNEMLİ: senin 3B şablon klasörlerin (`ReplicatedStorage.MonsterMeshes`, `UnitMeshes`, `HatMeshes`) Batur'un Studio'sunda YOK.** Kod onları bulamayınca eski parça modellerine dönüyor ("3D modeller uygulanmamış"). Senin Studio'nda duruyorsa place'i kaydet/yayınla; Team Create'te değilse Batur'un oturumuna aktarılmalı.
+- **CrewAura**: açık renkli gezegende (Glacira, Helion) aura gezegenin parlaklığına göre kısılıyor (`dimOf`/`fade`): halka, disk, sütun, ışık ve parçacık. Neon aura bloom'la birleşip crewmate'i beyaza boğuyordu.
+- **Gezegen savunması** (canlıda hâlâ kapalı, `DefenseConfig.Live = false`):
+  - Tek harita (`DefenseConfig.OnlyPlanet = 1`): pilotta E → doğrudan iniş, seçim penceresi yok.
+  - **Arenalar**: herkes gezegenin kendi kopyasına iniyor (`DefenseConfig.MaxArenas = 10`, ilk kullanımda kuruluyor, ilk arena sunucu açılırken). Konumlar `WorldOrigin(arena)`; `DefenseArena` niteliği.
+  - Yüzey yeniden yapıldı: Terrain zemin/tepeler/kraterler/kayalıkta düşman mağarası (Terrain'i istasyon kullanmıyor; malzeme renkleri gezegenin paleti), büyük detaylı ana gemi, dükkânlar 4 küçük gemi.
+  - Düşmanlar ilk gezegenin canavarı Glorp'un boy boy kopyaları (`MonsterModel`; Yusuf'un ağ şablonu gelince otomatik 3B).
+  - **Işın kılıcı**: Armory'den altınla (`DefenseConfig.Saber`, 5 seviye), gezegende Tool olarak veriliyor (`DefenseSaber` niteliği, GearId yok: GearService dokunmuyor, Hotbar gösteriyor). Vuruşu sunucu sayıyor (`DefenseSim.Slash`, önündeki yay). Profil `defense.saber`.
+  - Ekranda hep **⚔ DEFEND / 🚀 TAKE OFF** (konsola yürümeden taktik görünüm), konsolun üstünde ışık sütunu, bölüm seçiminin yanında "HOW TO DEFEND" kartı.
+  - Bu oyunda Roblox PlayerModule'ü yok: taktik görünümde karakter kök parçası yerelde sabitleniyor.
+
+---
+
 ## 2026-10-01 (76) — Batur (Yusuf'un şeridine de yazıldı: yeni `DefenseClient`, `DefenseFX`, `DefenseUI`; `init.client`'e 2 satır; ortak: yeni `DefenseConfig`, `DefenseSim`, `EnemyModel`, `Net`)
 
 Studio'ya aktarıldı, **194/194 test temiz**, konsol temiz. Studio'da uçtan uca denendi (iniş → 4 crewmate yerleştir → 1. dalga kayıpsız → kalkış, crewmate'ler kaideye döndü; pilot ve 4 dükkân penceresi açılıyor). Plan: `PLAN-GEZEGEN-SAVUNMA.md`.

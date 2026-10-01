@@ -42,6 +42,9 @@ function DefenseClient.Start(screen: ScreenGui)
 	local data: any = nil
 	local run: any = nil
 	local planet: number? = nil
+	-- Oyuncunun gezegen kopyası (dünya konumu buna göre)
+	local arena = 1
+	local beacon: BasePart? = nil
 	local command = false
 	local selectedUid: number? = nil
 	local pickedSlot: number? = nil
@@ -52,12 +55,21 @@ function DefenseClient.Start(screen: ScreenGui)
 		remote:FireServer(...)
 	end
 
-	local function getControls(): any?
-		local ok, controls = pcall(function()
-			local module = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule") :: ModuleScript) :: any
-			return module:GetControls()
-		end)
-		return if ok then controls else nil
+	--[[
+		Taktik görünümde karakter yerinde dursun. Bu oyunda Roblox'un
+		PlayerModule'ü YOK (WaitForChild sonsuza dek bekliyordu ve DEFEND
+		açılmıyordu); kök parçayı yerelde sabitliyoruz. Karakter istemcinin
+		fiziğinde, başkası görmüyor zaten (herkes kendi arenasında).
+	]]
+	local function freezeCharacter(frozen: boolean)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			if frozen then
+				root.AssemblyLinearVelocity = Vector3.zero
+			end
+			root.Anchored = frozen
+		end
 	end
 
 	-- ─── Ekranın üstündeki perde (animasyonlar) ─────────────────────────────
@@ -223,14 +235,11 @@ function DefenseClient.Start(screen: ScreenGui)
 			return
 		end
 		command = true
-		local controls = getControls()
-		if controls then
-			controls:Disable()
-		end
+		freezeCharacter(true)
 		savedFov = camera.FieldOfView
 		camera.CameraType = Enum.CameraType.Scriptable
 		TweenService:Create(camera, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ CFrame = tacticalCFrame(planet :: number), FieldOfView = 70 }):Play()
+			{ CFrame = tacticalCFrame(arena), FieldOfView = 70 }):Play()
 		ui.SetCommand(true)
 		updateHint()
 	end
@@ -242,10 +251,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		command = false
 		clearPick()
 		select(nil)
-		local controls = getControls()
-		if controls then
-			controls:Enable()
-		end
+		freezeCharacter(false)
 		camera.FieldOfView = savedFov
 		camera.CameraType = Enum.CameraType.Custom
 		ui.SetCommand(false)
@@ -290,6 +296,12 @@ function DefenseClient.Start(screen: ScreenGui)
 			select(nil)
 		end,
 		exitView = exitCommand,
+		openCommand = function()
+			send("command")
+		end,
+		takeoff = function()
+			send("takeoff")
+		end,
 	})
 
 	-- ─── Dokunma / tıklama → alan noktası ───────────────────────────────────
@@ -299,7 +311,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		-- Girdi konumu üst çubuğu (GuiInset) saymıyor: ScreenPointToRay onu hesaba katıyor
 		local ray = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
-		local origin = DefenseConfig.WorldOrigin(planet :: number)
+		local origin = DefenseConfig.WorldOrigin(arena)
 		if math.abs(ray.Direction.Y) < 1e-4 then
 			return nil
 		end
@@ -434,7 +446,9 @@ function DefenseClient.Start(screen: ScreenGui)
 	end
 
 	local landingToken = 0
-	local function onLanding(index: number)
+	local function onLanding(payload: any)
+		local index = payload.planet
+		local where = payload.arena
 		landingToken += 1
 		local token = landingToken
 		-- Emniyet: varış gelmezse (sunucu iptal etti, bağlantı koptu) perde kalksın
@@ -460,27 +474,48 @@ function DefenseClient.Start(screen: ScreenGui)
 		SoundFX.GearSound("GearBlast", camera.CFrame.Position)
 		task.spawn(function()
 			pcall(function()
-				player:RequestStreamAroundAsync(DefenseConfig.ToWorld(index, DefenseConfig.Layout.spawn, 3), 5)
+				player:RequestStreamAroundAsync(DefenseConfig.ToWorld(where, DefenseConfig.Layout.spawn, 3), 5)
 			end)
 		end)
 	end
 
-	local function onArrived(index: number)
+	local function onArrived(payload: any)
+		local index = payload.planet
 		landingToken += 1
 		planet = index
+		arena = payload.arena
 		DefenseFX.SetPlanet(index)
+		DefenseFX.SetArena(arena)
 		applyEnvironment(index)
+		-- KOMUTA konsolunun üstünde gökyüzüne uzanan ışık: nereye gidileceği belli olsun
+		if beacon then
+			beacon:Destroy()
+		end
+		local consoleAt = DefenseConfig.ToWorld(arena, DefenseConfig.Layout.command, 0)
+		local b = Instance.new("Part")
+		b.Name = "DefendBeacon"
+		b.Anchored = true
+		b.CanCollide = false
+		b.CanQuery = false
+		b.CastShadow = false
+		b.Material = Enum.Material.Neon
+		b.Color = Color3.fromRGB(90, 255, 140)
+		b.Transparency = 0.55
+		b.Size = Vector3.new(1.6, 120, 1.6)
+		b.CFrame = CFrame.new(consoleAt + Vector3.new(0, 70, 0))
+		b.Parent = workspace
+		beacon = b
 		-- Kamera gökten gemiye süzülüyor
-		local ship = DefenseConfig.ToWorld(index, Vector2.new(0, DefenseConfig.Layout.shipZ), 6)
-		local high = CFrame.lookAt(ship + Vector3.new(70, 90, 110), ship)
+		local ship = DefenseConfig.ToWorld(arena, Vector2.new(0, DefenseConfig.Layout.shipZ), 10)
+		local high = CFrame.lookAt(ship + Vector3.new(110, 120, 170), ship)
 		camera.CameraType = Enum.CameraType.Scriptable
 		camera.CFrame = high
 		fadeCurtain(false, 0.6)
 		local def = Config.SpaceMonsters[index]
 		local dustColor = if def then def.planetColor:Lerp(WHITE, 0.3) else WHITE
-		for _, x in { -10, 10 } do
-			for _, z in { -14, 12 } do
-				dustAt(DefenseConfig.ToWorld(index, Vector2.new(x, DefenseConfig.Layout.shipZ + z), 0.5), dustColor)
+		for _, x in { -13, 13 } do
+			for _, z in { -36, -4, 28 } do
+				dustAt(DefenseConfig.ToWorld(arena, Vector2.new(x, DefenseConfig.Layout.shipZ + z), 0.5), dustColor)
 			end
 		end
 		task.spawn(function()
@@ -498,7 +533,8 @@ function DefenseClient.Start(screen: ScreenGui)
 			end
 		end)
 		local name = if def then string.upper(def.planet) else "PLANET"
-		ui.Banner(name, "Walk to the COMMAND console in front of the ship to defend!", Color3.fromRGB(120, 230, 255))
+		ui.Banner(name, "Press ⚔ DEFEND at the bottom to command your crew!", Color3.fromRGB(120, 230, 255))
+		ui.SetPlanetHud(true)
 	end
 
 	local function onLaunch()
@@ -526,6 +562,11 @@ function DefenseClient.Start(screen: ScreenGui)
 		landingToken += 1
 		planet = nil
 		run = nil
+		ui.SetPlanetHud(false)
+		if beacon then
+			beacon:Destroy()
+			beacon = nil
+		end
 		DefenseFX.Clear()
 		applyEnvironment(nil)
 		camera.CameraType = Enum.CameraType.Custom
@@ -557,6 +598,7 @@ function DefenseClient.Start(screen: ScreenGui)
 			ui.SetRun(payload, if payload then payload.planet else planet)
 			if payload then
 				DefenseFX.SetPlanet(payload.planet)
+				DefenseFX.SetArena(payload.arena or arena)
 				if payload.phase == "prep" then
 					if wasFight then
 						DefenseFX.ClearEnemies()
@@ -601,15 +643,58 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 	end)
 
+	--[[
+		Işın kılıcı (sunucu Tool olarak veriyor, vuruşu sunucu sayıyor):
+		burada yalnızca savuruş. Tutuşu (Grip) yay çizerek döndürüyoruz,
+		klasik kılıç animasyonu gibi; arenada yalnız olduğun için başkası
+		görmese de olur.
+	]]
+	local function bindSaber(tool: Instance)
+		if not (tool:IsA("Tool") and tool:GetAttribute("DefenseSaber") ~= nil) then
+			return
+		end
+		local t = tool :: Tool
+		local baseGrip = t.Grip
+		local swinging = false
+		t.Activated:Connect(function()
+			if swinging then
+				return
+			end
+			swinging = true
+			SoundFX.GearSound("GearSwing", camera.CFrame.Position)
+			task.spawn(function()
+				local t0 = os.clock()
+				while os.clock() - t0 < 0.28 and t.Parent do
+					local a = (os.clock() - t0) / 0.28
+					t.Grip = baseGrip * CFrame.Angles(math.rad(-110 * math.sin(a * math.pi)), 0, math.rad(40 * math.sin(a * math.pi)))
+					task.wait()
+				end
+				t.Grip = baseGrip
+				swinging = false
+			end)
+		end)
+	end
+	local function watchCharacter(character: Model)
+		for _, child in character:GetChildren() do
+			bindSaber(child)
+		end
+		character.ChildAdded:Connect(bindSaber)
+	end
+	if player.Character then
+		watchCharacter(player.Character)
+	end
+
 	-- Yeniden doğunca taktik görünümden çık; gezegendeysek atmosfer kalsın
-	player.CharacterAdded:Connect(function()
+	player.CharacterAdded:Connect(function(character)
 		exitCommand()
+		watchCharacter(character)
 	end)
 	player:GetAttributeChangedSignal("DefensePlanet"):Connect(function()
 		local p = player:GetAttribute("DefensePlanet")
 		if typeof(p) ~= "number" then
 			planet = nil
 			applyEnvironment(nil)
+			ui.SetPlanetHud(false)
 		end
 	end)
 

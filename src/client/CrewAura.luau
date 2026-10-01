@@ -18,6 +18,12 @@
 	                yıldızlar, uzaktan "bu özel" desin
 
 	Kameradan uzaktakilerin dönen parçaları güncellenmiyor (performans).
+
+	2026-10-01 (Batur: "bu kısımdaki amonguslar çok parlıyor gezegenden
+	dolayı", Glacira): açık renkli gezegende (buz, güneş) neon halka/disk/
+	sütun ve ışık bloom'la birleşip crewmate'i beyaza boğuyordu. Aura artık
+	gezegenin parlaklığına göre kısılıyor (dimOf): Glacira'da tam, koyu
+	gezegenlerde hiç.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -89,7 +95,25 @@ type Aura = {
 	spin: number,
 	burst: ParticleEmitter?,
 	nextBurst: number,
+	dim: number,
 }
+
+--[[ Crewmate'in durduğu gezegen ne kadar açık renkli: 0 (koyu) .. 1 (buz beyazı). ]]
+local function dimOf(model: Model): number
+	local index = model:GetAttribute("Planet")
+	local def = if typeof(index) == "number" then Config.SpaceMonsters[index] else nil
+	if not def then
+		return 0
+	end
+	local c = def.planetColor
+	local lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
+	return math.clamp((lum - 0.45) / 0.35, 0, 1)
+end
+
+-- Saydamlığı parlak gezegende 1'e doğru çeker
+local function fade(transparency: number, dim: number): number
+	return transparency + (1 - transparency) * 0.6 * dim
+end
 
 function CrewAura.Start(): Handle
 	local auras: { [Model]: Aura } = {}
@@ -109,6 +133,7 @@ function CrewAura.Start(): Handle
 		local tone = toneOf(def.rarity)
 		local mutationId = model:GetAttribute("MutationId")
 		local mutation = if typeof(mutationId) == "string" then Config.GetMutation(mutationId) else nil
+		local dim = dimOf(model)
 
 		-- Ayak = sınır kutusunun altı (etiket/prompt parçası yok, yalnızca gövde)
 		local pivot = model:GetPivot()
@@ -130,7 +155,7 @@ function CrewAura.Start(): Handle
 			yok, diğerlerinde biraz yukarıda.
 		]]
 		if order >= 2 then
-			part(folder, "AuraDisc", Vector3.new(0.08, radius * 2, radius * 2), base * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, 0.75, Enum.PartType.Cylinder)
+			part(folder, "AuraDisc", Vector3.new(0.08, radius * 2, radius * 2), base * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, fade(0.75, dim), Enum.PartType.Cylinder)
 		end
 		-- Halka: kısa parçalardan daire (içi boş)
 		local ring: { Part } = {}
@@ -153,7 +178,8 @@ function CrewAura.Start(): Handle
 		     Common/Uncommon yalnızca disk ve halka; ışıltı Rare'den, küreler
 		     Epic'ten, ışık sütunu Mythic'ten. Nadir olan gerçekten öne çıksın. ]]
 		if order >= 3 then
-			sparkles(emitterHost, tone, 1 + order, 0.35 + order * 0.05, 12)
+			local e = sparkles(emitterHost, tone, (1 + order) * (1 - 0.5 * dim), 0.35 + order * 0.05, 12)
+			e.LightEmission = 1 - 0.7 * dim
 		end
 		if mutation then
 			local mc = mutation.tint or Color3.fromRGB(255, 255, 200)
@@ -175,7 +201,7 @@ function CrewAura.Start(): Handle
 		if order >= 4 then
 			local count = if order >= 6 then 4 else 2
 			for _ = 1, count do
-				local orb = part(folder, "AuraOrb", Vector3.one * (0.45 + order * 0.04), base, tone, 0, Enum.PartType.Ball)
+				local orb = part(folder, "AuraOrb", Vector3.one * (0.45 + order * 0.04), base, tone, fade(0, dim), Enum.PartType.Ball)
 				local trail = Instance.new("Trail")
 				local a0 = Instance.new("Attachment")
 				a0.Position = Vector3.new(0, 0.18, 0)
@@ -186,7 +212,7 @@ function CrewAura.Start(): Handle
 				trail.Attachment0 = a0
 				trail.Attachment1 = a1
 				trail.Color = ColorSequence.new(tone)
-				trail.LightEmission = 1
+				trail.LightEmission = 1 - 0.7 * dim
 				trail.Lifetime = 0.35
 				trail.Transparency = NumberSequence.new(0.3, 1)
 				trail.FaceCamera = true
@@ -196,7 +222,7 @@ function CrewAura.Start(): Handle
 			local light = Instance.new("PointLight")
 			light.Color = tone
 			light.Range = 8 + order * 2
-			light.Brightness = 1.2
+			light.Brightness = 1.2 * (1 - 0.75 * dim)
 			light.Parent = emitterHost
 		end
 
@@ -204,8 +230,9 @@ function CrewAura.Start(): Handle
 		local burst: ParticleEmitter? = nil
 		if order >= 6 then
 			local height = 26 + (order - 5) * 10
-			part(folder, "AuraBeam", Vector3.new(height, radius * 0.9, radius * 0.9), base * CFrame.new(0, height / 2, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, 0.86, Enum.PartType.Cylinder)
+			part(folder, "AuraBeam", Vector3.new(height, radius * 0.9, radius * 0.9), base * CFrame.new(0, height / 2, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, fade(0.86, dim), Enum.PartType.Cylinder)
 			local e = sparkles(emitterHost, tone, 0, 0.9, 180)
+			e.LightEmission = 1 - 0.7 * dim
 			e.Speed = NumberRange.new(6, 10)
 			e.Lifetime = NumberRange.new(0.6, 1)
 			e.Drag = 3
@@ -221,6 +248,7 @@ function CrewAura.Start(): Handle
 			spin = math.random() * 10,
 			burst = burst,
 			nextBurst = os.clock() + math.random() * 3,
+			dim = dim,
 		}
 	end
 
@@ -272,7 +300,7 @@ function CrewAura.Start(): Handle
 				orb.CFrame = aura.base * CFrame.new(math.cos(a) * r, 2 + math.sin(t * 2 + i) * 0.8, math.sin(a) * r)
 			end
 			if #aura.ring > 0 then
-				local tr = 0.2 + 0.3 * (0.5 + 0.5 * math.sin(t * 3))
+				local tr = fade(0.2 + 0.3 * (0.5 + 0.5 * math.sin(t * 3)), aura.dim)
 				for _, seg in aura.ring do
 					seg.Transparency = tr
 				end

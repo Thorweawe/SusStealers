@@ -86,16 +86,53 @@ function DefenseConfig.WorldAt(p: Vector3): number?
 end
 
 -- Yüzeydeki yerler (yerel düzlem)
+--[[
+	2026-10-01 (Batur: "şimdilik bir tane harita, pilota E basınca direkt
+	buraya gelsin, ilk gezegene yoğunlaşalım"): tek gezegen. Diğer
+	gezegenlerin kodu duruyor ama pilot doğrudan buraya indiriyor.
+]]
+DefenseConfig.OnlyPlanet = 1
+
+--[[
+	ARENALAR (Batur: "8 kişi için farklı yer olsa, farklı yerlere
+	ışınlansalar"): gezegenin her oyuncu için ayrı bir kopyası. Pilot boştaki
+	ilk arenaya indiriyor; herkes kendi gemisi, dükkânları ve alanıyla yalnız.
+	Dünya konumu arenaya göre (WorldOrigin(arena)); renk ve zorluk gezegenden.
+	Kopyalar ilk kullanımda kuruluyor (PlanetWorldService).
+]]
+DefenseConfig.MaxArenas = 10
+
+--[[
+	IŞIN KILICI (Batur: "ışın kılıcını gear olarak alıp kendi crewmate'lerimize
+	yardım etme"): gezegende Armory'den altınla. Oyuncu alanda yürüyüp
+	sallıyor; önündeki yay içindeki düşmanlara vuruyor. Hasar dalganın can
+	çarpanıyla ölçekli (her dalgada aynı oranda işe yarasın), seviyeyle artıyor.
+	Düşmanlar oyuncuya saldırmıyor.
+]]
+DefenseConfig.Saber = {
+	price = 150,                    -- ilk alış (seviye 1)
+	upgradeCosts = { 90, 140, 200, 280 },   -- seviye 2..5
+	damage = 34,                    -- × dalga can çarpanı
+	perLevel = 0.3,
+	radius = 8,
+	cooldown = 0.45,
+}
+
+function DefenseConfig.SaberDamage(level: number, hpMul: number): number
+	return DefenseConfig.Saber.damage * (1 + DefenseConfig.Saber.perLevel * math.max(0, level - 1)) * hpMul
+end
+
+-- Gemi büyük (gövde ~130 stud, burnu z ≈ 6'da); dükkânlar yanlarda küçük gemiler
 DefenseConfig.Layout = {
-	shipZ = -18,
-	spawn = Vector2.new(-24, 14),
-	command = Vector2.new(15, 22),
-	takeoff = Vector2.new(-15, 22),
-	hospital = Vector2.new(-46, -4),
-	armory = Vector2.new(46, -4),
-	shop = Vector2.new(-46, -40),
-	market = Vector2.new(46, -40),
-	groundRadius = 340,
+	shipZ = -60,
+	spawn = Vector2.new(-38, 10),
+	command = Vector2.new(18, 22),
+	takeoff = Vector2.new(-18, 22),
+	hospital = Vector2.new(-80, -6),
+	armory = Vector2.new(80, -6),
+	shop = Vector2.new(-86, -66),
+	market = Vector2.new(86, -66),
+	groundRadius = 420,
 }
 
 -- ─── Roller ─────────────────────────────────────────────────────────────────

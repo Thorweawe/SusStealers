@@ -50,6 +50,8 @@ export type DefenseData = {
 	goldEarned: number,
 	slots: number,
 	hull: number,
+	-- Işın kılıcı seviyesi (0 = yok)
+	saber: number,
 	roles: { [string]: number },
 	supports: { [string]: number },
 	-- stars: bölüm no (dize; DataStore delikli diziyi sevmiyor) -> 1..3
@@ -316,7 +318,7 @@ local function newProfile(): Profile
 		},
 		petsFound = {},
 		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0, gt = 0 },
-		defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} },
+		defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, saber = 0, roles = {}, supports = {}, planets = {} },
 	}
 end
 
@@ -767,6 +769,7 @@ local function sanitize(raw: any): Profile
 		d.goldEarned = num(def.goldEarned)
 		d.slots = num(def.slots, 20)
 		d.hull = num(def.hull, 20)
+		d.saber = num(def.saber, 20)
 		if typeof(def.roles) == "table" then
 			for role, level in def.roles do
 				if typeof(role) == "string" and #role <= 24 then

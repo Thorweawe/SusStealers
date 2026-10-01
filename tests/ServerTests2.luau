@@ -2752,6 +2752,43 @@ function ServerTests2.Register(kit: Kit)
 		ctx.profile.defense = keepDefense
 		ctx.profile.rebirths = keepReb
 	end)
+
+	case("Savunma: ışın kılıcı altınla alınıyor, yükseliyor, önündeki düşmana vuruyor", function(ctx)
+		local keepDefense = ctx.profile.defense
+		ctx.profile.defense = { gold = 1000, goldEarned = 0, slots = 0, hull = 0, saber = 0, roles = {}, supports = {}, planets = {} }
+		local S = DefenseConfig.Saber
+		ok("alındı", DefenseService.Buy(ctx.player, "saber"))
+		eq("seviye 1", ctx.profile.defense.saber, 1)
+		eq("fiyat düştü", ctx.profile.defense.gold, 1000 - S.price)
+		ctx.profile.defense.gold = 100000
+		for _ = 1, 10 do
+			DefenseService.Buy(ctx.player, "saber")
+		end
+		eq("tavan", ctx.profile.defense.saber, #S.upgradeCosts + 1)
+		ok("tavanda alınmıyor", not DefenseService.Buy(ctx.player, "saber"))
+		ok("seviye hasarı artırıyor", DefenseConfig.SaberDamage(5, 1) > DefenseConfig.SaberDamage(1, 1))
+
+		-- Sim: önündeki düşmana vuruyor, arkasındakine değil
+		local sim = DefenseSim.New(1, 1, 3, {}, nil, 25, 25, nil)
+		for _ = 1, 200 do
+			DefenseSim.Step(sim, 0.1)
+			if #sim.enemies > 0 then
+				break
+			end
+		end
+		local e = sim.enemies[1]
+		ok("düşman çıktı", e ~= nil)
+		if e then
+			local before = e.hp
+			-- Düşmanın 4 stud gerisinde, ona dönük
+			local at = e.pos + Vector2.new(0, 4)
+			eq("arkaya bakınca vurmuyor", DefenseSim.Slash(sim, at, Vector2.new(0, 1), S.radius, 5), 0)
+			eq("önüne bakınca vuruyor", DefenseSim.Slash(sim, at, Vector2.new(0, -1), S.radius, 5), 1)
+			near("hasar", e.hp, before - 5, 0.01)
+			eq("uzaktakine değmiyor", DefenseSim.Slash(sim, e.pos + Vector2.new(0, 40), Vector2.new(0, -1), S.radius, 5), 0)
+		end
+		ctx.profile.defense = keepDefense
+	end)
 end
 
 return ServerTests2

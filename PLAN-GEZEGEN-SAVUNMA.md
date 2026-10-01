@@ -93,6 +93,10 @@ can ve hasar artıyor; gezegen ilerledikçe taban zorluk artıyor.
 
 ## Kararlar (Batur)
 
+- Şimdilik **tek harita** (ilk gezegen), pilotta E → doğrudan iniş.
+- Aynı anda çok oyuncu: **herkese ayrı arena** (gezegenin kopyası), birbirine karışmıyor.
+- Oyuncu da savaşabiliyor: **ışın kılıcı** (Armory, altınla, 5 seviye).
+
 - Rebirth atınca hastanedeki crewmate'ler de gidiyor (kaideler boşalıyor): **kalsın**.
 - Altın ve Armory yükseltmeleri rebirth'te **sıfırlanmıyor**.
 - Yusuf'un yeni 3B modelleri (işi bitince) dükkân/düşman/gemi görünümlerinde kullanılacak.
