@@ -338,10 +338,17 @@ function TutorialService.Check(player: Player)
 		profile.tutorialStep += 1
 		advanced = true
 
+		-- Hediye uzay hızı (Config.TutorialStep.speed)
+		local speedGift = step.speed or 0
+		if speedGift > 0 then
+			local CapsuleService = require(script.Parent.CapsuleService) :: any
+			CapsuleService.SetSpeed(player, CapsuleService.GetSpeed(player) + speedGift)
+		end
+		local speedText = if speedGift > 0 then string.format("  ·  +%d Space Speed", speedGift) else ""
 		if step.reward > 0 then
 			EconomyService.AddCash(player, step.reward)
-			notify(player, string.format("Step complete: %s  ·  +$%s",
-				step.title, Config.FormatCash(step.reward)), false)
+			notify(player, string.format("Step complete: %s  ·  +$%s%s",
+				step.title, Config.FormatCash(step.reward), speedText), false)
 		else
 			notify(player, string.format("Step complete: %s", step.title), false)
 		end

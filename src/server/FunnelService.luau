@@ -29,7 +29,7 @@ local FunnelService = {}
 
 local CHECKPOINTS = { 1, 2, 3, 5, 7, 10 }
 
-type Session = { joinedAt: number, logged: number, isNew: boolean }
+type Session = { joinedAt: number, logged: number, isNew: boolean, noted: { [string]: number } }
 local sessions: { [Player]: Session } = {}
 
 local function stepName(done: number): string
@@ -95,12 +95,18 @@ local function track(player: Player)
 		return
 	end
 	local isNew = currentStep(player) == 0
-	local s: Session = { joinedAt = os.clock(), logged = 0, isNew = isNew }
+	local s: Session = { joinedAt = os.clock(), logged = 0, isNew = isNew, noted = {} }
 	sessions[player] = s
 	if not isNew then
 		return
 	end
 	funnel(player, 1, "Joined")
+	-- İlk soygunun alt adımları: uzaya çıktı mı (SpaceService diğerlerini Note ile)
+	player:GetAttributeChangedSignal("InSpace"):Connect(function()
+		if player:GetAttribute("InSpace") == true then
+			FunnelService.Note(player, "NewPlayerSpace")
+		end
+	end)
 	player:GetAttributeChangedSignal("TutorialStep"):Connect(function()
 		onStep(player)
 	end)
@@ -112,6 +118,22 @@ local function track(player: Player)
 			end
 		end)
 	end
+end
+
+--[[
+	Yeni oyuncunun ilk soygununun alt adımları (Custom Events), oturumda her
+	olay ilk kez gerçekleştiği DAKİKAyla bir kez: NewPlayerSpace (uzaya çıktı),
+	NewPlayerGrab (mürettebat kaptı), NewPlayerCaught (yakalandı). Funnel'da
+	"Heist"e ulaşamayanların nerede takıldığını gösteriyor.
+]]
+function FunnelService.Note(player: Player, event: string)
+	local s = sessions[player]
+	if not s or not s.isNew or s.noted[event] then
+		return
+	end
+	local minutes = math.floor((os.clock() - s.joinedAt) / 60 * 10 + 0.5) / 10
+	s.noted[event] = minutes
+	custom(player, event, minutes, stepName(currentStep(player)))
 end
 
 function FunnelService.Start()

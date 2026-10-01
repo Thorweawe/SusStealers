@@ -41,6 +41,7 @@ local UnitModel = require(Shared.UnitModel)
 local AnnounceService = require(script.Parent.AnnounceService)
 local BadgeService = require(script.Parent.BadgeService)
 local DataService = require(script.Parent.DataService)
+local FunnelService = require(script.Parent.FunnelService)
 local EconomyService = require(script.Parent.EconomyService)
 local MonetizationService = require(script.Parent.MonetizationService)
 local PlotService = require(script.Parent.PlotService)
@@ -710,6 +711,7 @@ function onGrab(player: Player, spot: Spot)
 		from = spot.position,
 	}
 	player:SetAttribute("SpaceCarry", true)
+	FunnelService.Note(player, "NewPlayerGrab")
 	MovementService.RefreshSpeed(player)
 	DataService.Discover(player, unitId)
 
@@ -913,6 +915,16 @@ local function catch(monster: Monster, player: Player)
 	end
 	local carry = carrying[player]
 	local name = if carry then unitName(carry.unitId, carry.mutationId) else "it"
+	FunnelService.Note(player, "NewPlayerCaught")
+	-- Çaylağa ipucu: nereye kaçacağını söyle
+	local victim = DataService.Get(player)
+	if victim and (victim.stolen or 0) < Config.RookieHeists then
+		task.delay(3, function()
+			if player.Parent then
+				notify(player, "Tip: grab one and fly STRAIGHT back to the green SAFE deck - monsters can't follow you there!", false, "tutorial")
+			end
+		end)
+	end
 	drop(player)
 	local s = Config.Space
 	local now = os.clock()
@@ -1152,8 +1164,11 @@ local function stepMonsters(dt: number)
 				local _, reachMul = Config.GetStealth(UpgradeService.GetLevel(m.target :: Player, "StealthSuit"))
 				local reach = SpaceField.CatchRadius(m.def) * reachMul
 				local body = reachPoint(m, root.Position)
+				-- Çaylak koruması (Config.RookieHeists): ilk soygunlarda yavaş, atak yok
+				local profileT = DataService.Get(m.target :: Player)
+				local rookie = profileT ~= nil and (profileT.stolen or 0) < Config.RookieHeists
 				-- Ani atak (ileri canavarlar): yakına gelince kısa süre need × lunge
-				local lunge = m.def.lunge or 1
+				local lunge = if rookie then 1 else (m.def.lunge or 1)
 				if lunge > 1 and now >= m.nextLunge and (body - root.Position).Magnitude <= s.LungeRange then
 					m.lungeUntil = now + s.LungeTime
 					m.nextLunge = now + s.LungeCooldown
@@ -1163,6 +1178,9 @@ local function stepMonsters(dt: number)
 					speed = need * lunge
 				end
 				speed *= eventMods.chaseMul
+				if rookie then
+					speed *= Config.RookieChaseMul
+				end
 				-- Nebula petlerinin kaçış yeteneği: canavar bu oranda yavaş
 				speed *= 1 - escapeOf(m.target)
 				if (body - root.Position).Magnitude <= reach and not SpaceField.InSafe(root.Position) then

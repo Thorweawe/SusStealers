@@ -13,6 +13,13 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (67) — Yusuf / Claude (SpaceService, TutorialService, FunnelService, Config) — YENİ OYUNCU KAYBI
+- Analytics (28 gün, 125 yeni oyuncu): %49 ilk soygunu bitirmeden çıkıyor, Chomper adımında (28 hız) %40 daha; ort. oyun 5.2 dk, D1 %7.8.
+- Çaylak koruması: oyuncunun `profile.stolen` < `Config.RookieHeists` (3) iken kovalayan canavar `Config.RookieChaseMul` (0.72) hızında ve ani atak yok (SpaceService chase). Yakalanan çaylağa "SAFE deck'e düz uç" ipucu.
+- Öğretici adımına `speed` alanı: "Upgrade" adımı +8 Uzay Hızı veriyor (TutorialService, CapsuleService.SetSpeed). 16→28 kapsül beklemesi ~3.5 dk'dan ~1 dk'ya.
+- FunnelService.Note: yeni oyuncu için NewPlayerSpace / NewPlayerGrab / NewPlayerCaught özel olayları (dakika + adım), ilk soygunda nerede takıldıklarını görmek için.
+- Intro sinematiği ~20 sn'den ~12 sn'ye (istemci).
+
 ## 2026-10-01 (66) — Yusuf / Claude (AdminService, Config, EconomyService, SpaceService)
 - Yeni yönetici komutu: `game.ServerStorage.AdminCommand:Fire("boost", 2, 30)` = BÜTÜN sunucularda 30 dk 2x şans + gelir + uçuş hızı (MessagingService "SusAdminBoost"), süre dolunca kendiliğinden biter; `("boost", 1, 0)` kapatır.
 - `Config.GetAdminBoost()` (workspace AdminBoostMul / AdminBoostUntil): Config.GetServerLuck (büyük olan), EconomyService gelir çarpanı, SpaceService teslim toleransı ve SpaceFX uçuş hızı bunu çarpıyor.

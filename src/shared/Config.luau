@@ -630,6 +630,7 @@ export type TutorialStep = {
 	check: string,
 	goal: number,
 	reward: number,
+	speed: number?,   -- adım bitince hediye Uzay Hızı (bekleme duvarını kısaltmak için)
 }
 
 Config.Tutorial = {
@@ -656,8 +657,11 @@ Config.Tutorial = {
 	},
 	{
 		id = "Upgrade", title = "Buy an upgrade", hint = "Upgrades",
-		text = "Your upgrade booth is next to your base. Buy the Space Capsule upgrade: every training gives more Space Speed!",
-		check = "upgrades", goal = 1, reward = 30000,
+		text = "Your upgrade booth is next to your base. Buy the Space Capsule upgrade and get +8 Space Speed right away!",
+		--[[ 2026-10-01 (Analytics: öğreticinin "Tougher" adımında %40 kayıp,
+		     ortalama oyun 5.2 dk): 16 -> 28 hız kapsülde ~3.5-4 dk bekletiyordu.
+		     +8 hız hediyesiyle Chomper ~1 dk uzakta. ]]
+		check = "upgrades", goal = 1, reward = 30000, speed = 8,
 	},
 	{
 		id = "Tougher", title = "Rob a tougher monster", hint = "Planet2",
@@ -700,6 +704,16 @@ function Config.MigrateTutorialStep(oldDone: number): number
 	end
 	return done
 end
+
+--[[
+	ÇAYLAK KORUMASI (2026-10-01, Analytics: yeni oyuncuların %49'u ilk soygunu
+	bitirmeden çıkıyor). İlk canavar oyuncuyla AYNI hızda kovalıyordu (16'ya 16):
+	düz uçmayan, kamerayla / joystick'le yön bulan yeni oyuncu hep yakalanıyordu.
+	İlk RookieHeists teslime kadar canavar RookieChaseMul hızında ve ani atak yok;
+	gerilim duruyor, kaçış mümkün.
+]]
+Config.RookieHeists = 3
+Config.RookieChaseMul = 0.72
 
 -- Bitirince verilen ek ödül. Adım ödüllerinden büyük ki son adım yarıda
 -- bırakılmasın.

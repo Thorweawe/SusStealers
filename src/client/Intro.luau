@@ -67,7 +67,7 @@ local function buildShots(): { Shot }
 			local span = math.max(200, (mx - mn).Magnitude)
 			local far = center + Vector3.new(-span * 0.5, span * 0.55 + 80, span * 0.7)
 			local near = center + Vector3.new(-span * 0.3, span * 0.35 + 50, span * 0.45)
-			table.insert(shots, { from = look(far, center), to = look(near, center), seconds = 4.5,
+			table.insert(shots, { from = look(far, center), to = look(near, center), seconds = 2.6,
 				text = "The Skeld drifts through deep space..." })
 		end
 	end
@@ -84,13 +84,13 @@ local function buildShots(): { Shot }
 		table.insert(shots, {
 			from = look(cLast + Vector3.new(r * 2.6, r * 1.2, r * 2.2), last.position),
 			to = look(cLast + Vector3.new(r * 1.6, r * 0.9, r * 1.4), last.position),
-			seconds = 4,
+			seconds = 2.4,
 			text = "...until space monsters stole its crew and hid them on their planets.",
 		})
 		table.insert(shots, {
 			from = look(c1 + Vector3.new(first.radius * 2.4, first.radius * 1.1, first.radius * 2), first.position),
 			to = look(c1 + Vector3.new(first.radius * 1.5, first.radius * 0.8, first.radius * 1.2), first.position),
-			seconds = 3.5,
+			seconds = 2.2,
 			text = "Glorp is guarding the easiest ones. For now.",
 		})
 	end
@@ -102,7 +102,7 @@ local function buildShots(): { Shot }
 		table.insert(shots, {
 			from = look(pivot + Vector3.new(0, 70, 70), pivot),
 			to = look(pivot + Vector3.new(0, 42, 44), pivot),
-			seconds = 4,
+			seconds = 2.4,
 			text = "This is YOUR base. The podiums are empty - every crewmate on one earns cash.",
 		})
 	end
@@ -112,7 +112,7 @@ local function buildShots(): { Shot }
 	table.insert(shots, {
 		from = look(deck + Vector3.new(0, 18, 40), deck + Vector3.new(0, 10, -120)),
 		to = look(deck + Vector3.new(0, 12, 10), deck + Vector3.new(0, 8, -160)),
-		seconds = 4,
+		seconds = 2.4,
 		text = "Grab a jetpack at the Launch Bay, fly out... and steal them back!",
 	})
 	return shots
