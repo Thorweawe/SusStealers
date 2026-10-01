@@ -113,6 +113,7 @@ end
 	Ağlı (3D) karakterde de çalışıyor: gizlenen gövde hâlâ yayıyor.
 ]]
 local V = Config.Vfx
+local T = require(script.Parent.VfxThemes)
 local function c3(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
@@ -126,31 +127,31 @@ local UP = Vector3.new(0, 0.6, 0)
 local CREW_FX: { [string]: (k: Kit) -> () } = {
 	-- Common: tek, çok hafif
 	RedCrew = function(k) -- filiz: başından yeşil yaprak ışıltısı
-		aura(k, "SproutGlint", HEAD, V.Star, c3(170, 255, 120), c3(90, 200, 70), 0.35, 0.7, 1.4, { speed = 0.5, up = true, spread = 30 })
+		aura(k, "SproutGlint", HEAD, T("leaf", V.Star), c3(170, 255, 120), c3(90, 200, 70), 0.35, 0.7, 1.4, { speed = 0.5, up = true, spread = 30 })
 	end,
 	BlueCrew = function(k) -- kulaklık: başta ritimle büyüyen ses halkası
-		aura(k, "Beat", HEAD + Vector3.new(0, -0.6, 0), V.Ring, c3(120, 180, 255), c3(60, 110, 255), 1.6, 0.6, 0.8, { speed = 0.01, grow = 1.4, alpha = 0.55, spin = 0 })
+		aura(k, "Beat", HEAD + Vector3.new(0, -0.6, 0), T("note", V.Ring), c3(120, 180, 255), c3(60, 110, 255), 1.6, 0.6, 0.8, { speed = 0.01, grow = 1.4, alpha = 0.55, spin = 0 })
 	end,
 	YellowCrew = function(k) -- güneş gözlüğü: vizörde parlama
 		aura(k, "ShadesGlint", CHEST + Vector3.new(0.3, 1, 0), V.Star, c3(255, 255, 230), c3(255, 230, 120), 0.45, 0.5, 0.6, { speed = 0, spin = 90 })
 	end,
 	LimeCrew = function(k) -- pet: yukarı süzülen limon köpükleri
-		aura(k, "PetBubbles", Vector3.new(0.9, 1.2, 0), V.Bubble, c3(200, 255, 140), c3(120, 230, 80), 0.3, 0.8, 1.8, { speed = 0.6, up = true, spread = 35, alpha = 0.3 })
+		aura(k, "PetBubbles", Vector3.new(0.9, 1.2, 0), T("paw", V.Bubble), c3(200, 255, 140), c3(120, 230, 80), 0.3, 0.8, 1.8, { speed = 0.6, up = true, spread = 35, alpha = 0.3 })
 	end,
 
 	-- Uncommon
 	Engineer = function(k) -- anahtar: elde kaynak kıvılcımı
-		aura(k, "WeldSparks", HAND, V.Spark, c3(255, 240, 160), c3(255, 170, 60), 0.5, 1.4, 0.25, { speed = 1.5, spin = 200 })
+		aura(k, "WeldSparks", HAND, T("wrench", V.Spark), c3(255, 240, 160), c3(255, 170, 60), 0.5, 1.4, 0.25, { speed = 1.5, spin = 200 })
 	end,
 	Scientist = function(k) -- tüp: elden yükselen yeşil köpük
-		aura(k, "Fizz", HAND + Vector3.new(0, 0.4, 0), V.Bubble, c3(170, 255, 140), c3(90, 220, 110), 0.25, 1.6, 1.4, { speed = 0.8, up = true, spread = 20, alpha = 0.25 })
+		aura(k, "Fizz", HAND + Vector3.new(0, 0.4, 0), T("tube", V.Bubble), c3(170, 255, 140), c3(90, 220, 110), 0.25, 1.6, 1.4, { speed = 0.8, up = true, spread = 20, alpha = 0.25 })
 	end,
 	Janitor = function(k) -- paspas: ayakta sabun köpüğü
 		aura(k, "Suds", FEET, V.Bubble, c3(230, 245, 255), c3(170, 210, 255), 0.35, 1.2, 1.6, { speed = 0.5, up = true, spread = 70, alpha = 0.25 })
 	end,
 	Guardian = function(k) -- hale ve kanat: altın ışık + süzülen tüy ışıltısı
 		aura(k, "HaloGlow", HEAD + Vector3.new(0, 0.3, 0), V.Orb, c3(255, 240, 170), c3(255, 220, 120), 1.4, 0.8, 1.6, { speed = 0, alpha = 0.55, spin = 10 })
-		aura(k, "Feathers", PACK, V.Star, c3(255, 255, 255), c3(255, 235, 180), 0.35, 0.7, 2.2, { speed = 0.4, accel = Vector3.new(0, -0.4, 0) })
+		aura(k, "Feathers", PACK, T("feather", V.Star), c3(255, 255, 255), c3(255, 235, 180), 0.35, 0.7, 2.2, { speed = 0.4, accel = Vector3.new(0, -0.4, 0) })
 	end,
 
 	-- Rare
@@ -159,29 +160,29 @@ local CREW_FX: { [string]: (k: Kit) -> () } = {
 		aura(k, "ShiftSmokeL", -HAND, V.Wisp, c3(255, 90, 110), c3(160, 30, 60), 0.9, 1, 1.6, { speed = 0.4, up = true, spread = 40, alpha = 0.35, emission = 0.5 })
 	end,
 	VentCrawler = function(k) -- ayakta kalkan toz
-		aura(k, "VentDust", FEET, V.Dust, c3(170, 170, 175), c3(110, 110, 120), 1.2, 0.8, 1.6, { speed = 0.6, spread = 80, alpha = 0.55, emission = 0.1 })
+		aura(k, "VentDust", FEET, T("vent", V.Dust), c3(170, 170, 175), c3(110, 110, 120), 1.2, 0.8, 1.6, { speed = 0.6, spread = 80, alpha = 0.55, emission = 0.1 })
 	end,
 	MedbayScan = function(k) -- gövdede aşağıdan yukarı kayan tarama halkası
 		aura(k, "ScanRing", FEET, V.Ring, c3(120, 240, 255), c3(60, 200, 255), 2.4, 0.9, 1.6, { speed = 2.4, up = true, spread = 0, grow = 1, alpha = 0.35, spin = 0, perp = true })
 	end,
 	Sheriff = function(k) -- rozet parlaması
-		aura(k, "BadgeGlint", CHEST + Vector3.new(-0.4, 0.1, -0.05), V.Star, c3(255, 240, 170), c3(255, 200, 60), 0.5, 0.9, 0.7, { speed = 0, spin = 120 })
+		aura(k, "BadgeGlint", CHEST + Vector3.new(-0.4, 0.1, -0.05), T("badge", V.Star), c3(255, 240, 170), c3(255, 200, 60), 0.5, 0.9, 0.7, { speed = 0, spin = 120 })
 	end,
 
 	-- Epic
 	Impostor = function(k) -- kızıl vizör parlaması + ayakta koyu duman
-		aura(k, "ImpGlare", CHEST + Vector3.new(0.2, 1, 0), V.Star, c3(255, 80, 80), c3(200, 0, 20), 0.6, 0.8, 0.6, { speed = 0, spin = 100 })
+		aura(k, "ImpGlare", CHEST + Vector3.new(0.2, 1, 0), T("eye", V.Star), c3(255, 80, 80), c3(200, 0, 20), 0.6, 0.8, 0.6, { speed = 0, spin = 100 })
 		aura(k, "ImpShadow", FEET, V.Wisp, c3(90, 0, 10), c3(20, 0, 0), 1.2, 1, 1.8, { speed = 0.3, up = true, spread = 60, alpha = 0.45, emission = 0.05 })
 	end,
 	Reactor = function(k) -- sırttaki çekirdekten turuncu kor ve ısı ışığı
 		aura(k, "CoreEmbers", PACK, V.Ember, c3(255, 210, 90), c3(255, 90, 20), 0.35, 2, 1.1, { speed = 1.2, up = true, spread = 50 })
-		aura(k, "CoreGlow", PACK, V.Orb, c3(255, 160, 60), c3(255, 90, 20), 1.3, 0.6, 1.2, { speed = 0, alpha = 0.5 })
+		aura(k, "CoreGlow", PACK, T("atom", V.Orb), c3(255, 160, 60), c3(255, 90, 20), 1.3, 0.6, 1.2, { speed = 0, alpha = 0.5 })
 	end,
 	O2Sabotage = function(k) -- tüpten sızan oksijen köpükleri
 		aura(k, "O2Leak", PACK + Vector3.new(0, 0.6, 0), V.Bubble, c3(200, 250, 255), c3(120, 220, 255), 0.3, 2, 1.6, { speed = 0.7, up = true, spread = 45, alpha = 0.2 })
 	end,
 	Emergency = function(k) -- alarm: kafadan kırmızı yayılan halka
-		aura(k, "Alarm", HEAD, V.Ring, c3(255, 70, 70), c3(255, 0, 0), 2, 0.9, 0.7, { speed = 0.01, grow = 1.6, alpha = 0.4, spin = 0 })
+		aura(k, "Alarm", HEAD, T("alert", V.Ring), c3(255, 70, 70), c3(255, 0, 0), 2, 0.9, 0.7, { speed = 0.01, grow = 1.6, alpha = 0.4, spin = 0 })
 	end,
 
 	-- Legendary
@@ -195,93 +196,93 @@ local CREW_FX: { [string]: (k: Kit) -> () } = {
 	end,
 	Airship = function(k) -- pervaneden rüzgâr kıvrımı
 		aura(k, "PropWind", HEAD + Vector3.new(0, 0.4, 0), V.Wisp, c3(255, 255, 255), c3(210, 230, 255), 0.9, 1.2, 1, { speed = 1.2, spread = 90, alpha = 0.55, emission = 0.4, spin = 120 })
-		aura(k, "CloudPuff", FEET, V.Dust, c3(255, 255, 255), c3(220, 230, 245), 1, 0.5, 2, { speed = 0.3, spread = 80, alpha = 0.6, emission = 0.3 })
+		aura(k, "CloudPuff", FEET, T("cloud", V.Dust), c3(255, 255, 255), c3(220, 230, 245), 1, 0.5, 2, { speed = 0.3, spread = 80, alpha = 0.6, emission = 0.3 })
 	end,
 
 	-- Mythic
 	DoubleImp = function(k) -- iki vizörden kıvılcım + kızıl duman
-		aura(k, "TwinSparks", CHEST + Vector3.new(0, 1, 0), V.Spark, c3(255, 90, 90), c3(200, 0, 40), 0.7, 1.4, 0.3, { speed = 0.4, spin = 200 })
+		aura(k, "TwinSparks", CHEST + Vector3.new(0, 1, 0), T("eye", V.Spark), c3(255, 90, 90), c3(200, 0, 40), 0.7, 1.4, 0.3, { speed = 0.4, spin = 200 })
 		aura(k, "TwinSmoke", FEET, V.Wisp, c3(160, 0, 40), c3(40, 0, 10), 1.3, 1.2, 1.8, { speed = 0.4, up = true, spread = 60, alpha = 0.45, emission = 0.15 })
 	end,
 	TripleImp = function(k) -- üç kafa: kızıl alev tacı
 		aura(k, "HellFlame", HEAD, V.Flame, c3(255, 110, 80), c3(160, 0, 30), 0.8, 3, 0.6, { speed = 1, up = true, spread = 25, accel = Vector3.new(0, 1.5, 0), alpha = 0.15 })
-		aura(k, "HellEmbers", Vector3.zero, V.Ember, c3(255, 120, 90), c3(200, 20, 40), 0.3, 2.5, 1.4, { surface = true, speed = 0.8, accel = Vector3.new(0, 1, 0) })
+		aura(k, "HellEmbers", Vector3.zero, T("pitchfork", V.Ember), c3(255, 120, 90), c3(200, 20, 40), 0.3, 2.5, 1.4, { surface = true, speed = 0.8, accel = Vector3.new(0, 1, 0) })
 	end,
 	Jester = function(k) -- renkli konfeti
-		aura(k, "Confetti", HEAD + Vector3.new(0, 0.5, 0), V.Crystal, c3(255, 120, 220), c3(120, 230, 255), 0.3, 3, 1.8, { speed = 1.6, up = true, spread = 60, accel = Vector3.new(0, -3, 0), spin = 300 })
-		aura(k, "BellGlint", HEAD + Vector3.new(0, 0.6, 0), V.Star, c3(255, 240, 150), c3(255, 200, 60), 0.4, 1.2, 0.6, { speed = 0.3, spin = 120 })
+		aura(k, "Confetti", HEAD + Vector3.new(0, 0.5, 0), T("confetti", V.Crystal), c3(255, 120, 220), c3(120, 230, 255), 0.3, 3, 1.8, { speed = 1.6, up = true, spread = 60, accel = Vector3.new(0, -3, 0), spin = 300 })
+		aura(k, "BellGlint", HEAD + Vector3.new(0, 0.6, 0), T("bell", V.Star), c3(255, 240, 150), c3(255, 200, 60), 0.4, 1.2, 0.6, { speed = 0.3, spin = 120 })
 	end,
 
 	-- Secret
 	AmogusPrime = function(k) -- ayakta karanlık halka ve kızıl gözler
 		aura(k, "ShadowRing", FEET + Vector3.new(0, 0.1, 0), V.Ring, c3(120, 0, 20), c3(20, 0, 0), 3, 0.7, 1.6, { speed = 0.01, grow = 1.5, alpha = 0.35, spin = 0, emission = 0.2 })
-		aura(k, "CrimsonEyes", CHEST + Vector3.new(0.2, 1, 0), V.Spark, c3(255, 60, 60), c3(160, 0, 0), 0.6, 1, 0.3, { speed = 0.2, spin = 200 })
+		aura(k, "CrimsonEyes", CHEST + Vector3.new(0.2, 1, 0), T("eye", V.Spark), c3(255, 60, 60), c3(160, 0, 0), 0.6, 1, 0.3, { speed = 0.2, spin = 200 })
 	end,
 	TheCrewmate = function(k) -- gökkuşağı ışıltı + arkada ışık halesi
-		aura(k, "Rainbow", Vector3.zero, V.Star, c3(255, 140, 220), c3(120, 230, 255), 0.4, 2.5, 1.4, { surface = true, speed = 0.6, spin = 120 })
+		aura(k, "Rainbow", Vector3.zero, T("crewmate", V.Star), c3(255, 140, 220), c3(120, 230, 255), 0.4, 2.5, 1.4, { surface = true, speed = 0.6, spin = 120 })
 		aura(k, "Halo", PACK + Vector3.new(0, 1.6, 0), V.Orb, c3(255, 250, 230), c3(200, 230, 255), 2.2, 0.6, 2, { speed = 0, alpha = 0.6, spin = 10 })
 	end,
 
 	-- Celestial
 	Frostbite = function(k)
-		aura(k, "IceSnow", HEAD + Vector3.new(0, 0.5, 0), V.Snowflake, c3(240, 252, 255), c3(150, 220, 255), 0.4, 3, 2, { speed = 0.6, accel = Vector3.new(0, -1.2, 0), spin = 100 })
+		aura(k, "IceSnow", HEAD + Vector3.new(0, 0.5, 0), T("shard", V.Snowflake), c3(240, 252, 255), c3(150, 220, 255), 0.4, 3, 2, { speed = 0.6, accel = Vector3.new(0, -1.2, 0), spin = 100 })
 		aura(k, "IceMist", FEET, V.Dust, c3(220, 245, 255), c3(140, 200, 255), 1.3, 0.8, 2, { speed = 0.4, spread = 85, alpha = 0.55, emission = 0.3 })
 	end,
 	SnowQueen = function(k)
-		aura(k, "QueenSwirl", Vector3.zero, V.Snowflake, c3(255, 255, 255), c3(190, 230, 255), 0.35, 3, 1.8, { surface = true, speed = 0.8, accel = Vector3.new(0, 0.6, 0), spin = 140 })
+		aura(k, "QueenSwirl", Vector3.zero, T("snowflake2", V.Snowflake), c3(255, 255, 255), c3(190, 230, 255), 0.35, 3, 1.8, { surface = true, speed = 0.8, accel = Vector3.new(0, 0.6, 0), spin = 140 })
 		aura(k, "TiaraGlint", HEAD, V.Star, c3(255, 255, 255), c3(170, 230, 255), 0.6, 1.2, 0.8, { speed = 0.2, spin = 120 })
 	end,
 	GlacierGuard = function(k)
 		aura(k, "IceShards", Vector3.zero, V.Crystal, c3(200, 240, 255), c3(90, 170, 255), 0.45, 1.6, 2, { surface = true, speed = 0.4, accel = Vector3.new(0, 0.5, 0), spin = 40 })
-		aura(k, "ShieldGlint", -HAND, V.Star, c3(230, 250, 255), c3(140, 210, 255), 0.6, 1, 0.7, { speed = 0, spin = 120 })
+		aura(k, "ShieldGlint", -HAND, T("shield", V.Star), c3(230, 250, 255), c3(140, 210, 255), 0.6, 1, 0.7, { speed = 0, spin = 120 })
 	end,
 	GemMiner = function(k)
-		aura(k, "GemDust", HAND, V.Crystal, c3(220, 170, 255), c3(140, 90, 230), 0.35, 1.8, 1.2, { speed = 1.2, spread = 70, accel = Vector3.new(0, -3, 0), spin = 200 })
+		aura(k, "GemDust", HAND, T("gem", V.Crystal), c3(220, 170, 255), c3(140, 90, 230), 0.35, 1.8, 1.2, { speed = 1.2, spread = 70, accel = Vector3.new(0, -3, 0), spin = 200 })
 		aura(k, "Headlamp", HEAD + Vector3.new(0, -0.2, -0.9), V.Orb, c3(255, 240, 170), c3(255, 220, 120), 0.9, 0.8, 0.6, { speed = 0, alpha = 0.4 })
 	end,
 	Prism = function(k)
 		aura(k, "PrismShards", Vector3.zero, V.Crystal, c3(255, 150, 230), c3(140, 230, 255), 0.4, 2.2, 1.6, { surface = true, speed = 0.6, spin = 90 })
-		aura(k, "Spectrum", CHEST + Vector3.new(0, 1, 0), V.Star, c3(255, 255, 160), c3(160, 255, 220), 0.5, 1.4, 0.8, { speed = 0.4, spin = 150 })
+		aura(k, "Spectrum", CHEST + Vector3.new(0, 1, 0), T("shard", V.Star), c3(255, 255, 160), c3(160, 255, 220), 0.5, 1.4, 0.8, { speed = 0.4, spin = 150 })
 	end,
 	DiamondCrew = function(k)
 		aura(k, "DiamondGlints", Vector3.zero, V.Star, c3(255, 255, 255), c3(170, 240, 255), 0.45, 3, 0.8, { surface = true, speed = 0.2, spin = 160 })
-		aura(k, "DiamondCrown", HEAD + Vector3.new(0, 0.9, 0), V.Crystal, c3(220, 250, 255), c3(140, 220, 255), 0.5, 0.8, 1.6, { speed = 0.3, spin = 60 })
+		aura(k, "DiamondCrown", HEAD + Vector3.new(0, 0.9, 0), T("gem", V.Crystal), c3(220, 250, 255), c3(140, 220, 255), 0.5, 0.8, 1.6, { speed = 0.3, spin = 60 })
 	end,
 	Sunborn = function(k)
-		aura(k, "SunDisk", PACK + Vector3.new(0, 1.4, 0.2), V.Orb, c3(255, 230, 140), c3(255, 170, 40), 2.6, 0.7, 1.8, { speed = 0, alpha = 0.5, spin = 15 })
+		aura(k, "SunDisk", PACK + Vector3.new(0, 1.4, 0.2), T("sun", V.Orb), c3(255, 230, 140), c3(255, 170, 40), 2.6, 0.7, 1.8, { speed = 0, alpha = 0.5, spin = 15 })
 		aura(k, "SunEmbers", Vector3.zero, V.Ember, c3(255, 230, 140), c3(255, 160, 40), 0.3, 2.5, 1.4, { surface = true, speed = 0.6, accel = Vector3.new(0, 1.2, 0) })
 	end,
 	FlameKnight = function(k)
 		aura(k, "BlazeSword", HAND + Vector3.new(0.2, 0.8, 0), V.Flame, c3(255, 230, 130), c3(255, 80, 20), 0.6, 4, 0.5, { speed = 1, up = true, spread = 15, accel = Vector3.new(0, 2, 0), alpha = 0.1 })
-		aura(k, "PlumeFlame", HEAD + Vector3.new(0, 0.3, 0), V.Flame, c3(255, 220, 120), c3(255, 90, 30), 0.5, 3, 0.5, { speed = 0.8, up = true, spread = 20, accel = Vector3.new(0, 1.5, 0), alpha = 0.15 })
+		aura(k, "PlumeFlame", HEAD + Vector3.new(0, 0.3, 0), T("sword", V.Flame), c3(255, 220, 120), c3(255, 90, 30), 0.5, 3, 0.5, { speed = 0.8, up = true, spread = 20, accel = Vector3.new(0, 1.5, 0), alpha = 0.15 })
 	end,
 	PhoenixRider = function(k)
 		aura(k, "WingFire", PACK + Vector3.new(0, 0.5, 0), V.Flame, c3(255, 230, 120), c3(255, 70, 20), 0.9, 4, 0.6, { speed = 1, spread = 70, accel = Vector3.new(0, 2, 0), alpha = 0.1 })
-		aura(k, "PhoenixEmbers", PACK, V.Ember, c3(255, 220, 120), c3(255, 90, 30), 0.3, 3, 1.4, { speed = 1.4, up = true, spread = 60 })
+		aura(k, "PhoenixEmbers", PACK, T("phoenix", V.Ember), c3(255, 220, 120), c3(255, 90, 30), 0.3, 3, 1.4, { speed = 1.4, up = true, spread = 60 })
 	end,
 	GravityBender = function(k)
 		aura(k, "GravityRing", Vector3.new(0, -0.2, 0), V.Ring, c3(190, 120, 255), c3(110, 60, 220), 3, 0.7, 1.2, { speed = 0.01, grow = 1.2, alpha = 0.4, spin = 0, perp = false })
-		aura(k, "Pebbles", Vector3.zero, V.Dust, c3(170, 140, 220), c3(90, 70, 150), 0.35, 2, 1.6, { surface = true, speed = 0.3, spin = 200, emission = 0.3 })
+		aura(k, "Pebbles", Vector3.zero, T("ringed", V.Dust), c3(170, 140, 220), c3(90, 70, 150), 0.35, 2, 1.6, { surface = true, speed = 0.3, spin = 200, emission = 0.3 })
 	end,
 	Singularity = function(k)
-		aura(k, "Accretion", CHEST, V.Ring, c3(255, 170, 90), c3(170, 80, 255), 1.6, 1.2, 0.9, { speed = 0.01, grow = 0.1, alpha = 0.3, spin = 90 })
+		aura(k, "Accretion", CHEST, T("vortex", V.Ring), c3(255, 170, 90), c3(170, 80, 255), 1.6, 1.2, 0.9, { speed = 0.01, grow = 0.1, alpha = 0.3, spin = 90 })
 		aura(k, "EventDust", CHEST, V.Star, c3(255, 200, 140), c3(170, 90, 255), 0.25, 3, 0.9, { speed = 0.8, spin = 200 })
 	end,
 	NebulaWizard = function(k)
-		aura(k, "StaffMagic", HAND + Vector3.new(0.1, 1.2, 0), V.Star, c3(230, 170, 255), c3(120, 60, 255), 0.5, 3, 1, { speed = 0.8, spin = 160 })
+		aura(k, "StaffMagic", HAND + Vector3.new(0.1, 1.2, 0), T("rune", V.Star), c3(230, 170, 255), c3(120, 60, 255), 0.5, 3, 1, { speed = 0.8, spin = 160 })
 		aura(k, "WizardNebula", PACK, V.Nebula, c3(160, 90, 255), c3(60, 30, 140), 2.2, 0.6, 2.4, { speed = 0.1, alpha = 0.6, spin = 10, emission = 0.6 })
 	end,
 	TitanHeart = function(k)
-		aura(k, "HeartPulse", CHEST, V.Orb, c3(255, 140, 170), c3(255, 60, 110), 1.2, 1.2, 0.8, { speed = 0, grow = 1.3, alpha = 0.4 })
+		aura(k, "HeartPulse", CHEST, T("heart", V.Orb), c3(255, 140, 170), c3(255, 60, 110), 1.2, 1.2, 0.8, { speed = 0, grow = 1.3, alpha = 0.4 })
 		aura(k, "HeartEmbers", CHEST, V.Ember, c3(255, 170, 190), c3(255, 70, 120), 0.3, 2, 1, { speed = 1, spread = 60 })
 	end,
 	GalaxyGuardian = function(k)
-		aura(k, "CapeNebula", PACK + Vector3.new(0, -0.4, 0.2), V.Nebula, c3(120, 100, 255), c3(40, 50, 140), 2, 0.7, 2.4, { speed = 0.15, alpha = 0.6, spin = 8, emission = 0.6 })
+		aura(k, "CapeNebula", PACK + Vector3.new(0, -0.4, 0.2), T("galaxy", V.Nebula), c3(120, 100, 255), c3(40, 50, 140), 2, 0.7, 2.4, { speed = 0.15, alpha = 0.6, spin = 8, emission = 0.6 })
 		aura(k, "CapeStars", PACK, V.Star, c3(255, 255, 255), c3(170, 190, 255), 0.35, 2, 1.6, { speed = 0.5, accel = Vector3.new(0, -0.6, 0), spin = 120 })
 	end,
 	StarEmperor = function(k)
 		aura(k, "StarRain", HEAD + Vector3.new(0, 0.8, 0), V.Star, c3(255, 245, 190), c3(255, 200, 80), 0.45, 2.5, 1.8, { speed = 0.7, spread = 60, accel = Vector3.new(0, -1.5, 0), spin = 140 })
-		aura(k, "ScepterGlow", HAND + Vector3.new(0.1, 1.2, 0), V.Orb, c3(255, 240, 170), c3(255, 200, 80), 1, 0.9, 1, { speed = 0, alpha = 0.45 })
+		aura(k, "ScepterGlow", HAND + Vector3.new(0.1, 1.2, 0), T("crown", V.Orb), c3(255, 240, 170), c3(255, 200, 80), 1, 0.9, 1, { speed = 0, alpha = 0.45 })
 	end,
 }
 

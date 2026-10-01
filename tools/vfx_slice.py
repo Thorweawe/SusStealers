@@ -1,8 +1,10 @@
 """
-ChatGPT'den gelen 2x2 VFX sayfasını (siyah zemin, beyaz sprite) dört saydam
-PNG'ye böler: parlaklık = alfa, renk beyaz (oyunda ParticleEmitter.Color boyar).
+ChatGPT'den gelen VFX sayfasını (siyah zemin, beyaz sprite) saydam PNG'lere
+böler: parlaklık = alfa, renk beyaz (oyunda ParticleEmitter.Color boyar).
+Izgara ad sayısından: 4 ad = 2x2, 9 ad = 3x3.
 
     python tools/vfx_slice.py vfx_art/_sheet2_raw.png flame snowflake spark crystal
+    python tools/vfx_slice.py vfx_art/_sheetA_raw.png leaf note paw wrench feather badge atom alert cloud
 """
 import sys
 
@@ -10,12 +12,13 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 
 def main():
-    src, names = sys.argv[1], sys.argv[2:6]
+    src, names = sys.argv[1], sys.argv[2:]
+    n = 3 if len(names) > 4 else 2
     im = Image.open(src).convert("L")
     w, h = im.size
-    for k, name in enumerate(names):
-        r, c = divmod(k, 2)
-        cell = im.crop((c * w // 2, r * h // 2, (c + 1) * w // 2, (r + 1) * h // 2))
+    for k, name in enumerate(names[: n * n]):
+        r, c = divmod(k, n)
+        cell = im.crop((c * w // n, r * h // n, (c + 1) * w // n, (r + 1) * h // n))
         cw, ch = cell.size
         m = int(cw * 0.035)
         mask = Image.new("L", cell.size, 0)
