@@ -16,6 +16,7 @@
 	  game.ServerStorage.AdminCommand:Fire("setspeed", "OyuncuAdi", 120)
 	  game.ServerStorage.AdminCommand:Fire("cash", "OyuncuAdi", 100000)
 	  game.ServerStorage.AdminCommand:Fire("trainboost", 2, 15)        -- bu sunucuda 15 dk 2x antrenman
+	  game.ServerStorage.AdminCommand:Fire("boost", 2, 30)             -- BÜTÜN sunucularda 30 dk 2x şans + para + uzay hızı ("boost", 1, 0) kapatır
 	  game.ServerStorage.AdminCommand:Fire("candy", "OyuncuAdi", 100)  -- etkinlik şekeri (etkinlik sürerken)
 	  game.ServerStorage.AdminCommand:Fire("announce", "metin")        -- bütün sunucular
 	  game.ServerStorage.AdminCommand:Fire("restart", 60, "BUG FIX UPDATE")  -- bütün sunucularda geri sayım
@@ -40,6 +41,19 @@ local EconomyService = require(script.Parent.EconomyService)
 local AdminService = {}
 
 local TOPIC = "SusAdminCountdown"
+local BOOST_TOPIC = "SusAdminBoost"
+
+--[[ Bu sunucuda boost'u başlatır (bitişi sunucu saatiyle; kendiliğinden kapanır). ]]
+local function applyBoost(mul: number, untilT: number)
+	workspace:SetAttribute("AdminBoostMul", mul)
+	workspace:SetAttribute("AdminBoostUntil", untilT)
+	if mul > 1 and untilT > workspace:GetServerTimeNow() then
+		local minutes = math.floor((untilT - workspace:GetServerTimeNow()) / 60 + 0.5)
+		local text = string.format("%gx LUCK, %gx CASH & %gx SPACE SPEED for %d minutes!", mul, mul, mul, minutes)
+		AnnounceService.Summon(text)
+		Net.Get("Notify"):FireAllClients(text, false, "reward")
+	end
+end
 local countdownToken = 0
 
 local function targets(name: any): { Player }
@@ -155,6 +169,18 @@ function AdminService.Run(command: any, a: any, b: any): string
 			Net.Get("Notify"):FireAllClients(text, false, "reward")
 		end
 		return string.format("antrenman x%g, %g dk", mul, minutes)
+	elseif command == "boost" then
+		-- Bütün sunucularda: ("boost", 2, 30) = 30 dk 2x şans + gelir + uçuş hızı; ("boost", 1, 0) kapatır
+		local mul = math.clamp(tonumber(a) or 2, 1, 10)
+		local minutes = math.clamp(tonumber(b) or 30, 0, 240)
+		local untilT = workspace:GetServerTimeNow() + minutes * 60
+		applyBoost(mul, untilT)
+		task.spawn(function()
+			pcall(function()
+				MessagingService:PublishAsync(BOOST_TOPIC, { m = mul, u = untilT, j = game.JobId })
+			end)
+		end)
+		return string.format("boost x%g, %g dk (bütün sunucular)", mul, minutes)
 	elseif command == "restart" then
 		local seconds = math.clamp(tonumber(a) or 60, 5, 600)
 		local title = if typeof(b) == "string" and b ~= "" then string.sub(b, 1, 60) else "UPDATE"
@@ -179,6 +205,18 @@ function AdminService.Start()
 	(event :: BindableEvent).Event:Connect(function(command, a, b)
 		local ok, result = pcall(AdminService.Run, command, a, b)
 		print("[Admin] " .. tostring(command) .. " -> " .. tostring(result), if ok then "" else "(hata)")
+	end)
+
+	-- Başka sunucudan başlatılan boost
+	task.spawn(function()
+		pcall(function()
+			MessagingService:SubscribeAsync(BOOST_TOPIC, function(message)
+				local data = message.Data
+				if typeof(data) == "table" and data.j ~= game.JobId and typeof(data.m) == "number" and typeof(data.u) == "number" then
+					applyBoost(math.clamp(data.m, 1, 10), data.u)
+				end
+			end)
+		end)
 	end)
 
 	-- Başka sunucudan başlatılan geri sayım

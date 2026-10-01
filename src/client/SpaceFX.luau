@@ -782,6 +782,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		if typeof(eventMul) == "number" and eventMul > 1 then
 			speed *= eventMul
 		end
+		-- Yönetici boost'u (AdminService "boost")
+		speed *= Config.GetAdminBoost()
 		local boosting = os.clock() < boostUntil
 		if boosting then
 			local jet = jetParams()

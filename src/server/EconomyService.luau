@@ -145,6 +145,8 @@ function EconomyService.GetIncome(player: Player): number
 	-- Emergency Meeting: sunucu geneli gelir çarpanı (EventService workspace'e yazıyor)
 	local eventMul = workspace:GetAttribute("EventIncomeMul") :: number?
 	multiplier *= math.clamp(eventMul or 1, 1, Config.MeetingIncomeMul)
+	-- Yönetici boost'u (AdminService "boost")
+	multiplier *= Config.GetAdminBoost()
 
 	return math.floor(total * multiplier)
 end

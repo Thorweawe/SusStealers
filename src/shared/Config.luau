@@ -4148,13 +4148,28 @@ Config.ServerProducts = {
 } :: { [string]: { id: number, robux: number, name: string, kind: string, troll: string? } }
 
 --[[ Şu anki sunucu şansı çarpanı (yoksa 1). İki tarafta da çalışıyor. ]]
+--[[
+	Yönetici boost'u (AdminService "boost"): şans, gelir ve uçuş hızı çarpanı,
+	süreli (workspace AdminBoostMul / AdminBoostUntil). Yoksa 1.
+]]
+function Config.GetAdminBoost(): number
+	local untilT = workspace:GetAttribute("AdminBoostUntil")
+	if typeof(untilT) == "number" and untilT > workspace:GetServerTimeNow() then
+		local m = workspace:GetAttribute("AdminBoostMul")
+		return if typeof(m) == "number" then math.clamp(m, 1, 10) else 1
+	end
+	return 1
+end
+
 function Config.GetServerLuck(): number
+	local luck = 1
 	local ends = workspace:GetAttribute("ServerLuckEndsAt")
 	if typeof(ends) == "number" and ends > workspace:GetServerTimeNow() then
 		local m = workspace:GetAttribute("ServerLuck")
-		return if typeof(m) == "number" then math.max(1, m) else 1
+		luck = if typeof(m) == "number" then math.max(1, m) else 1
 	end
-	return 1
+	-- Yönetici boost'u satın alınan şansla çarpışmasın: büyük olan
+	return math.max(luck, Config.GetAdminBoost())
 end
 
 return Config

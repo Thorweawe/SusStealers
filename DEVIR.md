@@ -13,6 +13,10 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (66) — Yusuf / Claude (AdminService, Config, EconomyService, SpaceService)
+- Yeni yönetici komutu: `game.ServerStorage.AdminCommand:Fire("boost", 2, 30)` = BÜTÜN sunucularda 30 dk 2x şans + gelir + uçuş hızı (MessagingService "SusAdminBoost"), süre dolunca kendiliğinden biter; `("boost", 1, 0)` kapatır.
+- `Config.GetAdminBoost()` (workspace AdminBoostMul / AdminBoostUntil): Config.GetServerLuck (büyük olan), EconomyService gelir çarpanı, SpaceService teslim toleransı ve SpaceFX uçuş hızı bunu çarpıyor.
+
 ## 2026-10-01 (65) — Yusuf / Claude (MonetizationService, LimitedEventService, Config)
 - Etkinlik parası Robux'la: `Config.EventProducts` (150 / 500 / 1500, 49 / 149 / 399 R$, kind "stardust"). MonetizationService.findProduct bu tabloya da bakıyor; granter LimitedEventService'te (`GrantPurchased`). Satın alınan para yalnızca `limited.candy`'ye ekleniyor, `earned` (sıralama / yıldız yolu / ortak hedef) değişmiyor.
 - Kimlikler 0: Creator Hub'da üç Developer Product açılınca buraya yazılacak (pencerede o zamana kadar "SOON").

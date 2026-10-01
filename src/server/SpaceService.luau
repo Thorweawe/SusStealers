@@ -786,6 +786,8 @@ local function deliver(player: Player, root: BasePart)
 	-- Solar Wind da hızlandırıyor: payda
 	local eventMul = workspace:GetAttribute("EventFlightMul")
 	boost *= if typeof(eventMul) == "number" then math.max(1, eventMul) else 1
+	-- Yönetici boost'u da hızlandırıyor: payda
+	boost *= Config.GetAdminBoost()
 	local minTime = distance / (speedOf(player) * Config.Space.DeliverSpeedTolerance * boost) - 1
 	if os.clock() - carry.grabbedAt < minTime then
 		drop(player)
