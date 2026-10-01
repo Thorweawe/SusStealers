@@ -1262,8 +1262,16 @@ local function applyMesh(ctx: Ctx, template: Model)
 		if src:IsA("MeshPart") then
 			local p = src:Clone()
 			for _, c in p:GetChildren() do
-				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture") or c:IsA("Bone")) then
 					c:Destroy()
+				end
+			end
+			-- İskeletli ağ (UniRig): Size değişince kemik konumları kendiliğinden ölçeklenmiyor
+			if ctx.S ~= 1 then
+				for _, b in p:GetDescendants() do
+					if b:IsA("Bone") then
+						b.Position *= ctx.S
+					end
 				end
 			end
 			p.Size = src.Size * ctx.S
@@ -1386,6 +1394,61 @@ function MonsterModel.Rig(model: Model): Rig
 	local hasMesh = #meshIndex > 0
 	local lastScale = Vector3.one
 
+	--[[
+		İskeletli ağ (2026-10-01, UniRig otomatik iskelet): kemik adları
+		anlamsız (bone_0...), o yüzden hareket KONUMDAN türetiliyor:
+		  · her kemik zincir derinliğiyle büyüyen bir dalgayla salınıyor
+		    (dokunaç dalgalanır, kanat çırpar, kuyruk sallanır); faz derinliğe
+		    ve gövde etrafındaki açıya bağlı, komşu uzuvlar aynı anda oynamıyor
+		  · kükreme: üst-öndeki kemikler (baş, çene, boynuz) geriye kalkıyor
+		  · kavrama: sağ-öndeki kemikler (sağ kol / dokunaç) öne-yukarı uzanıyor
+		Ölçek nefesi iskeletli ağda yok (Size değişince deri kayıyor).
+	]]
+	type BoneAnim = { bone: Bone, axis: Vector3, amp: number, phase: number, roar: number, grab: number, gAxis: Vector3 }
+	local boneAnims: { BoneAnim } = {}
+	if hasMesh then
+		local top = 0
+		for _, i in meshIndex do
+			local mp = parts[i]
+			top = math.max(top, rest[i].Position.Y + mp.Size.Y / 2)
+		end
+		for _, i in meshIndex do
+			local mp = parts[i]
+			for _, b in mp:GetDescendants() do
+				if b:IsA("Bone") then
+					local depth = 0
+					local a = b.Parent
+					while a and a:IsA("Bone") do
+						depth += 1
+						a = a.Parent
+					end
+					-- Kemiğin dinlenme hâli kök uzayında (kök kurulumda orijinde)
+					local world = root.CFrame:ToObjectSpace(b.WorldCFrame)
+					local parentPos = if b.Parent and b.Parent:IsA("Bone") then root.CFrame:ToObjectSpace((b.Parent :: Bone).WorldCFrame).Position else world.Position
+					local dir = world.Position - parentPos
+					local flat = Vector3.new(world.Position.X, 0, world.Position.Z)
+					local swing = if dir.Magnitude > 1e-3 then dir.Unit:Cross(Vector3.yAxis) else Vector3.xAxis
+					if swing.Magnitude < 0.2 then
+						swing = Vector3.xAxis
+					end
+					local h = world.Position.Y / math.max(top, 1)
+					local front = -world.Position.Z
+					table.insert(boneAnims, {
+						bone = b,
+						-- eksenler kemiğin kendi uzayında (Transform yerel)
+						axis = world.Rotation:VectorToObjectSpace(swing.Unit),
+						gAxis = world.Rotation:VectorToObjectSpace(Vector3.xAxis),
+						amp = math.min(0.04 + depth * 0.035, 0.3),
+						phase = depth * 0.7 + math.atan2(flat.X, flat.Z) * 1.5,
+						roar = if h > 0.55 and front > -1 then 0.22 else 0,
+						grab = if world.Position.X > 1 and front > 0 and h > 0.25 and h < 0.8 then -0.45 else 0,
+					})
+				end
+			end
+		end
+	end
+	local rigged = #boneAnims > 0
+
 	local transforms: { [string]: CFrame } = { [""] = CFrame.identity }
 	local cframes: { CFrame } = table.create(#parts)
 	local lastRoot = CFrame.identity
@@ -1415,7 +1478,7 @@ function MonsterModel.Rig(model: Model): Rig
 		local life = CFrame.identity
 		local scale = Vector3.one
 		if hasMesh then
-			local breath = math.sin(t * 1.7 * pose.rate) * 0.022 * math.max(pose.sway, 0.4)
+			local breath = if rigged then 0 else math.sin(t * 1.7 * pose.rate) * 0.022 * math.max(pose.sway, 0.4)
 			local sy = 1 + breath + 0.07 * pose.roar
 			local sxz = 1 - breath * 0.5 + 0.02 * pose.roar + 0.03 * pose.grab
 			scale = Vector3.new(sxz, sy, sxz)
@@ -1436,6 +1499,21 @@ function MonsterModel.Rig(model: Model): Rig
 		end
 		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 		root.CFrame = rootCF
+		if rigged then
+			local w = t * 2.1 * pose.rate
+			local sw = math.max(pose.sway, 0.3)
+			for _, a in boneAnims do
+				local ang = a.amp * sw * math.sin(w + a.phase)
+				local cf = CFrame.fromAxisAngle(a.axis, ang)
+				if a.roar ~= 0 and pose.roar > 0 then
+					cf = CFrame.fromAxisAngle(a.gAxis, a.roar * pose.roar) * cf
+				end
+				if a.grab ~= 0 and pose.grab > 0 then
+					cf = CFrame.fromAxisAngle(a.gAxis, a.grab * pose.grab) * cf
+				end
+				a.bone.Transform = cf
+			end
+		end
 	end
 
 	function rig.HandCFrame(_self: Rig): CFrame
