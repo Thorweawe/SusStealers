@@ -1,18 +1,20 @@
 -- Import 3D ile workspace'e gelen <ad>_roblox modellerini şablona çevirir:
 -- boy = parça modelinin boyu, taban = parça modelinin tabanı, x/z merkezli,
 -- ReplicatedStorage.MonsterMeshes / UnitMeshes altına <Id> adıyla.
+-- 5. alan: ek Y dönüşü (derece). TRELLIS her modelin önünü aynı eksene
+-- koymuyor; 2026-10-01 importunda Studio'da önden/arkadan bakılarak bulundu.
 local SPEC = {
-	glorp = { "Glorp", 16.0, -0.6, "MonsterMeshes" },
+	glorp = { "Glorp", 16.0, -0.6, "MonsterMeshes", 180 },
 	kraken = { "Kraken", 21.1, 0.5, "MonsterMeshes" },
 	sandmaw = { "SandMaw", 28.6, -1.7, "MonsterMeshes" },
-	riftstalker = { "RiftStalker", 16.5, 0, "MonsterMeshes" },
-	voidleviathan = { "VoidLeviathan", 28.9, -0.3, "MonsterMeshes" },
-	frostwyrm = { "FrostWyrm", 17.9, 1.3, "MonsterMeshes" },
-	crystalgolem = { "CrystalGolem", 18.8, -0.1, "MonsterMeshes" },
+	riftstalker = { "RiftStalker", 16.5, 0, "MonsterMeshes", 90 },
+	voidleviathan = { "VoidLeviathan", 28.9, -0.3, "MonsterMeshes", 180 },
+	frostwyrm = { "FrostWyrm", 17.9, 1.3, "MonsterMeshes", 180 },
+	crystalgolem = { "CrystalGolem", 18.8, -0.1, "MonsterMeshes", 180 },
 	solarphoenix = { "SolarPhoenix", 18.3, 0.9, "MonsterMeshes" },
 	blackhole = { "BlackHole", 17.5, 0.2, "MonsterMeshes" },
-	galaxytitan = { "GalaxyTitan", 27.6, -0.4, "MonsterMeshes" },
-	ejected = { "Ejected", 5.4, 0, "UnitMeshes" },
+	galaxytitan = { "GalaxyTitan", 27.6, -0.4, "MonsterMeshes", 180 },
+	ejected = { "Ejected", 5.4, 0, "UnitMeshes", 180 },
 }
 local out = {}
 for _, m in workspace:GetChildren() do
@@ -40,6 +42,11 @@ for _, m in workspace:GetChildren() do
 			if p:IsA("BasePart") then
 				p.CFrame = p.CFrame + shift
 				p.Anchored = true
+			end
+		end
+		if spec[5] then
+			for _, p in m:GetDescendants() do
+				if p:IsA("BasePart") then p.CFrame = CFrame.Angles(0, math.rad(spec[5]), 0) * p.CFrame end
 			end
 		end
 		local folder = game.ReplicatedStorage:FindFirstChild(spec[4]) or Instance.new("Folder")

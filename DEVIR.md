@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (74) — Yusuf (ortak şerit: `MonsterModel`, `UnitModel`; place: `ReplicatedStorage.MonsterMeshes`, `UnitMeshes`)
+
+Studio'ya aktarıldı, **185/185 test temiz**.
+
+- **11 boss'un hepsi ve Ejected 3D ağ** (ChatGPT konsepti → TRELLIS → `tools/split_mesh.py` → Import 3D → `tools/normalize_meshes.lua`). Şablonlar `ReplicatedStorage.MonsterMeshes.<id>` ve `UnitMeshes.<id>`; **silme/yeniden adlandırma**. Place'le kaydediliyor (Team Create).
+- `MonsterModel.Build`: şablon varsa parça modeli kuruluyor, görsel parçalar silinip ağ "Body" kemiğine ekleniyor; kemikler, `Hand`, efekt parçaları (`Fx` niteliği) ve ışıklar aynı. Rig/Pose API'si değişmedi.
+- `UnitModel.Build`: şablon varsa parçalar **gizleniyor** (silinmiyor: taşıma kaynakları, aura, şapka yerleşimi), `Mesh*` adlı ağ parçaları ekleniyor; mutasyonda `MutationShell` (ForceField).
+- Sunucu tarafında (`SpaceService`, `PlotService`) değişiklik gerekmiyor; taşıma kaynağı tüm BasePart'ları zaten kaynaklıyor.
+
 ## 2026-10-01 (73) — Yusuf (ortak şeride yazıldı: `Config`, `MonsterModel`, `UnitModel`)
 
 Studio'ya aktarıldı, **185/185 test temiz**.

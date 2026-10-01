@@ -844,9 +844,9 @@ local function voidLeviathan(ctx: Ctx)
 		end
 	end
 
-	-- Boşluk yılanı: koyu boşluk dumanı, mor nebula, taçta kıvılcım, dökülen yıldız tozu
-	vfx(ctx, "VoidSmoke", hc, { texture = Config.Vfx.Wisp, color = rgb(60, 20, 90), color2 = rgb(10, 5, 20), size = 7, rate = 2, life = 3, speed = 1.2, alpha = 0.35, spin = 20, emission = 0.1 })
-	vfx(ctx, "VoidNebula", hc, { texture = Config.Vfx.Nebula, color = glow, color2 = eyeC, size = 9, rate = 0.8, life = 4, speed = 0.5, alpha = 0.65, spin = 8, emission = 0.7 })
+	-- Boşluk yılanı: başın ARKASINDA koyu boşluk dumanı ve mor nebula (önde yüzü örtüyordu), taçta kıvılcım, dökülen yıldız tozu
+	vfx(ctx, "VoidSmoke", hc + Vector3.new(0, -2, 6), { texture = Config.Vfx.Wisp, color = rgb(60, 20, 90), color2 = rgb(10, 5, 20), size = 7, rate = 2, life = 3, speed = 1.2, alpha = 0.45, spin = 20, emission = 0.1 })
+	vfx(ctx, "VoidNebula", hc + Vector3.new(0, 0, 7), { texture = Config.Vfx.Nebula, color = glow, color2 = eyeC, size = 9, rate = 0.8, life = 4, speed = 0.5, alpha = 0.65, spin = 8, emission = 0.7 })
 	vfx(ctx, "CrownSparks", crown, { texture = Config.Vfx.Spark, color = glow, color2 = eyeC, size = 2.4, rate = 3, life = 0.35, speed = 0.5, spin = 220 })
 	vfx(ctx, "VoidMotes", crown, { texture = Config.Vfx.Star, color = rgb(240, 200, 255), color2 = glow, size = 1, rate = 5, life = 2.2, speed = 1.5, accel = Vector3.new(0, -1.5, 0), spin = 60 })
 	light(ctx, hc + Vector3.new(0, 0, -5), glow, 30, 1.6)
