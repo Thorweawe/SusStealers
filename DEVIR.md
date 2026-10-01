@@ -13,6 +13,37 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (84) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `SoundFX`, `Config`)
+
+Studio'ya aktarıldı, **198/198 test temiz**. Oyunda 4 dalga oynatıldı; efektlerin oluştuğu sayılarak doğrulandı.
+
+- **Yusuf, bilgin olsun:** Studio'da `MonsterModel` ve `UnitModel` yine 30 Eylül sürümünde (2544ed6), `MonsterMeshes/UnitMeshes/HatMeshes` klasörleri de yok. Dokunmadım (senin şeridin). `Config` de 415d477 sürümündeydi; HEAD + benim değişiklikle basıldı.
+- **Ekranın ortası boş** (Batur: "ortadaki UI'ler saçma, gold'a gerek yok"):
+  - Altın hapı kalktı; altın yalnızca dükkânda görünüyor.
+  - Gezegen ve gövde hapları sağ sütunda, NEXT WAVE kartının üstünde (telefonda sol üstte, 0.8 ölçek).
+  - Hız, AUTO ve destekler sağ altta bir kümede; yalnızca elde olan destekler görünüyor. AUTO geri sayımı düğmenin üstünde.
+  - Yönlendirme yazısı savaşta gizli; sonuç bandı küçüldü ve üstte.
+- **Zemin:** alan Terrain'i arenanın kökünden 2 stud yukarıda (voksel yuvarlaması). Halkalar, yol okları ve crewmate ayakları gömülüydü. `DefenseFX.world` zemini bir kez ışınla ölçüyor (`lift`). Alan halkaları kalınlaştı ve belirginleşti.
+- **Vuruş hissi** (`DefenseFX.hitEnemy` / `hurtUnit`):
+  - Yaratıklar: beyaz parlama (Boss'ta Highlight), jöle gibi ezilme, geri tepme, kıvılcım ve jöle damlası, hasar sayısı.
+  - Crewmate'ler: kırmızı Highlight, geri tepme ve geriye eğilme, kırmızı kıvılcım, hasar sayısı.
+  - Ölümde yerde jöle lekesi. Boss/Golem darbesi, sızma, Orbital Strike ve kılıç isabetinde kamera sarsıntısı (`DefenseShake`).
+  - Paylaşılan parçacık yayıcıları `Terrain.DefenseBursts`.
+  - Olaylara hasar eklendi: `uatk` 4., `pshot` 5., `slash` 5. alan.
+- **Sesler:** `SoundFX.WorldSound(key, pos, volume, pitch, length)` — perde her çalışta biraz oynuyor, sonu kısılarak kesiliyor. Darbe, ölüm ve düşme sesleri buna geçti.
+- **Düşman yapay zekâsı** (Batur: "zigzag çiziyorlar, hepsi birbirinin arkasından geliyor"):
+  - Yollar Chaikin ile yumuşatılıyor; ZIGZAG deseni kalktı. Yeni desenler WEDGE (ok ucu) ve TRIDENT (3 kol, dalga ≥6).
+  - Düşmanlar 2–6'lık gruplar halinde yan yana şeritlerde çıkıyor (`BuildWave`). Çıkış listesi zamana göre sıralı.
+  - Sim'de şerit yönetimi (`steerLanes`): komşudan ayrışma; koşucu önündeki Guard/Brawler'ın yanından dolaşıyor. Şerit yumuşakça kayıyor (±14), dövüşten sonra yola çapraz öne katılıyor. `SimEnemy.home` eklendi.
+- **Zorluk** (Batur: "çok kolay, ama aşırı da değil"):
+  - Bütçe 3.5+1.8w (eski 3+1.4w); can büyümesi 1.105 (1.09), hasar büyümesi 1.06 (1.05).
+  - Gear artık dalgayla tam büyümüyor (`GearScale` 0.6). Kılıç 16 hasar / 9 yarıçap / 0.5 sn (eski 34/10/0.45); tabanca 8 (15).
+  - Ölçüm: 4 Common 1. bölümü kayıpla geçip 8. dalgada düşüyor; dolu lv10 ekip 15. dalga civarı.
+- **Çark:** 5'li paket etiketi 99 R$ (`Config.SpinPack.robux`). Asıl fiyat Creator Hub'daki ürün ayarından (3715307547) değiştirilmeli.
+- Yeni test: yollar yumuşak, gruplar yan yana, koşucu kalkanın yanından dolaşıyor.
+
+---
+
 ## 2026-10-02 (83) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseClient`, `Music`)
 
 Studio'ya aktarıldı, **197/197 test temiz**. Dükkân penceresi ve durum hapları Studio ekran görüntüsüyle görüldü.

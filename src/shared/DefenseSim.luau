@@ -59,7 +59,8 @@ export type SimEnemy = {
 	eid: number,
 	kind: string,
 	path: number,
-	lane: number,
+	lane: number,         -- yolun yanına kayma (şimdiki)
+	home: number,         -- grubun dizilişindeki şeridi (geri döndüğü yer)
 	dist: number,
 	pos: Vector2,
 	hp: number,
@@ -136,7 +137,9 @@ local function enemyPos(sim: Sim, e: SimEnemy): Vector2
 	local p, dir = pointAt(points, sim.pathLens[e.path], e.dist)
 	-- Şerit: yolun sağına/soluna kayma, tek sıra yürümesinler
 	local normal = Vector2.new(-dir.Y, dir.X)
-	return p + normal * e.lane
+	local q = p + normal * e.lane
+	local hw = DefenseConfig.Field.halfWidth - 2
+	return Vector2.new(math.clamp(q.X, -hw, hw), q.Y)
 end
 
 -- ─── Kurulum ────────────────────────────────────────────────────────────────
@@ -276,6 +279,7 @@ local function spawnEnemy(sim: Sim, spawn: DefenseConfig.Spawn)
 		kind = spawn.kind,
 		path = spawn.path,
 		lane = if def.boss then 0 else spawn.lane,
+		home = if def.boss then 0 else spawn.lane,
 		dist = 0,
 		pos = Vector2.zero,
 		hp = def.hp * sim.hpMul,
@@ -364,8 +368,62 @@ local function enrage(sim: Sim): number
 	return if over > 0 then 1 + over / 15 else 1
 end
 
+--[[
+	Şerit yönetimi (2026-10-02, Batur: "zigzag çiziyorlar, hepsi birbirinin
+	arkasından geliyor, zekalarını geliştir"):
+	  - Ayrışma: aynı yoldaki yakın komşudan yana açılıyor, üst üste binmiyor
+	  - Koşucu (Gloop Mite) önündeki Guard / Brawler'ı görünce yanından dolaşıyor
+	  - Şerit istenen yere yumuşakça kayıyor (sert dönüş yok); dizilişine geri dönüyor
+]]
+local LANE_MAX = 14
+local LANE_SPEED = 5
+local SPACING = 4
+local DODGE_AHEAD = 20
+
+local function steerLanes(sim: Sim, dt: number)
+	local list = sim.enemies
+	for _, e in list do
+		if e.hp <= 0 or e.offPath or e.foe then
+			continue
+		end
+		local want = e.home
+		for _, o in list do
+			if o ~= e and o.hp > 0 and o.path == e.path and not o.offPath then
+				local dd = math.abs(o.dist - e.dist)
+				local dl = e.lane - o.lane
+				if dd < SPACING and math.abs(dl) < SPACING then
+					local sign = if dl > 0 then 1 elseif dl < 0 then -1 elseif e.eid > o.eid then 1 else -1
+					want += sign * (SPACING - math.abs(dl)) * (1 - dd / SPACING)
+				end
+			end
+		end
+		if e.ai == "rusher" then
+			local ahead, dir = pointAt(sim.paths[e.path], sim.pathLens[e.path], e.dist + DODGE_AHEAD * 0.6)
+			local normal = Vector2.new(-dir.Y, dir.X)
+			for _, u in sim.units do
+				if u.alive and (u.role == "Guard" or u.role == "Brawler") and (u.pos - ahead).Magnitude < DODGE_AHEAD then
+					local side = (u.pos - ahead):Dot(normal)
+					local clear = u.engage + 1
+					if e.lane >= side then
+						want = math.max(want, side + clear)
+					else
+						want = math.min(want, side - clear)
+					end
+				end
+			end
+		end
+		want = math.clamp(want, -LANE_MAX, LANE_MAX)
+		-- Koşucu çevik: şeridi daha hızlı değiştiriyor
+		local step = LANE_SPEED * dt * (if e.ai == "rusher" then 1.8 else 1)
+		e.lane += math.clamp(want - e.lane, -step, step)
+	end
+end
+
 local function stepEnemies(sim: Sim, dt: number)
 	local frozen = sim.time < sim.frozenUntil
+	if not frozen then
+		steerLanes(sim, dt)
+	end
 	-- Her crewmate'in tuttuğu yakın dövüşçü düşman sayısı
 	local held: { [number]: number } = {}
 	for _, e in sim.enemies do
@@ -432,7 +490,9 @@ local function stepEnemies(sim: Sim, dt: number)
 			e.timer = math.max(e.timer - dt, 0.15)
 		end
 		if not foe and e.offPath then
-			-- Dövüş bitti: yola yürüyerek dön (ışınlanmasın)
+			-- Dövüş bitti: yola yürüyerek dön (ışınlanmasın); geri değil
+			-- çapraz öne doğru katılıyor
+			e.dist += e.speed * dt * 0.6
 			local back = enemyPos(sim, e) - e.pos
 			local step = e.speed * dt
 			if back.Magnitude <= step then
@@ -606,7 +666,7 @@ local function stepUnits(sim: Sim, dt: number)
 		local target = chooseEnemy(sim, u, u.pos, u.range, focus)
 		if target then
 			u.timer = u.cooldown
-			emit(sim, { "uatk", u.uid, target.eid })
+			emit(sim, { "uatk", u.uid, target.eid, math.floor(u.dmg + 0.5) })
 			damageEnemy(sim, target, u.dmg)
 		else
 			-- Hedef yokken hazır beklesin (gelen ilk düşmana hemen vursun)
@@ -682,7 +742,7 @@ function DefenseSim.Slash(sim: Sim, at: Vector2, dir: Vector2, radius: number, d
 			end
 		end
 	end
-	emit(sim, { "slash", at.X, at.Y, hits })
+	emit(sim, { "slash", at.X, at.Y, hits, math.floor(damage + 0.5) })
 	return hits
 end
 
@@ -709,7 +769,7 @@ function DefenseSim.Shoot(sim: Sim, at: Vector2, dir: Vector2, range: number, co
 		return nil
 	end
 	local eid = best.eid
-	emit(sim, { "pshot", at.X, at.Y, eid })
+	emit(sim, { "pshot", at.X, at.Y, eid, math.floor(damage + 0.5) })
 	damageEnemy(sim, best, damage)
 	return eid
 end

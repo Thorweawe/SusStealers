@@ -56,6 +56,9 @@ type EnemyView = {
 	mesh: SpecialMesh?,
 	bodyColor: Color3,
 	flash: number,             -- vurulunca beyaz parlama 1 → 0
+	squash: number,            -- vurulunca jöle gibi ezilme 1 → 0
+	knock: Vector3,            -- geri tepme (sönümleniyor)
+	glow: Highlight?,          -- Boss'ta beyaz parlama (gövde ağı yok)
 }
 
 type UnitView = {
@@ -80,6 +83,9 @@ type UnitView = {
 	hand: CFrame,              -- silahın modele göre yeri
 	swing: number,             -- vuruş animasyonu 1 → 0
 	height: number,
+	hurt: number,              -- can azalınca kırmızı parlama + geriye eğilme 1 → 0
+	knock: Vector3,            -- darbeyle geri tepme
+	hurtGlow: Highlight,
 }
 
 local folder: Folder? = nil
@@ -111,8 +117,126 @@ local function root(): Folder
 	return nf
 end
 
+--[[
+	Zemin: alanın Terrain yüzeyi arenanın kökünden ~2 stud yukarıda (voksel
+	yuvarlaması). Her şey bu kadar gömülüyordu (alan halkaları hiç
+	görünmüyordu, crewmate'lerin ayağı kumun içindeydi). Bir kez ölçülüp
+	saklanıyor; arazi henüz akmadıysa tahmini değer.
+]]
+local groundParams = RaycastParams.new()
+groundParams.FilterType = Enum.RaycastFilterType.Include
+groundParams.FilterDescendantsInstances = { workspace.Terrain }
+local groundLift: number? = nil
+
+local function lift(): number
+	local cached = groundLift
+	if cached then
+		return cached
+	end
+	local origin = DefenseConfig.ToWorld(arena, Vector2.new(0, 110), 0)
+	local hit = workspace:Raycast(origin + Vector3.new(0, 30, 0), Vector3.new(0, -60, 0), groundParams)
+	if hit then
+		local h = math.clamp(hit.Position.Y - origin.Y, -1, 4)
+		groundLift = h
+		return h
+	end
+	return 2
+end
+
 local function world(p: Vector2, y: number?): Vector3
-	return DefenseConfig.ToWorld(arena, p, y)
+	return DefenseConfig.ToWorld(arena, p, (y or 0) + lift())
+end
+
+-- ─── Darbe hissi: kıvılcım / jöle sıçraması, sarsıntı ────────────────────────
+
+--[[
+	Paylaşılan parçacık yayıcıları (her vuruşta yeni parça açılmıyor):
+	bağlantı noktası vuruş yerine taşınıp Emit. Ayrı yayıcılar, çünkü
+	yayıcının rengi değişince havadaki parçacıklar da renk değiştiriyor.
+]]
+local burstHost: Attachment? = nil
+local emitters: { [string]: ParticleEmitter } = {}
+
+local function emitter(name: string, setup: (ParticleEmitter) -> ()): ParticleEmitter
+	local host = burstHost
+	if not host or not host.Parent then
+		local a = Instance.new("Attachment")
+		a.Name = "DefenseBursts"
+		a.Parent = workspace.Terrain
+		burstHost = a
+		host = a
+		table.clear(emitters)
+	end
+	local e = emitters[name]
+	if e and e.Parent then
+		return e
+	end
+	local ne = Instance.new("ParticleEmitter")
+	ne.Name = name
+	ne.Rate = 0
+	setup(ne)
+	ne.Parent = host
+	emitters[name] = ne
+	return ne
+end
+
+local function burst(name: string, at: Vector3, count: number)
+	local e = emitters[name]
+	local host = burstHost
+	if not (e and host and host.Parent) then
+		return
+	end
+	host.WorldPosition = at
+	e:Emit(count)
+end
+
+local function setupBursts(glow: Color3)
+	for _, e in emitters do
+		e:Destroy()
+	end
+	table.clear(emitters)
+	-- Beyaz-sarı kıvılcım (her isabet)
+	emitter("Spark", function(e)
+		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		e.Color = ColorSequence.new(Color3.fromRGB(255, 255, 230), Color3.fromRGB(255, 210, 90))
+		e.LightEmission = 1
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0) })
+		e.Lifetime = NumberRange.new(0.18, 0.32)
+		e.Speed = NumberRange.new(14, 24)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Drag = 7
+	end)
+	-- Gezegen renginde jöle damlaları (yaratık vurulunca / patlayınca)
+	emitter("Goo", function(e)
+		e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		e.Color = ColorSequence.new(glow:Lerp(WHITE, 0.15), glow:Lerp(Color3.new(0, 0, 0), 0.25))
+		e.LightEmission = 0.35
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0.2) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(1, 1) })
+		e.Lifetime = NumberRange.new(0.45, 0.7)
+		e.Speed = NumberRange.new(10, 20)
+		e.SpreadAngle = Vector2.new(70, 70)
+		e.EmissionDirection = Enum.NormalId.Top
+		e.Acceleration = Vector3.new(0, -70, 0)
+		e.RotSpeed = NumberRange.new(-120, 120)
+	end)
+	-- Kırmızı kıvılcım (crewmate'e darbe)
+	emitter("Hurt", function(e)
+		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		e.Color = ColorSequence.new(Color3.fromRGB(255, 120, 110), Color3.fromRGB(220, 30, 40))
+		e.LightEmission = 0.8
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.0), NumberSequenceKeypoint.new(1, 0) })
+		e.Lifetime = NumberRange.new(0.22, 0.38)
+		e.Speed = NumberRange.new(10, 18)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Drag = 6
+	end)
+end
+
+-- Kamera sarsıntısı: büyük darbelerde (Boss, gemiye sızma, kılıç isabeti)
+local shake = 0
+local function addShake(amount: number)
+	shake = math.min(1.2, shake + amount)
 end
 
 local function sound(key: string, gap: number, fn: () -> ())
@@ -186,6 +310,7 @@ end
 
 function DefenseFX.SetArena(index: number)
 	arena = index
+	groundLift = nil
 end
 
 function DefenseFX.SetPlanet(index: number)
@@ -198,6 +323,7 @@ function DefenseFX.SetPlanet(index: number)
 			glow = def.glow,
 		}
 	end
+	setupBursts(palette.glow)
 end
 
 -- ─── Crewmate'ler ───────────────────────────────────────────────────────────
@@ -315,7 +441,7 @@ local function buildArea(roleId: string, color: Color3): Model
 	local m = Instance.new("Model")
 	m.Name = "Area"
 	local disc = fxPart("AreaDisc", Vector3.new(0.06, r * 2, r * 2), CFrame.Angles(0, 0, math.rad(90)), color, Enum.PartType.Cylinder)
-	disc.Transparency = 0.93
+	disc.Transparency = 0.9
 	disc.Material = Enum.Material.SmoothPlastic
 	disc.Parent = m
 	for k = 0, AREA_SEGMENTS - 1 do
@@ -323,8 +449,8 @@ local function buildArea(roleId: string, color: Color3): Model
 		local a1 = (k + 1) / AREA_SEGMENTS * math.pi * 2
 		local p0 = Vector3.new(math.cos(a0) * r, 0.12, math.sin(a0) * r)
 		local p1 = Vector3.new(math.cos(a1) * r, 0.12, math.sin(a1) * r)
-		local seg = fxPart("AreaRing", Vector3.new(0.3, 0.08, (p1 - p0).Magnitude + 0.05), CFrame.lookAt((p0 + p1) / 2, p1), color)
-		seg.Transparency = 0.55
+		local seg = fxPart("AreaRing", Vector3.new(0.4, 0.08, (p1 - p0).Magnitude + 0.05), CFrame.lookAt((p0 + p1) / 2, p1), color:Lerp(WHITE, 0.2))
+		seg.Transparency = 0.35
 		seg.Parent = m
 	end
 	m.PrimaryPart = disc
@@ -362,6 +488,17 @@ local function buildUnit(info: any): UnitView?
 	area.Parent = root()
 	model:SetAttribute("DefenseUid", info.uid)
 	model.Parent = root()
+	-- Can azalınca kırmızı parlama
+	local hurtGlow = Instance.new("Highlight")
+	hurtGlow.Name = "HurtGlow"
+	hurtGlow.FillColor = Color3.fromRGB(255, 50, 50)
+	hurtGlow.OutlineColor = Color3.fromRGB(255, 220, 220)
+	hurtGlow.FillTransparency = 1
+	hurtGlow.OutlineTransparency = 1
+	hurtGlow.DepthMode = Enum.HighlightDepthMode.Occluded
+	hurtGlow.Enabled = false
+	hurtGlow.Adornee = model
+	hurtGlow.Parent = model
 
 	local anchor = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart") :: BasePart
 	local gui, fill = hpBar(anchor, height + 1.2, 60, Color3.fromRGB(90, 230, 110))
@@ -417,6 +554,9 @@ local function buildUnit(info: any): UnitView?
 		hand = hand,
 		swing = 0,
 		height = height,
+		hurt = 0,
+		knock = Vector3.zero,
+		hurtGlow = hurtGlow,
 		area = area,
 		from = pos,
 		to = pos,
@@ -576,7 +716,23 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 		mesh = mesh,
 		bodyColor = if body then body.Color else WHITE,
 		flash = 0,
+		squash = 0,
+		knock = Vector3.zero,
+		glow = nil,
 	}
+	if not mesh then
+		-- Gövde ağı olmayan (Boss): vurulunca Highlight ile beyaz parlama
+		local hl = Instance.new("Highlight")
+		hl.Name = "HitGlow"
+		hl.FillColor = WHITE
+		hl.OutlineTransparency = 1
+		hl.FillTransparency = 1
+		hl.DepthMode = Enum.HighlightDepthMode.Occluded
+		hl.Enabled = false
+		hl.Adornee = model
+		hl.Parent = model
+		view.glow = hl
+	end
 	enemies[eid] = view
 	if kind == "Boss" then
 		SoundFX.GearSound("GearBlast", pos)
@@ -595,11 +751,26 @@ local function killEnemy(eid: number)
 	view.dead = true
 	enemies[eid] = nil
 	local at = view.model:GetPivot().Position
-	local puff = fxPart("Puff", Vector3.one * 2, CFrame.new(at + Vector3.new(0, 1.5, 0)), palette.glow, Enum.PartType.Ball)
+	local big = view.kind == "Boss" or view.kind == "Brute"
+	local puff = fxPart("Puff", Vector3.one * 2, CFrame.new(at + Vector3.new(0, view.height * 0.4, 0)), palette.glow, Enum.PartType.Ball)
 	puff.Transparency = 0.2
-	fadeAway(puff, 0.35, Vector3.one * (if view.kind == "Boss" then 14 else 6))
-	sound("poof", 0.12, function()
-		SoundFX.GearSound("GearPoof", at)
+	fadeAway(puff, 0.35, Vector3.one * (if view.kind == "Boss" then 16 elseif big then 10 else 7))
+	-- Jöle patlaması: damlalar + yerde leke
+	burst("Goo", at + Vector3.new(0, view.height * 0.4, 0), if big then 26 else 14)
+	local splat = fxPart("Splat", Vector3.new(0.12, 2, 2), CFrame.new(at + Vector3.new(0, 0.08, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		palette.glow:Lerp(Color3.new(0, 0, 0), 0.3), Enum.PartType.Cylinder)
+	splat.Material = Enum.Material.SmoothPlastic
+	splat.Transparency = 0.25
+	local spread = if big then 9 else 5
+	TweenService:Create(splat, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.12, spread, spread) }):Play()
+	task.delay(1.2, function()
+		fadeAway(splat, 0.8)
+	end)
+	if big then
+		addShake(if view.kind == "Boss" then 0.9 else 0.3)
+	end
+	sound("poof", 0.08, function()
+		SoundFX.WorldSound("GearPoof", at, 0.6, if big then 0.75 else 1.25, 0.7)
 	end)
 	for _, d in view.model:GetDescendants() do
 		if d:IsA("BasePart") and d.Transparency < 1 then
@@ -675,7 +846,108 @@ local function floatText(at: Vector3, text: string, color: Color3)
 	end)
 end
 
-local function onUnitAttack(uid: number, eid: number)
+--[[
+	Hasar sayısı: büyük başlayıp küçülüyor, yükselip sönüyor. `big` için
+	daha büyük.
+]]
+local function damageText(at: Vector3, amount: number, color: Color3, big: boolean?)
+	local p = fxPart("DamageText", Vector3.one * 0.2, CFrame.new(at), color)
+	p.Transparency = 1
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(if big then 86 else 64, if big then 38 else 28)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 220
+	gui.Parent = p
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.fromScale(1, 1)
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.FredokaOne
+	l.TextScaled = true
+	l.TextColor3 = color
+	l.TextStrokeTransparency = 0
+	l.TextStrokeColor3 = Color3.fromRGB(30, 20, 30)
+	l.AutoLocalize = false
+	l.Text = tostring(amount)
+	l.Parent = gui
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1.7
+	scale.Parent = l
+	TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local drift = Vector3.new((math.random() - 0.5) * 2.5, 3.5, (math.random() - 0.5) * 2.5)
+	TweenService:Create(p, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.new(at + drift) }):Play()
+	task.delay(0.35, function()
+		TweenService:Create(l, TweenInfo.new(0.35), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	end)
+	task.delay(0.75, function()
+		p:Destroy()
+	end)
+end
+
+--[[
+	Yaratık vuruldu (Batur: "hasar alma animasyonları olsun, hiç vuruş hissi
+	yok"): beyaz parlama, jöle gibi ezilme, vurulduğu yönden geri tepme,
+	kıvılcım + jöle damlası, hasar sayısı ve vıcık ses.
+]]
+local function hitEnemy(e: EnemyView, from: Vector3?, amount: number?, power: number, color: Color3?, crit: boolean?)
+	if e.dead then
+		return
+	end
+	e.flash = 1
+	e.squash = 1
+	local pivot = e.model:GetPivot().Position
+	if from then
+		local away = (pivot - from) * Vector3.new(1, 0, 1)
+		if away.Magnitude > 0.1 then
+			local resist = if e.kind == "Boss" then 0.2 elseif e.kind == "Brute" then 0.45 else 1
+			e.knock += away.Unit * power * resist
+			if e.knock.Magnitude > 3 then
+				e.knock = e.knock.Unit * 3
+			end
+		end
+	end
+	local at = pivot + Vector3.new(0, e.height * 0.5, 0)
+	burst("Spark", at, if crit then 10 else 6)
+	burst("Goo", at, if crit then 7 else 4)
+	if amount and amount > 0 then
+		damageText(at + Vector3.new(0, e.height * 0.4 + 1, 0), amount, color or WHITE, crit)
+	end
+	sound("ehit", 0.07, function()
+		SoundFX.WorldSound("GearSlap", at, 0.45, if e.kind == "Boss" or e.kind == "Brute" then 0.8 else 1.35, 0.4)
+	end)
+end
+
+--[[
+	Crewmate'in canı azaldı (Batur: "bizim crewmate'lere de ekle"): kırmızı
+	parlama, darbenin geldiği yönden geri tepme + geriye eğilme, kırmızı
+	kıvılcım, hasar sayısı ve darbe sesi; Boss / Golem vurursa kamera sarsılıyor.
+]]
+local function hurtUnit(u: UnitView, from: Vector3?, amount: number, heavy: boolean)
+	u.hurt = 1
+	if from then
+		local away = (u.base.Position - from) * Vector3.new(1, 0, 1)
+		if away.Magnitude > 0.1 then
+			u.knock += away.Unit * (if heavy then 2.2 else 1.1)
+			if u.knock.Magnitude > 3 then
+				u.knock = u.knock.Unit * 3
+			end
+		end
+	end
+	local at = chest(u.model) + Vector3.new(0, u.height * 0.15, 0)
+	burst("Hurt", at, if heavy then 14 else 7)
+	damageText(at + Vector3.new(0, u.height * 0.45, 0), amount, Color3.fromRGB(255, 80, 80), heavy)
+	if heavy then
+		addShake(0.45)
+	end
+	sound("uhurt", 0.1, function()
+		SoundFX.WorldSound("GearSlap", at, if heavy then 0.8 else 0.55, if heavy then 0.7 else 0.95, 0.5)
+		if heavy then
+			SoundFX.WorldSound("CrashBoom", at, 0.35, 1.2, 0.6)
+		end
+	end)
+end
+
+local function onUnitAttack(uid: number, eid: number, amount: number?)
 	local u = units[uid]
 	local e = enemies[eid]
 	if not (u and e) or u.fallen then
@@ -689,8 +961,19 @@ local function onUnitAttack(uid: number, eid: number)
 		u.lungeDir = dir.Unit
 	end
 	u.swing = 1
-	e.flash = 1
 	local role = DefenseConfig.Roles[u.role]
+	local origin = u.base.Position
+	if u.role == "Shooter" or u.role == "Medic" then
+		-- Mermi varınca isabet
+		task.delay(0.14, function()
+			if enemies[eid] == e then
+				hitEnemy(e, origin, amount, 0.5, WHITE)
+			end
+		end)
+	else
+		local power = if u.role == "Assassin" then 1.0 elseif u.role == "Guard" then 1.6 else 1.3
+		hitEnemy(e, origin, amount, power, if u.role == "Assassin" then Color3.fromRGB(255, 170, 60) else WHITE, u.role == "Assassin")
+	end
 	if u.role == "Shooter" then
 		-- Namlu alevi + parlak mermi
 		local flare = fxPart("MuzzleFlash", Vector3.one * 0.9, CFrame.new(from), role.color, Enum.PartType.Ball)
@@ -730,7 +1013,19 @@ local function onUnitHit(uid: number, eid: number, amount: number)
 		end
 	end
 	if u and not u.fallen then
-		floatText(chest(u.model) + Vector3.new(0, 2.5, 0), "-" .. tostring(amount), Color3.fromRGB(255, 90, 90))
+		local heavy = e ~= nil and (e.kind == "Boss" or e.kind == "Brute")
+		local from = if e then e.model:GetPivot().Position else nil
+		local def = e and DefenseConfig.Enemies[e.kind]
+		if def and def.range > 7 then
+			-- Tükürük uçarken bekle
+			task.delay(0.14, function()
+				if units[uid] == u and not u.fallen then
+					hurtUnit(u, from, amount, heavy)
+				end
+			end)
+		else
+			hurtUnit(u, from, amount, heavy)
+		end
 	end
 end
 
@@ -788,7 +1083,13 @@ local function onUnitFall(uid: number)
 		end
 	end)
 	floatText(chest(u.model) + Vector3.new(0, 2, 0), "✚ HOSPITAL", Color3.fromRGB(255, 110, 110))
+	burst("Hurt", chest(u.model), 22)
+	u.hurt = 1
+	u.hurtGlow.Enabled = true
+	u.hurtGlow.FillTransparency = 0.35
+	addShake(0.35)
 	sound("fall", 0.2, function()
+		SoundFX.WorldSound("CrashMetal", chest(u.model), 0.5, 0.85, 0.7)
 		SoundFX.GearSound("GearBlast", chest(u.model))
 	end)
 	task.delay(1.6, function()
@@ -805,6 +1106,7 @@ local function onLeak()
 	local p = fxPart("Leak", Vector3.one * 4, CFrame.new(gate), Color3.fromRGB(255, 60, 60), Enum.PartType.Ball)
 	p.Transparency = 0.2
 	fadeAway(p, 0.5, Vector3.one * 16)
+	addShake(0.6)
 	sound("leak", 0.25, function()
 		SoundFX.ShipCrash()
 	end)
@@ -820,6 +1122,7 @@ local function onStrike(x: number, z: number)
 		Color3.fromRGB(255, 160, 60), Enum.PartType.Cylinder)
 	local r = DefenseConfig.StrikeRadius * 2
 	fadeAway(ring, 0.6, Vector3.new(0.4, r, r))
+	addShake(0.7)
 	SoundFX.GearSound("GearBlast", at)
 end
 
@@ -841,7 +1144,7 @@ local function onFreeze(seconds: number)
 end
 
 --[[ Oyuncunun ışın tabancası: elindeki tabancanın ucundan düşmana lazer. ]]
-local function onPlayerShot(x: number, z: number, eid: number)
+local function onPlayerShot(x: number, z: number, eid: number, amount: number?)
 	local character = Players.LocalPlayer.Character
 	local tool = character and character:FindFirstChildOfClass("Tool")
 	local muzzle = tool and tool:FindFirstChild("Muzzle") :: BasePart?
@@ -849,7 +1152,7 @@ local function onPlayerShot(x: number, z: number, eid: number)
 	local e = enemies[eid]
 	local color = if muzzle then muzzle.Color else Color3.fromRGB(120, 220, 255)
 	if e then
-		e.flash = 1
+		hitEnemy(e, from, amount, 0.8, Color3.fromRGB(255, 230, 90))
 		local to = e.model:GetPivot().Position + Vector3.new(0, e.height * 0.45, 0)
 		beam(from, to, color, 0.35, 0.12)
 		local hit = fxPart("RayHit", Vector3.one * 1.2, CFrame.new(to), color, Enum.PartType.Ball)
@@ -865,8 +1168,19 @@ local function onPlayerShot(x: number, z: number, eid: number)
 end
 
 --[[ Oyuncunun ışın kılıcı vuruşu: yay biçiminde parlama. ]]
-local function onSlash(x: number, z: number, hits: number)
+local function onSlash(x: number, z: number, hits: number, amount: number?)
 	local at = world(Vector2.new(x, z), 2.5)
+	if hits > 0 then
+		-- Kılıç isabeti: çevredeki yaratıklar savruluyor, kamera hafif sarsılıyor
+		local feet = world(Vector2.new(x, z))
+		for _, e in enemies do
+			local d = (e.to - feet) * Vector3.new(1, 0, 1)
+			if d.Magnitude <= DefenseConfig.Saber.radius + 1.5 then
+				hitEnemy(e, feet, amount, 2.2, Color3.fromRGB(150, 230, 255))
+			end
+		end
+		addShake(0.25)
+	end
 	local ring = fxPart("SlashRing", Vector3.new(0.3, 4, 4), CFrame.new(at) * CFrame.Angles(0, 0, math.rad(90)),
 		Color3.fromRGB(140, 220, 255), Enum.PartType.Cylinder)
 	ring.Transparency = 0.3
@@ -901,7 +1215,7 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 		elseif kind == "edie" then
 			killEnemy(ev[2])
 		elseif kind == "uatk" then
-			onUnitAttack(ev[2], ev[3])
+			onUnitAttack(ev[2], ev[3], ev[4])
 		elseif kind == "uhit" then
 			onUnitHit(ev[2], ev[3], ev[4])
 		elseif kind == "heal" then
@@ -923,9 +1237,9 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 		elseif kind == "meddrop" then
 			onMedDrop()
 		elseif kind == "slash" then
-			onSlash(ev[2], ev[3], ev[4])
+			onSlash(ev[2], ev[3], ev[4], ev[5])
 		elseif kind == "pshot" then
-			onPlayerShot(ev[2], ev[3], ev[4])
+			onPlayerShot(ev[2], ev[3], ev[4], ev[5])
 		end
 	end
 
@@ -1098,6 +1412,17 @@ end
 -- ─── Kare kare ──────────────────────────────────────────────────────────────
 
 function DefenseFX.Start()
+	-- Sarsıntı kameranın kendi güncellemesinden SONRA, sönümlenerek
+	RunService:BindToRenderStep("DefenseShake", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		if shake <= 0.001 then
+			return
+		end
+		local camera = workspace.CurrentCamera
+		local s = shake * shake
+		camera.CFrame = camera.CFrame * CFrame.new((math.random() - 0.5) * 0.7 * s, (math.random() - 0.5) * 0.7 * s, 0)
+			* CFrame.Angles(0, 0, (math.random() - 0.5) * 0.02 * s)
+		shake = math.max(0, shake - dt * 2.8)
+	end)
 	RunService.RenderStepped:Connect(function(dt)
 		local now = os.clock()
 		for _, view in enemies do
@@ -1120,17 +1445,29 @@ function DefenseFX.Start()
 			local bob = if walking then math.abs(math.sin(now * 9 + view.t0)) * 0.35 else 0
 			-- Jöle: gövde esneyip sıkışıyor (yürürken daha çok)
 			local mesh = view.mesh
+			view.squash = math.max(0, view.squash - dt * 5)
 			if mesh then
 				local w = math.sin(now * (if walking then 9 else 4) + view.t0) * (if walking then 0.09 else 0.05)
-				mesh.Scale = Vector3.new(1 + w, 1 - w, 1 + w)
+				-- Vurulunca ezilip geri zıplıyor (yaylı)
+				local s = view.squash
+				local q = math.sin(s * math.pi * 1.5) * s * 0.28
+				mesh.Scale = Vector3.new(1 + w + q, 1 - w - q, 1 + w + q)
 			end
-			if view.flash > 0 and view.body then
+			if view.flash > 0 then
 				view.flash = math.max(0, view.flash - dt * 6)
-				view.body.Color = view.bodyColor:Lerp(Color3.new(1, 1, 1), view.flash * 0.8)
+				if view.body then
+					view.body.Color = view.bodyColor:Lerp(Color3.new(1, 1, 1), view.flash * 0.9)
+				end
+				local glow = view.glow
+				if glow then
+					glow.Enabled = view.flash > 0.02
+					glow.FillTransparency = 1 - 0.75 * view.flash
+				end
 			end
+			view.knock *= math.exp(-dt * 8)
 			view.lunge = math.max(0, view.lunge - dt * 5)
 			local lunge = face * (math.sin(view.lunge * math.pi) * 0.9)
-			local at = pos + Vector3.new(0, bob, 0) + lunge
+			local at = pos + Vector3.new(0, bob, 0) + lunge + view.knock
 			if face.Magnitude > 0.01 then
 				local cf = CFrame.lookAt(at, at + Vector3.new(face.X, 0, face.Z))
 				local rig = view.rig
@@ -1139,7 +1476,8 @@ function DefenseFX.Start()
 					local age = now - view.born
 					local roar = if age < 1.6 then math.sin(math.clamp(age / 1.6, 0, 1) * math.pi) else 0
 					local ok = pcall(function()
-						rig:Pose(CFrame.lookAt(pos, pos + Vector3.new(face.X, 0, face.Z)), now,
+						local rp = pos + view.knock
+						rig:Pose(CFrame.lookAt(rp, rp + Vector3.new(face.X, 0, face.Z)), now,
 							{ sway = 1.2, rate = 1.4, grab = math.sin(view.lunge * math.pi), roar = roar })
 					end)
 					if not ok then
@@ -1164,9 +1502,17 @@ function DefenseFX.Start()
 				local base = CFrame.new(stand) * view.base.Rotation
 				local look = if moving then (walk * Vector3.new(1, 0, 1)).Unit
 					elseif view.lungeDir.Magnitude > 0.01 then view.lungeDir else base.LookVector
+				-- Darbe: geri tepme, geriye eğilme, kırmızı parlama
+				view.knock *= math.exp(-dt * 9)
+				view.hurt = math.max(0, view.hurt - dt * 3.5)
+				local h = view.hurt
+				view.hurtGlow.Enabled = h > 0.02
+				view.hurtGlow.FillTransparency = 1 - 0.6 * h
+				view.hurtGlow.OutlineTransparency = 1 - 0.7 * h
 				-- Boşta hafif nefes
-				local p = base.Position + offset + Vector3.new(0, math.sin(now * 2.2 + view.uid) * 0.06, 0)
+				local p = base.Position + offset + view.knock + Vector3.new(0, math.sin(now * 2.2 + view.uid) * 0.06, 0)
 				local cf = CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z))
+					* CFrame.Angles(math.rad(-16 * math.sin(h * math.pi)), 0, math.rad(6 * math.sin(h * math.pi * 2)))
 				view.model:PivotTo(cf)
 				local weapon = view.weapon
 				if weapon and weapon.Parent then

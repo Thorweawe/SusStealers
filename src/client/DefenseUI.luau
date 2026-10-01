@@ -860,37 +860,41 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	hud.Parent = screen
 
 	--[[
-		Üstte durum (Batur: "uzay gemisindeki UI'lere benzesin"): oyunun sol
-		alttaki uzay hızı / para haplarıyla AYNI bileşen (UiKit.StatPill:
-		renkli gradyan, kalın koyu kenar, nokta dokusu, soldan taşan 3B ikon).
-		Üç hap yan yana: gezegen + bölüm/dalga, gemi gövdesi (içinde ince can
-		çubuğu), altın.
+		Durum (Batur: "uzay gemisindeki UI'lere benzesin"): oyunun sol
+		alttaki uzay hızı / para haplarıyla AYNI bileşen (UiKit.StatPill).
+		2026-10-02 (Batur: "ekranın ortasındaki UI'ler saçma, ortada
+		durmasın; gold'a gerek yok, markette görünsün yeter"): ortadan
+		kalktı, SAĞ SÜTUNDA dalga kartının üstünde. Altın yalnızca dükkânda.
 	]]
-	local statRow = Instance.new("Frame")
-	statRow.AnchorPoint = Vector2.new(0.5, 0)
-	statRow.Position = UDim2.new(0.5, 0, 0, 74)
-	statRow.Size = UDim2.fromOffset(660, 52)
-	statRow.BackgroundTransparency = 1
-	statRow.ZIndex = Z - 11
-	statRow.Parent = hud
-	local statLayout = list(statRow, true, 10)
-	statLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local side = Instance.new("Frame")
+	side.Name = "DefenseSide"
+	side.AnchorPoint = if TOUCH then Vector2.zero else Vector2.new(1, 0)
+	side.Position = if TOUCH then UDim2.fromOffset(12, 72) else UDim2.new(1, -12, 0, 170)
+	side.Size = UDim2.fromOffset(236, 0)
+	side.AutomaticSize = Enum.AutomaticSize.Y
+	side.BackgroundTransparency = 1
+	side.ZIndex = Z - 11
+	side.Parent = hud
+	local sideLayout = list(side, false, 8)
+	sideLayout.HorizontalAlignment = if TOUCH then Enum.HorizontalAlignment.Left else Enum.HorizontalAlignment.Right
+	if TOUCH then
+		local s = Instance.new("UIScale")
+		s.Scale = 0.8
+		s.Parent = side
+	end
 	local function pill(name: string, tint: Color3, icon: string, order: number, width: number): (Frame, TextLabel, TextLabel)
-		local p, disc, value, sub = UiKit.StatPill(statRow, name, tint)
+		local p, disc, value, sub = UiKit.StatPill(side, name, tint)
 		p.LayoutOrder = order
-		p.Size = UDim2.fromOffset(width, 50)
-		UiKit.ArtIcon(disc, 46, icon, 1.25)
-		value.TextSize = 22
+		p.Size = UDim2.fromOffset(width, 46)
+		UiKit.ArtIcon(disc, 44, icon, 1.25)
+		value.TextSize = 20
 		value.TextScaled = false
 		return p, value, sub
 	end
-	local planetPill, planetValue, planetSub = pill("DefensePlanetPill", UiKit.CREW.CYAN, "Crewmate", 1, 230)
-	local hullPill, hullValue, hullSub = pill("DefenseHullPill", Color3.fromRGB(90, 170, 255), "StrongLock", 2, 190)
-	local goldPill, goldValue, goldSub = pill("DefenseGoldPill", Color3.fromRGB(255, 200, 60), "Jackpot", 3, 170)
-	goldSub.Text = "GOLD"
+	local planetPill, planetValue, planetSub = pill("DefensePlanetPill", UiKit.CREW.CYAN, "Crewmate", 1, 214)
+	local hullPill, hullValue, hullSub = pill("DefenseHullPill", Color3.fromRGB(90, 170, 255), "StrongLock", 2, 214)
 	hullSub.Text = "SHIP HULL"
 	local _ = planetPill
-	local __ = goldPill
 	-- Gövde çubuğu: hapın içinde, altta ince
 	local hullBack = Instance.new("Frame")
 	hullBack.AnchorPoint = Vector2.new(0, 1)
@@ -911,17 +915,16 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	local hullGrad = FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 0)
 	hullSub.Position = UDim2.new(0, 55, 0, 27)
 
-	-- Yönlendirme: alttaki düğmelerin üstünde, kutusuz
-	local hint = label(hud, "", 16, WHITE, Z - 10, 2)
+	-- Yönlendirme: yalnızca hazırlıkta, alttaki düğmelerin üstünde, kutusuz
+	local hint = label(hud, "", 15, WHITE, Z - 10, 2)
 	hint.AnchorPoint = Vector2.new(0.5, 1)
 	hint.Position = UDim2.new(0.5, 0, 1, -172)
-	hint.Size = UDim2.fromOffset(620, 22)
+	hint.Size = UDim2.fromOffset(560, 20)
 
 	--[[ Gelen dalga kartı: başlık şeridi + rota rozeti, her yaratık bir satır
 	     (renkli nokta, ad, adet rozeti), boss satırı kırmızı. ]]
-	local incoming = if TOUCH
-		then panel(hud, UDim2.fromOffset(200, 0), UDim2.fromOffset(12, 72), Vector2.zero, Z - 11, nil, nil, 12)
-		else panel(hud, UDim2.fromOffset(220, 0), UDim2.new(1, -12, 0.36, 0), Vector2.new(1, 0), Z - 11, nil, nil, 12)
+	local incoming = panel(side, UDim2.fromOffset(214, 0), UDim2.new(), Vector2.zero, Z - 11, nil, nil, 12)
+	incoming.LayoutOrder = 3
 	incoming.AutomaticSize = Enum.AutomaticSize.Y
 	local incPad = Instance.new("UIPadding")
 	incPad.PaddingTop = UDim.new(0, 0)
@@ -964,17 +967,49 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		Spitter = Color3.fromRGB(220, 120, 255), Brute = Color3.fromRGB(255, 170, 70), Boss = Color3.fromRGB(255, 80, 80),
 	}
 
-	-- Hız: alttaki düğme sırasının sağında (hazırlıkta da savaşta da aynı yer)
-	local speedB = button(hud, "▶ 1x", UDim2.fromOffset(104, 54), GREY, Z - 10, 20)
-	speedB.holder.AnchorPoint = Vector2.new(0, 1)
-	speedB.holder.Position = UDim2.new(0.5, 246, 1, -104)
+	--[[
+		Sağ altta kontrol kümesi (ortada durmasın): üst sırada hız + AUTO,
+		alt sırada yalnızca ELDE OLAN destekler. Telefonda zıplama düğmesinin
+		üstünde.
+	]]
+	local controls = Instance.new("Frame")
+	controls.Name = "DefenseControls"
+	controls.AnchorPoint = Vector2.new(1, 1)
+	controls.Position = if TOUCH then UDim2.new(1, -12, 1, -170) else UDim2.new(1, -12, 1, -18)
+	controls.Size = UDim2.fromOffset(340, 0)
+	controls.AutomaticSize = Enum.AutomaticSize.Y
+	controls.BackgroundTransparency = 1
+	controls.ZIndex = Z - 11
+	controls.Parent = hud
+	local ctrlLayout = list(controls, false, 6)
+	ctrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	if TOUCH then
+		local s = Instance.new("UIScale")
+		s.Scale = 0.85
+		s.Parent = controls
+	end
+	local function row(order: number): Frame
+		local r = Instance.new("Frame")
+		r.LayoutOrder = order
+		r.Size = UDim2.fromOffset(340, 50)
+		r.BackgroundTransparency = 1
+		r.ZIndex = Z - 11
+		r.Parent = controls
+		local l = list(r, true, 6)
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		return r
+	end
+	local topRow = row(1)
+	local supportBar = row(2)
+	-- Hız
+	local speedB = button(topRow, "▶ 1x", UDim2.fromOffset(96, 48), GREY, Z - 10, 18)
+	speedB.holder.LayoutOrder = 1
 	speedB.button.Activated:Connect(function()
 		hooks.send("speed")
 	end)
 	-- AUTO: dalga bitince sonrakini kendiliğinden başlatır (sonsuz dalgalarda)
-	local autoB = button(hud, "AUTO", UDim2.fromOffset(104, 54), GREY, Z - 10, 18)
-	autoB.holder.AnchorPoint = Vector2.new(0, 1)
-	autoB.holder.Position = UDim2.new(0.5, 358, 1, -104)
+	local autoB = button(topRow, "AUTO", UDim2.fromOffset(110, 48), GREY, Z - 10, 17)
+	autoB.holder.LayoutOrder = 2
 	autoB.button.Activated:Connect(function()
 		hooks.send("auto")
 	end)
@@ -1008,18 +1043,11 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		end
 	end)
 
-	-- Savaşta destekler (aynı yerde)
-	local supportBar = Instance.new("Frame")
-	supportBar.AnchorPoint = Vector2.new(0.5, 1)
-	supportBar.Position = UDim2.new(0.5, 0, 1, -100)
-	supportBar.Size = UDim2.fromOffset(3 * 156, 58)
-	supportBar.BackgroundTransparency = 1
-	supportBar.ZIndex = Z - 11
-	supportBar.Parent = hud
+	-- Savaşta destekler (sağ alttaki kümenin alt satırı; yalnızca elde olanlar)
 	local supportButtons: { [string]: FancyKit.Button } = {}
 	for i, s in DefenseConfig.Supports do
-		local b = button(supportBar, "", UDim2.fromOffset(148, 54), PURPLE, Z - 10, 15)
-		b.holder.Position = UDim2.fromOffset((i - 1) * 156, 0)
+		local b = button(supportBar, "", UDim2.fromOffset(108, 48), PURPLE, Z - 10, 13)
+		b.holder.LayoutOrder = i
 		b.button.Activated:Connect(function()
 			hooks.pickSupport(if picked.support == s.id then nil else s.id)
 		end)
@@ -1027,7 +1055,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	-- Sonuç bandı: üstten kayarak
-	local banner = panel(screen, UDim2.fromOffset(520, 110), UDim2.new(0.5, 0, 0, -140), Vector2.new(0.5, 0), Z + 20)
+	local banner = panel(screen, UDim2.fromOffset(420, 92), UDim2.new(0.5, 0, 0, -140), Vector2.new(0.5, 0), Z + 20)
 	banner.Visible = false
 	local bannerStrip = Instance.new("Frame")
 	bannerStrip.Size = UDim2.new(1, 0, 0, 8)
@@ -1036,23 +1064,28 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	bannerStrip.ZIndex = Z + 21
 	bannerStrip.Parent = banner
 	FancyKit.corner(bannerStrip, 4)
-	local bannerTitle = label(banner, "", 32, WHITE, Z + 21)
-	bannerTitle.Position = UDim2.fromOffset(0, 14)
-	bannerTitle.Size = UDim2.new(1, 0, 0, 40)
-	local bannerSub = label(banner, "", 18, GOLD, Z + 21)
-	bannerSub.Position = UDim2.fromOffset(12, 58)
-	bannerSub.Size = UDim2.new(1, -24, 0, 42)
+	local bannerTitle = label(banner, "", 26, WHITE, Z + 21)
+	bannerTitle.Position = UDim2.fromOffset(0, 12)
+	bannerTitle.Size = UDim2.new(1, 0, 0, 34)
+	local bannerSub = label(banner, "", 16, GOLD, Z + 21)
+	bannerSub.Position = UDim2.fromOffset(12, 50)
+	bannerSub.Size = UDim2.new(1, -24, 0, 34)
 	bannerSub.TextWrapped = true
 	local bannerToken = 0
 
 	local function renderSupports()
+		local any = false
 		for _, s in DefenseConfig.Supports do
 			local b = supportButtons[s.id]
 			local have = if data then (data.supports[s.id] or 0) else 0
 			local active = picked.support == s.id
-			b.set(string.format("%s %s ×%d", s.icon, if active then "TAP GROUND" else string.upper(s.name), have),
-				if have > 0 then (if active then GOLD else PURPLE) else nil)
+			-- Elde olmayan destek gösterilmiyor (×0 düğmeleri gereksizdi)
+			b.holder.Visible = have > 0
+			any = any or have > 0
+			b.set(if active then "🎯 TAP" else string.format("%s ×%d", s.icon, have),
+				if active then GOLD else PURPLE)
 		end
+		supportBar.Visible = mode == "fight" and any
 	end
 
 	local function setHull(hull: number, maxHull: number, enemies: number?)
@@ -1115,8 +1148,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	local function renderHud()
-		local gold = if data then data.gold else 0
-		goldValue.Text = tostring(gold)
 		mode = if run == nil then "idle" elseif run.phase == "fight" then "fight" else "prep"
 		if run then
 			planetValue.Text = string.format("SECTOR %d · %d/%d", run.sector, run.waveInSector, DefenseConfig.WavesPerSector)
@@ -1131,8 +1162,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			setHull(hull, hull, nil)
 		end
 		incoming.Visible = run ~= nil
-		speedB.holder.Visible = run ~= nil
-		autoB.holder.Visible = run ~= nil
+		topRow.Visible = run ~= nil
 		if run then
 			autoB.set(if run.auto then "🔁 AUTO" else "AUTO", if run.auto then GREEN else GREY)
 			autoDeadline = if run.autoIn and run.phase == "prep" then os.clock() + run.autoIn else nil
@@ -1140,7 +1170,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			autoDeadline = nil
 		end
 		bottom.Visible = mode ~= "fight"
-		supportBar.Visible = mode == "fight"
 		if mode == "idle" then
 			mainB.set("⚔ DEFEND", GREEN)
 			sideB.set("🚀 TAKE OFF", BLUE)
@@ -1153,10 +1182,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 					else "Pick a crewmate from your bar, walk onto the field and CLICK to drop it")
 				else "Your crew is ready. Press ▶ START WAVE!"
 		else
-			hint.Text = if run.gear == "Lightsaber" then "Defend the ship! Equip your Lightsaber and slash enemies"
-				elseif run.gear == "RayGun" then "Defend the ship! Equip your Ray Gun and aim at enemies"
-				elseif (run.carried or 0) > 0 then "Defend the ship! You can still drop crewmates from your bar"
-				else "Defend the ship!"
+			-- Savaşta ortada yazı yok
+			hint.Text = ""
 		end
 		renderIncoming()
 		renderSupports()
@@ -1168,7 +1195,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			local deadline = autoDeadline
 			if deadline and mode == "prep" and hud.Visible then
 				local left = math.max(0, math.ceil(deadline - os.clock()))
-				hint.Text = string.format("🔁 AUTO · next wave in %d…", left)
+				autoB.set(string.format("🔁 AUTO %d", left), GREEN)
 			end
 			task.wait(0.2)
 		end
@@ -1333,7 +1360,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		banner.Visible = true
 		banner.Position = UDim2.new(0.5, 0, 0, -140)
 		TweenService:Create(banner, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Position = UDim2.new(0.5, 0, 0, 200) }):Play()
+			{ Position = UDim2.new(0.5, 0, 0, 86) }):Play()
 		task.delay(3.2, function()
 			if bannerToken ~= token then
 				return

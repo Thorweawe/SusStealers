@@ -4222,7 +4222,7 @@ Config.SuperSpin = {
 	Henüz kimliği olmayan Robux ürünleri (Creator Dashboard'da açılınca
 	kimlik buraya; Config.Products'a taşınmıyor çünkü orada kimlik 0 olamaz).
 ]]
-Config.SpinPack = { id = 3715307547, count = 5, robux = 199, name = "5 Spins" }
+Config.SpinPack = { id = 3715307547, count = 5, robux = 99, name = "5 Spins" }
 
 -- ─── Sunucu şansı ve troller (Robux; bütün sunucuya) ───────────────────────
 --[[
