@@ -26,7 +26,10 @@ def main():
     ms.load_new_mesh(obj)
     before = ms.current_mesh().face_number()
     if before > target:
-        ms.meshing_decimation_quadric_edge_collapse_with_texture(targetfacenum=target, preserveboundary=True, optimalplacement=True)
+        ms.meshing_decimation_quadric_edge_collapse_with_texture(targetfacenum=target, preserveboundary=False, optimalplacement=True, extratcoordw=0.3)
+        if ms.current_mesh().face_number() > target * 1.2:
+            # UV dikişleri inatçıysa ikinci tur
+            ms.meshing_decimation_quadric_edge_collapse_with_texture(targetfacenum=target, preserveboundary=False, optimalplacement=True, extratcoordw=0.1)
     m = ms.current_mesh()
     v = m.vertex_matrix()
     f = m.face_matrix()

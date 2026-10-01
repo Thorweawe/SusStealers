@@ -109,6 +109,15 @@ local function unitMeshTemplate(id: string): Model?
 	return if m and m:IsA("Model") then m else nil
 end
 
+--[[ Nadirlik şapkasının 3D ağı (ReplicatedStorage.HatMeshes.<Nadirlik>):
+     şablon karakterin yerel uzayında, kafanın üstüne oturtulmuş hâlde
+     (tools/normalize_meshes.lua). Varsa parça şapkanın yerine geçiyor. ]]
+local function hatMeshTemplate(rarity: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("HatMeshes")
+	local m = folder and folder:FindFirstChild(rarity)
+	return if m and m:IsA("Model") then m else nil
+end
+
 local function applyUnitMesh(model: Model, root: BasePart, template: Model, tint: Color3?)
 	for _, p in model:GetDescendants() do
 		if p:IsA("BasePart") and p ~= root then
@@ -651,7 +660,23 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	-- Karakterin kendi başlığı varsa nadirlik şapkası takılmıyor
 	local hatRarity = if extra and extra.noHat then "" else def.rarity
 
-	if hatRarity == "Uncommon" then
+	local hatTemplate = if hatRarity ~= "" then hatMeshTemplate(hatRarity) else nil
+	if hatTemplate then
+		for _, src in hatTemplate:GetDescendants() do
+			if src:IsA("MeshPart") then
+				local p = src:Clone()
+				p:ClearAllChildren()
+				p.Name = "Hat" .. hatRarity
+				p.Anchored = true
+				p.CanCollide = false
+				p.CanQuery = false
+				p.CanTouch = false
+				p.CastShadow = false
+				p.Parent = model
+			end
+		end
+
+	elseif hatRarity == "Uncommon" then
 		--[[ Kep. Tepe + siperlik + dikiş bandı + tepe düğmesi. İlk hâli iki
 		     parçaydı ve "kutu" gibi duruyordu; dikiş ve düğme onu giyilmiş
 		     bir eşya yapıyor. ]]
