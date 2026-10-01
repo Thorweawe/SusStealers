@@ -54,16 +54,41 @@ type Board = {
 	store: string,
 	value: (profile: any) -> number,
 	format: (number) -> string,
+	-- Değer depoya logaritmik yazılıyor (encode/decode): para tabloları
+	log: boolean?,
 }
 
+--[[
+	OrderedDataStore yalnızca 64 bit tamsayı tutuyor (~9.2Qi). Geç oyunda para
+	Sx'i geçti ve tablo herkesi 9.00Qi'de gösteriyordu (eskiden 9e18'de
+	kırpılıyordu). Para tabloları artık log10(değer+1) × 1e15 olarak yazılıyor:
+	sıra korunuyor, 1e300'e kadar sığıyor, geri çevirme hassasiyeti ~15 hane.
+	Eski (ham değerli) depolar karışmasın diye ad v2.
+]]
+local LOG_SCALE = 1e15
+
+local function encode(board: Board, v: number): number
+	if board.log then
+		return math.floor(math.log10(math.max(0, v) + 1) * LOG_SCALE)
+	end
+	return math.floor(math.clamp(v, 0, 9e18))
+end
+
+local function decode(board: Board, stored: number): number
+	if board.log then
+		return 10 ^ (stored / LOG_SCALE) - 1
+	end
+	return stored
+end
+
 local BOARDS: { Board } = {
-	{ index = 1, title = "TOP EARNERS", store = "Global_Earned_v1",
+	{ index = 1, title = "TOP EARNERS", store = "Global_Earned_v2", log = true,
 		value = function(p) return p.earned or 0 end,
 		format = function(v) return "$" .. Config.FormatCash(v) end },
 	{ index = 2, title = "MOST HEISTS", store = "Global_Stolen_v1",
 		value = function(p) return p.stolen or 0 end,
 		format = function(v) return tostring(math.floor(v)) end },
-	{ index = 3, title = "TOP INCOME", store = "Global_Income_v1",
+	{ index = 3, title = "TOP INCOME", store = "Global_Income_v2", log = true,
 		value = function(p) return p.incomePerSecond or 0 end,
 		format = function(v) return "+$" .. Config.FormatCash(v) .. "/s" end },
 }
@@ -161,9 +186,8 @@ local function write(player: Player)
 	for _, board in BOARDS do
 		local store = storeFor(board)
 		if store then
-			-- OrderedDataStore 64 bit tamsayı istiyor: çok büyük değer (rebirth sonrası
-			-- kentilyon) reddediliyordu ("ValueNotNumeric"), sıralama güncellenmiyordu
-			local value = math.floor(math.clamp(board.value(profile), 0, 9e18))
+			-- OrderedDataStore 64 bit tamsayı istiyor: para tabloları logaritmik (encode)
+			local value = encode(board, board.value(profile))
 			pcall(function()
 				(store :: OrderedDataStore):SetAsync(tostring(player.UserId), value)
 			end)
@@ -382,7 +406,7 @@ local function refresh()
 				for _, entry in page do
 					local userId = tonumber(entry.key)
 					if userId and not Config.LeaderboardHidden[userId] and #list < ROWS then
-						table.insert(list, { name = nameOf(userId), value = entry.value, userId = userId })
+						table.insert(list, { name = nameOf(userId), value = decode(board, entry.value), userId = userId })
 					end
 				end
 				rows = list

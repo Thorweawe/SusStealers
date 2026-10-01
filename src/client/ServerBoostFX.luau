@@ -218,19 +218,40 @@ function ServerBoostFX.Create(screen: ScreenGui)
 	end
 
 	-- ─── Alarm ───────────────────────────────────────────────────────────
+	--[[
+		2026-10-01 ("ekran kırmızılaşmıyor"): alarm ana ekranın içindeydi;
+		üstteki pencereler (çark, karşılama) ve üst şerit kenarları örtüyordu,
+		kenarlar da soluktu. Artık kendi ScreenGui'sinde, her şeyin üstünde,
+		üst şerit dahil bütün ekranı kaplayan kırmızı yanıp sönme + kalın kenarlar.
+	]]
+	local alarmGui = Instance.new("ScreenGui")
+	alarmGui.Name = "TrollAlarmGui"
+	alarmGui.DisplayOrder = 200
+	alarmGui.IgnoreGuiInset = true
+	alarmGui.ResetOnSpawn = false
+	alarmGui.AutoLocalize = false  -- "IMPOSTOR ALERT!" çevrilince "Sahtekar Uyarısı!" oluyordu
+	alarmGui.Parent = screen.Parent
 	local alarm = Instance.new("Frame")
 	alarm.Name = "TrollAlarm"
 	alarm.Size = UDim2.fromScale(1, 1)
 	alarm.BackgroundTransparency = 1
 	alarm.Visible = false
 	alarm.ZIndex = 55
-	alarm.Parent = screen
+	alarm.Parent = alarmGui
+	local tint = Instance.new("Frame")
+	tint.Name = "RedTint"
+	tint.Size = UDim2.fromScale(1, 1)
+	tint.BackgroundColor3 = Color3.fromRGB(255, 0, 20)
+	tint.BackgroundTransparency = 0.7
+	tint.BorderSizePixel = 0
+	tint.ZIndex = 54
+	tint.Parent = alarm
 	local edges: { Frame } = {}
 	for _, spec in {
-		{ UDim2.fromScale(0, 0), UDim2.new(1, 0, 0.12, 0), 90 },
-		{ UDim2.fromScale(0, 0.88), UDim2.new(1, 0, 0.12, 0), 270 },
-		{ UDim2.fromScale(0, 0), UDim2.new(0.1, 0, 1, 0), 0 },
-		{ UDim2.fromScale(0.9, 0), UDim2.new(0.1, 0, 1, 0), 180 },
+		{ UDim2.fromScale(0, 0), UDim2.new(1, 0, 0.22, 0), 90 },
+		{ UDim2.fromScale(0, 0.78), UDim2.new(1, 0, 0.22, 0), 270 },
+		{ UDim2.fromScale(0, 0), UDim2.new(0.18, 0, 1, 0), 0 },
+		{ UDim2.fromScale(0.82, 0), UDim2.new(0.18, 0, 1, 0), 180 },
 	} do
 		local e = Instance.new("Frame")
 		e.Position = spec[1]
@@ -274,8 +295,9 @@ function ServerBoostFX.Create(screen: ScreenGui)
 			end
 			local blink = (math.sin(os.clock() * 12) + 1) / 2
 			for _, e in edges do
-				e.BackgroundTransparency = 0.15 + blink * 0.5
+				e.BackgroundTransparency = blink * 0.35
 			end
+			tint.BackgroundTransparency = 0.62 + blink * 0.25
 			alarmText.TextTransparency = blink * 0.6
 			alarmText.Rotation = math.sin(os.clock() * 20) * 3
 			if shakeEnabled() and camera then
@@ -307,7 +329,8 @@ function ServerBoostFX.Create(screen: ScreenGui)
 				çalıyordu; tek başına alan oyuncu Robux ödeyip hiçbir şey görmüyordu.
 			]]
 			if a == "Alarm" then
-				startAlarm(if mine then math.min(seconds, 4) else seconds)
+				-- Alan da tam süre görüyor (Robux ödedi; eskiden 4 sn'de kesiliyordu)
+				startAlarm(seconds)
 			end
 		end
 	end)

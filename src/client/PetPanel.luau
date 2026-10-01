@@ -530,7 +530,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 		local slotsUsed = #equipped
 		local income, speed = Config.GetPetBonus(equipped)
 		if fusing then
-			hint.Text = string.format("Fuse %d of the same pet into a bigger one: Big → Huge → Titan.", Config.PetFuseCount)
+			hint.Text = string.format("Fuse %d of the same pet into a bigger one: Big → Huge → Titan → Colossal → Galactic.", Config.PetFuseCount)
 		else
 			-- Kısa: sağda EQUIP BEST / UNEQUIP ALL var; "+" aynı petin bir kopyasını daha takar
 			hint.Text = string.format("%d / %d equipped", slotsUsed, Config.PetEquipSlots)

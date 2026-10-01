@@ -69,16 +69,31 @@ function ServerBoostService.GrantLuck(player: Player): boolean
 end
 
 local function shrinkAll(buyer: Player, scale: number)
-	for _, p in Players:GetPlayers() do
+	local count = 0
+	local function shrink(p: Player)
 		local character = p.Character
-		if p ~= buyer and character and not shrunk[character] and p:GetAttribute("InSpace") ~= true then
+		if character and not shrunk[character] and p:GetAttribute("InSpace") ~= true then
 			local ok = pcall(function()
 				character:ScaleTo(scale)
 			end)
 			if ok then
 				shrunk[character] = true
+				count += 1
 			end
 		end
+	end
+	for _, p in Players:GetPlayers() do
+		if p ~= buyer then
+			shrink(p)
+		end
+	end
+	--[[
+		2026-10-01 ("shrink küçültmüyor"): gemide başka kimse yoksa (tek başına,
+		ya da herkes uzayda) satın alan hiçbir etki görmüyordu. O zaman alan
+		kendisi küçülüyor — Robux ödeyen bir şey görsün.
+	]]
+	if count == 0 then
+		shrink(buyer)
 	end
 end
 

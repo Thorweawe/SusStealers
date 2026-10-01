@@ -13,6 +13,21 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (70) — Batur (Yusuf'un şeridine de yazıldı: CrewAura, RarityFX, MapLife, ServerBoostFX, SeasonPanel, RewardsPanel, PetPanel)
+
+Studio'ya aktarıldı, **185/185 test temiz**. Alarm, uzay crewmate'leri Studio ekran yakalamasıyla görüldü.
+
+- **Ödül tabanı rebirth'te sıfırlanıyor**: `profile.cyclePeakIncome` (eski hiç sıfırlanmayan `peakIncome` okunmuyor), `EconomyService.GetRewardIncome` = max(anlık, bu rebirth'in tepesi). Rebirth sonrası görev/sezon nakdi eski gelirden gelip bir sonraki rebirth'ü kısaltıyordu. `SeasonPanel` ödül yazılarını `RewardIncome`/`Rebirths` değişince yeniliyor (eskiden ilk açılışta bir kez yazılıyordu: "yazan kadar vermiyor").
+- **Küresel tablo 9.00Qi'de takılıyordu** (OrderedDataStore int64): para tabloları log10 ölçekli (`GlobalBoardService.encode/decode`), depo adları `Global_Earned_v2`, `Global_Income_v2`.
+- **Kaide ışık sütunu üst kata giriyordu** (`RarityFX`): yükseklik `Config.FloorHeight - 5` ile sınırlı.
+- **Uzayda crewmate altındaki "dönen beyaz şeyler"** (`CrewAura`): ayak altı disk gezegenin kavisli yüzeyine gömülüp titreşiyordu. Common'da disk yok, diğerlerinde disk ve halka biraz yukarıda.
+- **Pet boyutları**: Colossal (x20, 81 kopya), Galactic (x40, 243 kopya).
+- **Sprint Boots** tavanı %40 → %80.
+- **NPC mürettebat** (`MapLife`): devrilince "bonk", kalkınca 💢 ve hırlama, kısa duraklama.
+- **Troller**: Impostor Alarm kendi ScreenGui'sinde (DisplayOrder 200, IgnoreGuiInset, çeviri kapalı), bütün ekran kırmızı yanıp sönüyor, alan da tam süre görüyor. Shrink: gemide başka kimse yoksa alan küçülüyor.
+
+---
+
 ## 2026-10-01 (69) — Batur (Yusuf'un şeridine yazıldı: Engagement)
 
 **Studio kapalıydı, oyunda denenmedi**: Studio açılınca aktarılıp bakılacak.

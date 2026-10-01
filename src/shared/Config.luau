@@ -1455,7 +1455,7 @@ Config.Upgrades = {
 		"Upg_<id>" niteliğinden okunuyor. Diğerleri gibi rebirth'te sıfırlanıyor.
 	]]
 	{ id = "SprintBoots",     name = "Sprint Boots",     category = "gear",     baseMaxLevel = 5, baseCost = 300000, costGrowth = 2.8,
-	  blurb = "Run faster on the ship (with or without the Speed Coil)" },
+	  blurb = "Run up to 80% faster on the ship (Speed Coil too)" },
 	{ id = "SlapPower",       name = "Power Slap",       category = "gear",     baseMaxLevel = 5, baseCost = 1000000, costGrowth = 2.9,
 	  blurb = "Slap Glove hits harder, farther and dazes longer" },
 	{ id = "StunCharge",      name = "Stun Charge",      category = "gear",     baseMaxLevel = 5, baseCost = 5000000, costGrowth = 3.0,
@@ -1626,9 +1626,13 @@ function Config.GetMoraleMultiplier(level: number): number
 	return 1 + 0.6 * saturate(upgradeStep(level), 0.9)
 end
 
---[[ Sprint Boots: gemideki yürüme/koşma hızı çarpanı (1 → ~1.4; bobinle de). ]]
+--[[
+	Sprint Boots: gemideki yürüme/koşma hızı çarpanı (1 → ~1.8; bobinle de).
+	2026-10-01: "gear ile koşu hızını daha çok geliştirebilsinler" — tavan
+	%40'tan %80'e (bobinle koşu en fazla ~72).
+]]
 function Config.GetSprintMul(level: number): number
-	return 1 + 0.4 * saturate(upgradeStep(level), 0.88)
+	return 1 + 0.8 * saturate(upgradeStep(level), 0.88)
 end
 
 --[[ Power Slap: tokadın savurma ve sersemletme çarpanı (1 → ~1.6); menzil yarısı kadar. ]]
@@ -2348,6 +2352,7 @@ end
 	Çarpan petin bonusuna uygulanıyor (mutasyonla ÇARPILARAK):
 
 	    Big x2.5 (3 kopya) · Huge x5 (9) · Titan x10 (27)
+	    Colossal x20 (81) · Galactic x40 (243)   (2026-10-01)
 
 	Üç kopyanın ham toplamı x3; Big x2.5 ondan biraz AZ ama tek slota
 	sığıyor — slot üç tane, yani birleştirme slot verimliliği. Titan için
@@ -2364,6 +2369,11 @@ Config.PetSizes = {
 	{ id = "Big",   name = "Big",   multiplier = 2.5, scale = 1.5 },
 	{ id = "Huge",  name = "Huge",  multiplier = 5,   scale = 2.2 },
 	{ id = "Titan", name = "Titan", multiplier = 10,  scale = 3.2 },
+	-- 2026-10-01 ("petleri daha fazla büyütebilsinler"): geç oyun hedefleri.
+	-- Colossal 81 kopya, Galactic 243 kopya; model büyümesi yavaşlıyor ki
+	-- oyuncunun peşindeki pet ekranı kaplamasın
+	{ id = "Colossal", name = "Colossal", multiplier = 20, scale = 4.0 },
+	{ id = "Galactic", name = "Galactic", multiplier = 40, scale = 4.6 },
 } :: { PetSizeDef }
 
 function Config.GetPetSize(id: string?): PetSizeDef?

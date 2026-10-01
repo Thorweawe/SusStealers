@@ -77,7 +77,7 @@ local function clock(seconds: number): string
 	return string.format("%d:%02d", m, s)
 end
 
--- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık ya da en yüksek gelir
+-- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık gelir ya da bu rebirth'teki en yüksek gelir
 local function income(): number
 	local value = player:GetAttribute("Income")
 	local peak = player:GetAttribute("RewardIncome")

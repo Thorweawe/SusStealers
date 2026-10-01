@@ -45,6 +45,7 @@ local WeeklyService = require(Server.WeeklyService)
 local SeasonService = require(Server.SeasonService)
 local ServerBoostService = require(Server.ServerBoostService)
 local ReferralService = require(Server.ReferralService)
+local RebirthService = require(Server.RebirthService)
 local NotifyService = require(Server.NotifyService)
 local LobbyBoardService = require(Server.LobbyBoardService)
 local LimitedEventService = require(Server.LimitedEventService)
@@ -99,7 +100,9 @@ function ServerTests2.Register(kit: Kit)
 		ok("takılı liste temizlendi", table.find(ctx.profile.equippedPets, "VoidShard:Cosmic") == nil)
 
 		ctx.profile.pets = { ["MiniCrew:Titan"] = 3 }
-		eq("Titan'ın üstü yok", PetService.TryFuse(ctx.player, "MiniCrew:Titan"), nil)
+		eq("Titan -> Colossal", PetService.TryFuse(ctx.player, "MiniCrew:Titan"), "MiniCrew:Colossal")
+		ctx.profile.pets = { ["MiniCrew:Galactic"] = 3 }
+		eq("Galactic'in üstü yok", PetService.TryFuse(ctx.player, "MiniCrew:Galactic"), nil)
 		ctx.profile.pets = { MiniCrew = 2 }
 		eq("iki kopya yetmiyor", PetService.TryFuse(ctx.player, "MiniCrew"), nil)
 
@@ -2052,6 +2055,17 @@ function ServerTests2.Register(kit: Kit)
 		for key, def in Config.ServerProducts do
 			ok(key .. " türü tanınıyor", def.kind == "serverluck" or (def.kind == "troll" and Config.Trolls[def.troll or ""] ~= nil))
 		end
+	end)
+
+	case("Ödül tabanı: bu rebirth'in tepesi, rebirth'te sıfırlanıyor", function(ctx)
+		local saved = ctx.profile.rebirths
+		ctx.profile.cyclePeakIncome = 1e12
+		ok("tepe ödül tabanında", EconomyService.GetRewardIncome(ctx.player) >= 1e12)
+		ctx.profile.rebirths = 0
+		ok("rebirth", RebirthService.TryRebirth(ctx.player, true))
+		eq("tepe sıfırlandı", ctx.profile.cyclePeakIncome, 0)
+		ok("ödül tabanı anlık gelire döndü", EconomyService.GetRewardIncome(ctx.player) < 1e12)
+		ctx.profile.rebirths = saved
 	end)
 
 	case("Sezon Kartı: XP kademesi, bedava ve premium ödül", function(ctx)

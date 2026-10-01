@@ -121,8 +121,17 @@ function CrewAura.Start(): Handle
 		folder.Name = "CrewAura"
 		folder.Parent = model
 
-		-- Ayak altı: yumuşak disk + parlak halka (her kademe)
-		part(folder, "AuraDisc", Vector3.new(0.08, radius * 2, radius * 2), base * CFrame.Angles(0, 0, math.rad(90)), tone, 0.72, Enum.PartType.Cylinder)
+		--[[
+			Ayak altı: yumuşak disk (Uncommon+) + parlak halka.
+			2026-10-01 ("amongusların altında sürekli dönen şeyler"): disk ayak
+			hizasındaydı ve gezegenin KAVİSLİ yüzeyine yarı gömülüyordu; yüzeyle
+			çakışan kısımları titreşip kamera dönünce dönen beyaz kıymıklar gibi
+			görünüyordu (en çok Common'ın soluk beyaz diskinde). Common'da disk
+			yok, diğerlerinde biraz yukarıda.
+		]]
+		if order >= 2 then
+			part(folder, "AuraDisc", Vector3.new(0.08, radius * 2, radius * 2), base * CFrame.new(0, 0.3, 0) * CFrame.Angles(0, 0, math.rad(90)), tone, 0.75, Enum.PartType.Cylinder)
+		end
 		-- Halka: kısa parçalardan daire (içi boş)
 		local ring: { Part } = {}
 		if order >= 2 then
@@ -131,8 +140,8 @@ function CrewAura.Start(): Handle
 			for k = 0, segments - 1 do
 				local a0 = k / segments * math.pi * 2
 				local a1 = (k + 1) / segments * math.pi * 2
-				local p0 = base.Position + Vector3.new(math.cos(a0) * r, 0.05, math.sin(a0) * r)
-				local p1 = base.Position + Vector3.new(math.cos(a1) * r, 0.05, math.sin(a1) * r)
+				local p0 = base.Position + Vector3.new(math.cos(a0) * r, 0.32, math.sin(a0) * r)
+				local p1 = base.Position + Vector3.new(math.cos(a1) * r, 0.32, math.sin(a1) * r)
 				table.insert(ring, part(folder, "AuraRing", Vector3.new(0.22, 0.12, (p1 - p0).Magnitude + 0.05),
 					CFrame.lookAt((p0 + p1) / 2, p1), tone, 0.3))
 			end

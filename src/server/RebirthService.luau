@@ -100,6 +100,10 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 		Satın alınan KAT sıfırlanmıyor; o parayla alındı ve kalıcı.
 	]]
 	profile.upgrades = {}
+	-- Ödül tabanı da sıfırdan (EconomyService.GetRewardIncome): rebirth sonrası
+	-- görev/sezon nakdi eski yüksek gelirden gelip bir sonraki rebirth'ü kısaltmasın
+	profile.cyclePeakIncome = 0
+	player:SetAttribute("RewardIncome", 0)
 
 	profile.rebirths += 1
 	-- Kat artık rebirth ödülü değil, parayla alınıyor. Yine de burada

@@ -65,7 +65,7 @@ local function text(parent: Instance, value: string, size: number, color: Color3
 	return l
 end
 
--- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık ya da en yüksek gelir
+-- Sunucunun ödül tabanı (EconomyService.GetRewardIncome): anlık gelir ya da bu rebirth'teki en yüksek gelir
 local function income(): number
 	local v = player:GetAttribute("Income")
 	local peak = player:GetAttribute("RewardIncome")
@@ -248,6 +248,8 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 	type Card = { frame: Frame, claim: FancyKit.Button, lock: Frame, done: TextLabel }
 	type Column = { tier: number, head: Frame, free: Card, premium: Card }
 	local columns: { Column } = {}
+	-- Ödül yazıları (gelire bağlı olanlar refresh'te güncelleniyor)
+	local labels: { { label: TextLabel, reward: Config.SeasonReward } } = {}
 
 	local function makeCard(parent: Frame, y: number, reward: Config.SeasonReward, isPremium: boolean, tier: number): Card
 		local tint = if isPremium then GOLD else Color3.fromRGB(80, 160, 255)
@@ -262,6 +264,8 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 		slot.Parent = frame
 		drawIcon(slot, reward, 50)
 		local name = text(frame, describe(reward), 15, Color3.new(1, 1, 1), Z + 6, 2)
+		-- Nakit ve "en iyi yumurta" gelire bağlı: refresh'te yeniden yazılıyor
+		table.insert(labels, { label = name, reward = reward })
 		name.Position = UDim2.fromOffset(4, 64)
 		name.Size = UDim2.new(1, -8, 0, 26)
 		name.TextWrapped = true
@@ -337,6 +341,14 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 	end
 
 	local function refresh()
+		-- Nakit tutarı sunucunun şu anki ödül tabanından: eskiden pencere ilk
+		-- kurulurken bir kez yazılıyordu ve rebirth sonrası eski (büyük) rakam kalıyordu
+		for _, entry in labels do
+			local t = describe(entry.reward)
+			if entry.label.Text ~= t then
+				entry.label.Text = t
+			end
+		end
 		local xpRaw = player:GetAttribute("SeasonXp")
 		local xp = if typeof(xpRaw) == "number" then xpRaw else 0
 		local tier, into, need = Config.SeasonProgress(xp)
@@ -372,7 +384,7 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 	end
 
 	local conns: { RBXScriptConnection } = {}
-	for _, attr in { "SeasonXp", "SeasonClaimed", "SeasonPass" } do
+	for _, attr in { "SeasonXp", "SeasonClaimed", "SeasonPass", "RewardIncome", "Rebirths" } do
 		table.insert(conns, player:GetAttributeChangedSignal(attr):Connect(function()
 			if root.Visible then
 				refresh()

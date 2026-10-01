@@ -2551,7 +2551,7 @@ case("Yükseltme: tavan kat sayısıyla ikiye katlanıyor", function()
 	local cap = Config.GetUpgradeMaxLevel(Config.GetUpgrade("SpaceCapsule") :: any, 3)
 	local k = Config.GetCapsuleGain(cap + 30, 100) / Config.GetCapsuleGain(cap, 100)
 	ok("kapsül bonus seviyeleri yavaş", k > 1.2 and k < 1.8, string.format("%.2f", k))
-	ok("sprint tavanlı", Config.GetSprintMul(200) <= 1.4 and Config.GetSprintMul(0) == 1)
+	ok("sprint tavanlı", Config.GetSprintMul(200) <= 1.8 and Config.GetSprintMul(0) == 1)
 	ok("bekleme kısalıyor", Config.GetGearRecharge(200) >= 0.55 and Config.GetGearRecharge(0) == 1)
 end)
 

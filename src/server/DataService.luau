@@ -47,7 +47,9 @@ export type Profile = {
 	incomePerSecond: number,
 	-- Ulaşılan en yüksek gelir (rebirth'te sıfırlanmıyor). Ödül nakdi buna
 	-- göre: rebirth sonrası kaideler boşken ödül minimuma düşmesin.
-	peakIncome: number,
+	-- Bu rebirth'te ulaşılan en yüksek gelir (rebirth'te sıfırlanıyor, RebirthService).
+	-- Kayıtta yeni adla: eski "peakIncome" (hiç sıfırlanmayan tepe) okunmuyor.
+	cyclePeakIncome: number,
 	-- İşlenmiş satın alma kimlikleri; aynı makbuzun iki kez ödüllenmesini
 	-- engelliyor. Config.ReceiptHistoryLimit kadar tutuluyor.
 	receipts: { string },
@@ -225,7 +227,7 @@ local function newProfile(): Profile
 		units = {},
 		lastSeen = 0,
 		incomePerSecond = 0,
-		peakIncome = 0,
+		cyclePeakIncome = 0,
 		receipts = {},
 		upgrades = {},
 		upgradeScale = Config.UpgradeLevelScale,
@@ -322,11 +324,11 @@ local function sanitize(raw: any): Profile
 	if typeof(raw.incomePerSecond) == "number" and raw.incomePerSecond >= 0 then
 		profile.incomePerSecond = raw.incomePerSecond
 	end
-	if typeof(raw.peakIncome) == "number" and raw.peakIncome >= 0 then
-		profile.peakIncome = raw.peakIncome
+	if typeof(raw.cyclePeakIncome) == "number" and raw.cyclePeakIncome >= 0 then
+		profile.cyclePeakIncome = raw.cyclePeakIncome
 	end
 	-- Eski kayıt: tepe yoksa son bilinen gelir
-	profile.peakIncome = math.max(profile.peakIncome, profile.incomePerSecond)
+	profile.cyclePeakIncome = math.max(profile.cyclePeakIncome, profile.incomePerSecond)
 
 	if typeof(raw.receipts) == "table" then
 		for _, id in raw.receipts do

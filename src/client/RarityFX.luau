@@ -145,11 +145,17 @@ function RarityFX.Create(): FX
 			yerine üç katman, çünkü tek saydam kutu düz bir levha gibi
 			duruyor; katmanlar derinlik veriyor.
 		]]
+		--[[
+			2026-10-01: sütun üst katın içinden geçiyordu (Secret/Celestial 24,
+			Mythic 18 stud; katlar arası Config.FloorHeight = 18). Kat yüksekliğinin
+			altında kalıyor: kaide üstünden bir sonraki kat zeminine yer kalsın.
+		]]
+		local beamHeight = math.min(tier.beam, Config.FloorHeight - 5)
 		for layer = 1, 3 do
 			local t = layer / 3
 			local beam = Instance.new("Part")
 			beam.Name = "Beam"
-			beam.Size = Vector3.new(5.2 * (1 - t * 0.55), tier.beam * (1 - t * 0.2), 5.2 * (1 - t * 0.55))
+			beam.Size = Vector3.new(5.2 * (1 - t * 0.55), beamHeight * (1 - t * 0.2), 5.2 * (1 - t * 0.55))
 			beam.CFrame = CFrame.new(top + Vector3.new(0, beam.Size.Y / 2, 0))
 			beam.Color = color
 			beam.Material = Enum.Material.Neon

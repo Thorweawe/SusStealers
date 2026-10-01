@@ -26,6 +26,7 @@
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Players = game:GetService("Players")
 
@@ -267,12 +268,67 @@ function MapLife.Start(): Handle
 		end
 	end
 
+	--[[
+		Ses ve sinir (2026-10-01, "NPC'lere vurunca ses çıkarsın, kalkınca
+		sinirlensin"): devrilirken "bonk", kalkarken başının üstünde 💢 ve
+		küçük bir hırlama. Sesler mürettebatın üstünde (konumlu), uzaktan duyulmuyor.
+	]]
+	local BONK = "rbxassetid://9125746227"   -- Plastic Bump Bonking Impacts
+	local GROWL = "rbxassetid://9125596197"  -- Growls Tiny Creature Cartoon
+	local function playAt(w: Walker, id: string, volume: number, pitch: number, length: number)
+		local host = w.model.PrimaryPart
+		if not host then
+			return
+		end
+		local s = Instance.new("Sound")
+		s.SoundId = id
+		s.Volume = volume
+		s.PlaybackSpeed = pitch
+		s.RollOffMaxDistance = 70
+		s.Parent = host
+		s:Play()
+		task.delay(length, function()
+			s:Destroy()
+		end)
+	end
+	local function angry(w: Walker)
+		local host = w.model.PrimaryPart
+		if not host then
+			return
+		end
+		playAt(w, GROWL, 0.6, 1.05 + rng:NextNumber() * 0.25, 1.4)
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "Angry"
+		gui.Size = UDim2.fromOffset(60, 60)
+		gui.StudsOffsetWorldSpace = Vector3.new(0.8, 3.6, 0)
+		gui.MaxDistance = 80
+		gui.LightInfluence = 0
+		gui.Parent = host
+		local mark = Instance.new("TextLabel")
+		mark.AnchorPoint = Vector2.new(0.5, 0.5)
+		mark.Position = UDim2.fromScale(0.5, 0.5)
+		mark.Size = UDim2.fromScale(0.2, 0.2)
+		mark.BackgroundTransparency = 1
+		mark.Text = "💢"
+		mark.TextScaled = true
+		mark.Font = Enum.Font.GothamBlack
+		mark.Parent = gui
+		TweenService:Create(mark, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(1, 1) }):Play()
+		task.delay(1.6, function()
+			TweenService:Create(mark, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+			task.delay(0.35, function()
+				gui:Destroy()
+			end)
+		end)
+	end
+
 	--[[ Yere devir: `dir` yönüne (yatay). Koltuktaysa kalkıyor. ]]
 	local function topple(w: Walker, dir: Vector3)
 		local now = os.clock()
 		if now < w.downUntil then
 			return
 		end
+		playAt(w, BONK, 0.7, 0.9 + rng:NextNumber() * 0.3, 1.2)
 		local flat = Vector3.new(dir.X, 0, dir.Z)
 		w.downDir = if flat.Magnitude > 0.01 then flat.Unit else -w.facing
 		w.downAt = now
@@ -319,7 +375,9 @@ function MapLife.Start(): Handle
 			if w.bumper then
 				w.bumper.CanCollide = true
 			end
-			w.waitUntil = now + 0.6
+			-- Kalkınca sinirli: 💢 ve hırlama, biraz durup söylenip yoluna devam
+			angry(w)
+			w.waitUntil = now + 1.4
 		end
 	end
 

@@ -302,7 +302,7 @@ local displayName = Config.PetDisplayName
 	mutasyon (Cosmic) ya da büyük boyut (Huge, Titan). Üçü de sunucunun
 	geri kalanının bilmesi gereken anlar.
 ]]
-local ANNOUNCE_SIZES = { Huge = true, Titan = true }
+local ANNOUNCE_SIZES = { Huge = true, Titan = true, Colossal = true, Galactic = true }
 
 local function announce(player: Player, key: string, verb: string)
 	local def, mutation, size = Config.ParsePetKey(key)
@@ -557,7 +557,7 @@ function PetService.TryFuse(player: Player, key: string): string?
 
 	local nextSize = Config.GetNextPetSize(size)
 	if not nextSize then
-		notify(player, "Titan is already the biggest size", true)
+		notify(player, string.format("%s is already the biggest size", Config.PetSizes[#Config.PetSizes].name), true)
 		return nil
 	end
 
