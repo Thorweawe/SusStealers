@@ -3,6 +3,8 @@
 -- MCP bağlanınca modelleri Creator Store'dan değiştirmek isterse
 -- sadece Build fonksiyonunu değiştirmek yeterli.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Config = require(script.Parent.Config)
 
 local UnitModel = {}
@@ -90,6 +92,65 @@ local function aura(k: Kit, name: string, offset: Vector3, texture: string, c1: 
 		e.Parent = a
 	end
 	return e
+end
+
+--[[
+	3D ağ sürümü (2026-10-01): ReplicatedStorage.UnitMeshes.<id> varsa
+	(ChatGPT konsepti → TRELLIS → tools/split_mesh.py → Studio Import 3D;
+	ölçek 1, ayak tabanı y=0, yüz -Z) parça modelinin görsel parçaları
+	GİZLENİYOR (silinmiyor: aura parçacıkları, ışık, taşıma kaynakları ve
+	şapka yerleşimi onlara bağlı) ve ağ ekleniyor. Mutasyonlu karakterde ağın
+	üstüne mutasyon renginde ince bir ForceField kabuğu: dokulu ağ Color ile
+	boyanmıyor, kabuk "bu farklı" dedirtiyor.
+]]
+local function unitMeshTemplate(id: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("UnitMeshes")
+	local m = folder and folder:FindFirstChild(id)
+	return if m and m:IsA("Model") then m else nil
+end
+
+local function applyUnitMesh(model: Model, root: BasePart, template: Model, tint: Color3?)
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p ~= root then
+			p.Transparency = 1
+			p.CastShadow = false
+		elseif p:IsA("Decal") or p:IsA("Texture") then
+			p.Transparency = 1
+		end
+	end
+	for _, src in template:GetDescendants() do
+		if src:IsA("MeshPart") then
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Name = "Mesh" .. src.Name
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = model
+			if tint then
+				local shell = src:Clone()
+				shell:ClearAllChildren()
+				shell.Name = "MutationShell"
+				shell.TextureID = ""
+				shell.Material = Enum.Material.ForceField
+				shell.Color = tint
+				shell.Size = src.Size * 1.04
+				shell.CFrame = src.CFrame
+				shell.Anchored = true
+				shell.CanCollide = false
+				shell.CanQuery = false
+				shell.CanTouch = false
+				shell.CastShadow = false
+				shell.Parent = model
+			end
+		end
+	end
 end
 
 -- Küçük yardımcı: bir mürettebat daha (Lime'ın pet mürettebatı, Double/Triple)
@@ -735,6 +796,11 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	root.Parent = model
 
 	model.PrimaryPart = root
+
+	local meshTemplate = unitMeshTemplate(def.id)
+	if meshTemplate then
+		applyUnitMesh(model, root, meshTemplate, if mutation then mutation.tint or rarity.color else nil)
+	end
 
 	-- Meta bilgiler: diğer sistemler modelden okuyabilsin
 	local unitTag = Instance.new("StringValue")

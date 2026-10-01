@@ -245,6 +245,7 @@ local function vfx(ctx: Ctx, name: string, pos: Vector3, spec: VfxSpec)
 		p.CanQuery = false
 		p.CanTouch = false
 		p:SetAttribute("Bone", "Body")
+		p:SetAttribute("Fx", true)
 		p.Parent = ctx.model
 		holder = p
 	else
@@ -388,57 +389,7 @@ local function chomperFx(ctx: Ctx)
 	light(ctx, Vector3.new(0, 7, -7), rgb(255, 120, 190), 18, 0.8)
 end
 
---[[
-	3D ağ sürümü (2026-10-01): ChatGPT konsepti → TRELLIS (resimden 3D) →
-	tools/split_mesh.py → Studio Import 3D. Şablon ReplicatedStorage
-	.MonsterMeshes.Chomper: MeshPart'lar ölçek 1'de, ayak tabanı y=0, yüz -Z,
-	boy 17 stud. Ağ tek parça kabuk (kollar gövdeden ayrılmıyor), o yüzden
-	hepsi "Body" kemiğinde; çene açılmıyor ama ağız zaten kocaman açık.
-	Şablon yoksa (ör. testte) eski parça modeli kuruluyor.
-]]
-local function meshTemplate(id: string): Model?
-	local folder = ReplicatedStorage:FindFirstChild("MonsterMeshes")
-	local m = folder and folder:FindFirstChild(id)
-	return if m and m:IsA("Model") then m else nil
-end
-
-local function fromTemplate(ctx: Ctx, template: Model, boneName: string)
-	for _, src in template:GetDescendants() do
-		if src:IsA("MeshPart") then
-			local p = src:Clone()
-			for _, c in p:GetChildren() do
-				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
-					c:Destroy()
-				end
-			end
-			p.Size = src.Size * ctx.S
-			p.CFrame = CFrame.new(src.Position * ctx.S) * src.CFrame.Rotation
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			p.CastShadow = false
-			p:SetAttribute("Bone", boneName)
-			p.Parent = ctx.model
-		end
-	end
-end
-
-local function chomperMesh(ctx: Ctx, template: Model)
-	bone(ctx, "Body", Vector3.new(0, 1, 0), { axis = Vector3.xAxis, sway = 0.05, rate = 1.4, roar = -0.12 })
-	fromTemplate(ctx, template, "Body")
-	-- Kavrama: sağ pençenin önü; kemik omuzda, yakalarken öne/yukarı kalkıyor
-	bone(ctx, "ArmR", Vector3.new(5.9, 7.6, -0.4), { parent = "Body", axis = Vector3.xAxis, grab = 1.1, roar = 0.5 })
-	hand(ctx, Vector3.new(6.6, 4.6, -4.2), "ArmR")
-	chomperFx(ctx)
-end
-
 local function chomper(ctx: Ctx)
-	local template = meshTemplate("Chomper")
-	if template then
-		chomperMesh(ctx, template)
-		return
-	end
 	local skin = rgb(236, 88, 150)
 	local light2 = rgb(255, 168, 204)
 	local dark = rgb(170, 48, 110)
@@ -1285,11 +1236,58 @@ local BUILDERS: { [string]: (Ctx) -> () } = {
 	GalaxyTitan = galaxyTitan,
 }
 
+--[[
+	3D ağ sürümü (2026-10-01): ChatGPT konsepti → TRELLIS (resimden 3D) →
+	tools/split_mesh.py → Studio Import 3D → ReplicatedStorage.MonsterMeshes
+	.<id>: MeshPart'lar ölçek 1'de, ayak tabanı y=0, yüz -Z, boyu parça
+	modeliyle aynı. Şablon varsa parça modeli kuruluyor, sonra GÖRSEL
+	parçaları silinip yerine ağ geliyor; kemikler, "Hand", efektler (Fx) ve
+	ışıklar kalıyor. Ağ tek kabuk (uzuvları ayrılmıyor): hepsi "Body"
+	kemiğinde sallanıyor. Şablon yoksa (ör. testte) parça modeli kalıyor.
+]]
+local function meshTemplate(id: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("MonsterMeshes")
+	local m = folder and folder:FindFirstChild(id)
+	return if m and m:IsA("Model") then m else nil
+end
+
+local function applyMesh(ctx: Ctx, template: Model)
+	for _, p in ctx.model:GetChildren() do
+		if p:IsA("BasePart") and p ~= ctx.root and p.Name ~= "Hand" and not p:GetAttribute("Fx") then
+			p:Destroy()
+		end
+	end
+	local boneName = if ctx.root:FindFirstChild("Body") then "Body" else ""
+	for _, src in template:GetDescendants() do
+		if src:IsA("MeshPart") then
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Size = src.Size * ctx.S
+			p.CFrame = CFrame.new(src.Position * ctx.S) * src.CFrame.Rotation
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p:SetAttribute("Bone", boneName)
+			p.Parent = ctx.model
+		end
+	end
+end
+
 --[[ Canavarı kurar. Kök (Root) ayak tabanının ortasında, model ileri -Z. ]]
 function MonsterModel.Build(id: string, scale: number?): Model
 	local ctx = newCtx(id, scale or 1)
 	local builder = BUILDERS[id] or glorp
 	builder(ctx)
+	local template = meshTemplate(id)
+	if template then
+		applyMesh(ctx, template)
+	end
 	return ctx.model
 end
 

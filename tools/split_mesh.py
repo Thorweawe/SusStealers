@@ -16,6 +16,8 @@ import sys
 import numpy as np
 import trimesh
 
+LIMIT = 19000  # Roblox ağ başına ~20k üçgen
+
 REGIONS = {
     # ad: (xmin, xmax, ymin, ymax) — çevrilmiş uzayda; ilk eşleşen kazanır
     # Kollar gövdeden temiz ayrılmıyor (gövde kol kadar geniş): Chomper tek
@@ -38,13 +40,24 @@ def main():
     m.apply_scale(k)
     fc = m.triangles_center
     label = np.array(["Body"] * len(fc), dtype=object)
-    for part, (x0, x1, y0, y1) in REGIONS.get(name, {}).items():
-        sel = (label == "Body") & (fc[:, 0] >= x0) & (fc[:, 0] <= x1) & (fc[:, 1] >= y0) & (fc[:, 1] <= y1)
-        label[sel] = part
+    regions = REGIONS.get(name)
+    if regions is None:
+        # Tanımsız: boy ekseninde eşit üçgenli dilimler (her biri < LIMIT)
+        n = int(np.ceil(len(fc) / LIMIT))
+        if n > 1:
+            cuts = np.quantile(fc[:, 1], [k / n for k in range(1, n)])
+            band = np.searchsorted(cuts, fc[:, 1])
+            label = np.array(["Body" if b_ == n - 1 else f"Part{b_ + 1}" for b_ in band], dtype=object)
+        parts = ["Body"] + [f"Part{k + 1}" for k in range(n - 1)]
+    else:
+        for part, (x0, x1, y0, y1) in regions.items():
+            sel = (label == "Body") & (fc[:, 0] >= x0) & (fc[:, 0] <= x1) & (fc[:, 1] >= y0) & (fc[:, 1] <= y1)
+            label[sel] = part
+        parts = ["Body"] + list(regions.keys())
     m.apply_scale(height)
     scene = trimesh.Scene()
     info = {}
-    for part in ["Body"] + list(REGIONS.get(name, {}).keys()):
+    for part in parts:
         idx = np.nonzero(label == part)[0]
         sub = m.submesh([idx], append=True)
         scene.add_geometry(sub, node_name=part, geom_name=part)
