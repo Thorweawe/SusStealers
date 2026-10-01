@@ -72,6 +72,35 @@ function SoftShutdown.RunTemporary()
 	Players.PlayerAdded:Connect(bounce)
 end
 
+--[[
+	Herkesi geçici durak üzerinden yeni sürüme taşır (oyundan atmadan).
+	Hem kapanışta (BindToClose) hem yönetici "restart" sayımının sonunda.
+	Döner: ışınlama başlatıldı mı.
+]]
+function SoftShutdown.MoveEveryone(): boolean
+	local players = Players:GetPlayers()
+	if #players == 0 or RunService:IsStudio() then
+		return false
+	end
+	local ok, code = pcall(function()
+		return TeleportService:ReserveServer(game.PlaceId)
+	end)
+	local sent = false
+	if ok and typeof(code) == "string" then
+		local options = Instance.new("TeleportOptions")
+		options.ReservedServerAccessCode = code
+		sent = pcall(function()
+			TeleportService:TeleportAsync(game.PlaceId, players, options)
+		end)
+	end
+	if not sent then
+		sent = pcall(function()
+			TeleportService:TeleportAsync(game.PlaceId, players)
+		end)
+	end
+	return sent
+end
+
 function SoftShutdown.Start()
 	game:BindToClose(function()
 		if RunService:IsStudio() or #Players:GetPlayers() == 0 then

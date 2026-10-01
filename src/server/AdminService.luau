@@ -23,8 +23,9 @@
 	Oyuncu adı yerine "all" = sunucudaki herkes. Ad baştan eşleşiyor
 	(büyük/küçük harf önemsiz). Sonuç sunucu günlüğüne yazılıyor.
 
-	"restart" sunucuyu KAPATMIYOR: bütün sunucularda ekranın ortasında geri
-	sayım gösteriyor; sıfırlanınca Creator Hub'dan Restart servers.
+	"restart": bütün sunucularda temalı geri sayım; sıfırda herkes otomatik
+	olarak yeni sürüme taşınıyor (SoftShutdown.MoveEveryone, oyundan atılmıyor).
+	Önce Publish, sonra bu komut; Creator Hub'dan Restart gerekmiyor.
 ]]
 
 local MessagingService = game:GetService("MessagingService")
@@ -81,8 +82,17 @@ end
 ]]
 local function countdown(seconds: number, title: string)
 	countdownToken += 1
+	local token = countdownToken
 	workspace:SetAttribute("RestartTitle", title)
 	workspace:SetAttribute("RestartAt", workspace:GetServerTimeNow() + seconds)
+	-- Sayım bitince herkes otomatik yeni sürüme taşınıyor (atılmıyor). Bütün
+	-- sunucular aynı anda boşalınca eskiler kapanıyor, oyuncular yeni sürümlü
+	-- sunuculara düşüyor; Creator Hub'dan "Restart servers" gerekmiyor.
+	task.delay(seconds, function()
+		if token == countdownToken then
+			require(script.Parent.SoftShutdown).MoveEveryone()
+		end
+	end)
 end
 
 --[[ Komutu işler; ne yaptığını döner (testler de çağırıyor). ]]
