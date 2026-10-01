@@ -1392,7 +1392,41 @@ function ServerTests2.Register(kit: Kit)
 			ok("rebirth gezegeninde Secret alarm değil", not Config.IsHypeSpawn("TheCrewmate", nil, rebirthPlanet))
 			ok("rebirth gezegeninde IMPOSTOR alarm", Config.IsHypeSpawn("TheCrewmate", "Impostor", rebirthPlanet))
 		end
-		ok("temel gezegende Secret alarm", Config.IsHypeSpawn("TheCrewmate", nil, 6))
+		-- 2026-10-01: gezegendeki gerçek ihtimale göre
+		ok("Rift Stalker'da Secret (%2, en nadir kademe) alarm", Config.IsHypeSpawn("TheCrewmate", nil, 5))
+		ok("Leviathan'da Secret (%12, sık) alarm değil", not Config.IsHypeSpawn("TheCrewmate", nil, 6))
+		ok("Leviathan'da IMPOSTOR mutasyonlu alarm", Config.IsHypeSpawn("TheCrewmate", "Impostor", 6))
+		ok("Glorp'ta sade Common alarm değil", not Config.IsHypeSpawn("RedCrew", nil, 1))
+		local p = Config.SpawnChance("TheCrewmate", nil, 5)
+		ok("doğma ihtimali hesaplanıyor", p ~= nil and p > 0.015 and p < 0.02, tostring(p))
+		-- Sıklık: temel gezegenlerde (5'er mürettebat) rotasyon başına beklenen alarm sayısı az olmalı
+		local expected = 0
+		for planetIndex, planet in Config.SpaceMonsters do
+			if not (planet :: any).rebirths then
+				for _, unit in Config.Units do
+					local total, wsum = 0, 0
+					for _, u in Config.Units do
+						if u.rarity == unit.rarity and (u.monster == nil) then
+							wsum += u.weight
+						end
+					end
+					if wsum > 0 and unit.monster == nil then
+						local muts = { "" }
+						for _, m in Config.Mutations do
+							table.insert(muts, m.id)
+						end
+						for _, mid in muts do
+							local c = Config.SpawnChance(unit.id, if mid == "" then nil else mid, planetIndex)
+							if c and Config.IsHypeSpawn(unit.id, if mid == "" then nil else mid, planetIndex) then
+								total += c * unit.weight / wsum
+							end
+						end
+					end
+					expected += total * 5
+				end
+			end
+		end
+		ok("temel gezegenlerde rotasyon başına alarm < 0.4", expected < 0.4, string.format("%.3f", expected))
 
 		-- Çark ihtimalleri gösterilebilir: her ödülün ağırlığı var, toplamlar pozitif
 		local spinTotal, superTotal = 0, 0

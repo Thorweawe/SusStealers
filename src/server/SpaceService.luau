@@ -754,15 +754,19 @@ local function placeOnPodium(player: Player, unitId: string, mutationId: string?
 		sunucuları dolduruyordu. Orada yalnızca Config.IsHypeSpawn'ın saydığı
 		(IMPOSTOR mutasyonlu) duyuruluyor.
 	]]
-	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
-	local rebirthPlanet = planet ~= nil and (planet :: any).rebirths ~= nil
+	--[[ 2026-10-01: gezegenden gelen soygun o gezegendeki gerçek ihtimale
+	     göre duyuruluyor (Config.Hype eşikleri); çark / ürün gibi gezegensiz
+	     kaynaklar eski nadirlik kuralıyla. ]]
 	local hype = Config.IsHypeSpawn(unitId, mutationId, planetIndex)
-	if def and ((ANNOUNCE_RARITIES[def.rarity] and not rebirthPlanet) or hype) then
+	local chance = Config.SpawnChance(unitId, mutationId, planetIndex)
+	local announce = if chance then (hype or chance <= Config.Hype.StealAnnounceChance)
+		else (def ~= nil and ANNOUNCE_RARITIES[def.rarity] == true)
+	if def and announce then
 		local rarity = Config.Rarities[def.rarity]
 		local text = string.format("%s %s %s!", player.DisplayName, origin,
 			AnnounceService.Paint(unitName(unitId, mutationId), rarity.color))
 		-- Çok nadir soygun bütün sunuculara (Config.Hype, sosyal kanıt)
-		if hype and origin == "stole" then
+		if origin == "stole" and chance ~= nil and chance <= Config.Hype.GlobalChance then
 			AnnounceService.Global(text)
 		else
 			AnnounceService.Summon(text)

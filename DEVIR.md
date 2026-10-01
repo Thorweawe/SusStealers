@@ -13,6 +13,11 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (68) — Yusuf / Claude (Config.Hype, SpaceService, DataService, AdminService, SoftShutdown)
+- Duyurular gezegendeki GERÇEK ihtimale göre: `Config.SpawnChance(unit, mutation, planet)` (nadirlik payı × mutasyon şansı). Alarm: ihtimal ≤ %0.2 ya da gezegenin en nadir kademesi ≤ %5 (ör. Rift Stalker Secret %2). Soygun sohbette ≤ %1, bütün sunuculara ≤ %0.1. Leviathan'da Secret (%12) artık alarm değil. Ölçüm: temel gezegenlerde 5 dk'da ~0.3 alarm (eskiden ~1.3+); test koruyor.
+- DataService: Studio/test oturumları canlı kaydın kilidini bırakıyor; yükleme ~40 sn bekliyor ("still saving" atma sorunu).
+- Admin `restart`: sayım sonunda herkes otomatik yeni sürüme taşınıyor (SoftShutdown.MoveEveryone); temalı geri sayım bandı (RestartAt / RestartTitle nitelikleri).
+
 ## 2026-10-01 (67) — Yusuf / Claude (SpaceService, TutorialService, FunnelService, Config) — YENİ OYUNCU KAYBI
 - Analytics (28 gün, 125 yeni oyuncu): %49 ilk soygunu bitirmeden çıkıyor, Chomper adımında (28 hız) %40 daha; ort. oyun 5.2 dk, D1 %7.8.
 - Çaylak koruması: oyuncunun `profile.stolen` < `Config.RookieHeists` (3) iken kovalayan canavar `Config.RookieChaseMul` (0.72) hızında ve ani atak yok (SpaceService chase). Yakalanan çaylağa "SAFE deck'e düz uç" ipucu.

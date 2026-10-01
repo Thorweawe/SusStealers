@@ -3548,7 +3548,73 @@ Config.Hype = {
 	CloseCallMin = 500,
 	NearMissStuds = 120,
 	RareSpawnGap = 45,
+	--[[ 2026-10-01 ("summons'a çok bildirim geliyor, her gezegenin gerçek
+	     doğma şansına göre ayarla"): duyuru eşikleri artık O GEZEGENDEKİ
+	     gerçek ihtimale göre (Config.SpawnChance = nadirlik payı × mutasyon
+	     şansı). Leviathan'da Secret %12 (neredeyse her rotasyon) artık alarm
+	     değil; Rift Stalker'da %2 Secret alarm. ]]
+	-- Ölçüldü: 0.01'de temel gezegenlerde rotasyon (5 dk) başına ~1.3 alarm;
+	-- 0.002'de ~0.3 (sunucu başına ~15 dk'da bir). Test bunu koruyor.
+	RareSpawnChance = 0.002,    -- bundan nadir doğuş: bütün sunucuya alarm
+	RarestTierShare = 0.05,     -- gezegenin EN nadir kademesi bu paydan azsa o da alarm
+	StealAnnounceChance = 0.01, -- bundan nadir soygun: sohbette (bu sunucu)
+	GlobalChance = 0.001,       -- bundan nadir soygun: bütün sunuculara
 }
+
+--[[
+	Bu karakterin bu mutasyonla bu gezegende doğma ihtimali (0..1): gezegenin
+	nadirlik payı × mutasyon şansı (mutasyonsuzsa mutasyon çıkmama şansı).
+	Gezegen bilinmiyorsa nil.
+]]
+function Config.SpawnChance(unitId: string, mutationId: string?, planetIndex: number?): number?
+	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
+	local def = Config.GetUnit(unitId)
+	if not (planet and def) then
+		return nil
+	end
+	local total = 0
+	for _, w in planet.odds do
+		total += w
+	end
+	local share = (planet.odds[def.rarity] or 0) / math.max(total, 1e-9)
+	if share <= 0 then
+		return nil
+	end
+	local mutationSum = 0
+	for _, m in Config.Mutations do
+		mutationSum += m.chance
+	end
+	local factor = 1 - mutationSum
+	if mutationId and mutationId ~= "" then
+		factor = 0
+		for _, m in Config.Mutations do
+			if m.id == mutationId then
+				factor = m.chance
+			end
+		end
+		if factor == 0 and mutationId == Config.LimitedEvent.mutation then
+			factor = (1 - mutationSum) * Config.LimitedEvent.mutationChance
+		end
+	end
+	return share * factor
+end
+
+--[[ Bu nadirlik, gezegenin çıkardığı en nadir kademe mi ve payı ne kadar. ]]
+local function rarestTierShare(def: any, planet: any): number?
+	local best, total = 0, 0
+	for rarity, w in planet.odds do
+		total += w
+		local info = Config.Rarities[rarity]
+		if info and info.order > best then
+			best = info.order
+		end
+	end
+	local info = Config.Rarities[def.rarity]
+	if not info or info.order ~= best then
+		return nil
+	end
+	return (planet.odds[def.rarity] or 0) / math.max(total, 1e-9)
+end
 
 --[[ Teslimde şans: kazanan bonus (ya da nil). `roll` 0..1. ]]
 function Config.RollLuckySteal(roll: number): { id: string, name: string, chance: number, seconds: number, minimum: number }?
@@ -3569,20 +3635,18 @@ function Config.IsHypeSpawn(unitId: string, mutationId: string?, planetIndex: nu
 		return false
 	end
 	local order = Config.Rarities[def.rarity] and Config.Rarities[def.rarity].order or 0
-	-- IMPOSTOR mutasyonu (%0.4) her gezegende nadir
-	if mutationId == "Impostor" and order >= 4 then
+	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
+	local chance = Config.SpawnChance(unitId, mutationId, planetIndex)
+	if not (planet and chance) then
+		-- Gezegen bilinmiyor (çark, ürün): eski kural
+		return (mutationId == "Impostor" and order >= 4) or def.rarity == "Secret" or def.rarity == "Celestial"
+	end
+	-- 2026-10-01: o gezegendeki gerçek ihtimale göre (Config.Hype)
+	if chance <= Config.Hype.RareSpawnChance then
 		return true
 	end
-	--[[
-		2026-09-30: rebirth gezegenlerinde Secret %30, Celestial %40-50 — orada
-		sıradan. Alarm her doğuşta çalıp bütün sunucuya siren oluyordu; artık
-		yalnızca temel gezegenlerde (Secret %2-12) ya da gezegen bilinmiyorsa.
-	]]
-	local planet = if planetIndex then Config.SpaceMonsters[planetIndex] else nil
-	if planet and (planet :: any).rebirths then
-		return false
-	end
-	return def.rarity == "Secret" or def.rarity == "Celestial"
+	local share = rarestTierShare(def, planet)
+	return share ~= nil and share <= Config.Hype.RarestTierShare and (mutationId == nil or mutationId == "")
 end
 
 --[[
