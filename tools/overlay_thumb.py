@@ -2,8 +2,8 @@
 Dışarıda (yapay zeka görsel aracı / sanatçı) yapılmış YAZISIZ görselin üstüne
 bizim kapak yazılarını ve reklam düzenini ekler.
 
-    python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right]   (son: 16:9 reklamda logo tarafı)
-        kalıp: rift | split | starfall | bosses | worth | none
+    python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right|band]   (son: 16:9 reklamda logo tarafı)
+        kalıp: rift | split | starfall | bosses | kraken | worth | none
     ->  thumbnails/final/thumb_<ad>.png (1920x1080) + ads/final/ad_16x9_/ad_1x1_<ad>.png
 
 Yazılar oyundaki gerçek sayılarla (Config): Rift Stalker'da SECRET %2 = "1 in 50",
@@ -50,6 +50,9 @@ def apply(c, preset):
         put_text(c, "LIMITED!", (1000, 900), 150, angle=-6, fill=(255, 255, 255), stroke=(200, 30, 60))
     elif preset == "bosses":
         put_text(c, "CAN YOU ROB THEM ALL?", (W / 2, H - 260), 230, angle=-2, fill=(255, 255, 255), stroke=(170, 10, 40))
+    elif preset == "kraken":
+        put_text(c, "SHHH...", (780, 260), 250, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
+        put_text(c, "GOLDEN!", (780, 520), 230, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
     elif preset == "worth":
         put_text(c, "WORTH IT?", (2750, 230), 290, angle=-4, fill=(255, 255, 255), stroke=(180, 20, 60))
         put_text(c, "$40.6M/s", (2750, 480), 200, angle=-4, fill=money_fill(), stroke=(10, 70, 20))
@@ -59,6 +62,13 @@ def apply(c, preset):
 
 def make_wide_at(A, src, side):
     """ad_art.make_wide gibi; side="right" ise logo + PLAY NOW sağ altta (karakter soldaysa)."""
+    if side == "band":
+        # Alt bandı boş görsel (bosses): reklamda başlık yerine logo solda, PLAY NOW sağda
+        S = A.S
+        base = Image.open(src).convert("RGBA").resize((1920 * S, 1080 * S), Image.LANCZOS)
+        A.logo(base, 560 * S, 835 * S, 0.85)
+        A.play_button(base, 1420 * S, 965 * S, 1.0)
+        return base.resize((1920, 1080), Image.LANCZOS).convert("RGB")
     if side != "right":
         return A.make_wide(src)
     S = A.S
@@ -87,7 +97,12 @@ def main():
     img.save(p)
     import ad_art as A
     wide_side = sys.argv[4] if len(sys.argv) > 4 else "left"
-    make_wide_at(A, p, wide_side).save(os.path.join(OUT_A, f"ad_16x9_{name}.png"), optimize=True)
+    wide_src = p
+    if wide_side == "band":
+        # reklam sürümü başlıksız temiz kapaktan
+        wide_src = os.path.join(OUT_T, f"_clean_{name}.png")
+        apply(load_cover(src), "none").convert("RGB").resize((1920, 1080), Image.LANCZOS).save(wide_src)
+    make_wide_at(A, wide_src, wide_side).save(os.path.join(OUT_A, f"ad_16x9_{name}.png"), optimize=True)
     A.make_square(p, 0.5).save(os.path.join(OUT_A, f"ad_1x1_{name}.png"), optimize=True)
     print("ok", p)
 
