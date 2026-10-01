@@ -324,7 +324,7 @@ local function refreshSpeed()
 	-- Sunucu geneli antrenman takviyesi sürüyorsa (AdminService "trainboost") burada yazıyor
 	local mul = workspace:GetAttribute("TrainBoostMul")
 	local untilAt = workspace:GetAttribute("TrainBoostUntil")
-	local left = if typeof(untilAt) == "number" then math.floor(untilAt - workspace:GetServerTimeNow()) else 0
+	local left = if typeof(untilAt) == "number" then math.floor(untilAt - Config.ServerNow()) else 0
 	if typeof(mul) == "number" and mul > 1 and left > 0 then
 		speedSub.Text = string.format("%gx TRAINING  %d:%02d", mul, left // 60, left % 60)
 		speedSub.TextColor3 = Color3.fromRGB(255, 225, 70)
@@ -816,7 +816,7 @@ mountPanel("SideRail", function()
 		candy = if typeof(candy) == "number" then candy else 0
 		local raw = player:GetAttribute("EventBought")
 		local n = 0
-		if Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then
+		if Config.IsLimitedEventActive(Config.ServerNow()) then
 			for _, item in Config.LimitedEvent.shop do
 				local have = if typeof(raw) == "string" then tonumber(string.match(raw, item.id .. ":(%d+)")) or 0 else 0
 				if candy >= item.price and have < item.limit then

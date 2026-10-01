@@ -400,7 +400,7 @@ function RewardsPanel.Create(screen: ScreenGui, onBadge: ((number) -> ())?): Pan
 			tile.scale.Scale = if isToday then (if clockPulse % 2 == 0 then 1.06 else 1) else 1
 		end
 
-		local left = state.resetAt - workspace:GetServerTimeNow()
+		local left = state.resetAt - Config.ServerNow()
 		if state.canClaim then
 			streakLabel.Text = if state.nextStreak > 1
 				then string.format("STREAK %d  ·  claim day %d!", state.nextStreak - 1, state.nextStreak)

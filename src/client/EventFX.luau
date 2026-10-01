@@ -444,7 +444,7 @@ function EventFX.Create(screen: ScreenGui): Handle
 		end
 		accum = 0
 
-		local now = workspace:GetServerTimeNow()
+		local now = Config.ServerNow()
 		local id = workspace:GetAttribute("EventId")
 		local hidden = screen:GetAttribute("UiHidden") == true
 

@@ -182,7 +182,7 @@ function SpaceEventsFX.Start(): Handle
 			meteors = {}
 			builtFor = 0
 		end
-		local t = workspace:GetServerTimeNow()
+		local t = Config.ServerNow()
 		local seen: { [number]: boolean } = {}
 		for _, m in meteors do
 			local p = MeteorShower.PositionAt(m, t)

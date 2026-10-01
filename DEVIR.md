@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (72) — Batur (Yusuf'un şeridine de yazıldı: istemcide 18 dosya, zaman okuması)
+
+Studio'ya aktarıldı, testler temiz; crewmate geri sayımı istemcide okundu (⟳ 4:44).
+
+- **`Config.ServerNow()`**: bazı cihazlarda `workspace:GetServerTimeNow()` 0 dönüyordu, geri sayımlar "29847646:51" (Unix zamanı kadar) gösteriyordu. Değer makul değilse cihazın UTC saati. İstemcideki bütün `GetServerTimeNow()` çağrıları buna çevrildi; **yeni istemci kodunda da bunu kullan**.
+- **Küresel tablo taşıma** (`GlobalBoardService.migrate`): v2 depo boşsa (<10 kayıt) eski v1'in ilk 50'si bir kez kopyalanıyor (UpdateAsync, yeni değerin üstüne yazmıyor). "Top Crew sıfırlandı" şikâyeti.
+
+---
+
 ## 2026-10-01 (71) — Batur (Yusuf'un şeridine yazıldı: yeni Quiet modülü, init.client, Engagement, ServerBoostFX, SpaceFX)
 
 Studio'ya aktarıldı, **185/185 test temiz**, konsol temiz.

@@ -453,7 +453,7 @@ function MapLife.Start(): Handle
 		local walked = 0
 		local track = view.track
 		if track then
-			local now = workspace:GetServerTimeNow()
+			local now = Config.ServerNow()
 			walked = RogueTrack.Distance(track, now)
 			moving = not RogueTrack.Done(track, now)
 			local pos, dir = RogueTrack.At(track, walked)

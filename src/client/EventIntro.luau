@@ -161,7 +161,7 @@ local function show()
 
 	local running = true
 	local function redraw()
-		local now = workspace:GetServerTimeNow()
+		local now = Config.ServerNow()
 		if now < e.startsAt then
 			timer.Text = "STARTS IN " .. clock(e.startsAt - now) .. "  ·  DON'T MISS IT!"
 		elseif Config.IsEventFinalDay(now) then
@@ -194,7 +194,7 @@ local function show()
 			holder:Destroy()
 		end)
 	end
-	local teaser = workspace:GetServerTimeNow() < e.startsAt
+	local teaser = Config.ServerNow() < e.startsAt
 	local open = CardKit.button(card, UDim2.fromOffset(220, 58), Z + 5, 22, CardKit.GREEN)
 	open.holder.AnchorPoint = Vector2.new(0.5, 1)
 	open.holder.Position = UDim2.new(0.5, -84, 1, -14)
@@ -225,7 +225,7 @@ end
 function EventIntro.Ready()
 	task.spawn(function()
 		local e = Config.LimitedEvent
-		local now = workspace:GetServerTimeNow()
+		local now = Config.ServerNow()
 		if now < e.startsAt - TEASER_SECONDS or now >= e.endsAt then
 			return
 		end

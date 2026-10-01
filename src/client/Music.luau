@@ -32,6 +32,7 @@
 		mountPanel("Music", function() Music.Start() end)
 ]]
 
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
@@ -200,7 +201,7 @@ function Music.Start(): Handle
 	local function playZone(zone: string)
 		-- Etkinlik haftası lobide kendi listesi
 		local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Config)
-		local key = if zone == "lobby" and Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then "lobbyEvent" else zone
+		local key = if zone == "lobby" and Config.IsLimitedEventActive(Config.ServerNow()) then "lobbyEvent" else zone
 		local list = PLAYLIST[key]
 		if not list or #list == 0 then
 			-- O bölgede müzik yok: çalanı sustur, yenisini başlatma

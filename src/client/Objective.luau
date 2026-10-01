@@ -296,7 +296,7 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 		-- Sıradaki olay (10 dk'dan yakınsa)
 		local at = workspace:GetAttribute("NextEventAt")
 		local name = workspace:GetAttribute("NextEventName")
-		local left = if typeof(at) == "number" then at - workspace:GetServerTimeNow() else math.huge
+		local left = if typeof(at) == "number" then at - Config.ServerNow() else math.huge
 		if not eventOn and typeof(name) == "string" and left > 0 and left <= 600 then
 			local t = math.floor(left)
 			nextEvent.Text = string.format("⏱ %s in %d:%02d", name, t // 60, t % 60)

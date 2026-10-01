@@ -4235,6 +4235,20 @@ Config.ServerProducts = {
 	TrollAlarm = { id = 3715307628, robux = 25, name = "Impostor Alarm", kind = "troll", troll = "Alarm" },
 } :: { [string]: { id: number, robux: number, name: string, kind: string, troll: string? } }
 
+--[[
+	Sunucu saati (Unix sn). 2026-10-01: bazı cihazlarda (oyuna ilk girişte,
+	saat eşitlenmeden) Config.ServerNow() 0 dönüyor; geri sayımlar
+	"hedef − 0" yüzünden "29847646:51" gibi 56 yıllık süre gösteriyordu.
+	Makul değilse cihazın UTC saati. İstemcide zaman hesabı BUNU kullansın.
+]]
+function Config.ServerNow(): number
+	local t = workspace:GetServerTimeNow()
+	if t > 1e9 then
+		return t
+	end
+	return DateTime.now().UnixTimestampMillis / 1000
+end
+
 --[[ Şu anki sunucu şansı çarpanı (yoksa 1). İki tarafta da çalışıyor. ]]
 --[[
 	Yönetici boost'u (AdminService "boost"): şans, gelir ve uçuş hızı çarpanı,
@@ -4242,7 +4256,7 @@ Config.ServerProducts = {
 ]]
 function Config.GetAdminBoost(): number
 	local untilT = workspace:GetAttribute("AdminBoostUntil")
-	if typeof(untilT) == "number" and untilT > workspace:GetServerTimeNow() then
+	if typeof(untilT) == "number" and untilT > Config.ServerNow() then
 		local m = workspace:GetAttribute("AdminBoostMul")
 		return if typeof(m) == "number" then math.clamp(m, 1, 10) else 1
 	end
@@ -4252,7 +4266,7 @@ end
 function Config.GetServerLuck(): number
 	local luck = 1
 	local ends = workspace:GetAttribute("ServerLuckEndsAt")
-	if typeof(ends) == "number" and ends > workspace:GetServerTimeNow() then
+	if typeof(ends) == "number" and ends > Config.ServerNow() then
 		local m = workspace:GetAttribute("ServerLuck")
 		luck = if typeof(m) == "number" then math.max(1, m) else 1
 	end

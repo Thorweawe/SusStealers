@@ -413,7 +413,7 @@ function SpinPanel.Create(screen: ScreenGui): Panel
 		if typeof(at) ~= "number" then
 			return 0
 		end
-		return math.max(0, at - workspace:GetServerTimeNow())
+		return math.max(0, at - Config.ServerNow())
 	end
 
 	local function clockText(seconds: number): string

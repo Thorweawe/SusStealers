@@ -475,7 +475,7 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			return
 		end
 		lastTimerAt = now
-		local serverNow = workspace:GetServerTimeNow()
+		local serverNow = Config.ServerNow()
 		local rotateAt = workspace:GetAttribute("CrewRotateAt")
 		for _, entry in spotLabels do
 			local respawnAt = entry.part:GetAttribute("RespawnAt")

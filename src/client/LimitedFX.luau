@@ -128,7 +128,7 @@ function LimitedFX.Start(screen: Instance): Handle
 	task.spawn(function()
 		while running do
 			task.wait(math.random(35, 80) / 10)
-			if running and Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then
+			if running and Config.IsLimitedEventActive(Config.ServerNow()) then
 				shootingStar(folder)
 			end
 		end

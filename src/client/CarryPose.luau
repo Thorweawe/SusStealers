@@ -21,6 +21,7 @@
 	oynuyor (kollar dokunulmuyor).
 ]]
 
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
@@ -67,7 +68,7 @@ local function holderOf(character: Model): Holder?
 	local fresh: { grabAt: number?, from: Vector3? } = {}
 	-- Yalnızca yeni kapılan (1 sn içinde) crewmate uçarak geliyor; geç
 	-- görülen (sonradan katılan oyuncu) doğrudan elde
-	if typeof(grabAt) == "number" and typeof(from) == "Vector3" and workspace:GetServerTimeNow() - grabAt < 1 then
+	if typeof(grabAt) == "number" and typeof(from) == "Vector3" and Config.ServerNow() - grabAt < 1 then
 		fresh.grabAt = grabAt
 		fresh.from = from
 	end
@@ -123,7 +124,7 @@ local function animateHeld(h: Holder, t: number)
 		* CFrame.new(0, math.sin(t * 5 + h.phase) * 0.08, 0)
 		* CFrame.Angles(math.sin(t * 5.5 + h.phase) * 0.08, 0, wiggle + math.sin(t * 40) * 0.12 * shake)
 	if h.grabAt and h.from then
-		local u = math.clamp((workspace:GetServerTimeNow() - h.grabAt) / PICKUP, 0, 1)
+		local u = math.clamp((Config.ServerNow() - h.grabAt) / PICKUP, 0, 1)
 		if u < 1 then
 			-- Yerinden (ayak hizası + biraz yukarı) ellere kavisli uçuş
 			local startWorld = CFrame.new(h.from + Vector3.new(0, 1.5, 0)) * (root.CFrame * hold).Rotation

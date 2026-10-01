@@ -366,7 +366,7 @@ function WeeklyPanel.Create(screen: ScreenGui): Panel
 		end
 		lastTick = t
 		local ends = workspace:GetAttribute("WeeklyEndsAt")
-		timer.Text = if typeof(ends) == "number" then "Resets in " .. countdown(ends - workspace:GetServerTimeNow()) else ""
+		timer.Text = if typeof(ends) == "number" then "Resets in " .. countdown(ends - Config.ServerNow()) else ""
 	end))
 
 	local function open()

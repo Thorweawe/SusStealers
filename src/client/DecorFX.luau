@@ -8,6 +8,7 @@
 -- (SpinSpeed, PulsePeriod). Böylece dekora yeni bir hareketli parça eklemek
 -- için burayı değiştirmek gerekmiyor — build_decor'da niteliği koymak yeterli.
 
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -208,7 +209,7 @@ function DecorFX.Start(): FX
 				açıyla — uzaktayken de ilerliyor, yalnızca yazılmıyor.
 			]]
 			if s.wheel then
-				s.angle = WheelSpin.Angle(s.wheel, workspace:GetServerTimeNow(), s.speed)
+				s.angle = WheelSpin.Angle(s.wheel, Config.ServerNow(), s.speed)
 			else
 				local live = s.part:GetAttribute("SpinSpeed")
 				local speed = if typeof(live) == "number" then live else s.speed

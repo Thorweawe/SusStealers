@@ -402,7 +402,7 @@ function SeasonPanel.Create(screen: ScreenGui): Panel
 			return
 		end
 		last = os.clock()
-		local left = Config.SeasonEndsAt() - workspace:GetServerTimeNow()
+		local left = Config.SeasonEndsAt() - Config.ServerNow()
 		if left <= 0 then
 			ends.Text = "Season over - new season soon!"
 		else

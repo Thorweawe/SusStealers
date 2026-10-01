@@ -51,7 +51,7 @@ export type Panel = {
 
 --[[ Raydaki düğme görünsün mü: etkinlikten 3 gün önce ve etkinlik boyunca. ]]
 function EventPanel.ShouldShow(): boolean
-	local now = workspace:GetServerTimeNow()
+	local now = Config.ServerNow()
 	local e = Config.LimitedEvent
 	return now >= e.startsAt - TEASER_SECONDS and now < e.endsAt
 end
@@ -522,7 +522,7 @@ function EventPanel.Create(screen: Instance): Panel
 		local buy = CardKit.button(slot, UDim2.new(1, 0, 0, 42), Z + 5, 18, CardKit.GREEN)
 		buy.holder.Position = UDim2.fromOffset(0, 24)
 		buy.button.Activated:Connect(function()
-			if def.id ~= 0 and Config.IsLimitedEventActive(workspace:GetServerTimeNow()) then
+			if def.id ~= 0 and Config.IsLimitedEventActive(Config.ServerNow()) then
 				MarketplaceService:PromptProductPurchase(player, def.id)
 			end
 		end)
@@ -625,7 +625,7 @@ function EventPanel.Create(screen: Instance): Panel
 
 	local function redraw()
 		redrawBoard()
-		local now = workspace:GetServerTimeNow()
+		local now = Config.ServerNow()
 		local active = Config.IsLimitedEventActive(now)
 		if now < e.startsAt then
 			countTitle.Text = "EVENT STARTS IN"

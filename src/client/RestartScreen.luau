@@ -12,6 +12,7 @@
 	30 sn "REJOINING NOW". Nitelik yoksa ya da süre geçtiyse görünmüyor.
 ]]
 
+local Config = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local TweenService = game:GetService("TweenService")
 
 local SoundFX = require(script.Parent.SoundFX)
@@ -126,7 +127,7 @@ function RestartScreen.Start(_screen: Instance?)
 	local total = 10
 	local function update()
 		local at = workspace:GetAttribute("RestartAt")
-		local now = workspace:GetServerTimeNow()
+		local now = Config.ServerNow()
 		if typeof(at) ~= "number" or now > at + 30 then
 			if root.Visible then
 				root.Visible = false

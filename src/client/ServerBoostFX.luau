@@ -134,7 +134,7 @@ function ServerBoostFX.Create(screen: ScreenGui)
 					byFace.Image = img
 				end
 			end
-			timer.Text = clock(ends - workspace:GetServerTimeNow())
+			timer.Text = clock(ends - Config.ServerNow())
 		end
 	end)
 

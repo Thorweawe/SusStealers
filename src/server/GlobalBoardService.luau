@@ -56,6 +56,8 @@ type Board = {
 	format: (number) -> string,
 	-- Değer depoya logaritmik yazılıyor (encode/decode): para tabloları
 	log: boolean?,
+	-- Eski (ham değerli) depo: yeni depo boşken ilk sıralar oradan taşınıyor
+	legacy: string?,
 }
 
 --[[
@@ -82,13 +84,13 @@ local function decode(board: Board, stored: number): number
 end
 
 local BOARDS: { Board } = {
-	{ index = 1, title = "TOP EARNERS", store = "Global_Earned_v2", log = true,
+	{ index = 1, title = "TOP EARNERS", store = "Global_Earned_v2", log = true, legacy = "Global_Earned_v1",
 		value = function(p) return p.earned or 0 end,
 		format = function(v) return "$" .. Config.FormatCash(v) end },
 	{ index = 2, title = "MOST HEISTS", store = "Global_Stolen_v1",
 		value = function(p) return p.stolen or 0 end,
 		format = function(v) return tostring(math.floor(v)) end },
-	{ index = 3, title = "TOP INCOME", store = "Global_Income_v2", log = true,
+	{ index = 3, title = "TOP INCOME", store = "Global_Income_v2", log = true, legacy = "Global_Income_v1",
 		value = function(p) return p.incomePerSecond or 0 end,
 		format = function(v) return "+$" .. Config.FormatCash(v) .. "/s" end },
 }
@@ -422,7 +424,52 @@ local function refresh()
 	end
 end
 
+--[[
+	2026-10-01: tablolar v2'ye (log ölçek) geçince eski kayıtlar görünmüyordu
+	("Top Crew sıfırlandı"); yalnızca oyuna giren yeniden yazılıyordu. Yeni
+	depo neredeyse boşsa eski deponun ilk 50'si bir kez taşınıyor. UpdateAsync
+	yeni yazılmış (daha güncel) değerin üstüne yazmıyor. Eski değerler 9e18'de
+	kırpılmıştı; sahibi oyuna girince gerçek değeri yazılıyor.
+]]
+local MIGRATE_COUNT = 50
+
+local function migrate(board: Board)
+	local legacyName = board.legacy
+	local store = storeFor(board)
+	if not (legacyName and store and DataService.IsAvailable()) then
+		return
+	end
+	local ok, page = pcall(function()
+		return (store :: OrderedDataStore):GetSortedAsync(false, 10):GetCurrentPage()
+	end)
+	if not ok or typeof(page) ~= "table" or #page >= 10 then
+		return
+	end
+	local ok2, oldPage = pcall(function()
+		return DataStoreService:GetOrderedDataStore(legacyName):GetSortedAsync(false, MIGRATE_COUNT):GetCurrentPage()
+	end)
+	if not ok2 or typeof(oldPage) ~= "table" then
+		return
+	end
+	for _, entry in oldPage do
+		local value = encode(board, entry.value)
+		pcall(function()
+			(store :: OrderedDataStore):UpdateAsync(entry.key, function(current)
+				return current or value
+			end)
+		end)
+		task.wait(0.4)
+	end
+end
+
 function GlobalBoardService.Start()
+	task.spawn(function()
+		task.wait(10)
+		for _, board in BOARDS do
+			migrate(board)
+		end
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		task.spawn(write, player)
 	end)
