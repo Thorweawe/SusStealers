@@ -3059,8 +3059,8 @@ Config.SpookyEventDraft = {
 
 --[[
 	ETKİNLİK PARASI ROBUX'LA (2026-10-01): etkinlik penceresinde üç paket.
-	Kimlikler Creator Hub > Monetization > Developer Products'ta açılınca
-	buraya yazılacak; 0 iken pencerede "SOON". `robux` yalnızca gösterim için
+	Kimlikler Creator Hub > Monetization > Developer Products (2026-10-01'de
+	açıldı; 0 olursa pencerede "SOON"). `robux` yalnızca gösterim için
 	yedek (asıl fiyat Roblox'tan okunuyor) — Creator Hub'da aynı fiyatı ver.
 	Büyük paket Robux başına daha kârlı (~%10 / ~%23).
 
@@ -3070,9 +3070,9 @@ Config.SpookyEventDraft = {
 	Etkinlikler arası ortak (kind "stardust"; ad ve simge etkinlikten).
 ]]
 Config.EventProducts = {
-	EventCurrencySmall  = { id = 0, name = "Event Currency Pouch", kind = "stardust", amount = 150,  robux = 49 },
-	EventCurrencyMedium = { id = 0, name = "Event Currency Jar",   kind = "stardust", amount = 500,  robux = 149 },
-	EventCurrencyLarge  = { id = 0, name = "Event Currency Chest", kind = "stardust", amount = 1500, robux = 399 },
+	EventCurrencySmall  = { id = 3715762203, name = "Event Currency Pouch", kind = "stardust", amount = 150,  robux = 49 },
+	EventCurrencyMedium = { id = 3715762247, name = "Event Currency Jar",   kind = "stardust", amount = 500,  robux = 149 },
+	EventCurrencyLarge  = { id = 3715762292, name = "Event Currency Chest", kind = "stardust", amount = 1500, robux = 399 },
 } :: { [string]: { id: number, name: string, kind: string, amount: number, robux: number } }
 
 -- Penceredeki sıra (ucuzdan pahalıya)
