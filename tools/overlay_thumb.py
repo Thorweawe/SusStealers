@@ -3,7 +3,7 @@ Dışarıda (yapay zeka görsel aracı / sanatçı) yapılmış YAZISIZ görseli
 bizim kapak yazılarını ve reklam düzenini ekler.
 
     python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right|band]   (son: 16:9 reklamda logo tarafı)
-        kalıp: rift | split | starfall | bosses | kraken | leviathan | worth | none
+        kalıp: rift | rift_ring | sneak | split | starfall | bosses | kraken | leviathan | worth | none
     ->  thumbnails/final/thumb_<ad>.png (1920x1080) + ads/final/ad_16x9_/ad_1x1_<ad>.png
 
 Yazılar oyundaki gerçek sayılarla (Config): Rift Stalker'da SECRET %2 = "1 in 50",
@@ -33,12 +33,47 @@ def load_cover(path):
     return im.crop((x0, y0, x0 + W, y0 + H))
 
 
+def ring_arrow(c, center, r, tail, tip):
+    """Kırmızı daire + ok (merak tuzağı): beyaz kenarlı, hafif gölgeli."""
+    from PIL import ImageDraw, ImageFilter
+    import math
+    layer = Image.new("RGBA", c.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    cx, cy = center
+    box = [cx - r, cy - r, cx + r, cy + r]
+    ang = math.atan2(tip[1] - tail[1], tip[0] - tail[0])
+
+    def arrow_head(size, push):
+        t = (tip[0] + push * math.cos(ang), tip[1] + push * math.sin(ang))
+        return [t] + [(t[0] - size * math.cos(ang + k), t[1] - size * math.sin(ang + k)) for k in (-0.6, 0.6)]
+
+    for col, w, grow in (((255, 255, 255, 255), 96, 40), ((225, 20, 35, 255), 64, 0)):
+        d.ellipse(box, outline=col, width=w)
+        d.line([tail, (tip[0] - 150 * math.cos(ang), tip[1] - 150 * math.sin(ang))], fill=col, width=w)
+        d.polygon(arrow_head(260 + grow * 2, grow), fill=col)
+    shadow = Image.new("RGBA", c.size, (0, 0, 0, 0))
+    shadow.putalpha(layer.getchannel("A").point(lambda v: v * 0.55).filter(ImageFilter.GaussianBlur(18)))
+    c.alpha_composite(shadow, (10, 16))
+    c.alpha_composite(layer)
+
+
 def apply(c, preset):
+    if preset == "rift_ring":
+        apply(c, "rift")
+        ring_arrow(c, (1160, 1400), 500, (260, 2080), (640, 1790))
+        return c
     if preset == "rift":
         V3.stack_title(c, 120, 60, [
             ("THE CREWMATE", 200, {"fill": rainbow_fill()}),
             ("1 in 50", 260, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
             ("$40.6M/s", 220, {"fill": money_fill(), "stroke": (10, 70, 20)}),
+        ])
+    elif preset == "sneak":
+        # Uyuyan Rift Stalker'ın dibinden SECRET kaçırma (SECRET %2 = 1 in 50)
+        V3.stack_title(c, 120, 60, [
+            ("SHHH...", 230, {"fill": (255, 255, 255), "stroke": (20, 60, 120)}),
+            ("1 in 50", 260, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
+            ("$40.6M/s", 200, {"fill": money_fill(), "stroke": (10, 70, 20)}),
         ])
     elif preset == "split":
         put_text(c, "RIFT STALKER", (900, 250), 170, angle=-4, fill=(255, 90, 110), stroke=(60, 0, 20))
