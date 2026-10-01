@@ -1274,6 +1274,7 @@ local function applyMesh(ctx: Ctx, template: Model)
 			p.CanTouch = false
 			p.CastShadow = false
 			p:SetAttribute("Bone", boneName)
+			p:SetAttribute("Mesh", true)
 			p.Parent = ctx.model
 		end
 	end
@@ -1365,6 +1366,9 @@ function MonsterModel.Rig(model: Model): Rig
 	local rest: { CFrame } = {}
 	local partBone: { string } = {}
 	local handPart: BasePart? = nil
+	-- 3D ağ parçaları (applyMesh): kemik animasyonu yok, yerine gövde canlılığı
+	local meshIndex: { number } = {}
+	local meshSize: { Vector3 } = {}
 	for _, d in model:GetChildren() do
 		if d:IsA("BasePart") and d ~= root then
 			table.insert(parts, d)
@@ -1373,8 +1377,14 @@ function MonsterModel.Rig(model: Model): Rig
 			if d.Name == "Hand" then
 				handPart = d
 			end
+			if d:GetAttribute("Mesh") then
+				table.insert(meshIndex, #parts)
+				meshSize[#parts] = d.Size
+			end
 		end
 	end
+	local hasMesh = #meshIndex > 0
+	local lastScale = Vector3.one
 
 	local transforms: { [string]: CFrame } = { [""] = CFrame.identity }
 	local cframes: { CFrame } = table.create(#parts)
@@ -1395,8 +1405,34 @@ function MonsterModel.Rig(model: Model): Rig
 				transforms[b.name] = parentT
 			end
 		end
+		--[[
+			Ağlı modelde uzuvlar ayrı oynamıyor (tek kabuk). Yerine bütün gövde:
+			nefes alırken hafifçe şişip iniyor, kükrerken geriye kalkıp boyu
+			uzuyor, kavrarken öne atılıyor. Ölçek tabandan (ayaklar yerde kalır),
+			eğilme taban merkezi etrafında; ağ parçaları kök eksenlerine hizalı
+			(180°/90° Y dönüşleri) olduğu için x=z ölçeği parçalarda da doğru.
+		]]
+		local life = CFrame.identity
+		local scale = Vector3.one
+		if hasMesh then
+			local breath = math.sin(t * 1.7 * pose.rate) * 0.022 * math.max(pose.sway, 0.4)
+			local sy = 1 + breath + 0.07 * pose.roar
+			local sxz = 1 - breath * 0.5 + 0.02 * pose.roar + 0.03 * pose.grab
+			scale = Vector3.new(sxz, sy, sxz)
+			life = CFrame.Angles(0.14 * pose.roar - 0.2 * pose.grab, 0, 0)
+		end
 		for i, p in parts do
-			cframes[i] = rootCF * (transforms[partBone[i]] or CFrame.identity) * rest[i]
+			local r = rest[i]
+			if hasMesh then
+				r = life * (CFrame.new(r.Position * scale) * r.Rotation)
+			end
+			cframes[i] = rootCF * (transforms[partBone[i]] or CFrame.identity) * r
+		end
+		if hasMesh and (scale - lastScale).Magnitude > 1e-3 then
+			lastScale = scale
+			for _, i in meshIndex do
+				parts[i].Size = meshSize[i] * scale
+			end
 		end
 		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 		root.CFrame = rootCF
