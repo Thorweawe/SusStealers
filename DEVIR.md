@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (75) — Yusuf (ortak şerit: `MonsterModel`, `UnitModel`)
+
+Studio'ya aktarıldı, **185/185 test temiz**. Yarım iş yok; aşağıdakiler şablon gelince kendiliğinden devreye giriyor.
+
+- **Gövde canlılığı**: ağlı boss'lar nefes alıyor, kükrerken kalkıyor, kavrarken öne atılıyor (`Rig.Pose`, ağ parçaları `Mesh` nitelikli).
+- **İskelet animasyonu**: şablon MeshPart'ında `Bone` varsa (iskeletli import) kemikler konumdan türetilen dalga + kükreme/kavrama ile oynuyor. Henüz import edilmedi; `models_3d/*_rig.glb` hazır (`tools/auto_rig.py`, Kraken'de UniRig).
+- **3D nadirlik şapkaları**: `ReplicatedStorage.HatMeshes.<Nadirlik>` varsa parça şapkanın yerine. Henüz import edilmedi (`models_3d/hats/*_lo.glb`).
+- Yerleştirme: import sonrası `tools/normalize_meshes.lua` (run_code).
+
 ## 2026-10-01 (74) — Yusuf (ortak şerit: `MonsterModel`, `UnitModel`; place: `ReplicatedStorage.MonsterMeshes`, `UnitMeshes`)
 
 Studio'ya aktarıldı, **185/185 test temiz**.
