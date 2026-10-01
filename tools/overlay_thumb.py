@@ -3,7 +3,7 @@ Dışarıda (yapay zeka görsel aracı / sanatçı) yapılmış YAZISIZ görseli
 bizim kapak yazılarını ve reklam düzenini ekler.
 
     python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right|band]   (son: 16:9 reklamda logo tarafı)
-        kalıp: rift | split | starfall | bosses | kraken | worth | none
+        kalıp: rift | split | starfall | bosses | kraken | leviathan | worth | none
     ->  thumbnails/final/thumb_<ad>.png (1920x1080) + ads/final/ad_16x9_/ad_1x1_<ad>.png
 
 Yazılar oyundaki gerçek sayılarla (Config): Rift Stalker'da SECRET %2 = "1 in 50",
@@ -50,6 +50,13 @@ def apply(c, preset):
         put_text(c, "LIMITED!", (1000, 900), 150, angle=-6, fill=(255, 255, 255), stroke=(200, 30, 60))
     elif preset == "bosses":
         put_text(c, "CAN YOU ROB THEM ALL?", (W / 2, H - 260), 230, angle=-2, fill=(255, 255, 255), stroke=(170, 10, 40))
+    elif preset == "leviathan":
+        # Void Leviathan: SECRET %12 (Config.SpaceMonsters) = ~1 in 8
+        V3.stack_title(c, 120, 60, [
+            ("SECRET", 230, {"fill": rainbow_fill()}),
+            ("1 in 8", 270, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
+            ("$40.6M/s", 220, {"fill": money_fill(), "stroke": (10, 70, 20)}),
+        ])
     elif preset == "kraken":
         put_text(c, "SHHH...", (780, 260), 250, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
         put_text(c, "GOLDEN!", (780, 520), 230, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
