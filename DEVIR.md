@@ -13,6 +13,19 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (80) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI` baştan, `DefenseFX`, `DefenseClient`, `Hotbar`)
+
+Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Oyunda denendi: hazırlık (crew + Ray Gun), bırakma, crewmate'ler düşmana 18 stud'a kadar yürüyor, Ray Gun isabet ediyor; alan zemini Sand.
+
+- **Crewmate'ler hareket ediyor** (`DefenseSim.moveUnit`): konduğu yer karakol, rolün `leash` yarıçapındaki düşmana yürüyüp menzile girince duruyor; medic yaralıya; boşta karakola dönüyor. Rollere `leash`, `moveSpeed`. Anlık görüntüde crewmate konumu da var (`u = {uid, hp, x, z}`); istemci ara değerliyor, yürürken zıplıyor.
+- **Ölçek**: crewmate 7.5 stud, düşmanlar ×1.8, Glorp 20 stud. Menziller buna göre büyüdü (Brawler 6, Shooter 22, düşman yakın dövüş 4.5-6.5, `isMelee` ≤ 7, `UnitSpacing` 6, şeritler ±3.5). Denge yeniden ölçüldü (4 Common: 1. bölüm, 9. dalga; dolu ekip 20. dalga).
+- **Ray Gun** (ışın tabancası, gear): Armory'den altınla (`DefenseConfig.RayGun`, 5 seviye), profil `defense.raygun`. Tool `DefenseRayGun`; vuruşu sunucu sayıyor (`DefenseSim.Shoot`: bakış konisindeki en yakın düşman). `DefenseConfig.Gears` listesi (Lightsaber, RayGun).
+- **Arayüz baştan** (`DefenseUI`): DEFEND tek sayfa (solda role göre crew, sağda bölüm + gear + DEFEND!), yürürken üstte durum kartı (bölüm/dalga/altın çipleri, gövde çubuğu), ipucu şeridi, gelen dalga kartı, altta düğmeler + hız, dükkânlarda seviye noktaları, üstten kayan sonuç bandı. **Telefon**: DEFEND penceresi 840 (DeviceLayout sığdırma sınırı), gelen dalga kartı telefonda sol üstte, hız düğmesi alttaki sırada.
+- **Mağazacı** ayakları güverteye oturuyor (toprağa gömülüyordu). Dükkânlar gemiye yaklaştı.
+- **Savaş alanı zemini Sand** (çimen renginde): Terrain "Grass" uzun ot süsü çıkarıyor ve `GrassLength` betiklere kapalı.
+
+---
+
 ## 2026-10-01 (79) — Batur (Yusuf'un şeridine de yazıldı: `DefenseFX/UI/Client`; ortak: `EnemyModel`, `DefenseConfig`)
 
 Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda bir dalga oynatıldı: silahlı crewmate'ler, Goo Slug'lar, 2x hız.

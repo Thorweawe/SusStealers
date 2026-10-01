@@ -45,6 +45,9 @@ export type SimUnit = {
 	healRange: number,
 	engage: number,
 	block: number,        -- aynı anda tutabildiği yakın dövüşçü düşman
+	post: Vector2,        -- oyuncunun koyduğu yer (karakol)
+	leash: number,        -- karakoldan en fazla bu kadar uzaklaşıyor
+	moveSpeed: number,
 	cooldown: number,
 	timer: number,
 	target: string,
@@ -159,6 +162,9 @@ function DefenseSim.UnitStats(unitId: string, mutationId: string?, roleLevels: {
 		healRange = role.healRange or 0,
 		engage = role.engage,
 		block = role.block,
+		post = Vector2.zero,
+		leash = role.leash,
+		moveSpeed = role.moveSpeed,
 		cooldown = role.cooldown,
 		timer = 0,
 		target = role.target,
@@ -176,6 +182,7 @@ function DefenseSim.New(planet: number, wave: number, seed: number, units: { Uni
 		local u = DefenseSim.UnitStats(input.unitId, input.mutationId, roleLevels)
 		u.uid = input.uid
 		u.pos = input.pos
+		u.post = input.pos
 		-- İlk vuruşlar aynı karede olmasın
 		u.timer = (input.uid % 5) * 0.07
 		table.insert(simUnits, u)
@@ -220,6 +227,7 @@ function DefenseSim.AddUnit(sim: Sim, input: UnitInput, roleLevels: { [string]: 
 	local u = DefenseSim.UnitStats(input.unitId, input.mutationId, roleLevels)
 	u.uid = input.uid
 	u.pos = input.pos
+	u.post = input.pos
 	u.timer = 0.3
 	table.insert(sim.units, u)
 end
@@ -303,7 +311,7 @@ end
 	mesafesinde) olanlar arasında Guard önce, sonra en yakın.
 ]]
 local function isMelee(e: SimEnemy): boolean
-	return e.range <= 4.5
+	return e.range <= 7
 end
 
 local function pickFoe(sim: Sim, e: SimEnemy, held: { [number]: number }): SimUnit?
@@ -437,11 +445,62 @@ local function progressOf(sim: Sim, e: SimEnemy): number
 	return e.dist / math.max(1, lens[#lens])
 end
 
+--[[
+	Hareket: karakolun çevresindeki (leash + menzil) düşmana yürü, menzile
+	girince dur; medic yaralı müttefiğe; kimse yoksa karakola dön. Karakoldan
+	leash'ten fazla uzaklaşmıyor (yolu kesip durduruyor, peşinden koşmuyor).
+]]
+local function moveUnit(sim: Sim, u: SimUnit, dt: number)
+	local goal: Vector2? = nil
+	local stopAt = 0
+	if u.heal > 0 then
+		local worst = 0.85
+		for _, other in sim.units do
+			if other.alive and other ~= u and (other.pos - u.post).Magnitude <= u.leash + u.healRange then
+				local frac = other.hp / other.maxHp
+				if frac < worst then
+					worst = frac
+					goal = other.pos
+					stopAt = u.healRange * 0.8
+				end
+			end
+		end
+	end
+	if not goal then
+		local best = -math.huge
+		for _, e in sim.enemies do
+			if e.hp > 0 and (e.pos - u.post).Magnitude <= u.leash + u.range then
+				local score = if u.target == "strongest" then e.hp else progressOf(sim, e)
+				if score > best then
+					best = score
+					goal = e.pos
+					stopAt = u.range * 0.8
+				end
+			end
+		end
+	end
+	local target = goal or u.post
+	local gap = target - u.pos
+	local d = gap.Magnitude
+	if d <= stopAt + 0.05 or d < 0.05 then
+		return
+	end
+	local step = math.min(u.moveSpeed * dt, d - stopAt)
+	local nextPos = u.pos + gap.Unit * step
+	-- Tasma: karakoldan leash'ten uzağa gitme
+	local fromPost = nextPos - u.post
+	if fromPost.Magnitude > u.leash then
+		nextPos = u.post + fromPost.Unit * u.leash
+	end
+	u.pos = nextPos
+end
+
 local function stepUnits(sim: Sim, dt: number)
 	for _, u in sim.units do
 		if not u.alive then
 			continue
 		end
+		moveUnit(sim, u, dt)
 		u.timer -= dt
 		if u.timer > 0 then
 			continue
@@ -559,6 +618,34 @@ function DefenseSim.Slash(sim: Sim, at: Vector2, dir: Vector2, radius: number, d
 	end
 	emit(sim, { "slash", at.X, at.Y, hits })
 	return hits
+end
+
+--[[
+	Oyuncunun ışın tabancası: `dir` yönündeki konide (cos ≥ cone) menzildeki
+	en yakın düşmana. Vurulan düşmanın kimliği (yoksa nil).
+]]
+function DefenseSim.Shoot(sim: Sim, at: Vector2, dir: Vector2, range: number, cone: number, damage: number): number?
+	local facing = if dir.Magnitude > 0.01 then dir.Unit else Vector2.new(0, 1)
+	local best: SimEnemy? = nil
+	local bestD = math.huge
+	for _, e in sim.enemies do
+		if e.hp > 0 then
+			local rel = e.pos - at
+			local d = rel.Magnitude
+			if d <= range and d < bestD and (d < 2 or rel.Unit:Dot(facing) >= cone) then
+				best = e
+				bestD = d
+			end
+		end
+	end
+	if not best then
+		emit(sim, { "pshot", at.X, at.Y, 0 })
+		return nil
+	end
+	local eid = best.eid
+	emit(sim, { "pshot", at.X, at.Y, eid })
+	damageEnemy(sim, best, damage)
+	return eid
 end
 
 function DefenseSim.MedDrop(sim: Sim)

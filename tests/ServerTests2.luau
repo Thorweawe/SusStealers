@@ -2805,6 +2805,62 @@ function ServerTests2.Register(kit: Kit)
 		end
 		ctx.profile.defense = keepDefense
 	end)
+
+	case("Savunma: ışın tabancası alınıyor, önündeki en yakın düşmanı vuruyor", function(ctx)
+		local keepDefense = ctx.profile.defense
+		ctx.profile.defense = { gold = 1000, goldEarned = 0, slots = 0, hull = 0, saber = 0, raygun = 0, roles = {}, supports = {}, planets = {} }
+		local R = DefenseConfig.RayGun
+		ok("alındı", DefenseService.Buy(ctx.player, "raygun"))
+		eq("seviye 1", ctx.profile.defense.raygun, 1)
+		eq("fiyat düştü", ctx.profile.defense.gold, 1000 - R.price)
+		ctx.profile.defense.gold = 100000
+		for _ = 1, 10 do
+			DefenseService.Buy(ctx.player, "raygun")
+		end
+		eq("tavan", ctx.profile.defense.raygun, #R.upgradeCosts + 1)
+		local sim = DefenseSim.New(1, 1, 3, {}, nil, 25, 25, nil)
+		for _ = 1, 200 do
+			DefenseSim.Step(sim, 0.1)
+			if #sim.enemies > 0 then
+				break
+			end
+		end
+		local e = sim.enemies[1]
+		ok("düşman çıktı", e ~= nil)
+		if e then
+			local at = e.pos + Vector2.new(0, 12)
+			eq("arkaya ateş boşa", DefenseSim.Shoot(sim, at, Vector2.new(0, 1), R.range, R.cone, 5), nil)
+			eq("önüne ateş vuruyor", DefenseSim.Shoot(sim, at, Vector2.new(0, -1), R.range, R.cone, 5), e.eid)
+			eq("menzil dışı boşa", DefenseSim.Shoot(sim, e.pos + Vector2.new(0, R.range + 5), Vector2.new(0, -1), R.range, R.cone, 5), nil)
+		end
+		ctx.profile.defense = keepDefense
+	end)
+
+	case("Savunma: crewmate menzilindeki düşmana yürüyor, tasmadan öteye gitmiyor, sonra dönüyor", function()
+		local post = Vector2.new(20, 60)
+		local sim = DefenseSim.New(1, 1, 3, { { uid = 1, unitId = "RedCrew", pos = post } }, nil, 25, 25, nil)
+		-- Gerçek dalga çıkmasın: yalnızca elle konan düşman
+		sim.plan.spawns = {}
+		local u = sim.units[1]
+		local role = DefenseConfig.Roles[u.role]
+		-- Elle düşman: karakolun yanında (tasma + menzil içinde)
+		sim.enemies[1] = {
+			eid = 99, kind = "Grub", path = 1, lane = 0, dist = 1000, pos = post + Vector2.new(role.leash, 0),
+			hp = 1e6, maxHp = 1e6, dmg = 0, speed = 0, range = 0, cooldown = 1, timer = 1, leak = 0, cleave = 0,
+			foe = nil, offPath = true,
+		}
+		for _ = 1, 30 do
+			DefenseSim.Step(sim, 0.1)
+		end
+		ok("düşmana doğru yürüdü", (u.pos - post).Magnitude > 3, tostring((u.pos - post).Magnitude))
+		ok("tasmayı aşmadı", (u.pos - post).Magnitude <= role.leash + 0.01)
+		-- Düşman uzaklaştı (dalga bitmesin diye silinmiyor)
+		sim.enemies[1].pos = post + Vector2.new(0, 120)
+		for _ = 1, 60 do
+			DefenseSim.Step(sim, 0.1)
+		end
+		ok("karakoluna döndü", (u.pos - post).Magnitude < 0.5, tostring((u.pos - post).Magnitude))
+	end)
 end
 
 return ServerTests2

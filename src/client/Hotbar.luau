@@ -263,6 +263,7 @@ function Hotbar.Create(screen: ScreenGui): Bar
 	]]
 	local function isDefenseTool(tool: Tool): boolean
 		return tool:GetAttribute("DefenseCrew") ~= nil or tool:GetAttribute("DefenseSaber") ~= nil
+			or tool:GetAttribute("DefenseRayGun") ~= nil
 	end
 	local function onPlanet(): boolean
 		return typeof(player:GetAttribute("DefensePlanet")) == "number"
@@ -328,12 +329,12 @@ function Hotbar.Create(screen: ScreenGui): Bar
 			elseif typeof(crewUnit) == "string" then
 				-- Gezegen savunması: elde taşınan crewmate
 				pcall(UiKit.UnitIcon, icon, 46, crewUnit)
-			elseif tool:GetAttribute("DefenseSaber") ~= nil then
+			elseif tool:GetAttribute("DefenseSaber") ~= nil or tool:GetAttribute("DefenseRayGun") ~= nil then
 				local saber = Instance.new("TextLabel")
 				saber.Size = UDim2.fromScale(1, 1)
 				saber.BackgroundTransparency = 1
 				saber.TextScaled = true
-				saber.Text = "⚔"
+				saber.Text = if tool:GetAttribute("DefenseRayGun") ~= nil then "🔫" else "⚔"
 				saber.ZIndex = icon.ZIndex + 1
 				saber.Parent = icon
 			else

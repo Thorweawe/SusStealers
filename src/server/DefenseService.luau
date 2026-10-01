@@ -231,6 +231,7 @@ local function dataPayload(player: Player): any?
 		slots = DefenseConfig.GetSlots(d.slots),
 		slotLevel = d.slots,
 		saber = d.saber,
+		raygun = d.raygun or 0,
 		hull = DefenseConfig.GetHull(d.hull),
 		hullLevel = d.hull,
 		roles = table.clone(d.roles),
@@ -464,7 +465,8 @@ takeDefenseTools = function(player: Player, onlyUid: number?)
 			for _, item in container:GetChildren() do
 				if item:IsA("Tool") then
 					local uid = item:GetAttribute("DefenseCrew")
-					if (onlyUid and uid == onlyUid) or (not onlyUid and (uid ~= nil or item:GetAttribute("DefenseSaber") ~= nil)) then
+					local gear = item:GetAttribute("DefenseSaber") ~= nil or item:GetAttribute("DefenseRayGun") ~= nil
+					if (onlyUid and uid == onlyUid) or (not onlyUid and (uid ~= nil or gear)) then
 						item:Destroy()
 					end
 				end
@@ -559,6 +561,8 @@ local function giveTools(player: Player)
 	end
 	if run.gear == "Lightsaber" then
 		DefenseService.GiveSaber(player)
+	elseif run.gear == "RayGun" then
+		DefenseService.GiveRayGun(player)
 	end
 end
 
@@ -596,7 +600,9 @@ local function prepare(player: Player, sector: number, slots: { number }, gear: 
 	if not run then
 		return
 	end
-	run.gear = if gear == "Lightsaber" and profile.defense.saber > 0 then "Lightsaber" else ""
+	run.gear = if gear == "Lightsaber" and profile.defense.saber > 0 then "Lightsaber"
+		elseif gear == "RayGun" and (profile.defense.raygun or 0) > 0 then "RayGun"
+		else ""
 	for _, podium in podiums do
 		local unitId = podium:GetAttribute("UnitId") :: string
 		local m = podium:GetAttribute("MutationId") :: string
@@ -784,7 +790,13 @@ local function snapshot(sim: DefenseSim.Sim): any
 	end
 	local units = {}
 	for _, u in sim.units do
-		table.insert(units, { u.uid, math.floor(u.hp / u.maxHp * 100 + 0.5) / 100 })
+		-- Crewmate'ler artık yürüyor: konum da gidiyor
+		table.insert(units, {
+			u.uid,
+			math.floor(u.hp / u.maxHp * 100 + 0.5) / 100,
+			math.floor(u.pos.X * 10 + 0.5) / 10,
+			math.floor(u.pos.Y * 10 + 0.5) / 10,
+		})
 	end
 	return { t = sim.time, hull = sim.hull, e = enemies, u = units }
 end
@@ -923,9 +935,31 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 			return false
 		end
 		d.saber += 1
-		notify(player, if d.saber == 1 then "Lightsaber unlocked! Swing it on the battlefield"
+		notify(player, if d.saber == 1 then "Lightsaber unlocked! Pick it as your gear when you DEFEND"
 			else string.format("Lightsaber level %d", d.saber), false, "upgrade")
-		DefenseService.GiveSaber(player)
+		-- Koşuda zaten seçiliyse yeni seviyesiyle yenile
+		local s = sessions[player]
+		if s and s.run and s.run.gear == "Lightsaber" then
+			DefenseService.GiveSaber(player)
+		end
+	elseif kind == "raygun" then
+		local R = DefenseConfig.RayGun
+		local level = d.raygun or 0
+		local cost = if level == 0 then R.price else R.upgradeCosts[level]
+		if not cost then
+			notify(player, "Ray Gun is maxed", true)
+			return false
+		end
+		if not spendGold(player, profile, cost) then
+			return false
+		end
+		d.raygun = level + 1
+		notify(player, if d.raygun == 1 then "Ray Gun unlocked! Pick it as your gear when you DEFEND"
+			else string.format("Ray Gun level %d", d.raygun), false, "upgrade")
+		local s = sessions[player]
+		if s and s.run and s.run.gear == "RayGun" then
+			DefenseService.GiveRayGun(player)
+		end
 	elseif kind == "support" then
 		local def = id and DefenseConfig.GetSupport(id)
 		if not def then
@@ -1125,6 +1159,90 @@ local function slash(player: Player)
 	processEvents(player, run, sim)
 end
 
+-- ─── Işın tabancası ─────────────────────────────────────────────────────────
+
+local function shoot(player: Player)
+	local s = sessions[player]
+	local run = s and s.run
+	local sim = run and run.sim
+	local profile = DataService.Get(player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not (s and run and sim and profile and root and s.arena) or run.phase ~= "fight" then
+		return
+	end
+	local now = os.clock()
+	local R = DefenseConfig.RayGun
+	if now - s.lastSlash < R.cooldown then
+		return
+	end
+	s.lastSlash = now
+	local rel = root.Position - DefenseConfig.WorldOrigin(s.arena)
+	local look = root.CFrame.LookVector
+	DefenseSim.Shoot(sim, Vector2.new(rel.X, rel.Z), Vector2.new(look.X, look.Z), R.range, R.cone,
+		DefenseConfig.RayGunDamage(profile.defense.raygun or 1, sim.hpMul))
+	processEvents(player, run, sim)
+end
+
+function DefenseService.GiveRayGun(player: Player)
+	local s = sessions[player]
+	local profile = DataService.Get(player)
+	local level = if profile then (profile.defense.raygun or 0) else 0
+	if not (s and s.arena) or level <= 0 then
+		return
+	end
+	DefenseService.TakeSaber(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack then
+		return
+	end
+	local color = SABER_COLORS[math.clamp(level, 1, #SABER_COLORS)]
+	local tool = Instance.new("Tool")
+	tool.Name = "Ray Gun"
+	tool.ToolTip = "Ray Gun Lv " .. level
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool:SetAttribute("DefenseRayGun", level)
+	-- Tabanca tutuşu: namlu öne (-Z)
+	tool.GripPos = Vector3.new(0, -0.2, 0.3)
+	local body = Instance.new("Part")
+	body.Name = "Handle"
+	body.Size = Vector3.new(0.45, 0.7, 1.5)
+	body.Color = Color3.fromRGB(70, 74, 90)
+	body.Material = Enum.Material.Metal
+	body.CanCollide = false
+	body.Massless = true
+	body.Parent = tool
+	local function piece(name: string, size: Vector3, offset: CFrame, c: Color3, neon: boolean, shape: Enum.PartType?)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.Color = c
+		p.Material = if neon then Enum.Material.Neon else Enum.Material.Metal
+		p.CanCollide = false
+		p.Massless = true
+		if shape then
+			p.Shape = shape
+		end
+		p.CFrame = body.CFrame * offset
+		p.Parent = tool
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = p
+		weld.Parent = p
+		return p
+	end
+	piece("Barrel", Vector3.new(1.2, 0.3, 0.3), CFrame.new(0, 0.12, -1.2) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(50, 54, 66), false, Enum.PartType.Cylinder)
+	piece("Coil", Vector3.new(0.5, 0.42, 0.42), CFrame.new(0, 0.12, -0.9) * CFrame.Angles(0, math.rad(90), 0), color, true, Enum.PartType.Cylinder)
+	piece("Muzzle", Vector3.one * 0.32, CFrame.new(0, 0.12, -1.85), color, true, Enum.PartType.Ball)
+	piece("Grip", Vector3.new(0.38, 0.8, 0.45), CFrame.new(0, -0.6, 0.45) * CFrame.Angles(math.rad(-18), 0, 0), Color3.fromRGB(50, 54, 66), false)
+	piece("Sight", Vector3.new(0.12, 0.2, 0.3), CFrame.new(0, 0.45, -0.3), color, true)
+	tool.Activated:Connect(function()
+		shoot(player)
+	end)
+	tool.Parent = backpack
+end
+
 --[[ Gezegendeyken ve kılıcı varsa sırt çantasına (seviyenin renginde) verir. ]]
 function DefenseService.GiveSaber(player: Player)
 	local s = sessions[player]
@@ -1186,7 +1304,7 @@ function DefenseService.TakeSaber(player: Player)
 	for _, container in { player:FindFirstChildOfClass("Backpack"), player.Character } do
 		if container then
 			for _, item in container:GetChildren() do
-				if item:IsA("Tool") and item:GetAttribute("DefenseSaber") ~= nil then
+				if item:IsA("Tool") and (item:GetAttribute("DefenseSaber") ~= nil or item:GetAttribute("DefenseRayGun") ~= nil) then
 					item:Destroy()
 				end
 			end

@@ -182,7 +182,9 @@ local function buildTerrain(origin: Vector3, def: Config.SpaceMonsterDef, rng: R
 	if not paletteSet then
 		paletteSet = true
 		T:SetMaterialColor(Enum.Material.LeafyGrass, base)
-		T:SetMaterialColor(Enum.Material.Grass, patch)
+		-- Savaş alanı: "Grass" uzun ot süsü çıkarıyor (boyu koddan kısılamıyor:
+		-- Terrain.GrassLength betiklere kapalı). Otsuz Sand, çimen renginde.
+		T:SetMaterialColor(Enum.Material.Sand, patch:Lerp(Color3.fromRGB(255, 255, 255), 0.05))
 		T:SetMaterialColor(Enum.Material.Ground, base:Lerp(Color3.fromRGB(90, 80, 60), 0.45))
 		T:SetMaterialColor(Enum.Material.Rock, base:Lerp(DARK, 0.55))
 		T:SetMaterialColor(Enum.Material.Mud, base:Lerp(DARK, 0.4))
@@ -196,7 +198,7 @@ local function buildTerrain(origin: Vector3, def: Config.SpaceMonsterDef, rng: R
 	T:FillCylinder(at(0, -10, 0), 20, L.groundRadius, Enum.Material.LeafyGrass)
 	-- Savaş alanı açık renkli çimen
 	local fieldD = F.zMax - F.zMin + 34
-	T:FillBlock(at(0, -2, (F.zMin + F.zMax) / 2 + 8), Vector3.new(F.halfWidth * 2 + 12, 4, fieldD), Enum.Material.Grass)
+	T:FillBlock(at(0, -2, (F.zMin + F.zMax) / 2 + 8), Vector3.new(F.halfWidth * 2 + 12, 4, fieldD), Enum.Material.Sand)
 	-- Gemilerin indiği yer: yanık toprak
 	T:FillBlock(at(0, -2, L.shipZ + 4), Vector3.new(200, 4, 160), Enum.Material.Ground)
 
@@ -520,6 +522,10 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 			end
 		end
 		npc:PivotTo(rel(0, 0.8, -12))
+		-- Ayakları güverteye otursun (modelin pivotu ayakta değil: toprağa gömülüyordu)
+		local box, size = npc:GetBoundingBox()
+		local bottom = box.Position.Y - size.Y / 2
+		npc:PivotTo(npc:GetPivot() + Vector3.new(0, (p.Y + 0.8) - bottom, 0))
 		npc.Parent = f
 	end
 	addPrompt(counterTop, arena, info.kind, info.action, info.name, 0.2)

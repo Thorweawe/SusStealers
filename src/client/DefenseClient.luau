@@ -447,7 +447,8 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		local isSaber = tool:GetAttribute("DefenseSaber") ~= nil
 		local isCrew = tool:GetAttribute("DefenseCrew") ~= nil
-		if not (isSaber or isCrew) then
+		local isGun = tool:GetAttribute("DefenseRayGun") ~= nil
+		if not (isSaber or isCrew or isGun) then
 			return
 		end
 		bound[tool] = true
@@ -459,15 +460,18 @@ function DefenseClient.Start(screen: ScreenGui)
 				return
 			end
 			swinging = true
-			SoundFX.GearSound(if isSaber then "GearSwing" else "GearPoof", camera.CFrame.Position)
+			if not isGun then
+				SoundFX.GearSound(if isSaber then "GearSwing" else "GearPoof", camera.CFrame.Position)
+			end
 			task.spawn(function()
-				-- Kılıç: yay çizerek savur. Crewmate: öne eğilip yere bırak
-				local length = if isSaber then 0.28 else 0.22
+				-- Kılıç: yay çizerek savur. Tabanca: geri tepme. Crewmate: öne eğilip yere bırak
+				local length = if isSaber then 0.28 elseif isGun then 0.14 else 0.22
 				local t0 = os.clock()
 				while os.clock() - t0 < length and t.Parent do
 					local a = (os.clock() - t0) / length
 					local k = math.sin(a * math.pi)
 					t.Grip = if isSaber then baseGrip * CFrame.Angles(math.rad(-110 * k), 0, math.rad(40 * k))
+						elseif isGun then baseGrip * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(math.rad(-14 * k), 0, 0)
 						else baseGrip * CFrame.new(0, 0, -1.2 * k) * CFrame.Angles(math.rad(50 * k), 0, 0)
 					task.wait()
 				end

@@ -30,8 +30,8 @@ local SoundFX = require(script.Parent.SoundFX)
 local DefenseFX = {}
 
 -- Crewmate'lerin sahadaki boyu (stud) ve düşmanların büyütme çarpanı
-local UNIT_HEIGHT = 5.6
-local ENEMY_SCALE = 1.3
+local UNIT_HEIGHT = 7.5
+local ENEMY_SCALE = 1.8
 local SNAP_GAP = 0.2          -- sunucunun anlık görüntü aralığı (DefenseService SEND_EVERY)
 local WHITE = Color3.new(1, 1, 1)
 
@@ -72,6 +72,10 @@ type UnitView = {
 	born: number,              -- elden düşme animasyonu
 	prompt: ProximityPrompt,   -- hazırlıkta "Pick up"
 	weapon: Model?,            -- rol silahı
+	-- Sunucudan gelen konum (crewmate'ler artık yürüyor): ara değerleme
+	from: Vector3,
+	to: Vector3,
+	t0: number,
 	hand: CFrame,              -- silahın modele göre yeri
 	swing: number,             -- vuruş animasyonu 1 → 0
 	height: number,
@@ -380,6 +384,9 @@ local function buildUnit(info: any): UnitView?
 		hand = hand,
 		swing = 0,
 		height = height,
+		from = pos,
+		to = pos,
+		t0 = os.clock(),
 	}
 end
 
@@ -406,9 +413,12 @@ function DefenseFX.SyncUnits(list: { any })
 		else
 			local pos = world(Vector2.new(info.x, info.z))
 			view.base = CFrame.lookAt(pos, pos + Vector3.new(0, 0, 1))
-			if not view.fallen then
-				view.model:PivotTo(view.base)
-			end
+			-- Hazırlıkta karakoluna yürüyerek dönüyor
+			local now = os.clock()
+			local a = math.clamp((now - view.t0) / SNAP_GAP, 0, 1)
+			view.from = view.from:Lerp(view.to, a)
+			view.to = pos
+			view.t0 = now
 		end
 	end
 	for uid, view in units do
@@ -449,7 +459,7 @@ end
 	Tür boyla ayırt ediliyor; ölçek ilk kurulumda bir kez ölçülüyor.
 ]]
 local KIND_HEIGHT: { [string]: number } = {
-	Skitter = 4.6, Grub = 7, Spitter = 7.2, Brute = 11, Boss = 15,
+	Skitter = 6, Grub = 9.5, Spitter = 10, Brute = 15, Boss = 20,
 }
 local unitHeight: { [string]: number } = {}
 
@@ -678,7 +688,7 @@ local function onUnitHit(uid: number, eid: number, amount: number)
 	if e and u then
 		e.lunge = 1
 		local def = DefenseConfig.Enemies[e.kind]
-		if def and def.range > 4.5 then
+		if def and def.range > 7 then
 			-- Tükürük
 			bolt(e.model:GetPivot().Position + Vector3.new(0, 2, 0), chest(u.model), palette.glow)
 		end
@@ -793,6 +803,30 @@ local function onFreeze(seconds: number)
 	SoundFX.GearSound("GearZap", world(Vector2.new(0, 110), 2))
 end
 
+--[[ Oyuncunun ışın tabancası: elindeki tabancanın ucundan düşmana lazer. ]]
+local function onPlayerShot(x: number, z: number, eid: number)
+	local character = Players.LocalPlayer.Character
+	local tool = character and character:FindFirstChildOfClass("Tool")
+	local muzzle = tool and tool:FindFirstChild("Muzzle") :: BasePart?
+	local from = if muzzle then muzzle.Position else world(Vector2.new(x, z), 3)
+	local e = enemies[eid]
+	local color = if muzzle then muzzle.Color else Color3.fromRGB(120, 220, 255)
+	if e then
+		e.flash = 1
+		local to = e.model:GetPivot().Position + Vector3.new(0, e.height * 0.45, 0)
+		beam(from, to, color, 0.35, 0.12)
+		local hit = fxPart("RayHit", Vector3.one * 1.2, CFrame.new(to), color, Enum.PartType.Ball)
+		hit.Transparency = 0.2
+		fadeAway(hit, 0.2, Vector3.one * 3)
+	end
+	local flare = fxPart("RayFlare", Vector3.one * 0.8, CFrame.new(from), color, Enum.PartType.Ball)
+	flare.Transparency = 0.1
+	fadeAway(flare, 0.1, Vector3.one * 1.6)
+	sound("raygun", 0.06, function()
+		SoundFX.Laser()
+	end)
+end
+
 --[[ Oyuncunun ışın kılıcı vuruşu: yay biçiminde parlama. ]]
 local function onSlash(x: number, z: number, hits: number)
 	local at = world(Vector2.new(x, z), 2.5)
@@ -853,6 +887,8 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 			onMedDrop()
 		elseif kind == "slash" then
 			onSlash(ev[2], ev[3], ev[4])
+		elseif kind == "pshot" then
+			onPlayerShot(ev[2], ev[3], ev[4])
 		end
 	end
 
@@ -882,6 +918,12 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 		local view = units[u[1]]
 		if view and not view.fallen then
 			view.bar.Size = UDim2.fromScale(math.clamp(u[2], 0, 1), 1)
+			if u[3] and u[4] then
+				local a = math.clamp((now - view.t0) / SNAP_GAP, 0, 1)
+				view.from = view.from:Lerp(view.to, a)
+				view.to = world(Vector2.new(u[3], u[4]))
+				view.t0 = now
+			end
 		end
 	end
 end
@@ -1074,10 +1116,16 @@ function DefenseFX.Start()
 			if not view.fallen then
 				view.lunge = math.max(0, view.lunge - dt * 6)
 				local fall = math.clamp((now - view.born) / DROP_TIME, 0, 1)
+				local walk = view.to - view.from
+				local moving = walk.Magnitude > 0.15
+				local lerpA = math.clamp((now - view.t0) / SNAP_GAP, 0, 1)
+				local stand = view.from:Lerp(view.to, lerpA)
+				local step = if moving then math.abs(math.sin(now * 10 + view.uid)) * 0.45 else 0
 				local offset = view.lungeDir * (math.sin(view.lunge * math.pi) * 0.8)
-					+ Vector3.new(0, DROP_HEIGHT * (1 - fall) * (1 - fall), 0)
-				local base = view.base
-				local look = if view.lungeDir.Magnitude > 0.01 then view.lungeDir else base.LookVector
+					+ Vector3.new(0, DROP_HEIGHT * (1 - fall) * (1 - fall) + step, 0)
+				local base = CFrame.new(stand) * view.base.Rotation
+				local look = if moving then (walk * Vector3.new(1, 0, 1)).Unit
+					elseif view.lungeDir.Magnitude > 0.01 then view.lungeDir else base.LookVector
 				-- Boşta hafif nefes
 				local p = base.Position + offset + Vector3.new(0, math.sin(now * 2.2 + view.uid) * 0.06, 0)
 				local cf = CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z))

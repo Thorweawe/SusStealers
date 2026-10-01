@@ -39,7 +39,7 @@ DefenseConfig.TickRate = 10              -- simülasyon adımı (Hz)
 DefenseConfig.WavesPerSector = 5         -- bir bölüm (yıldız + altın + kontrol noktası)
 DefenseConfig.ReviveMinutes = 15         -- hastane: crewmate'in bu kadar dakikalık kazancı
 DefenseConfig.MaxEnemies = 70            -- aynı anda sahada (güvenlik sınırı)
-DefenseConfig.UnitSpacing = 4.5          -- iki crewmate arası en az mesafe (modeller büyüdü)
+DefenseConfig.UnitSpacing = 6            -- iki crewmate arası en az mesafe (modeller büyüdü)
 DefenseConfig.PathClearance = 0          -- yolun üstüne de konabilir (bloklamak için)
 
 --[[
@@ -114,8 +114,33 @@ DefenseConfig.Saber = {
 	upgradeCosts = { 90, 140, 200, 280 },   -- seviye 2..5
 	damage = 34,                    -- × dalga can çarpanı
 	perLevel = 0.3,
-	radius = 8,
+	radius = 10,
 	cooldown = 0.45,
+}
+
+--[[
+	IŞIN TABANCASI (Batur: "tabanca da alınabilsin"): Armory'den altınla.
+	Önündeki koni içinde en yakın düşmana uzaktan lazer. Kılıçtan az hasar,
+	ama yaklaşmak gerekmiyor. Hasar dalganın can çarpanıyla ölçekli.
+]]
+DefenseConfig.RayGun = {
+	price = 120,
+	upgradeCosts = { 80, 130, 190, 260 },   -- seviye 2..5
+	damage = 15,
+	perLevel = 0.3,
+	range = 34,
+	cone = 0.55,            -- bakış yönüyle en az bu kadar aynı yön (cos)
+	cooldown = 0.32,
+}
+
+function DefenseConfig.RayGunDamage(level: number, hpMul: number): number
+	return DefenseConfig.RayGun.damage * (1 + DefenseConfig.RayGun.perLevel * math.max(0, level - 1)) * hpMul
+end
+
+-- Gezegende seçilebilen gear'lar (DEFEND penceresi). `field`: profildeki seviye alanı.
+DefenseConfig.Gears = {
+	{ id = "Lightsaber", name = "Lightsaber", icon = "⚔", field = "saber", desc = "Slash every enemy in front of you." },
+	{ id = "RayGun", name = "Ray Gun", icon = "🔫", field = "raygun", desc = "Laser the closest enemy you aim at, from far away." },
 }
 
 function DefenseConfig.SaberDamage(level: number, hpMul: number): number
@@ -130,10 +155,10 @@ DefenseConfig.Layout = {
 	command = Vector2.new(20, 12),
 	takeoff = Vector2.new(-20, 12),
 	-- Dükkân gemicikleri alana dönük, yay biçiminde (Batur: "sıra halinde değil, biraz eğimli")
-	hospital = Vector2.new(-80, 14),
-	armory = Vector2.new(80, 14),
-	shop = Vector2.new(-98, -32),
-	market = Vector2.new(98, -32),
+	hospital = Vector2.new(-70, 8),
+	armory = Vector2.new(70, 8),
+	shop = Vector2.new(-88, -36),
+	market = Vector2.new(88, -36),
 	shopsFace = 120,      -- dükkânların baktığı nokta (alanın ortası, z)
 	groundRadius = 420,
 }
@@ -152,6 +177,12 @@ export type RoleDef = {
 	cooldown: number,     -- iki vuruş arası (sn)
 	engage: number,       -- geçen düşman bu mesafeye girince durup bununla dövüşüyor
 	block: number,        -- aynı anda tutabildiği yakın dövüşçü düşman (fazlası yanından geçiyor)
+	--[[ 2026-10-01 (Batur: "bizim amonguslar da canavarlara doğru hareket etsin
+	     kendi menzilince"): crewmate konduğu yerin (karakol) çevresinde `leash`
+	     yarıçapında dolaşıyor; o alandaki düşmana yürüyüp dövüşüyor, iş bitince
+	     karakoluna dönüyor. ]]
+	leash: number,
+	moveSpeed: number,
 	heal: number?,        -- iyileştirme (vuruş başına), yalnızca Medic
 	healRange: number?,
 	target: string,       -- "first" (kapıya en yakın) | "strongest" (en çok can)
@@ -162,28 +193,28 @@ DefenseConfig.Roles = {
 	Brawler = {
 		id = "Brawler", name = "Brawler", icon = "👊", color = Color3.fromRGB(255, 120, 70),
 		desc = "Stops enemies in their tracks and punches them.",
-		hp = 180, dmg = 13, range = 4.5, cooldown = 0.8, engage = 5, block = 2, target = "first",
+		hp = 180, dmg = 13, range = 6, cooldown = 0.8, engage = 7, block = 2, leash = 16, moveSpeed = 10, target = "first",
 	},
 	Guard = {
 		id = "Guard", name = "Guard", icon = "🛡️", color = Color3.fromRGB(90, 160, 255),
 		desc = "Tons of health. Pulls nearby enemies onto itself.",
-		hp = 340, dmg = 6, range = 4.5, cooldown = 1.0, engage = 8, block = 3, target = "first",
+		hp = 340, dmg = 6, range = 6, cooldown = 1.0, engage = 10, block = 3, leash = 12, moveSpeed = 8, target = "first",
 	},
 	Shooter = {
 		id = "Shooter", name = "Shooter", icon = "🎯", color = Color3.fromRGB(255, 220, 80),
 		desc = "Shoots from far away. Keep it behind the front line.",
-		hp = 70, dmg = 9, range = 17, cooldown = 0.85, engage = 2.5, block = 1, target = "first",
+		hp = 70, dmg = 9, range = 22, cooldown = 0.85, engage = 3.5, block = 1, leash = 6, moveSpeed = 9, target = "first",
 	},
 	Assassin = {
 		id = "Assassin", name = "Assassin", icon = "🗡️", color = Color3.fromRGB(190, 90, 255),
 		desc = "Fragile, but one stab melts the strongest enemy in reach.",
-		hp = 65, dmg = 38, range = 8, cooldown = 1.5, engage = 2.5, block = 1, target = "strongest",
+		hp = 65, dmg = 38, range = 9, cooldown = 1.5, engage = 3.5, block = 1, leash = 20, moveSpeed = 14, target = "strongest",
 	},
 	Medic = {
 		id = "Medic", name = "Medic", icon = "✚", color = Color3.fromRGB(110, 240, 140),
 		desc = "Heals the most hurt crewmate nearby.",
-		hp = 85, dmg = 4, range = 9, cooldown = 1.0, engage = 2.5, block = 1, target = "first",
-		heal = 11, healRange = 13,
+		hp = 85, dmg = 4, range = 12, cooldown = 1.0, engage = 3.5, block = 1, leash = 10, moveSpeed = 10, target = "first",
+		heal = 11, healRange = 16,
 	},
 } :: { [string]: RoleDef }
 
@@ -266,11 +297,11 @@ export type EnemyDef = {
 }
 
 DefenseConfig.Enemies = {
-	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 6,   dmg = 5,  range = 3,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
-	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 11,  dmg = 4,  range = 3,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
-	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 5,   dmg = 7,  range = 13, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
-	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 3.8, dmg = 16, range = 3.4, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
-	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.2, dmg = 26, range = 4,  cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 4.5, boss = true },
+	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 7,   dmg = 5,  range = 4.5,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
+	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 12,  dmg = 4,  range = 4,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
+	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 6,   dmg = 7,  range = 16, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
+	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 4.6, dmg = 16, range = 5.5, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
+	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.8, dmg = 26, range = 6.5, cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 6, boss = true },
 } :: { [string]: EnemyDef }
 
 DefenseConfig.EnemyOrder = { "Grub", "Skitter", "Spitter", "Brute" }
@@ -445,7 +476,7 @@ function DefenseConfig.BuildWave(planet: number, wave: number, seed: number, las
 	local t = 1.5
 	for i, kind in kinds do
 		local path = if #paths > 1 then (i % 2) + 1 else 1
-		table.insert(spawns, { t = t, kind = kind, path = path, lane = rng:NextNumber(-2.2, 2.2) })
+		table.insert(spawns, { t = t, kind = kind, path = path, lane = rng:NextNumber(-3.5, 3.5) })
 		if pattern == "swarm" then
 			t += 0.35
 		elseif grouped and i % 4 == 0 then
@@ -547,7 +578,7 @@ DefenseConfig.Supports = {
 	{ id = "Freeze", name = "Stasis Field", icon = "❄️", desc = "Freezes all enemies for 4 seconds.", price = 25 },
 } :: { SupportDef }
 DefenseConfig.SupportStack = 5
-DefenseConfig.StrikeRadius = 10
+DefenseConfig.StrikeRadius = 13
 DefenseConfig.StrikeDamage = 260         -- × dalganın can çarpanı
 DefenseConfig.FreezeSeconds = 4
 
