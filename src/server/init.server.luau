@@ -50,6 +50,7 @@ local LobbyBoardService = require(script.LobbyBoardService)
 local AdminService = require(script.AdminService)
 local SoftShutdown = require(script.SoftShutdown)
 local LimitedEventService = require(script.LimitedEventService)
+local DefenseService = require(script.DefenseService)
 
 --[[
 	Yeniden başlatmanın geçici durağı (SoftShutdown): oyunun hiçbir servisi
@@ -108,6 +109,8 @@ SpaceBonusService.Start()
 CapsuleService.Start()
 -- Launch Bay'deki jetpack standı (SpaceService güverteyi kurduktan sonra)
 JetpackService.Start()
+-- Gezegen savunması: Navigasyon'daki PILOT istemi, gezegen yüzeyleri, dalgalar
+DefenseService.Start()
 WeeklyService.Start()
 SeasonService.Start()
 -- Robux: sunucu şansı ve troller (MonetizationService granter'ları)

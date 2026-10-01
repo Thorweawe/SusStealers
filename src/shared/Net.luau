@@ -51,6 +51,8 @@ local EVENTS = {
 	"SeasonClaim",  -- client -> server (tier, "free" | "premium") — Sezon Kartı ödülü
 	"ServerFX",     -- server -> client ("luck", by, endsAt) | ("troll", kind, by, seconds) — ServerBoostService
 	"EventShop",    -- client -> server (itemId: string) — sınırlı etkinlik dükkânı (LimitedEventService)
+	"Defense",      -- client -> server (action: string, ...) — gezegen savunması (DefenseService)
+	"DefenseState", -- server -> client (kind: string, payload) — gezegen savunması durumu ve savaş olayları
 }
 
 --[[
@@ -198,6 +200,15 @@ local CLIENT_TO_SERVER = {
 		İstemci yalnızca ürün kimliğini söylüyor; tanınmayan reddediliyor.
 	]]
 	EventShop = true,
+	--[[
+		Defense bedava bir şey VERMİYOR (DefenseService.onAction): altın
+		yalnızca SUNUCUDA dönen savaşın bölüm sonucundan (DefenseSim) ve
+		yalnızca yeni yıldız için; dükkânlar oyuncunun KENDİ altınını,
+		hastane KENDİ parasını harcıyor. Yerleştirme kaide sahipliğini, alan
+		sınırını, slot sayısını sunucuda doğruluyor; sayılar sonlu ve
+		sınırlı olmalı, eylemler arasında en az 0.08 sn.
+	]]
+	Defense = true,
 }
 
 local Net = {}

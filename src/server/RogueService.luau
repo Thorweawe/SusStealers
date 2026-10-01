@@ -422,7 +422,8 @@ function RogueService.GetCandidates(): { { plot: Model, podium: Part } }
 		end
 		for _, podium in PlotService.GetPodiums(plot) do
 			local offlineUntil = podium:GetAttribute("OfflineUntil") :: number?
-			if PlotService.IsOccupied(podium) and not (offlineUntil and offlineUntil > now) then
+			if PlotService.IsOccupied(podium) and not (offlineUntil and offlineUntil > now)
+				and not PlotService.GetAway(podium) then
 				table.insert(out, { plot = plot, podium = podium })
 			end
 		end

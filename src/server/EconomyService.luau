@@ -101,7 +101,9 @@ function EconomyService.GetIncome(player: Player): number
 		local unitId = podium:GetAttribute("UnitId") :: string
 		-- Gezen impostorun kaçırdığı karakter bir süre gelir üretmiyor (RogueService)
 		local offlineUntil = podium:GetAttribute("OfflineUntil") :: number?
-		if unitId ~= "" and not (offlineUntil and offlineUntil > now) then
+		-- Gezegen savunmasında (sahada / hastanede) olan da gelir üretmiyor
+		local away = podium:GetAttribute("Away")
+		if unitId ~= "" and not (offlineUntil and offlineUntil > now) and not (typeof(away) == "string" and away ~= "") then
 			local def = Config.GetUnit(unitId)
 			if def then
 				local mutationId = podium:GetAttribute("MutationId") :: string
@@ -111,6 +113,16 @@ function EconomyService.GetIncome(player: Player): number
 		end
 	end
 
+	return math.floor(total * EconomyService.GetIncomeMultiplier(player))
+end
+
+--[[
+	Kaidedeki karakterlerin ham gelirine uygulanan bütün çarpanlar (rebirth,
+	pass, morale, pet, indeks, arkadaş, premium, etkinlik, yönetici).
+	2026-10-01: gezegen savunmasının hastanesi tek karakterin anlık
+	kazancını buradan hesaplıyor (GetUnitIncome).
+]]
+function EconomyService.GetIncomeMultiplier(player: Player): number
 	-- Rebirth ve gamepass çarpanları en sonda, birbirleriyle çarpılarak
 	local profile = DataService.Get(player)
 	local rebirths = if profile then profile.rebirths else 0
@@ -152,7 +164,17 @@ function EconomyService.GetIncome(player: Player): number
 	-- Yönetici boost'u (AdminService "boost")
 	multiplier *= Config.GetAdminBoost()
 
-	return math.floor(total * multiplier)
+	return multiplier
+end
+
+--[[ Tek bir karakterin şu anki çarpanlarla saniyelik geliri. ]]
+function EconomyService.GetUnitIncome(player: Player, unitId: string, mutationId: string?): number
+	local def = Config.GetUnit(unitId)
+	if not def then
+		return 0
+	end
+	local mutation = Config.GetMutation(mutationId)
+	return def.income * (if mutation then mutation.incomeMul else 1) * EconomyService.GetIncomeMultiplier(player)
 end
 
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────

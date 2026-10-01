@@ -1274,10 +1274,12 @@ local function syncProfile(podium: Part)
 		local unitId = other:GetAttribute("UnitId") :: string
 		if unitId ~= "" then
 			local mutationId = other:GetAttribute("MutationId") :: string
+			local away = other:GetAttribute("Away")
 			table.insert(units, {
 				slot = other:GetAttribute("SlotIndex") :: number,
 				unitId = unitId,
 				mutationId = if mutationId == "" then nil else mutationId,
+				away = if typeof(away) == "string" and away ~= "" then away else nil,
 			})
 		end
 	end
@@ -1364,9 +1366,84 @@ function PlotService.ClearUnit(podium: Part): (string?, string?)
 	podium:SetAttribute("UnitId", "")
 	podium:SetAttribute("MutationId", "")
 	podium:SetAttribute("PlacedAt", 0)
+	podium:SetAttribute("Away", nil)
+	local awayLabel = podium:FindFirstChild("AwayLabel")
+	if awayLabel then
+		awayLabel:Destroy()
+	end
 
 	syncProfile(podium)
 	return unitId, (if mutationId == "" then nil else mutationId)
+end
+
+-- ─── Gezegen savunması: kaidedeki karakter uzakta ───────────────────────────
+
+local AWAY_TEXT = {
+	mission = { text = "🚀 ON MISSION", color = Color3.fromRGB(120, 220, 255) },
+	hospital = { text = "✚ IN HOSPITAL", color = Color3.fromRGB(255, 110, 110) },
+}
+
+--[[
+	Kaidedeki karakter savaşta ("mission") ya da hastanede ("hospital").
+	Kaide dolu sayılıyor (yeni karakter konmuyor, satılamıyor) ama gelir
+	üretmiyor (EconomyService) ve karakter soluk. nil = evde.
+]]
+function PlotService.GetAway(podium: Part): string?
+	local away = podium:GetAttribute("Away")
+	return if typeof(away) == "string" and away ~= "" then away else nil
+end
+
+function PlotService.SetAway(podium: Part, state: string?)
+	if not PlotService.IsOccupied(podium) then
+		return
+	end
+	local info = if state then AWAY_TEXT[state] else nil
+	podium:SetAttribute("Away", if info then state else nil)
+
+	local unit = podium:FindFirstChild("Unit")
+	if unit then
+		for _, d in unit:GetDescendants() do
+			if d:IsA("BasePart") then
+				local original = d:GetAttribute("AwayBase")
+				if info then
+					if typeof(original) ~= "number" then
+						d:SetAttribute("AwayBase", d.Transparency)
+						original = d.Transparency
+					end
+					d.Transparency = if (original :: number) >= 1 then 1 else 0.75 + (original :: number) * 0.25
+				elseif typeof(original) == "number" then
+					d.Transparency = original
+					d:SetAttribute("AwayBase", nil)
+				end
+			end
+		end
+	end
+
+	local old = podium:FindFirstChild("AwayLabel")
+	if old then
+		old:Destroy()
+	end
+	if info then
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "AwayLabel"
+		gui.Size = UDim2.fromScale(5, 1.1)
+		gui.StudsOffsetWorldSpace = Vector3.new(0, 9, 0)
+		gui.AlwaysOnTop = false
+		gui.MaxDistance = 90
+		gui.Parent = podium
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.Font = Enum.Font.GothamBlack
+		text.TextScaled = true
+		text.TextColor3 = info.color
+		text.TextStrokeTransparency = 0.3
+		text.AutoLocalize = false
+		text.Text = info.text
+		text.Parent = gui
+	end
+
+	syncProfile(podium)
 end
 
 -- ─── Sahiplik ───────────────────────────────────────────────────────────────
@@ -1457,7 +1534,9 @@ local function restoreUnits(player: Player)
 	for _, entry in stored do
 		local podium = podiums[entry.slot]
 		if podium and not PlotService.IsOccupied(podium) then
-			PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId)
+			if PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId) and entry.away then
+				PlotService.SetAway(podium, entry.away)
+			end
 		end
 	end
 end

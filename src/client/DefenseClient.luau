@@ -1,0 +1,623 @@
+--!strict
+--[[
+	Gezegen savunmasının istemci yöneticisi (init.client kuruyor).
+
+	  - "DefenseState" olaylarını dinliyor, DefenseUI (2B) ve DefenseFX (3B)
+	    modüllerini besliyor
+	  - İniş / kalkış animasyonu: ekran kararıyor, gezegen yükseliyor, gemi
+	    alçalıyor; varışta kamera gökyüzünden gemiye süzülüyor, toz kalkıyor
+	  - Taktik görünüm (KOMUTA konsolu): kamera alanın üstünde, karakter
+	    duruyor; dokun/tıkla ile crewmate koy, taşı, Orbital Strike nişanla
+	  - Gezegendeyken atmosfer gezegenin renginde (DefensePlanet niteliği)
+]]
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local Net = require(Shared.Net)
+local DefenseConfig = require(Shared.DefenseConfig)
+
+local DefenseFX = require(script.Parent.DefenseFX)
+local DefenseUI = require(script.Parent.DefenseUI)
+local SoundFX = require(script.Parent.SoundFX)
+
+local DefenseClient = {}
+
+local player = Players.LocalPlayer
+local WHITE = Color3.new(1, 1, 1)
+
+function DefenseClient.Start(screen: ScreenGui)
+	-- Mod kapalıyken (canlı oyun) hiçbir şey kurulmuyor (DefenseConfig.Live)
+	if not DefenseConfig.IsEnabled() then
+		return
+	end
+	local remote = Net.Get("Defense")
+	local stateRemote = Net.Get("DefenseState")
+
+	local data: any = nil
+	local run: any = nil
+	local planet: number? = nil
+	local command = false
+	local selectedUid: number? = nil
+	local pickedSlot: number? = nil
+	local pickedSupport: string? = nil
+	local moving = false
+
+	local function send(...: any)
+		remote:FireServer(...)
+	end
+
+	local function getControls(): any?
+		local ok, controls = pcall(function()
+			local module = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule") :: ModuleScript) :: any
+			return module:GetControls()
+		end)
+		return if ok then controls else nil
+	end
+
+	-- ─── Ekranın üstündeki perde (animasyonlar) ─────────────────────────────
+	local overlayGui = Instance.new("ScreenGui")
+	overlayGui.Name = "DefenseOverlay"
+	overlayGui.IgnoreGuiInset = true
+	overlayGui.ResetOnSpawn = false
+	overlayGui.DisplayOrder = 150
+	overlayGui.Parent = player:WaitForChild("PlayerGui")
+	local curtain = Instance.new("Frame")
+	curtain.Size = UDim2.fromScale(1, 1)
+	curtain.BackgroundColor3 = Color3.fromRGB(4, 4, 12)
+	curtain.BackgroundTransparency = 1
+	curtain.Visible = false
+	curtain.Parent = overlayGui
+	local planetDisc = Instance.new("Frame")
+	planetDisc.AnchorPoint = Vector2.new(0.5, 0.5)
+	planetDisc.Size = UDim2.fromScale(0.9, 0.9)
+	planetDisc.SizeConstraint = Enum.SizeConstraint.RelativeXX
+	planetDisc.Position = UDim2.fromScale(0.5, 1.6)
+	planetDisc.BackgroundColor3 = WHITE
+	planetDisc.Parent = curtain
+	local discCorner = Instance.new("UICorner")
+	discCorner.CornerRadius = UDim.new(0.5, 0)
+	discCorner.Parent = planetDisc
+	local discGrad = Instance.new("UIGradient")
+	discGrad.Rotation = 90
+	discGrad.Parent = planetDisc
+	local shipIcon = Instance.new("TextLabel")
+	shipIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+	shipIcon.Position = UDim2.fromScale(0.5, -0.1)
+	shipIcon.Size = UDim2.fromOffset(120, 120)
+	shipIcon.BackgroundTransparency = 1
+	shipIcon.Text = "🚀"
+	shipIcon.TextScaled = true
+	shipIcon.Rotation = 180
+	shipIcon.AutoLocalize = false
+	shipIcon.Parent = curtain
+	local curtainText = Instance.new("TextLabel")
+	curtainText.AnchorPoint = Vector2.new(0.5, 0)
+	curtainText.Position = UDim2.fromScale(0.5, 0.12)
+	curtainText.Size = UDim2.fromScale(0.8, 0.09)
+	curtainText.BackgroundTransparency = 1
+	curtainText.Font = Enum.Font.FredokaOne
+	curtainText.TextScaled = true
+	curtainText.TextColor3 = WHITE
+	curtainText.AutoLocalize = false
+	curtainText.Parent = curtain
+	local textStroke = Instance.new("UIStroke")
+	textStroke.Thickness = 3
+	textStroke.Color = Color3.fromRGB(22, 20, 34)
+	textStroke.Parent = curtainText
+
+	local function fadeCurtain(show: boolean, seconds: number)
+		curtain.Visible = true
+		local t = TweenService:Create(curtain, TweenInfo.new(seconds), { BackgroundTransparency = if show then 0 else 1 })
+		t:Play()
+		for _, l in { curtainText, shipIcon } do
+			TweenService:Create(l, TweenInfo.new(seconds), { TextTransparency = if show then 0 else 1 }):Play()
+		end
+		TweenService:Create(planetDisc, TweenInfo.new(seconds), { BackgroundTransparency = if show then 0 else 1 }):Play()
+		if not show then
+			task.delay(seconds, function()
+				if curtain.BackgroundTransparency > 0.99 then
+					curtain.Visible = false
+				end
+			end)
+		end
+	end
+
+	-- ─── Atmosfer ───────────────────────────────────────────────────────────
+	local savedAtmo: { [string]: any }? = nil
+	local function applyEnvironment(index: number?)
+		local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
+		if index then
+			local def = Config.SpaceMonsters[index]
+			if not def then
+				return
+			end
+			if not atmo then
+				atmo = Instance.new("Atmosphere")
+				atmo.Name = "DefenseAtmosphere"
+				atmo.Parent = Lighting
+			end
+			local a = atmo :: Atmosphere
+			if not savedAtmo then
+				savedAtmo = { Density = a.Density, Offset = a.Offset, Color = a.Color, Decay = a.Decay, Glare = a.Glare, Haze = a.Haze }
+			end
+			a.Density = 0.32
+			a.Offset = 0.2
+			a.Color = def.planetColor:Lerp(WHITE, 0.45)
+			a.Decay = def.planetColor2
+			a.Glare = 0.2
+			a.Haze = 1.4
+		elseif savedAtmo and atmo then
+			local a = atmo :: Atmosphere
+			for k, v in savedAtmo do
+				(a :: any)[k] = v
+			end
+			savedAtmo = nil
+			if a.Name == "DefenseAtmosphere" then
+				a:Destroy()
+			end
+		end
+	end
+
+	-- ─── Taktik görünüm ─────────────────────────────────────────────────────
+	local camera = workspace.CurrentCamera
+	local savedFov = 70
+
+	local function tacticalCFrame(index: number): CFrame
+		local eye = DefenseConfig.ToWorld(index, Vector2.new(0, -26), 128)
+		local target = DefenseConfig.ToWorld(index, Vector2.new(0, 118), 0)
+		return CFrame.lookAt(eye, target)
+	end
+
+	local ui: DefenseUI.UI
+
+	local function clearPick()
+		pickedSlot = nil
+		pickedSupport = nil
+		moving = false
+		ui.SetPicked(nil, nil)
+		DefenseFX.Marker(nil, false)
+	end
+
+	local function select(uid: number?)
+		selectedUid = uid
+		moving = false
+		DefenseFX.Select(uid)
+		local info = nil
+		if uid and run then
+			for _, u in run.units do
+				if u.uid == uid then
+					info = u
+				end
+			end
+		end
+		ui.SetSelected(info)
+	end
+
+	local function updateHint()
+		if not command then
+			return
+		end
+		if not run then
+			ui.Hint("Pick a sector and press BEGIN")
+		elseif run.phase == "fight" then
+			ui.Hint(if pickedSupport == "Strike" then "Tap the field to call the Orbital Strike" else "Defend the ship!")
+		elseif pickedSlot then
+			ui.Hint("Tap the field to place your crewmate")
+		elseif moving then
+			ui.Hint("Tap the field to move it there")
+		elseif #run.units == 0 then
+			ui.Hint("Tap a crewmate below, then tap the field. The orange arrows show where they come from!")
+		else
+			ui.Hint("Tap a placed crewmate to move or recall it")
+		end
+	end
+
+	local function enterCommand()
+		if command or not planet then
+			return
+		end
+		command = true
+		local controls = getControls()
+		if controls then
+			controls:Disable()
+		end
+		savedFov = camera.FieldOfView
+		camera.CameraType = Enum.CameraType.Scriptable
+		TweenService:Create(camera, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ CFrame = tacticalCFrame(planet :: number), FieldOfView = 70 }):Play()
+		ui.SetCommand(true)
+		updateHint()
+	end
+
+	local function exitCommand()
+		if not command then
+			return
+		end
+		command = false
+		clearPick()
+		select(nil)
+		local controls = getControls()
+		if controls then
+			controls:Enable()
+		end
+		camera.FieldOfView = savedFov
+		camera.CameraType = Enum.CameraType.Custom
+		ui.SetCommand(false)
+	end
+
+	-- ─── Arayüz kancaları ───────────────────────────────────────────────────
+	ui = DefenseUI.Create(screen, {
+		send = send,
+		pickCrew = function(slot: number?)
+			pickedSupport = nil
+			moving = false
+			select(nil)
+			pickedSlot = slot
+			ui.SetPicked(slot, nil)
+			updateHint()
+		end,
+		pickSupport = function(id: string?)
+			pickedSlot = nil
+			if id and id ~= "Strike" then
+				send("support", id)
+				pickedSupport = nil
+				ui.SetPicked(nil, nil)
+				return
+			end
+			pickedSupport = id
+			ui.SetPicked(nil, id)
+			updateHint()
+		end,
+		moveSelected = function()
+			if selectedUid then
+				moving = true
+				updateHint()
+			end
+		end,
+		recallSelected = function()
+			if selectedUid then
+				send("recall", selectedUid)
+				select(nil)
+			end
+		end,
+		deselect = function()
+			select(nil)
+		end,
+		exitView = exitCommand,
+	})
+
+	-- ─── Dokunma / tıklama → alan noktası ───────────────────────────────────
+	local function fieldPoint(screenPos: Vector2): Vector2?
+		if not planet then
+			return nil
+		end
+		-- Girdi konumu üst çubuğu (GuiInset) saymıyor: ScreenPointToRay onu hesaba katıyor
+		local ray = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
+		local origin = DefenseConfig.WorldOrigin(planet :: number)
+		if math.abs(ray.Direction.Y) < 1e-4 then
+			return nil
+		end
+		local t = (origin.Y - ray.Origin.Y) / ray.Direction.Y
+		if t <= 0 then
+			return nil
+		end
+		local hit = ray.Origin + ray.Direction * t
+		return Vector2.new(hit.X - origin.X, hit.Z - origin.Z)
+	end
+
+	local function placeable(p: Vector2, ignore: number?): boolean
+		local F = DefenseConfig.Field
+		if math.abs(p.X) > F.halfWidth or p.Y < F.zMin or p.Y > F.zMax then
+			return false
+		end
+		if run then
+			for _, u in run.units do
+				if u.uid ~= ignore and (Vector2.new(u.x, u.z) - p).Magnitude < DefenseConfig.UnitSpacing then
+					return false
+				end
+			end
+		end
+		return true
+	end
+
+	local function pickedRange(): number?
+		if pickedSlot and data then
+			for _, c in data.crew or {} do
+				if c.slot == pickedSlot then
+					local role = DefenseConfig.GetRole(c.unitId)
+					return math.max(role.range, role.healRange or 0)
+				end
+			end
+		end
+		if pickedSupport == "Strike" then
+			return DefenseConfig.StrikeRadius
+		end
+		return nil
+	end
+
+	local function onPoint(screenPos: Vector2)
+		local p = fieldPoint(screenPos)
+		if not p then
+			return
+		end
+		if pickedSupport == "Strike" then
+			send("support", "Strike", p.X, p.Y)
+			pickedSupport = nil
+			ui.SetPicked(nil, nil)
+			DefenseFX.Marker(nil, false)
+			updateHint()
+			return
+		end
+		if not run or run.phase ~= "prep" then
+			return
+		end
+		if pickedSlot then
+			if placeable(p, nil) then
+				send("place", pickedSlot, p.X, p.Y)
+				SoundFX.Success()
+				pickedSlot = nil
+				ui.SetPicked(nil, nil)
+				DefenseFX.Marker(nil, false)
+			else
+				SoundFX.Deny()
+			end
+			updateHint()
+			return
+		end
+		if moving and selectedUid then
+			if placeable(p, selectedUid) then
+				send("move", selectedUid, p.X, p.Y)
+				moving = false
+				DefenseFX.Marker(nil, false)
+			else
+				SoundFX.Deny()
+			end
+			updateHint()
+			return
+		end
+		select(DefenseFX.UnitNear(p, 3))
+		updateHint()
+	end
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not command or processed then
+			return
+		end
+		local t = input.UserInputType
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+			onPoint(Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if not command or input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+		if not (pickedSlot or moving or pickedSupport == "Strike") then
+			return
+		end
+		local p = fieldPoint(Vector2.new(input.Position.X, input.Position.Y))
+		if p then
+			DefenseFX.Marker(p, pickedSupport == "Strike" or placeable(p, if moving then selectedUid else nil), pickedRange())
+		end
+	end)
+
+	-- ─── İniş ve kalkış ─────────────────────────────────────────────────────
+	local function dustAt(at: Vector3, color: Color3)
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.Transparency = 1
+		p.Size = Vector3.one
+		p.CFrame = CFrame.new(at)
+		p.Parent = workspace
+		local e = Instance.new("ParticleEmitter")
+		e.Color = ColorSequence.new(color)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 2), NumberSequenceKeypoint.new(1, 7) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1) })
+		e.Lifetime = NumberRange.new(1.2, 2)
+		e.Speed = NumberRange.new(10, 18)
+		e.SpreadAngle = Vector2.new(80, 10)
+		e.EmissionDirection = Enum.NormalId.Top
+		e.Rate = 0
+		e.Parent = p
+		e:Emit(30)
+		task.delay(3, function()
+			p:Destroy()
+		end)
+	end
+
+	local landingToken = 0
+	local function onLanding(index: number)
+		landingToken += 1
+		local token = landingToken
+		-- Emniyet: varış gelmezse (sunucu iptal etti, bağlantı koptu) perde kalksın
+		task.delay(8, function()
+			if landingToken == token and curtain.Visible and curtain.BackgroundTransparency < 0.5 then
+				fadeCurtain(false, 0.4)
+			end
+		end)
+		ui.CloseAll()
+		exitCommand()
+		local def = Config.SpaceMonsters[index]
+		if def then
+			discGrad.Color = ColorSequence.new(def.planetColor:Lerp(WHITE, 0.2), def.planetColor2)
+			curtainText.Text = "LANDING ON " .. string.upper(def.planet) .. "..."
+		end
+		planetDisc.Position = UDim2.fromScale(0.5, 1.6)
+		shipIcon.Position = UDim2.fromScale(0.5, -0.1)
+		fadeCurtain(true, 0.45)
+		TweenService:Create(planetDisc, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = UDim2.fromScale(0.5, 1.15) }):Play()
+		TweenService:Create(shipIcon, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = UDim2.fromScale(0.5, 0.62) }):Play()
+		SoundFX.GearSound("GearBlast", camera.CFrame.Position)
+		task.spawn(function()
+			pcall(function()
+				player:RequestStreamAroundAsync(DefenseConfig.ToWorld(index, DefenseConfig.Layout.spawn, 3), 5)
+			end)
+		end)
+	end
+
+	local function onArrived(index: number)
+		landingToken += 1
+		planet = index
+		DefenseFX.SetPlanet(index)
+		applyEnvironment(index)
+		-- Kamera gökten gemiye süzülüyor
+		local ship = DefenseConfig.ToWorld(index, Vector2.new(0, DefenseConfig.Layout.shipZ), 6)
+		local high = CFrame.lookAt(ship + Vector3.new(70, 90, 110), ship)
+		camera.CameraType = Enum.CameraType.Scriptable
+		camera.CFrame = high
+		fadeCurtain(false, 0.6)
+		local def = Config.SpaceMonsters[index]
+		local dustColor = if def then def.planetColor:Lerp(WHITE, 0.3) else WHITE
+		for _, x in { -10, 10 } do
+			for _, z in { -14, 12 } do
+				dustAt(DefenseConfig.ToWorld(index, Vector2.new(x, DefenseConfig.Layout.shipZ + z), 0.5), dustColor)
+			end
+		end
+		task.spawn(function()
+			local character = player.Character
+			local root = character and character:WaitForChild("HumanoidRootPart", 3) :: BasePart?
+			if root then
+				local behind = root.CFrame * CFrame.new(0, 6, 14)
+				local tween = TweenService:Create(camera, TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+					{ CFrame = CFrame.lookAt(behind.Position, root.Position + Vector3.new(0, 2, 0)) })
+				tween:Play()
+				tween.Completed:Wait()
+			end
+			if not command then
+				camera.CameraType = Enum.CameraType.Custom
+			end
+		end)
+		local name = if def then string.upper(def.planet) else "PLANET"
+		ui.Banner(name, "Walk to the COMMAND console in front of the ship to defend!", Color3.fromRGB(120, 230, 255))
+	end
+
+	local function onLaunch()
+		landingToken += 1
+		local token = landingToken
+		task.delay(8, function()
+			if landingToken == token and curtain.Visible and curtain.BackgroundTransparency < 0.5 then
+				fadeCurtain(false, 0.4)
+			end
+		end)
+		exitCommand()
+		ui.CloseAll()
+		curtainText.Text = "TAKING OFF..."
+		planetDisc.Position = UDim2.fromScale(0.5, 1.15)
+		shipIcon.Position = UDim2.fromScale(0.5, 0.62)
+		fadeCurtain(true, 0.4)
+		TweenService:Create(planetDisc, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Position = UDim2.fromScale(0.5, 1.7) }):Play()
+		TweenService:Create(shipIcon, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Position = UDim2.fromScale(0.5, -0.2) }):Play()
+		SoundFX.GearSound("GearBlast", camera.CFrame.Position)
+	end
+
+	local function onHome()
+		landingToken += 1
+		planet = nil
+		run = nil
+		DefenseFX.Clear()
+		applyEnvironment(nil)
+		camera.CameraType = Enum.CameraType.Custom
+		fadeCurtain(false, 0.6)
+	end
+
+	-- ─── Sunucu olayları ────────────────────────────────────────────────────
+	stateRemote.OnClientEvent:Connect(function(kind: string, payload: any)
+		if kind == "data" then
+			data = payload
+			ui.SetData(payload)
+		elseif kind == "pilot" then
+			ui.OpenPilot()
+		elseif kind == "landing" then
+			onLanding(payload)
+		elseif kind == "arrived" then
+			onArrived(payload)
+		elseif kind == "launch" then
+			onLaunch()
+		elseif kind == "home" then
+			onHome()
+		elseif kind == "command" then
+			enterCommand()
+		elseif kind == "open" then
+			ui.OpenShop(payload)
+		elseif kind == "run" then
+			local wasFight = run ~= nil and run.phase == "fight"
+			run = payload
+			ui.SetRun(payload, if payload then payload.planet else planet)
+			if payload then
+				DefenseFX.SetPlanet(payload.planet)
+				if payload.phase == "prep" then
+					if wasFight then
+						DefenseFX.ClearEnemies()
+					end
+					DefenseFX.ResetUnitHealth()
+				end
+				DefenseFX.SyncUnits(payload.units)
+				DefenseFX.ShowPaths(payload.plan.paths, payload.phase == "fight")
+				if selectedUid then
+					select(selectedUid)
+				end
+			else
+				DefenseFX.Clear()
+				select(nil)
+			end
+			updateHint()
+		elseif kind == "tick" then
+			DefenseFX.Tick(payload, if run then run.plan.paths else nil)
+			ui.SetTick(payload)
+		elseif kind == "waveEnd" then
+			if payload.won then
+				if payload.sector then
+					local sub = string.format("%s   %s", string.rep("★", payload.stars) .. string.rep("☆", 3 - payload.stars),
+						if payload.gold > 0 then string.format("+%d GOLD", payload.gold) else "no new stars")
+					ui.Banner(string.format("SECTOR %d CLEAR!", payload.sector), sub, Color3.fromRGB(255, 220, 80))
+					SoundFX.Success()
+				else
+					ui.Banner(string.format("WAVE %d CLEARED", payload.wave),
+						if payload.losses > 0 then string.format("%d crewmate(s) sent to hospital", payload.losses) else "No losses!",
+						Color3.fromRGB(120, 255, 140))
+				end
+			end
+		elseif kind == "over" then
+			if payload.reason == "lost" then
+				ui.Banner("DEFEATED", string.format("The ship fell on wave %d. %d crewmate(s) went to the hospital.",
+					payload.wave, payload.fell), Color3.fromRGB(255, 90, 90))
+				SoundFX.Deny()
+			else
+				ui.Banner("RETREAT", string.format("%d wave(s) cleared · +%d gold", payload.wavesCleared, payload.gold),
+					Color3.fromRGB(200, 210, 255))
+			end
+		end
+	end)
+
+	-- Yeniden doğunca taktik görünümden çık; gezegendeysek atmosfer kalsın
+	player.CharacterAdded:Connect(function()
+		exitCommand()
+	end)
+	player:GetAttributeChangedSignal("DefensePlanet"):Connect(function()
+		local p = player:GetAttribute("DefensePlanet")
+		if typeof(p) ~= "number" then
+			planet = nil
+			applyEnvironment(nil)
+		end
+	end)
+
+	DefenseFX.Start()
+	-- Oturum ortasında yeniden kurulduysa (Studio) durumu iste
+	task.delay(3, function()
+		send("sync")
+	end)
+end
+
+return DefenseClient

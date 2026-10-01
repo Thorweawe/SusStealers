@@ -13,6 +13,20 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (76) — Batur (Yusuf'un şeridine de yazıldı: yeni `DefenseClient`, `DefenseFX`, `DefenseUI`; `init.client`'e 2 satır; ortak: yeni `DefenseConfig`, `DefenseSim`, `EnemyModel`, `Net`)
+
+Studio'ya aktarıldı, **194/194 test temiz**, konsol temiz. Studio'da uçtan uca denendi (iniş → 4 crewmate yerleştir → 1. dalga kayıpsız → kalkış, crewmate'ler kaideye döndü; pilot ve 4 dükkân penceresi açılıyor). Plan: `PLAN-GEZEGEN-SAVUNMA.md`.
+
+- **GEZEGEN SAVUNMASI (yeni mod) — CANLIDA KAPALI**: `DefenseConfig.Live = false`. Canlı sunucuda PILOT istemi yok, `Defense` remote'u her şeyi reddediyor, istemci hiçbir şey kurmuyor. **Studio'da açık** (`RunService:IsStudio()`). Batur "aç" deyince `true`.
+- Navigasyon odasındaki Dash'te PILOT istemi → gezegen seç → iniş animasyonu → gezegen yüzeyi (`PlanetWorldService`, x ≈ 9000+, ilk inişte kuruluyor; inik gemi, Hospital/Armory/Command Shop/Market, KOMUTA ve TAKE OFF konsolları).
+- Savaş sunucuda veri olarak (`DefenseSim`, 10 Hz), olaylar yalnızca sahibine (`DefenseState`); istemci kendi düşmanlarını çiziyor. Boss dalgası (her 5.) **Yusuf'un 3B canavar modeli** (`MonsterModel.Build` + `Rig:Pose`, ~9 stud).
+- Kaide: `Away` niteliği ("mission"/"hospital", `PlotService.SetAway/GetAway`, kayıtta `StoredUnit.away`). Uzaktaki crewmate gelir vermiyor (`EconomyService`), satılamıyor, impostor hedeflemiyor; sahada crewmate varken rebirth kapalı (`DefenseDeployed` niteliği).
+- Profil `defense` (altın, slot, gövde, rol seviyeleri, destekler, gezegen başına en iyi bölüm + yıldızlar); rebirth'te sıfırlanmıyor. Hastane revive = crewmate'in 15 dk'lık kazancı (`EconomyService.GetUnitIncome` / yeni `GetIncomeMultiplier`).
+- `DataService.OnBeforeRelease(cb)`: çıkışta son kayıttan önce çağrılıyor (dalga ortasında çıkan → sahadakiler hastaneye).
+- İstemciden sunucuya remote sınırı 24 (yeni `Defense`; gerekçesi Net.luau'da).
+
+---
+
 ## 2026-10-01 (75) — Yusuf (ortak şerit: `MonsterModel`, `UnitModel`)
 
 Studio'ya aktarıldı, **185/185 test temiz**. Yarım iş yok; aşağıdakiler şablon gelince kendiliğinden devreye giriyor.

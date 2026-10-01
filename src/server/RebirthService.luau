@@ -65,6 +65,13 @@ function RebirthService.TryRebirth(player: Player, skipCost: boolean?): boolean
 		return false
 	end
 
+	-- Gezegen savunmasında crewmate'ler sahadayken kaideler boşaltılamaz
+	-- (DefenseService niteliği yazıyor; ürün makbuzu sonra yeniden deneniyor)
+	if player:GetAttribute("DefenseDeployed") == true then
+		notify(player, "Bring your crew back from the planet first", true)
+		return false
+	end
+
 	local cost = Config.GetRebirthCost(profile.rebirths)
 	if skipCost then
 		-- "Anında Rebirth" ürünü: maliyet aranmıyor ama sıfırlama aynen

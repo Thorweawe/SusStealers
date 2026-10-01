@@ -30,6 +30,30 @@ export type StoredUnit = {
 	slot: number,
 	unitId: string,
 	mutationId: string?,
+	-- Gezegen savunması (DefenseService): "mission" sahada, "hospital"
+	-- düşmüş (revive bekliyor). İkisinde de kaide gelir üretmiyor.
+	away: string?,
+}
+
+--[[
+	Gezegen savunması (DefenseService, DefenseConfig). Kalıcı; rebirth'te
+	sıfırlanmıyor (altın ve yükseltmeler oyuncunun emeği).
+	  gold      — gezegen parası (yalnızca yeni yıldızlardan)
+	  slots     — Command Shop: sahaya konabilecek ek crewmate seviyesi
+	  hull      — Command Shop: gemi gövdesi seviyesi
+	  roles     — Armory: rol -> seviye
+	  supports  — Market: destek -> adet
+	  planets   — gezegen sırası (string) -> en iyi bölüm ve bölüm yıldızları
+]]
+export type DefenseData = {
+	gold: number,
+	goldEarned: number,
+	slots: number,
+	hull: number,
+	roles: { [string]: number },
+	supports: { [string]: number },
+	-- stars: bölüm no (dize; DataStore delikli diziyi sevmiyor) -> 1..3
+	planets: { [string]: { best: number, stars: { [string]: number } } },
 }
 
 export type Profile = {
@@ -177,6 +201,7 @@ export type Profile = {
 	     dükkândan alınan adetler, günlük bonusun en son alındığı gün,
 	     etkinlikte toplam kazanılan şeker. Etkinlik değişince sıfırlanıyor. ]]
 	limited: { id: string, candy: number, bought: { [string]: number }, lastDaily: number, earned: number, awarded: number, days: number, ms: number, gt: number },
+	defense: DefenseData,
 }
 
 export type QuestEntry = {
@@ -291,6 +316,7 @@ local function newProfile(): Profile
 		},
 		petsFound = {},
 		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0, gt = 0 },
+		defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} },
 	}
 end
 
@@ -544,6 +570,10 @@ local function sanitize(raw: any): Profile
 					slot = math.floor(entry.slot),
 					unitId = entry.unitId,
 					mutationId = mutationId,
+					-- "mission" kayıtta kaldıysa sunucu savaş sırasında kapanmış
+					-- (oyuncu çıkarken DefenseService hastaneye ya da kaideye
+					-- çeviriyor): oyuncunun suçu değil, kaideye dönüyor
+					away = if entry.away == "hospital" then "hospital" else nil,
 				})
 			end
 		end
@@ -723,6 +753,56 @@ local function sanitize(raw: any): Profile
 		end
 	end
 
+	-- Gezegen savunması
+	local def = (raw :: any).defense
+	if typeof(def) == "table" then
+		local d = profile.defense
+		local function num(v: any, max: number?): number
+			if typeof(v) == "number" and v == v and v >= 0 then
+				return math.floor(if max then math.min(v, max) else v)
+			end
+			return 0
+		end
+		d.gold = num(def.gold)
+		d.goldEarned = num(def.goldEarned)
+		d.slots = num(def.slots, 20)
+		d.hull = num(def.hull, 20)
+		if typeof(def.roles) == "table" then
+			for role, level in def.roles do
+				if typeof(role) == "string" and #role <= 24 then
+					local n = num(level, 50)
+					if n > 0 then
+						d.roles[role] = n
+					end
+				end
+			end
+		end
+		if typeof(def.supports) == "table" then
+			for id, n in def.supports do
+				if typeof(id) == "string" and #id <= 24 and num(n) > 0 then
+					d.supports[id] = num(n, 99)
+				end
+			end
+		end
+		if typeof(def.planets) == "table" then
+			for key, entry in def.planets do
+				local index = tonumber(key)
+				if index and index >= 1 and index <= 64 and typeof(entry) == "table" then
+					local stars: { [string]: number } = {}
+					if typeof(entry.stars) == "table" then
+						for i, n in entry.stars do
+							local k = tonumber(i)
+							if k and k >= 1 and k <= 2000 and num(n) > 0 then
+								stars[tostring(math.floor(k))] = math.clamp(num(n), 1, 3)
+							end
+						end
+					end
+					d.planets[tostring(math.floor(index))] = { best = num(entry.best, 2000), stars = stars }
+				end
+			end
+		end
+	end
+
 	return profile
 end
 
@@ -859,6 +939,14 @@ local function saveProfile(player: Player, releaseLock: boolean): boolean
 	snapshot.equippedPets = table.clone(profile.equippedPets)
 	snapshot.limited = table.clone(profile.limited)
 	snapshot.limited.bought = table.clone(profile.limited.bought)
+	local defense = table.clone(profile.defense)
+	defense.roles = table.clone(profile.defense.roles)
+	defense.supports = table.clone(profile.defense.supports)
+	defense.planets = {}
+	for key, entry in profile.defense.planets do
+		defense.planets[key] = { best = entry.best, stars = table.clone(entry.stars) }
+	end
+	snapshot.defense = defense
 
 	-- Görevler iki kat derin: vade -> entries -> görev
 	local quests: { [string]: QuestSlot } = {}
@@ -1086,7 +1174,27 @@ local function releaseLockOnly(player: Player)
 	end)
 end
 
+--[[
+	Oyuncu çıkarken, son kayıttan HEMEN ÖNCE çağrılan işler (sırası
+	PlayerRemoving bağlantılarına kalmasın). DefenseService sahadaki
+	crewmate'leri burada kaideye ya da hastaneye çeviriyor.
+]]
+local beforeRelease: { (Player, Profile) -> () } = {}
+
+function DataService.OnBeforeRelease(callback: (Player, Profile) -> ())
+	table.insert(beforeRelease, callback)
+end
+
 local function onPlayerRemoving(player: Player)
+	local profile = profiles[player]
+	if profile then
+		for _, callback in beforeRelease do
+			local ok, err = pcall(callback, player, profile)
+			if not ok then
+				warn("[DataService] before-release:", err)
+			end
+		end
+	end
 	if savingPaused then
 		releaseLockOnly(player)
 	else

@@ -79,6 +79,7 @@ local FuseFX = require(script.FuseFX)
 local AutoHatch = require(script.AutoHatch)
 local GearPanel = require(script.GearPanel)
 local JetpackPanel = require(script.JetpackPanel)
+local DefenseClient = require(script.DefenseClient)
 local SettingsPanel = require(script.SettingsPanel)
 local SpinPanel = require(script.SpinPanel)
 local CrewAura = require(script.CrewAura)
@@ -919,6 +920,11 @@ mountPanel("JetpackPanel", function()
 			jetpacks.Open()
 		end
 	end)
+end)
+
+-- Gezegen savunması: pilot penceresi, iniş, taktik görünüm, dükkânlar (sunucu DefenseService)
+mountPanel("Defense", function()
+	DefenseClient.Start(screen)
 end)
 
 -- Ek odalardaki görevler (Storage, Laboratory): pencere ve sarı "!" işaretleri

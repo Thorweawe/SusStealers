@@ -49,6 +49,9 @@ local RebirthService = require(Server.RebirthService)
 local NotifyService = require(Server.NotifyService)
 local LobbyBoardService = require(Server.LobbyBoardService)
 local LimitedEventService = require(Server.LimitedEventService)
+local DefenseService = require(Server.DefenseService)
+local DefenseConfig = require(ReplicatedStorage.Shared.DefenseConfig)
+local DefenseSim = require(ReplicatedStorage.Shared.DefenseSim)
 local MeteorShower = require(ReplicatedStorage.Shared.MeteorShower)
 local SpaceField = require(ReplicatedStorage.Shared.SpaceField)
 
@@ -2510,6 +2513,244 @@ function ServerTests2.Register(kit: Kit)
 		CosmeticService.Apply(ctx.player)
 		CosmeticService.Publish(ctx.player)
 		LimitedEventService.Publish(ctx.player)
+	end)
+
+	-- ─── V. Gezegen savunması ──────────────────────────────────────────────────
+
+	case("Savunma: dalga planı deterministik, kapı sabit, yollar alanda", function()
+		local F = DefenseConfig.Field
+		local a = DefenseConfig.BuildWave(1, 7, 4242, nil)
+		local b = DefenseConfig.BuildWave(1, 7, 4242, nil)
+		eq("aynı tohum aynı desen", a.pattern, b.pattern)
+		eq("aynı tohum aynı sayı", #a.spawns, #b.spawns)
+		eq("ilk dalga düz", DefenseConfig.BuildWave(1, 1, 99, nil).pattern, "straight")
+		ok("5. dalga boss", DefenseConfig.BuildWave(1, 5, 99, nil).boss)
+		ok("4. dalga boss değil", not DefenseConfig.BuildWave(1, 4, 99, nil).boss)
+		local inside, ends = true, true
+		for seed = 1, 40 do
+			local plan = DefenseConfig.BuildWave(3, 2 + seed % 12, seed, nil)
+			for _, path in plan.paths do
+				if path[1] ~= F.entrance or path[#path] ~= F.gate then
+					ends = false
+				end
+				for _, pt in path do
+					if math.abs(pt.X) > F.halfWidth then
+						inside = false
+					end
+				end
+			end
+		end
+		ok("kapıdan çıkıp rampada bitiyor", ends)
+		ok("yol alanın içinde", inside)
+		local last = DefenseConfig.BuildWave(1, 6, 7, nil).pattern
+		local repeatFree = true
+		for seed = 1, 30 do
+			if DefenseConfig.BuildWave(1, 6, seed, last).pattern == last then
+				repeatFree = false
+			end
+		end
+		ok("aynı desen arka arkaya gelmiyor", repeatFree)
+	end)
+
+	case("Savunma: güç farkı küçük, rol herkese var", function()
+		near("Red Crewmate ~1", DefenseConfig.GetPower("RedCrew", nil), 1.02, 0.03)
+		local top = DefenseConfig.GetPower("StarEmperor", "Impostor")
+		ok("en güçlü < 2x", top < 2, tostring(top))
+		ok("kazandıran daha güçlü", DefenseConfig.GetPower("Sheriff", nil) > DefenseConfig.GetPower("RedCrew", nil))
+		for _, unit in Config.Units do
+			if not DefenseConfig.UnitRoles[unit.id] then
+				ok("rolü elle yazılmış: " .. unit.id, false)
+			end
+		end
+		ok("bilinmeyen kimliğe de rol", DefenseConfig.GetRole("NoSuchUnit") ~= nil)
+	end)
+
+	case("Savunma: yıldız ve altın yalnızca yeni yıldızdan", function()
+		eq("kayıpsız 3", DefenseConfig.StarsForLosses(0), 3)
+		eq("2 kayıp 2", DefenseConfig.StarsForLosses(2), 2)
+		eq("3 kayıp 1", DefenseConfig.StarsForLosses(3), 1)
+		eq("3 yıldız 100", DefenseConfig.GoldForImprovement(1, 0, 3), 100)
+		eq("1'den 3'e fark", DefenseConfig.GoldForImprovement(1, 1, 3), 70)
+		eq("tekrar 3 yıldız 0", DefenseConfig.GoldForImprovement(1, 3, 3), 0)
+		eq("düşen yıldız 0", DefenseConfig.GoldForImprovement(1, 3, 1), 0)
+		ok("üst gezegen biraz fazla", DefenseConfig.GoldForStars(6, 3) > 100 and DefenseConfig.GoldForStars(6, 3) < 200)
+	end)
+
+	case("Savunma: sim — boş alan kaybediyor, güçlü ekip 1. dalgayı kayıpsız geçiyor", function()
+		-- 1. dalgada 5 düşman var: gövde 3 iken boş alan dayanamıyor
+		local empty = DefenseSim.New(1, 1, 5, {}, nil, 3, 3, nil)
+		eq("kimse yok: kayıp", DefenseSim.RunToEnd(empty, 600), "lost")
+		eq("düşmanlar gövdeyi yedi", empty.hull, 0)
+		local V = Vector2.new
+		-- Önde tank ve dövüşçü, arkada (yoldan uzakta) atıcı ve medic
+		local crew = {
+			{ uid = 1, unitId = "GalaxyGuardian", pos = V(0, 40) },
+			{ uid = 2, unitId = "StarEmperor", pos = V(-12, 44) },
+			{ uid = 3, unitId = "NebulaWizard", pos = V(12, 44) },
+			{ uid = 4, unitId = "TitanHeart", pos = V(0, 48) },
+		}
+		local lv = { Brawler = 10, Guard = 10, Shooter = 10, Assassin = 10, Medic = 10 }
+		local sim = DefenseSim.New(1, 1, 5, crew, lv, 25, 25, nil)
+		eq("güçlü ekip kazanıyor", DefenseSim.RunToEnd(sim, 600), "won")
+		eq("kayıp yok", sim.losses, 0)
+		ok("hepsi öldü", sim.kills == #sim.plan.spawns, string.format("%d/%d", sim.kills, #sim.plan.spawns))
+		-- Kilitlenme yok: uzaktaki tank + iyileştiren medic bile dalgayı bitiriyor
+		local stuck = DefenseSim.New(1, 9, 11, { { uid = 1, unitId = "AmogusPrime", pos = V(60, 190) },
+			{ uid = 2, unitId = "TheCrewmate", pos = V(58, 186) } }, lv, 25, 25, nil)
+		ok("dalga sonsuza dek sürmüyor", DefenseSim.RunToEnd(stuck, 900) ~= "fight")
+	end)
+
+	case("Savunma: kayıt — hastane kalıyor, görevdeki kaideye dönüyor, alanlar temiz", function()
+		local p = DataService._Sanitize({
+			units = {
+				{ slot = 1, unitId = "RedCrew", away = "hospital" },
+				{ slot = 2, unitId = "BlueCrew", away = "mission" },
+				{ slot = 3, unitId = "LimeCrew", away = "weird" },
+			},
+			defense = { gold = 150.7, slots = 2, hull = -3, roles = { Brawler = 4 },
+				supports = { Strike = 2 }, planets = { ["1"] = { best = 3, stars = { 3, 2, 1 } }, bad = {} } },
+		})
+		eq("hastane kaldı", p.units[1].away, "hospital")
+		eq("görev kaideye", p.units[2].away, nil)
+		eq("bilinmeyen durum yok", p.units[3].away, nil)
+		eq("altın", p.defense.gold, 150)
+		eq("negatif gövde 0", p.defense.hull, 0)
+		eq("rol", p.defense.roles.Brawler, 4)
+		eq("destek", p.defense.supports.Strike, 2)
+		eq("en iyi bölüm", p.defense.planets["1"].best, 3)
+		eq("yıldız dize anahtarlı", p.defense.planets["1"].stars["2"], 2)
+		eq("bozuk gezegen yok", p.defense.planets.bad, nil)
+		eq("yeni oyuncu altını", DataService._Sanitize({}).defense.gold, 0)
+	end)
+
+	case("Savunma: yerleştir → kaide görevde, gelir yok, satılamaz; geri çekil → döner", function(ctx)
+		clearPlot(ctx.plot)
+		local podiums = PlotService.GetPodiums(ctx.plot)
+		PlotService.PlaceUnit(podiums[1], "Sheriff")
+		PlotService.PlaceUnit(podiums[2], "RedCrew")
+		local slot = podiums[1]:GetAttribute("SlotIndex") :: number
+		local slot2 = podiums[2]:GetAttribute("SlotIndex") :: number
+		local before = EconomyService.GetIncome(ctx.player)
+		local keepDefense = ctx.profile.defense
+		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		DefenseService._setPlanet(ctx.player, 1)
+		DefenseService._begin(ctx.player, 1)
+		local run = DefenseService._sessions[ctx.player].run
+		ok("koşu başladı", run ~= nil and run.phase == "prep")
+		DefenseService._place(ctx.player, slot, Vector2.new(0, 40))
+		eq("kaide görevde", PlotService.GetAway(podiums[1]), "mission")
+		ok("gelir düştü", EconomyService.GetIncome(ctx.player) < before)
+		ok("ayrıldı bayrağı", ctx.player:GetAttribute("DefenseDeployed") == true)
+		local entry = nil
+		for _, u in ctx.profile.units do
+			if u.slot == slot then
+				entry = u
+			end
+		end
+		eq("kayıtta görevde", entry and entry.away, "mission")
+		DefenseService._place(ctx.player, slot, Vector2.new(10, 40))
+		eq("aynı crewmate iki kez konmuyor", #run.units, 1)
+		DefenseService._place(ctx.player, slot2, Vector2.new(1, 41))
+		eq("çok yakına konmuyor", #run.units, 1)
+		DefenseService._place(ctx.player, slot2, Vector2.new(0, 500))
+		eq("alan dışına konmuyor", #run.units, 1)
+		local SellService = require(Server.SellService)
+		ok("görevdeki satılamıyor", not SellService.Sell(ctx.player, podiums[1]))
+		ok("rebirth kapalı", not RebirthService.TryRebirth(ctx.player, true))
+		DefenseService._retreat(ctx.player)
+		eq("kaideye döndü", PlotService.GetAway(podiums[1]), nil)
+		eq("gelir geri", EconomyService.GetIncome(ctx.player), before)
+		ok("bayrak kalktı", ctx.player:GetAttribute("DefenseDeployed") == nil)
+		ok("koşu bitti", DefenseService._sessions[ctx.player].run == nil)
+		DefenseService._setPlanet(ctx.player, nil)
+		ctx.profile.defense = keepDefense
+		clearPlot(ctx.plot)
+	end)
+
+	case("Savunma: dalga kaybı → hastane; revive 15 dk'lık kazanç, let go siliyor", function(ctx)
+		clearPlot(ctx.plot)
+		local podiums = PlotService.GetPodiums(ctx.plot)
+		PlotService.PlaceUnit(podiums[1], "RedCrew")
+		PlotService.PlaceUnit(podiums[2], "BlueCrew")
+		PlotService.PlaceUnit(podiums[3], "YellowCrew")
+		local s1 = podiums[1]:GetAttribute("SlotIndex") :: number
+		local s2 = podiums[2]:GetAttribute("SlotIndex") :: number
+		local s3 = podiums[3]:GetAttribute("SlotIndex") :: number
+		local keepDefense = ctx.profile.defense
+		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		DefenseService._setPlanet(ctx.player, 1)
+		DefenseService._begin(ctx.player, 1)
+		local run = DefenseService._sessions[ctx.player].run
+		-- Alanın en ucuna koy: düşmanlar yanından geçip gemiye ulaşsın
+		DefenseService._place(ctx.player, s1, Vector2.new(60, 196))
+		run.hull = 1
+		DefenseService._go(ctx.player)
+		eq("savaş başladı", run.phase, "fight")
+		for _ = 1, 6000 do
+			if DefenseService._sessions[ctx.player].run == nil then
+				break
+			end
+			DefenseService._step(0.1)
+		end
+		ok("koşu bitti", DefenseService._sessions[ctx.player].run == nil)
+		eq("hastanede", PlotService.GetAway(podiums[1]), "hospital")
+		eq("dokunulmayan evde", PlotService.GetAway(podiums[2]), nil)
+		local cost = DefenseService.GetReviveCost(ctx.player, "RedCrew", nil)
+		local perSecond = EconomyService.GetUnitIncome(ctx.player, "RedCrew", nil)
+		near("15 dk'lık kazanç", cost, math.max(100, math.ceil(perSecond * 900)), 1)
+		setCash(ctx.player, cost - 1)
+		ok("parası yetmiyor", not DefenseService.Revive(ctx.player, s1))
+		setCash(ctx.player, cost + 10)
+		ok("revive", DefenseService.Revive(ctx.player, s1))
+		eq("para düştü", EconomyService.GetCash(ctx.player), 10)
+		eq("kaideye döndü", PlotService.GetAway(podiums[1]), nil)
+		PlotService.SetAway(podiums[3], "hospital")
+		ok("let go", DefenseService.Release(ctx.player, s3))
+		ok("kaide boşaldı", not PlotService.IsOccupied(podiums[3]))
+		ok("evdekini let go olmuyor", not DefenseService.Release(ctx.player, s2))
+		DefenseService._setPlanet(ctx.player, nil)
+		ctx.profile.defense = keepDefense
+		clearPlot(ctx.plot)
+	end)
+
+	case("Savunma: dükkânlar altın harcıyor, tavanı aşmıyor", function(ctx)
+		local keepDefense = ctx.profile.defense
+		ctx.profile.defense = { gold = 100, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		ok("rol", DefenseService.Buy(ctx.player, "role", "Brawler"))
+		eq("seviye 1", ctx.profile.defense.roles.Brawler, 1)
+		eq("altın düştü", ctx.profile.defense.gold, 100 - (DefenseConfig.RoleUpgradeCost(0) :: number))
+		ok("yetmeyen altın", not DefenseService.Buy(ctx.player, "slot"))
+		ctx.profile.defense.gold = 100000
+		for _ = 1, 20 do
+			DefenseService.Buy(ctx.player, "slot")
+		end
+		eq("slot tavanı", DefenseConfig.GetSlots(ctx.profile.defense.slots), DefenseConfig.BaseSlots + #DefenseConfig.SlotCosts)
+		for _ = 1, 10 do
+			DefenseService.Buy(ctx.player, "support", "Strike")
+		end
+		eq("destek tavanı", ctx.profile.defense.supports.Strike, DefenseConfig.SupportStack)
+		ok("bilinmeyen tür", not DefenseService.Buy(ctx.player, "free", "gold"))
+		ok("bilinmeyen rol", not DefenseService.Buy(ctx.player, "role", "God"))
+		ctx.profile.defense = keepDefense
+	end)
+
+	case("Savunma: gezegen kilidi rebirth ve önceki gezegen", function(ctx)
+		local keepDefense = ctx.profile.defense
+		local keepReb = ctx.profile.rebirths
+		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		ctx.profile.rebirths = 0
+		ok("ilk gezegen açık", (DefenseService.IsPlanetUnlocked(ctx.profile, 1)))
+		ok("ikinci kapalı", not (DefenseService.IsPlanetUnlocked(ctx.profile, 2)))
+		ctx.profile.defense.planets["1"] = { best = DefenseConfig.UnlockSectors, stars = {} }
+		ok("bölüm bitince açık", (DefenseService.IsPlanetUnlocked(ctx.profile, 2)))
+		for i = 1, 6 do
+			ctx.profile.defense.planets[tostring(i)] = { best = 9, stars = {} }
+		end
+		ok("rebirth gezegeni kilitli", not (DefenseService.IsPlanetUnlocked(ctx.profile, 7)))
+		ctx.profile.rebirths = 2
+		ok("rebirth 2 ile açık", (DefenseService.IsPlanetUnlocked(ctx.profile, 7)))
+		ctx.profile.defense = keepDefense
+		ctx.profile.rebirths = keepReb
 	end)
 end
 

@@ -2190,10 +2190,11 @@ case("Güvenlik: istemciden sunucuya dinlenen remote listesi bilinçli", functio
 		SettingsSave oyuncu ayarları için eklendi; SpaceHit uzay soygununa
 		geçilince kalktı; 2026-09-28'de SpaceReturn istasyona dönüş,
 		JetpackAction jetpack dükkânı, SpinRequest çark penceresi eklendi;
-		SeasonClaim Sezon Kartı; gerekçeleri Net.luau'da): yenisi eklemek
-		bilinçli bir karar olsun, kazara büyümesin.
+		SeasonClaim Sezon Kartı; 2026-10-01 Defense gezegen savunması;
+		gerekçeleri Net.luau'da): yenisi eklemek bilinçli bir karar olsun,
+		kazara büyümesin.
 	]]
-	ok("liste bilinçli", #listened <= 23, tostring(#listened))
+	ok("liste bilinçli", #listened <= 24, tostring(#listened))
 
 	for _, name in listened do
 		ok(name .. " gerçekten var", ReplicatedStorage.Net:FindFirstChild(name) ~= nil)

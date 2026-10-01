@@ -80,6 +80,13 @@ function SellService.Sell(player: Player, podium: Part): boolean
 		return false
 	end
 
+	-- Gezegen savunmasında: sahadaki satılamaz, hastanedekini gezegendeki
+	-- hastane bırakıyor (DefenseService)
+	if PlotService.GetAway(podium) then
+		notify(player, "This crewmate is away on a planet mission", true)
+		return false
+	end
+
 	-- Fiyatı kaide boşalmadan önce oku
 	local unitId = podium:GetAttribute("UnitId") :: string
 	local mutationId = podium:GetAttribute("MutationId") :: string
@@ -121,7 +128,7 @@ local function setupPodiumPrompt(podium: Part)
 	--[[ Kaide dolduğunda promptu aç, fiyatı da üstünde göster. ]]
 	local function refresh()
 		local unitId = podium:GetAttribute("UnitId") :: string
-		if unitId == "" then
+		if unitId == "" or PlotService.GetAway(podium) then
 			prompt.Enabled = false
 			return
 		end
@@ -134,6 +141,7 @@ local function setupPodiumPrompt(podium: Part)
 	end
 
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
+	podium:GetAttributeChangedSignal("Away"):Connect(refresh)
 	refresh()
 
 	PromptGuard.Connect(prompt, function(player)
