@@ -13,6 +13,14 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (69) — Batur (Yusuf'un şeridine yazıldı: Engagement)
+
+**Studio kapalıydı, oyunda denenmedi**: Studio açılınca aktarılıp bakılacak.
+
+- **Beğeni kartı** (`Engagement.showLike`): oturumda 8 dk oynayıp en az bir soygun yapan oyuncuya bir kez "ENJOYING THE GAME? 👍" kartı. "YES" → kart teşekküre dönüyor, oyun sayfasındaki 👍'yi hatırlatıyor ve Roblox'un favori istemini açıyor (favorideyse açmıyor). Roblox'ta oyuncu adına beğeni yapan/beğeni penceresi açan API yok; beğeni ya da favori karşılığı ödül verilmiyor (Roblox kurallarına aykırı).
+
+---
+
 ## 2026-10-01 (68) — Yusuf / Claude (Config.Hype, SpaceService, DataService, AdminService, SoftShutdown)
 - Duyurular gezegendeki GERÇEK ihtimale göre: `Config.SpawnChance(unit, mutation, planet)` (nadirlik payı × mutasyon şansı). Alarm: ihtimal ≤ %0.2 ya da gezegenin en nadir kademesi ≤ %5 (ör. Rift Stalker Secret %2). Soygun sohbette ≤ %1, bütün sunuculara ≤ %0.1. Leviathan'da Secret (%12) artık alarm değil. Ölçüm: temel gezegenlerde 5 dk'da ~0.3 alarm (eskiden ~1.3+); test koruyor.
 - DataService: Studio/test oturumları canlı kaydın kilidini bırakıyor; yükleme ~40 sn bekliyor ("still saving" atma sorunu).
