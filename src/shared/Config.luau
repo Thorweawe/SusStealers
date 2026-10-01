@@ -1656,6 +1656,17 @@ function Config.GetGearCooldown(player: Player, cooldown: number?): number
 	return (cooldown or 1) * Config.GetGearRecharge(if typeof(level) == "number" then level else 0)
 end
 
+-- ─── Efekt dokuları ─────────────────────────────────────────────────────────
+--[[ 2026-10-01: ChatGPT ile üretilen beyaz parçacık dokuları (siyah zemin →
+     saydam, tools: vfx_art/), grup adına yüklendi. Beyazlar; ParticleEmitter
+     Color ile boyanıyor. ]]
+Config.Vfx = {
+	Star = "rbxassetid://101252394062436",   -- 4 köşeli ışıltı, uzun ışınlar
+	Orb = "rbxassetid://126212860372362",    -- yumuşak ışık küresi + ince hale
+	Wisp = "rbxassetid://112622141038300",   -- kıvrılan enerji dumanı
+	Nebula = "rbxassetid://124233803162711", -- yıldız benekli nebula bulutu
+}
+
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret" | "Celestial"
 

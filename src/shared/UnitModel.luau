@@ -55,6 +55,43 @@ local WHITE = Color3.fromRGB(245, 245, 250)
 local GOLD = Color3.fromRGB(255, 200, 50)
 local WOOD = Color3.fromRGB(120, 80, 45)
 
+--[[ Özel dokulu parçacık (Config.Vfx), gövdeye bağlı. Kaidede sekiz karakter
+     yan yana durduğu için yalnızca Legendary+ özel karakterlerde, az ve yavaş. ]]
+local function aura(k: Kit, name: string, offset: Vector3, texture: string, c1: Color3, c2: Color3, size: number, rate: number, life: number, opts: { surface: boolean?, speed: number?, accel: Vector3?, alpha: number?, spin: number? }?)
+	local o = opts or {}
+	local e = Instance.new("ParticleEmitter")
+	e.Name = name
+	e.Texture = texture
+	e.Color = ColorSequence.new(c1, c2)
+	e.LightEmission = 1
+	e.LightInfluence = 0
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size * 0.3), NumberSequenceKeypoint.new(0.3, size), NumberSequenceKeypoint.new(1, size * 0.2) })
+	local a0 = o.alpha or 0.2
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.25, a0), NumberSequenceKeypoint.new(0.75, a0 + (1 - a0) * 0.4), NumberSequenceKeypoint.new(1, 1) })
+	e.Lifetime = NumberRange.new(life * 0.7, life * 1.3)
+	local sp = o.speed or 0.3
+	e.Speed = NumberRange.new(sp * 0.5, sp)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Acceleration = o.accel or Vector3.zero
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-(o.spin or 40), o.spin or 40)
+	e.Rate = rate
+	if o.surface then
+		-- Gövde yüzeyinden dışa: içeride (opak gövdede) kaybolmuyor
+		e.Shape = Enum.ParticleEmitterShape.Box
+		e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+		e.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+		e.Parent = k.body
+	else
+		local a = Instance.new("Attachment")
+		a.Name = name
+		a.Position = offset
+		a.Parent = k.body
+		e.Parent = a
+	end
+	return e
+end
+
 -- Küçük yardımcı: bir mürettebat daha (Lime'ın pet mürettebatı, Double/Triple)
 local function miniCrew(k: Kit, prefix: string, at: CFrame, scale: number, color: Color3)
 	k.part(prefix .. "Body", Vector3.new(2.05, 2.5, 2.0) * scale, at * CFrame.new(0, 1.85 * scale, 0), color)
@@ -212,6 +249,14 @@ local EXTRAS: { [string]: { noHat: boolean?, build: (k: Kit) -> () } } = {
 			k.ball("Star", Vector3.new(0.28, 0.28, 0.28), CFrame.new(math.cos(a) * 2.0, 2.4 + math.sin(a * 2) * 0.4, math.sin(a) * 2.0),
 				Color3.fromRGB(255, 250, 200), Enum.Material.Neon)
 		end
+		-- 2026-10-01: uzay aurası (Config.Vfx): etrafta göz kırpan yıldızlar,
+		-- arkada yavaşça dönen mor-mavi nebula, yukarı süzülen yıldız tozu
+		aura(k, "Twinkle", Vector3.zero, Config.Vfx.Star, Color3.fromRGB(255, 250, 220), Color3.fromRGB(150, 200, 255), 0.75, 2.2, 1.4,
+			{ surface = true, speed = 0.7, spin = 80 })
+		aura(k, "Nebula", Vector3.new(0, 0.3, 0), Config.Vfx.Nebula, Color3.fromRGB(110, 80, 255), Color3.fromRGB(60, 170, 255), 3.4, 0.9, 3.2,
+			{ speed = 0.1, alpha = 0.72, spin = 12 })
+		aura(k, "Stardust", Vector3.new(0, -1, 0), Config.Vfx.Orb, Color3.fromRGB(190, 220, 255), Color3.fromRGB(170, 120, 255), 0.35, 3, 2.2,
+			{ speed = 0.6, accel = Vector3.new(0, 0.8, 0), alpha = 0.25 })
 	end },
 	Polus = { build = function(k)
 		-- Omuzlarda kar, gövdeden sarkan buz sarkıtları, atkı

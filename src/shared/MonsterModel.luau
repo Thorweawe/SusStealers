@@ -23,6 +23,10 @@
 	Yön: ileri -Z, yukarı +Y, ayak tabanı y = 0.
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(script.Parent.Config)
+
 local MonsterModel = {}
 
 type Opts = {
@@ -225,6 +229,69 @@ local function sparkles(ctx: Ctx, pos: Vector3, color: Color3, rate: number)
 	e.Parent = a
 end
 
+type VfxSpec = {
+	texture: string,
+	color: Color3,
+	color2: Color3?,
+	size: number,
+	rate: number,
+	life: number,
+	speed: number,
+	spread: number?,
+	accel: Vector3?,
+	alpha: number?,
+	spin: number?,
+	box: Vector3?,
+}
+
+--[[ Özel dokulu parçacık (Config.Vfx). Boyut ve hız ctx.S ile ölçekli.
+     `box` verilirse kutu hacminden doğuyor (gövdeyi saran bulut). ]]
+local function vfx(ctx: Ctx, name: string, pos: Vector3, spec: VfxSpec)
+	local holder: Instance
+	if spec.box then
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = spec.box * ctx.S
+		p.CFrame = CFrame.new(pos * ctx.S)
+		p.Transparency = 1
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p:SetAttribute("Bone", "Body")
+		p.Parent = ctx.model
+		holder = p
+	else
+		local a = Instance.new("Attachment")
+		a.Name = name
+		a.Position = pos * ctx.S
+		a.Parent = ctx.root
+		holder = a
+	end
+	local e = Instance.new("ParticleEmitter")
+	e.Name = name
+	e.Texture = spec.texture
+	e.Color = if spec.color2 then ColorSequence.new(spec.color, spec.color2) else ColorSequence.new(spec.color)
+	e.LightEmission = 1
+	e.LightInfluence = 0
+	local sz = spec.size * ctx.S
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, sz * 0.3), NumberSequenceKeypoint.new(0.25, sz), NumberSequenceKeypoint.new(1, sz * 0.15) })
+	local a0 = spec.alpha or 0.15
+	e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, a0), NumberSequenceKeypoint.new(0.7, a0 + (1 - a0) * 0.4), NumberSequenceKeypoint.new(1, 1) })
+	e.Lifetime = NumberRange.new(spec.life * 0.7, spec.life * 1.3)
+	e.Speed = NumberRange.new(spec.speed * 0.6 * ctx.S, spec.speed * ctx.S)
+	e.SpreadAngle = Vector2.new(spec.spread or 180, spec.spread or 180)
+	e.Acceleration = (spec.accel or Vector3.zero) * ctx.S
+	e.Rotation = NumberRange.new(0, 360)
+	e.RotSpeed = NumberRange.new(-(spec.spin or 30), spec.spin or 30)
+	e.Rate = spec.rate
+	if spec.box then
+		e.Shape = Enum.ParticleEmitterShape.Box
+		e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+	end
+	e.Parent = holder
+end
+
 local function light(ctx: Ctx, pos: Vector3, color: Color3, range: number, brightness: number)
 	local a = Instance.new("Attachment")
 	a.Name = "Light"
@@ -314,7 +381,68 @@ end
 
 -- ─── 2. Chomper: pembe dişli, üç gözlü, boynuzlu ────────────────────────────
 
+--[[ Chomper'ın efektleri (ağ ve parça sürümünde ortak): şeker pembesi
+     ışıltılar, ağızdan süzülen aç nefes, ayaklardan yükselen ışık
+     kabarcıkları. Az ve yavaş: sahne parıltıyla yıkanmasın. ]]
+local function chomperFx(ctx: Ctx)
+	local pink = rgb(255, 120, 200)
+	vfx(ctx, "CandyStars", Vector3.new(0, 8, 0), { texture = Config.Vfx.Star, color = rgb(255, 210, 240), color2 = pink, size = 1.3, rate = 3, life = 1.6, speed = 0.6, box = Vector3.new(15, 14, 13), spin = 60 })
+	vfx(ctx, "HungryBreath", Vector3.new(0, 6, -6.5), { texture = Config.Vfx.Wisp, color = rgb(255, 170, 215), color2 = rgb(255, 235, 245), size = 3.2, rate = 1.6, life = 2.2, speed = 2.2, spread = 25, accel = Vector3.new(0, 1.2, 0), alpha = 0.45, spin = 25 })
+	vfx(ctx, "SugarBubbles", Vector3.new(0, 1, 0), { texture = Config.Vfx.Orb, color = pink, color2 = rgb(255, 200, 120), size = 0.9, rate = 2.5, life = 2.6, speed = 1.5, spread = 35, accel = Vector3.new(0, 1.5, 0), alpha = 0.3, box = Vector3.new(12, 1, 10) })
+	light(ctx, Vector3.new(0, 7, -7), rgb(255, 120, 190), 18, 0.8)
+end
+
+--[[
+	3D ağ sürümü (2026-10-01): ChatGPT konsepti → TRELLIS (resimden 3D) →
+	tools/split_mesh.py → Studio Import 3D. Şablon ReplicatedStorage
+	.MonsterMeshes.Chomper: MeshPart'lar ölçek 1'de, ayak tabanı y=0, yüz -Z,
+	boy 17 stud. Ağ tek parça kabuk (kollar gövdeden ayrılmıyor), o yüzden
+	hepsi "Body" kemiğinde; çene açılmıyor ama ağız zaten kocaman açık.
+	Şablon yoksa (ör. testte) eski parça modeli kuruluyor.
+]]
+local function meshTemplate(id: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild("MonsterMeshes")
+	local m = folder and folder:FindFirstChild(id)
+	return if m and m:IsA("Model") then m else nil
+end
+
+local function fromTemplate(ctx: Ctx, template: Model, boneName: string)
+	for _, src in template:GetDescendants() do
+		if src:IsA("MeshPart") then
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Size = src.Size * ctx.S
+			p.CFrame = CFrame.new(src.Position * ctx.S) * src.CFrame.Rotation
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p:SetAttribute("Bone", boneName)
+			p.Parent = ctx.model
+		end
+	end
+end
+
+local function chomperMesh(ctx: Ctx, template: Model)
+	bone(ctx, "Body", Vector3.new(0, 1, 0), { axis = Vector3.xAxis, sway = 0.05, rate = 1.4, roar = -0.12 })
+	fromTemplate(ctx, template, "Body")
+	-- Kavrama: sağ pençenin önü; kemik omuzda, yakalarken öne/yukarı kalkıyor
+	bone(ctx, "ArmR", Vector3.new(5.9, 7.6, -0.4), { parent = "Body", axis = Vector3.xAxis, grab = 1.1, roar = 0.5 })
+	hand(ctx, Vector3.new(6.6, 4.6, -4.2), "ArmR")
+	chomperFx(ctx)
+end
+
 local function chomper(ctx: Ctx)
+	local template = meshTemplate("Chomper")
+	if template then
+		chomperMesh(ctx, template)
+		return
+	end
 	local skin = rgb(236, 88, 150)
 	local light2 = rgb(255, 168, 204)
 	local dark = rgb(170, 48, 110)
@@ -403,8 +531,7 @@ local function chomper(ctx: Ctx)
 		parent = name
 	end
 
-	sparkles(ctx, Vector3.new(0, 7, 0), rgb(255, 150, 210), 5)
-	light(ctx, Vector3.new(0, 7, -7), rgb(255, 120, 190), 18, 0.8)
+	chomperFx(ctx)
 end
 
 -- ─── 3. Nebula Kraken: mor ahtapot, sekiz dokunaç ───────────────────────────
