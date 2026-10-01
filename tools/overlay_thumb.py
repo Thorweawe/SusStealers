@@ -57,6 +57,16 @@ def apply(c, preset):
             ("1 in 8", 205, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
             ("$40.6M/s", 145, {"fill": money_fill(), "stroke": (10, 70, 20)}),
         ])
+    elif preset == "leviathan2":
+        # Düzen bloklu görsel: sol üst boş, büyük başlık
+        V3.stack_title(c, 120, 60, [
+            ("SECRET", 240, {"fill": rainbow_fill()}),
+            ("1 in 8", 280, {"fill": (255, 255, 255), "stroke": (200, 20, 50)}),
+            ("$40.6M/s", 220, {"fill": money_fill(), "stroke": (10, 70, 20)}),
+        ])
+    elif preset == "kraken2":
+        put_text(c, "SHHH...", (720, 230), 260, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
+        put_text(c, "GOLDEN!", (720, 500), 250, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
     elif preset == "kraken":
         put_text(c, "SHHH...", (600, 180), 205, angle=-5, fill=(255, 255, 255), stroke=(20, 60, 120))
         put_text(c, "GOLDEN!", (560, 390), 185, angle=-5, fill=gold_fill(), stroke=(110, 60, 0))
