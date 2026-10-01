@@ -24,6 +24,7 @@ local Net = require(Shared.Net)
 local CapsuleFX = require(script.CapsuleFX)
 local CosmeticPanel = require(script.CosmeticPanel)
 local AlertBanner = require(script.AlertBanner)
+local Quiet = require(script.Quiet)
 local DeviceLayout = require(script.DeviceLayout)
 local DecorFX = require(script.DecorFX)
 local PetFollow = require(script.PetFollow)
@@ -110,6 +111,8 @@ playerGui.ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor
 TitleScreen.Show({
 	-- Yeni oyuncuya hikâye girişi (Intro kendisi karar veriyor: öğretici başlamamışsa)
 	onPlay = function()
+		-- Yeni oyuncunun sessiz dönemi (ilk 8 dk kendiliğinden gelen duyurular yok)
+		Quiet.Start()
 		Intro.PlayIfNew()
 		-- Geri dönen oyuncunun "WELCOME BACK" kartı perde açılınca
 		Engagement.Ready()
@@ -243,6 +246,10 @@ local upgradePanel: UpgradePanel.Panel? = nil
 	Tür gelmezse SoundFX taban sese düşüyor, yani eski çağrılar da çalışıyor.
 ]]
 Net.Get("Notify").OnClientEvent:Connect(function(text: string, isError: boolean, kind: string?)
+	-- Yeni oyuncunun sessiz döneminde kendiliğinden gelen duyurular gösterilmiyor (Quiet)
+	if not Quiet.AllowNotify(kind, isError) then
+		return
+	end
 	-- Üssüne yönelik tehditler (sunucu isError ile gönderiyor) bantta
 	local bannerTitle = if kind and isError then BANNER_TITLES[kind] else nil
 	if bannerTitle then

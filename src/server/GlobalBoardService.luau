@@ -97,6 +97,8 @@ local BOARDS: { Board } = {
 local PODIUM = { "#FFC83C", "#C8D2DE", "#D68C50" }
 
 local stores: { [string]: OrderedDataStore? } = {}
+-- Testler kürsüyü kendisi kuruyor; döngü araya girmesin (SetPaused)
+local paused = false
 local names: { [number]: string } = {}
 
 local function storeFor(board: Board): OrderedDataStore?
@@ -430,16 +432,22 @@ function GlobalBoardService.Start()
 		task.wait(5)
 		refresh()
 		while true do
-			for _, player in Players:GetPlayers() do
-				write(player)
+			if not paused then
+				for _, player in Players:GetPlayers() do
+					write(player)
+				end
+				refresh()
 			end
-			refresh()
 			task.wait(INTERVAL)
 		end
 	end)
 end
 
 -- Testler için
+function GlobalBoardService.SetPaused(value: boolean)
+	paused = value
+end
+
 GlobalBoardService._UpdatePodium = function(rows: { Row })
 	updatePodium(BOARDS[1], rows)
 end

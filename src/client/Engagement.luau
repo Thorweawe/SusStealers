@@ -33,6 +33,7 @@ local TweenService = game:GetService("TweenService")
 local Config = require(ReplicatedStorage:WaitForChild("Shared").Config)
 
 local CardKit = require(script.Parent.CardKit)
+local Quiet = require(script.Parent.Quiet)
 local SoundFX = require(script.Parent.SoundFX)
 
 local Engagement = {}
@@ -135,17 +136,14 @@ local function showWelcome()
 	SoundFX.Event("welcome", false)
 end
 
---[[ Başlık ekranı kapandı: bekleyen kartlar artık çıkabilir. ]]
-function Engagement.Ready()
-	ready = true
-	readyAt = os.clock()
-	task.delay(0.8, showWelcome)
-	-- Beğeni kartı: süre dolunca (soygun da yapılmışsa); soygun sonra gelirse orada
-	task.delay(LIKE_AFTER + 1, showLike)
-end
 
 --[[ Roblox'un bildirim izni istemi (günlük ödül alınınca). Sessizce başarısız olabilir. ]]
 function Engagement.PromptNotifications()
+	-- Yeni oyuncunun sessiz döneminde sorma; dönem bitince bir kez sor
+	if Quiet.Active() then
+		task.delay(Quiet.Remaining() + 5, Engagement.PromptNotifications)
+		return
+	end
 	task.spawn(function()
 		local ok, can = pcall(function()
 			return ExperienceNotificationService:CanPromptOptInAsync()
@@ -257,8 +255,30 @@ local function showLike()
 	SoundFX.Event("welcome", false)
 end
 
+--[[
+	Başlık ekranı kapandı: bekleyen kartlar artık çıkabilir. showLike/LIKE_AFTER
+	yukarıda tanımlı olmalı (2026-10-01: önceden aşağıdaydı, Ready nil'e
+	toplama yapıp hata veriyordu ve beğeni kartı hiç çıkmıyordu).
+]]
+function Engagement.Ready()
+	ready = true
+	readyAt = os.clock()
+	task.delay(0.8, showWelcome)
+	-- Beğeni kartı: süre dolunca (soygun da yapılmışsa); soygun sonra gelirse orada
+	task.delay(LIKE_AFTER + 1, showLike)
+end
+
 local function maybeFavorite()
 	if favoriteAsked then
+		return
+	end
+	-- Yeni oyuncunun sessiz döneminde favori istemi yok; dönem bitince bir kez
+	if Quiet.Active() then
+		favoriteAsked = true
+		task.delay(Quiet.Remaining() + 8, function()
+			favoriteAsked = false
+			maybeFavorite()
+		end)
 		return
 	end
 	favoriteAsked = true

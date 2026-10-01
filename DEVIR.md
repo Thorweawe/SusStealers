@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (71) — Batur (Yusuf'un şeridine yazıldı: yeni Quiet modülü, init.client, Engagement, ServerBoostFX, SpaceFX)
+
+Studio'ya aktarıldı, **185/185 test temiz**, konsol temiz.
+
+- **Yeni oyuncunun sessiz dönemi** (`src/client/Quiet.luau`): öğreticiyi bitirmemiş oyuncu PLAY'den sonraki 8 dk kendiliğinden gelen duyuruları görmüyor: `title/quest/reward/friend/event` türü bildirimler (son 3 sn'de tıkladıysa cevap sayılıp gösteriliyor; hatalar hep), başkalarının sunucu şansı/trol bantları, nadir spawn kartı. Favori ve bildirim izni istemleri dönem bitince bir kez. Oyun mekanikleri değişmiyor. Yeni pop-up ekleyen `Quiet.Active()`'e baksın.
+- **Düzeltme**: beğeni kartı (69) hiç çıkmıyordu; `Engagement.Ready` yerel değişkenlerden önce tanımlıydı, `LIKE_AFTER` nil'di (konsolda "arithmetic on nil"). Ready aşağı taşındı.
+- `GlobalBoardService.SetPaused` (test koşusu sırasında sıralama döngüsü kürsüyü yeniden kurmuyor; Top Crew testi kararsızdı).
+
+---
+
 ## 2026-10-01 (70) — Batur (Yusuf'un şeridine de yazıldı: CrewAura, RarityFX, MapLife, ServerBoostFX, SeasonPanel, RewardsPanel, PetPanel)
 
 Studio'ya aktarıldı, **185/185 test temiz**. Alarm, uzay crewmate'leri Studio ekran yakalamasıyla görüldü.

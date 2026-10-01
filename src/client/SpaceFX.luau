@@ -33,6 +33,7 @@ local Net = require(Shared.Net)
 local SpaceField = require(Shared.SpaceField)
 
 local CardKit = require(script.Parent.CardKit)
+local Quiet = require(script.Parent.Quiet)
 local FlyPose = require(script.Parent.FlyPose)
 local JetpackModel = require(Shared.JetpackModel)
 local SoundFX = require(script.Parent.SoundFX)
@@ -1410,7 +1411,8 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			else
 				yell(string.format("STOLE %s!", string.upper(tostring(a))), Color3.fromRGB(120, 255, 130), 2.4)
 			end
-		elseif kind == "rarespawn" and typeof(a) == "string" and typeof(c) == "number" then
+		elseif kind == "rarespawn" and typeof(a) == "string" and typeof(c) == "number" and not Quiet.Active() then
+			-- Yeni oyuncunun sessiz döneminde nadir doğuş kartı yok (Quiet)
 			StealReveal.RareSpawn(screen, a, if typeof(b) == "string" and b ~= "" then b else nil, c)
 		end
 	end))

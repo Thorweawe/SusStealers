@@ -2750,6 +2750,8 @@ function ServerTests.Run(player: Player?): number
 		dağıtılıyor ve nakit sayan testler tutmuyor.
 	]]
 	TitleService.SetPaused(true)
+	-- Sıralama döngüsü kürsüyü yeniden kurmasın (Top Crew testi kendi satırını yazıyor)
+	require(Server.GlobalBoardService).SetPaused(true)
 	TutorialService.SetPaused(true)
 	QuestService.SetPaused(true)
 	-- Olay takvimi de dursun; süren bir olay gelir/süre ölçen testleri bozar
@@ -2799,6 +2801,7 @@ function ServerTests.Run(player: Player?): number
 	-- Ortamı geri yükle
 	SpaceService._SetLuckRoll(nil)
 	TitleService.SetPaused(false)
+	require(Server.GlobalBoardService).SetPaused(false)
 	TutorialService.SetPaused(false)
 	QuestService.SetPaused(false)
 	EventService.End()

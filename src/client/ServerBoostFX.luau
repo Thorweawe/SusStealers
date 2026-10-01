@@ -22,6 +22,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local FancyKit = require(script.Parent.FancyKit)
+local Quiet = require(script.Parent.Quiet)
 local SoundFX = require(script.Parent.SoundFX)
 local UiArt = require(script.Parent.UiArt)
 
@@ -316,14 +317,20 @@ function ServerBoostFX.Create(screen: ScreenGui)
 	Net.Get("ServerFX").OnClientEvent:Connect(function(kind, a, b, c, d)
 		if kind == "luck" and typeof(a) == "string" then
 			local mine = c == player.UserId
+			-- Başkasının aldığı şans bandı yeni oyuncunun sessiz döneminde yok (etki yine geçerli)
+			if not mine and Quiet.Active() then
+				return
+			end
 			banner(string.format("SERVER LUCK x%d!", Config.ServerLuck.multiplier),
 				whoText(if mine then "You" else a, "made everyone luckier for 15 minutes!"),
 				Color3.fromRGB(190, 255, 120), Color3.fromRGB(60, 200, 70), if typeof(c) == "number" then c else nil)
 		elseif kind == "troll" and typeof(a) == "string" and typeof(b) == "string" then
 			local seconds = if typeof(c) == "number" then c else 10
 			local mine = d == player.UserId
-			banner(TROLL_TEXT[a] or a, whoText(if mine then "You" else b, "trolled the server!"),
-				Color3.fromRGB(255, 170, 230), Color3.fromRGB(230, 60, 170), if typeof(d) == "number" then d else nil)
+			if mine or not Quiet.Active() then
+				banner(TROLL_TEXT[a] or a, whoText(if mine then "You" else b, "trolled the server!"),
+					Color3.fromRGB(255, 170, 230), Color3.fromRGB(230, 60, 170), if typeof(d) == "number" then d else nil)
+			end
 			--[[
 				2026-09-30: alan da görüyor (kısa). Eskiden yalnızca başkalarında
 				çalıyordu; tek başına alan oyuncu Robux ödeyip hiçbir şey görmüyordu.
