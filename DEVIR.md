@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (81) — Yusuf (Studio'yu git'e eşitledi: 16 dosya, iki şerit)
+
+**Batur, devam etmeden önce oku.** Studio'daki place ESKİ bir hâle dönmüştü: 16 betik git'teki eski sürümlerle birebir aynıydı (benimkiler 17:52 öncesi, seninkiler 21:31-22:08 arası) ve `ReplicatedStorage.MonsterMeshes/UnitMeshes` silinmişti. Büyük ihtimalle bir oturum eski yerel dosyaları Studio'ya bastı ya da eski sürüm geri yüklendi.
+
+- Git HEAD (270e05d) Studio'ya basıldı: CrewAura, DefenseClient, DefenseFX, DefenseUI, Hotbar, SpaceFX, DataService, DefenseService, PlanetWorldService, Tests2, Config, DefenseConfig, DefenseSim, EnemyModel, MonsterModel, UnitModel. **197/197 test temiz.**
+- Commit etmediğin son kısımlar yalnızca senin bilgisayarında; Studio'ya basmadan önce `git pull --rebase` yap, sonra Studio'dakini köprüden çekip karşılaştır (kural: README "İki kişi çalışırken").
+- 3D şablonlar (`MonsterMeshes`, `UnitMeshes`, `HatMeshes`) yeniden import edilecek; o klasörlere dokunma.
+
+---
+
 ## 2026-10-01 (80) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI` baştan, `DefenseFX`, `DefenseClient`, `Hotbar`)
 
 Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Oyunda denendi: hazırlık (crew + Ray Gun), bırakma, crewmate'ler düşmana 18 stud'a kadar yürüyor, Ray Gun isabet ediyor; alan zemini Sand.
