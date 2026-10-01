@@ -222,14 +222,32 @@ function FancyKit.jelly(parent: GuiObject, text: string, size: number, top: Colo
 	local x = 0
 	type Cell = { frame: Frame, x: number }
 	local cells: { Cell } = {}
-	for i = 1, #text do
-		local ch = string.sub(text, i, i)
+	-- 2026-10-01: harf harf UTF-8 (eskiden bayt bayt: "🌠" dört "?" kutusu oluyordu)
+	for _, code in utf8.codes(text) do
+		local ch = utf8.char(code)
 		if ch == " " then
 			x += math.floor(size * 0.32)
 			continue
 		end
 		local w = TextService:GetTextSize(ch, size, FONT, Vector2.new(1000, 1000)).X
-		local cell = FancyKit.title(holder, ch, size, top, bottom, z, driver)
+		local cell: Frame
+		if code >= 0x2000 then
+			-- Emoji: renkli kalsın (gradyan / koyu gölge katmanı emojiyi boyuyor)
+			cell = Instance.new("Frame")
+			cell.BackgroundTransparency = 1
+			cell.ZIndex = z
+			cell.Parent = holder
+			local e = Instance.new("TextLabel")
+			e.BackgroundTransparency = 1
+			e.Size = UDim2.fromScale(1, 1)
+			e.Font = FONT
+			e.Text = ch
+			e.TextSize = size
+			e.ZIndex = z + 1
+			e.Parent = cell
+		else
+			cell = FancyKit.title(holder, ch, size, top, bottom, z, driver)
+		end
 		cell.Size = UDim2.new(0, w + 8, 1, 0)
 		cell.Position = UDim2.fromOffset(x, 0)
 		table.insert(cells, { frame = cell, x = x })

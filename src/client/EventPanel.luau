@@ -140,7 +140,7 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- ─── Nasıl kazanılır ────────────────────────────────────────────────
 	local how = CardKit.bold(body, string.format(
-		"Steal crewmates for %s %s (rarer = more)  ·  %s crewmates give %dx  ·  catch falling stars  ·  log in daily",
+		"Steal crewmates for %s %s  ·  %s gives %dx  ·  catch falling stars",
 		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
 	how.Position = UDim2.fromOffset(12, 108)
 	how.Size = UDim2.new(1, -24, 0, 20)
