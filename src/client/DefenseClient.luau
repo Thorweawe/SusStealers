@@ -14,6 +14,7 @@
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -227,6 +228,108 @@ function DefenseClient.Start(screen: ScreenGui)
 	-- Hazırlıkta yerdeki crewmate'in yanına gidip E: geri ele al
 	DefenseFX.OnPickup(function(uid: number)
 		send("pickup", uid)
+	end)
+
+	--[[
+		Hedefli bırakma (Batur: "elimle koymak çok zor, tam istediğim yere
+		koyamıyorum"): crewmate elindeyken yerde nereye düşeceği halkayla
+		görünüyor; tıklayınca FARENİN gösterdiği noktaya (telefonda dokunulan
+		yere) bırakılıyor. Karakterden en fazla DROP_REACH; gamepad'de ya da
+		nokta yoksa karakterin önü. Sunucu da erişimi doğruluyor.
+	]]
+	local DROP_REACH = 42
+	local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local lastTouch: Vector2? = nil
+	local lastTouchAt = 0
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			lastTouch = Vector2.new(input.Position.X, input.Position.Y)
+			lastTouchAt = os.clock()
+		end
+	end)
+
+	local function rootLocal(): (Vector2?, Vector3?)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not (root and planet) then
+			return nil, nil
+		end
+		local rel = root.Position - DefenseConfig.WorldOrigin(arena)
+		return Vector2.new(rel.X, rel.Z), root.CFrame.LookVector
+	end
+
+	local function rayToField(ray: Ray): Vector2?
+		local origin = DefenseConfig.WorldOrigin(arena)
+		if math.abs(ray.Direction.Y) < 1e-4 then
+			return nil
+		end
+		local t = (origin.Y - ray.Origin.Y) / ray.Direction.Y
+		if t <= 0 then
+			return nil
+		end
+		local hit = ray.Origin + ray.Direction * t
+		return Vector2.new(hit.X - origin.X, hit.Z - origin.Z)
+	end
+
+	-- Bırakılacak nokta: fare / son dokunuş; erişim dışındaysa karakterin önü
+	local function aimPoint(preview: boolean): Vector2?
+		local me, look = rootLocal()
+		if not (me and look) then
+			return nil
+		end
+		local p: Vector2? = nil
+		if not touchOnly and UserInputService.MouseEnabled then
+			local m = UserInputService:GetMouseLocation()
+			p = rayToField(camera:ViewportPointToRay(m.X, m.Y))
+		elseif not preview and lastTouch and os.clock() - lastTouchAt < 0.6 then
+			p = rayToField(camera:ScreenPointToRay(lastTouch.X, lastTouch.Y))
+		end
+		if p and (p - me).Magnitude <= DROP_REACH then
+			return p
+		end
+		return me + Vector2.new(look.X, look.Z).Unit * 5
+	end
+
+	local function dropOk(p: Vector2): boolean
+		local F = DefenseConfig.Field
+		if math.abs(p.X) > F.halfWidth or p.Y < F.zMin or p.Y > F.zMax then
+			return false
+		end
+		if run then
+			for _, u in run.units do
+				if (Vector2.new(u.x, u.z) - p).Magnitude < DefenseConfig.UnitSpacing then
+					return false
+				end
+			end
+		end
+		return true
+	end
+
+	local function heldCrew(): Tool?
+		local character = player.Character
+		local tool = character and character:FindFirstChildOfClass("Tool")
+		return if tool and tool:GetAttribute("DefenseCrew") ~= nil then tool else nil
+	end
+
+	local previewing = false
+	RunService.RenderStepped:Connect(function()
+		local tool = heldCrew()
+		if not tool or pickedSupport == "Strike" then
+			if previewing then
+				previewing = false
+				if pickedSupport ~= "Strike" then
+					DefenseFX.Marker(nil, false)
+				end
+			end
+			return
+		end
+		local p = aimPoint(true)
+		if p then
+			previewing = true
+			local unitId = tool:GetAttribute("UnitId")
+			local role = if typeof(unitId) == "string" then DefenseConfig.GetRole(unitId) else nil
+			DefenseFX.Marker(p, dropOk(p), if role then role.leash else nil)
+		end
 	end)
 
 	-- ─── İniş ve kalkış ─────────────────────────────────────────────────────
@@ -456,6 +559,18 @@ function DefenseClient.Start(screen: ScreenGui)
 		local baseGrip = t.Grip
 		local swinging = false
 		t.Activated:Connect(function()
+			if isCrew then
+				local uid = t:GetAttribute("DefenseCrew")
+				local p = aimPoint(false)
+				if typeof(uid) == "number" and p then
+					if dropOk(p) then
+						send("drop", uid, p.X, p.Y)
+					else
+						SoundFX.Deny()
+						return
+					end
+				end
+			end
 			if swinging then
 				return
 			end

@@ -294,14 +294,21 @@ export type EnemyDef = {
 	from: number,        -- bu dalgadan itibaren çıkıyor
 	cleave: number?,     -- vuruş hedefin çevresine de yayılıyor (yarıçap)
 	boss: boolean?,
+	--[[ Davranış (Batur: "canavarlar daha akıllı olsun"):
+	     melee  — yolundaki crewmate'le dövüşüyor, en zayıfına yükleniyor
+	     rusher — yalnızca önünü kesen Guard / Brawler durduruyor, gemiye koşuyor
+	     sniper — menzilde durup atıcı ve medic'e tükürüyor
+	     tank   — dövüşçülere (Guard / Brawler) yükleniyor
+	     boss   — melee gibi, savuruşu çevreye yayılıyor ]]
+	ai: string,
 }
 
 DefenseConfig.Enemies = {
-	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 7,   dmg = 5,  range = 4.5,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
-	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 12,  dmg = 4,  range = 4,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
-	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 6,   dmg = 7,  range = 16, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
-	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 4.6, dmg = 16, range = 5.5, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
-	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.8, dmg = 26, range = 6.5, cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 6, boss = true },
+	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 7,   dmg = 5,  range = 4.5,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1, ai = "melee" },
+	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 12,  dmg = 4,  range = 4,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2, ai = "rusher" },
+	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 6,   dmg = 7,  range = 16, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3, ai = "sniper" },
+	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 4.6, dmg = 16, range = 5.5, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4, ai = "tank" },
+	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.8, dmg = 26, range = 6.5, cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 6, boss = true, ai = "boss" },
 } :: { [string]: EnemyDef }
 
 DefenseConfig.EnemyOrder = { "Grub", "Skitter", "Spitter", "Brute" }

@@ -206,67 +206,102 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	-- ═══ DEFEND penceresi ═══════════════════════════════════════════════════
+	--[[
+		İki sayfa (Batur: "crewmate seçtikten sonra NEXT deyince silahımızı
+		seçelim"): 1) crewmate'ler (role göre gruplu, en güçlüden zayıfa,
+		slot kadar), 2) bölüm + gear + DEFEND!.
+
+		Kaydırma ("aşağı inemiyorum"): seçince liste YENİDEN ÇİZİLMİYOR,
+		yalnızca o kartın çerçevesi değişiyor (eskiden her tıklama listeyi
+		baştan kurup en üste atıyordu). Veri gelince yeniden çizilse de
+		kaydırma yeri korunuyor.
+	]]
 	local prepRoot, prepBody = window("DefensePrepare", "DEFEND", {
 		Color3.fromRGB(60, 200, 110), Color3.fromRGB(40, 150, 230), Color3.fromRGB(120, 230, 90),
 	}, 840, 560)
 	local chosen: { [number]: boolean } = {}
 	local chosenGear = ""
+	local page = "crew"
 
-	-- Sol: crewmate seçimi
-	local leftCol = Instance.new("Frame")
-	leftCol.Size = UDim2.new(1, -290, 1, 0)
-	leftCol.BackgroundTransparency = 1
-	leftCol.ZIndex = Z + 3
-	leftCol.Parent = prepBody
-	local crewHeader = label(leftCol, "1 · PICK YOUR CREW", 20, Color3.fromRGB(150, 255, 180), Z + 4)
-	crewHeader.Size = UDim2.new(1, -170, 0, 28)
+	-- ── Sayfa 1: crewmate'ler ──
+	local crewPage = Instance.new("Frame")
+	crewPage.Size = UDim2.fromScale(1, 1)
+	crewPage.BackgroundTransparency = 1
+	crewPage.ZIndex = Z + 3
+	crewPage.Parent = prepBody
+	local crewHeader = label(crewPage, "1 · PICK YOUR CREW", 20, Color3.fromRGB(150, 255, 180), Z + 4)
+	crewHeader.Size = UDim2.new(1, -340, 0, 30)
 	crewHeader.TextXAlignment = Enum.TextXAlignment.Left
-	local autoB = button(leftCol, "⚡ BEST CREW", UDim2.fromOffset(160, 38), BLUE, Z + 4, 16)
+	local countChip, countText = chip(crewPage, "", Color3.fromRGB(60, 70, 110), Z + 4, 120)
+	countChip.AnchorPoint = Vector2.new(1, 0)
+	countChip.Position = UDim2.new(1, -176, 0, 2)
+	countChip.Size = UDim2.fromOffset(120, 28)
+	countText.TextSize = 16
+	local autoB = button(crewPage, "⚡ BEST CREW", UDim2.fromOffset(160, 38), BLUE, Z + 4, 16)
 	autoB.holder.AnchorPoint = Vector2.new(1, 0)
 	autoB.holder.Position = UDim2.new(1, -6, 0, -4)
-	local crewList = scroller(leftCol, Z + 3)
+	local crewList = scroller(crewPage, Z + 3)
 	crewList.Position = UDim2.fromOffset(0, 40)
-	crewList.Size = UDim2.new(1, 0, 1, -40)
+	crewList.Size = UDim2.new(1, 0, 1, -110)
+	crewList.ScrollingDirection = Enum.ScrollingDirection.Y
+	crewList.ScrollBarThickness = 10
 	list(crewList, false, 6)
+	local nextB = button(crewPage, "NEXT ▶", UDim2.fromOffset(240, 58), GREEN, Z + 4, 24)
+	nextB.holder.AnchorPoint = Vector2.new(1, 1)
+	nextB.holder.Position = UDim2.new(1, 0, 1, 0)
+	local crewNote = label(crewPage, "Tap crewmates to take them. Stronger ones earn more, but they can fall!", 14, SOFT, Z + 4, 1.2)
+	crewNote.AnchorPoint = Vector2.new(0, 1)
+	crewNote.Position = UDim2.new(0, 0, 1, -16)
+	crewNote.Size = UDim2.new(1, -260, 0, 24)
+	crewNote.TextXAlignment = Enum.TextXAlignment.Left
+	crewNote.TextWrapped = true
 
-	-- Sağ: bölüm, gear, özet
-	local rightCol = panel(prepBody, UDim2.new(0, 276, 1, 0), UDim2.new(1, 0, 0, 0), Vector2.new(1, 0), Z + 3,
-		Color3.fromRGB(36, 44, 72), Color3.fromRGB(20, 24, 40), 12)
-	local secTitle = label(rightCol, "2 · SECTOR", 18, Color3.fromRGB(150, 255, 180), Z + 4)
-	secTitle.Position = UDim2.fromOffset(12, 8)
-	secTitle.Size = UDim2.new(1, -24, 0, 22)
+	-- ── Sayfa 2: bölüm + gear ──
+	local gearPage = Instance.new("Frame")
+	gearPage.Size = UDim2.fromScale(1, 1)
+	gearPage.BackgroundTransparency = 1
+	gearPage.ZIndex = Z + 3
+	gearPage.Visible = false
+	gearPage.Parent = prepBody
+	local secTitle = label(gearPage, "2 · SECTOR", 20, Color3.fromRGB(150, 255, 180), Z + 4)
+	secTitle.Size = UDim2.new(1, 0, 0, 28)
 	secTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local prevB = button(rightCol, "◀", UDim2.fromOffset(42, 42), BLUE, Z + 4, 20)
-	prevB.holder.Position = UDim2.fromOffset(12, 36)
-	local sectorLabel = label(rightCol, "", 24, WHITE, Z + 4)
-	sectorLabel.Position = UDim2.fromOffset(58, 34)
-	sectorLabel.Size = UDim2.new(1, -116, 0, 28)
-	local sectorSub = label(rightCol, "", 13, GOLD, Z + 4, 1.2)
-	sectorSub.Position = UDim2.fromOffset(58, 62)
-	sectorSub.Size = UDim2.new(1, -116, 0, 16)
-	local nextSB = button(rightCol, "▶", UDim2.fromOffset(42, 42), BLUE, Z + 4, 20)
-	nextSB.holder.AnchorPoint = Vector2.new(1, 0)
-	nextSB.holder.Position = UDim2.new(1, -12, 0, 36)
+	local secCard = panel(gearPage, UDim2.new(1, 0, 0, 74), UDim2.fromOffset(0, 32), Vector2.zero, Z + 4,
+		Color3.fromRGB(36, 44, 72), Color3.fromRGB(20, 24, 40), 12)
+	local prevB = button(secCard, "◀", UDim2.fromOffset(50, 50), BLUE, Z + 5, 22)
+	prevB.holder.AnchorPoint = Vector2.new(0, 0.5)
+	prevB.holder.Position = UDim2.new(0, 12, 0.5, 2)
+	local sectorLabel = label(secCard, "", 28, WHITE, Z + 5)
+	sectorLabel.Position = UDim2.fromOffset(70, 6)
+	sectorLabel.Size = UDim2.new(1, -140, 0, 34)
+	local sectorSub = label(secCard, "", 15, GOLD, Z + 5, 1.3)
+	sectorSub.Position = UDim2.fromOffset(70, 42)
+	sectorSub.Size = UDim2.new(1, -140, 0, 20)
+	local nextSB = button(secCard, "▶", UDim2.fromOffset(50, 50), BLUE, Z + 5, 22)
+	nextSB.holder.AnchorPoint = Vector2.new(1, 0.5)
+	nextSB.holder.Position = UDim2.new(1, -12, 0.5, 2)
 
-	local gearTitle = label(rightCol, "3 · GEAR", 18, Color3.fromRGB(150, 255, 180), Z + 4)
-	gearTitle.Position = UDim2.fromOffset(12, 92)
-	gearTitle.Size = UDim2.new(1, -24, 0, 22)
+	local gearTitle = label(gearPage, "3 · PICK YOUR GEAR", 20, Color3.fromRGB(150, 255, 180), Z + 4)
+	gearTitle.Position = UDim2.fromOffset(0, 118)
+	gearTitle.Size = UDim2.new(1, 0, 0, 28)
 	gearTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local gearList = Instance.new("Frame")
-	gearList.Position = UDim2.fromOffset(10, 118)
-	gearList.Size = UDim2.new(1, -20, 0, 210)
+	gearList.Position = UDim2.fromOffset(0, 150)
+	gearList.Size = UDim2.new(1, 0, 0, 200)
 	gearList.BackgroundTransparency = 1
 	gearList.ZIndex = Z + 4
-	gearList.Parent = rightCol
-	list(gearList, false, 6)
-
-	local countLabel = label(rightCol, "", 18, WHITE, Z + 4)
-	countLabel.AnchorPoint = Vector2.new(0, 1)
-	countLabel.Position = UDim2.new(0, 12, 1, -76)
-	countLabel.Size = UDim2.new(1, -24, 0, 24)
-	local goPrepB = button(rightCol, "DEFEND! ▶", UDim2.new(1, -24, 0, 58), GREEN, Z + 4, 24)
-	goPrepB.holder.AnchorPoint = Vector2.new(0, 1)
-	goPrepB.holder.Position = UDim2.new(0, 12, 1, -10)
+	gearList.Parent = gearPage
+	local gearGrid = Instance.new("UIGridLayout")
+	gearGrid.CellSize = UDim2.new(1 / 3, -8, 1, 0)
+	gearGrid.CellPadding = UDim2.fromOffset(12, 0)
+	gearGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	gearGrid.Parent = gearList
+	local backB = button(gearPage, "◀ BACK", UDim2.fromOffset(170, 58), GREY, Z + 4, 20)
+	backB.holder.AnchorPoint = Vector2.new(0, 1)
+	backB.holder.Position = UDim2.new(0, 0, 1, 0)
+	local goPrepB = button(gearPage, "DEFEND! ▶", UDim2.fromOffset(260, 58), GREEN, Z + 4, 26)
+	goPrepB.holder.AnchorPoint = Vector2.new(1, 1)
+	goPrepB.holder.Position = UDim2.new(1, 0, 1, 0)
 
 	local function maxSector(): number
 		local p = data and data.planets and data.planets[currentPlanet]
@@ -292,10 +327,24 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	local renderPrep: () -> ()
+	-- Seçimde yalnızca kartın görünüşü değişiyor (liste yeniden çizilmiyor)
+	local cardViews: { [number]: { stroke: UIStroke, tick: Frame } } = {}
+
+	local function refreshCounts()
+		local cap = if data then data.slots else DefenseConfig.BaseSlots
+		local count = chosenCount()
+		countText.Text = string.format("CREW %d / %d", count, cap)
+		nextB.set(if count > 0 then "NEXT ▶" else "PICK CREW", if count > 0 then GREEN else nil)
+		for slot, v in cardViews do
+			local on = chosen[slot] == true
+			v.stroke.Color = if on then GOLD else OUTLINE
+			v.stroke.Thickness = if on then 4 else 2.5
+			v.tick.Visible = on
+		end
+	end
 
 	local function crewCard(parent: Instance, c: any, order: number)
 		local def = Config.GetUnit(c.unitId)
-		local selected = chosen[c.slot] == true
 		local card = Instance.new("TextButton")
 		card.LayoutOrder = order
 		card.Size = UDim2.fromOffset(104, 122)
@@ -305,7 +354,11 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		card.ZIndex = Z + 5
 		card.Parent = parent
 		FancyKit.corner(card, 10)
-		FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 4 else 2.5)
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = OUTLINE
+		stroke.Thickness = 2.5
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = card
 		local rarity = def and Config.Rarities[def.rarity]
 		local tint = if rarity then rarity.color else GREY
 		FancyKit.gradient(card, { tint:Lerp(WHITE, 0.15), tint:Lerp(Color3.new(0, 0, 0), 0.5) }, 90)
@@ -325,17 +378,17 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		local pw = label(card, string.format("⚡ %.2f", power), 13, GOLD, Z + 7, 1.2)
 		pw.Position = UDim2.fromOffset(3, 92)
 		pw.Size = UDim2.new(1, -6, 0, 16)
-		if selected then
-			local tick, _ = chip(card, "✓", GREEN, Z + 8, 26)
-			tick.Position = UDim2.new(1, -30, 0, 4)
-		end
+		local tick, _ = chip(card, "✓", GREEN, Z + 8, 26)
+		tick.Position = UDim2.new(1, -30, 0, 4)
+		tick.Visible = false
+		cardViews[c.slot] = { stroke = stroke, tick = tick }
 		card.Activated:Connect(function()
 			if chosen[c.slot] then
 				chosen[c.slot] = nil
 			elseif data and chosenCount() < data.slots then
 				chosen[c.slot] = true
 			end
-			renderPrep()
+			refreshCounts()
 		end)
 	end
 
@@ -343,27 +396,35 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		local selected = chosenGear == id
 		local card = Instance.new("TextButton")
 		card.LayoutOrder = order
-		card.Size = UDim2.new(1, 0, 0, 62)
 		card.BackgroundColor3 = WHITE
 		card.AutoButtonColor = false
 		card.Text = ""
 		card.ZIndex = Z + 5
 		card.Parent = gearList
-		FancyKit.corner(card, 10)
-		FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 4 else 2.5)
+		FancyKit.corner(card, 14)
+		FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 5 else 3)
 		FancyKit.gradient(card, if owned then { Color3.fromRGB(70, 92, 140), Color3.fromRGB(36, 44, 74) }
 			else { Color3.fromRGB(64, 64, 74), Color3.fromRGB(36, 36, 44) }, 90)
-		local ic = label(card, icon, 30, WHITE, Z + 6, 0)
-		ic.Size = UDim2.fromOffset(52, 62)
-		local t = label(card, title .. (if owned then "" else "  🔒"), 17, WHITE, Z + 6)
-		t.Position = UDim2.fromOffset(52, 8)
-		t.Size = UDim2.new(1, -60, 0, 22)
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		local s = label(card, sub, 12, SOFT, Z + 6, 1.1)
-		s.Position = UDim2.fromOffset(52, 32)
-		s.Size = UDim2.new(1, -60, 0, 24)
-		s.TextXAlignment = Enum.TextXAlignment.Left
+		local ic = label(card, icon, 56, WHITE, Z + 6, 0)
+		ic.Position = UDim2.fromOffset(0, 12)
+		ic.Size = UDim2.new(1, 0, 0, 70)
+		local t = label(card, title, 19, WHITE, Z + 6)
+		t.Position = UDim2.fromOffset(8, 88)
+		t.Size = UDim2.new(1, -16, 0, 24)
+		local s = label(card, sub, 13, SOFT, Z + 6, 1.1)
+		s.Position = UDim2.fromOffset(10, 116)
+		s.Size = UDim2.new(1, -20, 0, 44)
 		s.TextWrapped = true
+		s.TextYAlignment = Enum.TextYAlignment.Top
+		if selected then
+			local tick, _ = chip(card, "✓ SELECTED", GREEN, Z + 8, 110)
+			tick.AnchorPoint = Vector2.new(0.5, 1)
+			tick.Position = UDim2.new(0.5, 0, 1, -8)
+		elseif not owned then
+			local lock, _ = chip(card, "🔒 ARMORY", GREY, Z + 8, 110)
+			lock.AnchorPoint = Vector2.new(0.5, 1)
+			lock.Position = UDim2.new(0.5, 0, 1, -8)
+		end
 		card.Activated:Connect(function()
 			if owned then
 				chosenGear = id
@@ -373,44 +434,41 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	renderPrep = function()
-		for _, ch in crewList:GetChildren() do
-			if ch:IsA("GuiObject") then
-				ch:Destroy()
-			end
-		end
+		crewPage.Visible = page == "crew"
+		gearPage.Visible = page == "gear"
+		-- Sayfa 2
 		for _, ch in gearList:GetChildren() do
 			if ch:IsA("GuiObject") then
 				ch:Destroy()
 			end
 		end
-		-- Bölüm
 		local maxS = maxSector()
 		chosenSector = math.clamp(chosenSector, 1, maxS)
 		local per = DefenseConfig.WavesPerSector
 		sectorLabel.Text = "SECTOR " .. chosenSector
-		sectorSub.Text = string.format("Waves %d-%d  %s%s", (chosenSector - 1) * per + 1, chosenSector * per,
-			stars(sectorStars(data, currentPlanet, chosenSector)), if chosenSector == maxS then "  NEW" else "")
+		sectorSub.Text = string.format("Waves %d-%d   %s%s", (chosenSector - 1) * per + 1, chosenSector * per,
+			stars(sectorStars(data, currentPlanet, chosenSector)), if chosenSector == maxS then "   NEW!" else "")
 		prevB.set("◀", if chosenSector > 1 then BLUE else nil)
 		nextSB.set("▶", if chosenSector < maxS then BLUE else nil)
-		local cap = if data then data.slots else DefenseConfig.BaseSlots
-		local count = chosenCount()
-		countLabel.Text = string.format("CREW  %d / %d", count, cap)
-		goPrepB.set(if count > 0 then "DEFEND! ▶" else "PICK YOUR CREW", if count > 0 then GREEN else nil)
-
-		-- Gear: hep görünür
-		gearCard(1, "", "✋", "NO GEAR", "Just command your crew", true)
+		gearCard(1, "", "✋", "NO GEAR", "Just command your crew.", true)
 		for i, g in DefenseConfig.Gears do
 			local level = if data then (data[g.field] or 0) else 0
 			gearCard(i + 1, g.id, g.icon, if level > 0 then string.format("%s  Lv %d", string.upper(g.name), level) else string.upper(g.name),
-				if level > 0 then g.desc else "Buy it at the ARMORY with gold", level > 0)
+				if level > 0 then g.desc else "Buy it at the ARMORY with gold.", level > 0)
 		end
 
-		-- Crewmate'ler: role göre, her grupta en güçlüden zayıfa
+		-- Sayfa 1 (kaydırma yeri korunuyor)
+		local keep = crewList.CanvasPosition
+		table.clear(cardViews)
+		for _, ch in crewList:GetChildren() do
+			if ch:IsA("GuiObject") then
+				ch:Destroy()
+			end
+		end
 		local free = freeCrew()
 		if #free == 0 then
 			local none = label(crewList, "No crewmates at your base. Steal some in space first!", 18, SOFT, Z + 5)
 			none.Size = UDim2.new(1, 0, 0, 60)
-			return
 		end
 		for r, roleId in DefenseConfig.RoleOrder do
 			local role = DefenseConfig.Roles[roleId]
@@ -426,7 +484,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 				end)
 				local head = Instance.new("Frame")
 				head.LayoutOrder = r * 2 - 1
-				head.Size = UDim2.new(1, -10, 0, 28)
+				head.Size = UDim2.new(1, -16, 0, 28)
 				head.BackgroundTransparency = 1
 				head.ZIndex = Z + 4
 				head.Parent = crewList
@@ -437,10 +495,12 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 				d.Size = UDim2.new(1, -140, 1, 0)
 				d.TextXAlignment = Enum.TextXAlignment.Left
 				d.TextTruncate = Enum.TextTruncate.AtEnd
+				-- Satır yüksekliği elle (AutomaticSize + grid kaydırmayı şaşırtıyordu)
+				local perRow = 6
+				local rows = math.ceil(#group / perRow)
 				local row = Instance.new("Frame")
 				row.LayoutOrder = r * 2
-				row.Size = UDim2.new(1, -10, 0, 0)
-				row.AutomaticSize = Enum.AutomaticSize.Y
+				row.Size = UDim2.new(1, -16, 0, rows * 130)
 				row.BackgroundTransparency = 1
 				row.ZIndex = Z + 4
 				row.Parent = crewList
@@ -454,6 +514,10 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 				end
 			end
 		end
+		refreshCounts()
+		task.defer(function()
+			crewList.CanvasPosition = keep
+		end)
 	end
 
 	prevB.button.Activated:Connect(function()
@@ -486,10 +550,23 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			end
 			chosen[c.slot] = true
 		end
+		refreshCounts()
+	end)
+	nextB.button.Activated:Connect(function()
+		if chosenCount() == 0 then
+			return
+		end
+		page = "gear"
+		renderPrep()
+	end)
+	backB.button.Activated:Connect(function()
+		page = "crew"
 		renderPrep()
 	end)
 	goPrepB.button.Activated:Connect(function()
 		if chosenCount() == 0 then
+			page = "crew"
+			renderPrep()
 			return
 		end
 		local slots = {}
@@ -690,72 +767,109 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	hud.ZIndex = Z - 12
 	hud.Parent = screen
 
-	-- Üstte durum: oyunun üst çubuğunun altında, ortada
-	local top = panel(hud, UDim2.fromOffset(if TOUCH then 440 else 470, 86), UDim2.new(0.5, 0, 0, 62), Vector2.new(0.5, 0), Z - 11)
-	local planetTitle = label(top, "", 20, WHITE, Z - 10)
-	planetTitle.Position = UDim2.fromOffset(14, 6)
-	planetTitle.Size = UDim2.new(0.5, 0, 0, 26)
-	planetTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local chipRow = Instance.new("Frame")
-	chipRow.AnchorPoint = Vector2.new(1, 0)
-	chipRow.Position = UDim2.new(1, -12, 0, 8)
-	chipRow.Size = UDim2.fromOffset(300, 24)
-	chipRow.BackgroundTransparency = 1
-	chipRow.ZIndex = Z - 10
-	chipRow.Parent = top
-	local rowLayout = list(chipRow, true, 6)
-	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	local sectorChip, sectorChipText = chip(chipRow, "", BLUE, Z - 9, 96)
+	--[[
+		Üstte durum (Batur: "ortada direkt kötü gözüküyor, küçült, gereksizleri
+		sil"): ince tek satırlık çubuk — gezegen, bölüm, dalga, altın, altında
+		gövde çubuğu. İpucu şeridi kalktı; yönlendirme alttaki düğmelerin
+		hemen üstünde kutusuz kısa yazı.
+	]]
+	local top = panel(hud, UDim2.fromOffset(330, 52), UDim2.new(0.5, 0, 0, 58), Vector2.new(0.5, 0), Z - 11, nil, nil, 12)
+	top.BackgroundTransparency = 0.1
+	local topRow = Instance.new("Frame")
+	topRow.Position = UDim2.fromOffset(10, 5)
+	topRow.Size = UDim2.new(1, -20, 0, 22)
+	topRow.BackgroundTransparency = 1
+	topRow.ZIndex = Z - 10
+	topRow.Parent = top
+	local rowLayout = list(topRow, true, 6)
+	rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local planetTitle = label(topRow, "", 15, WHITE, Z - 9, 1.3)
+	planetTitle.LayoutOrder = 0
+	planetTitle.AutomaticSize = Enum.AutomaticSize.X
+	planetTitle.Size = UDim2.fromOffset(0, 22)
+	local sectorChip, sectorChipText = chip(topRow, "", BLUE, Z - 9, 54)
 	sectorChip.LayoutOrder = 1
-	local waveChip, waveChipText = chip(chipRow, "", ORANGE, Z - 9, 86)
+	sectorChip.Size = UDim2.fromOffset(54, 20)
+	sectorChipText.TextSize = 12
+	local waveChip, waveChipText = chip(topRow, "", ORANGE, Z - 9, 66)
 	waveChip.LayoutOrder = 2
-	local goldChip, goldChipText = chip(chipRow, "", Color3.fromRGB(220, 160, 30), Z - 9, 90)
+	waveChip.Size = UDim2.fromOffset(66, 20)
+	waveChipText.TextSize = 12
+	local goldChip, goldChipText = chip(topRow, "", Color3.fromRGB(220, 160, 30), Z - 9, 76)
 	goldChip.LayoutOrder = 3
+	goldChip.Size = UDim2.fromOffset(76, 20)
+	goldChipText.TextSize = 12
 	local hullBack = Instance.new("Frame")
-	hullBack.Position = UDim2.fromOffset(14, 42)
-	hullBack.Size = UDim2.new(1, -28, 0, 26)
+	hullBack.Position = UDim2.fromOffset(10, 31)
+	hullBack.Size = UDim2.new(1, -20, 0, 14)
 	hullBack.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 	hullBack.ZIndex = Z - 10
 	hullBack.Parent = top
-	FancyKit.corner(hullBack, 13)
-	FancyKit.border(hullBack, OUTLINE, 2)
+	FancyKit.corner(hullBack, 7)
 	local hullFill = Instance.new("Frame")
 	hullFill.Size = UDim2.fromScale(1, 1)
 	hullFill.BackgroundColor3 = WHITE
 	hullFill.ZIndex = Z - 9
 	hullFill.Parent = hullBack
-	FancyKit.corner(hullFill, 13)
+	FancyKit.corner(hullFill, 7)
 	local hullGrad = FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 90)
-	local hullText = label(hullBack, "", 14, WHITE, Z - 8, 1.4)
+	local hullText = label(hullBack, "", 11, WHITE, Z - 8, 1.2)
 	hullText.Size = UDim2.fromScale(1, 1)
 
-	-- İpucu şeridi (üst kartın altında)
-	local hintBox = panel(hud, UDim2.fromOffset(if TOUCH then 460 else 560, 32), UDim2.new(0.5, 0, 0, 156), Vector2.new(0.5, 0), Z - 11,
-		Color3.fromRGB(30, 36, 58), Color3.fromRGB(20, 24, 40), 16)
-	local hint = label(hintBox, "", 15, WHITE, Z - 10, 1.3)
-	hint.Size = UDim2.new(1, -16, 1, 0)
-	hint.Position = UDim2.fromOffset(8, 0)
-	hint.TextTruncate = Enum.TextTruncate.AtEnd
+	-- Yönlendirme: alttaki düğmelerin üstünde, kutusuz
+	local hint = label(hud, "", 16, WHITE, Z - 10, 2)
+	hint.AnchorPoint = Vector2.new(0.5, 1)
+	hint.Position = UDim2.new(0.5, 0, 1, -172)
+	hint.Size = UDim2.fromOffset(620, 22)
 
-	-- Sağda: gelen dalga (sıralamanın altında) ve hız
+	--[[ Gelen dalga kartı: başlık şeridi + rota rozeti, her yaratık bir satır
+	     (renkli nokta, ad, adet rozeti), boss satırı kırmızı. ]]
 	local incoming = if TOUCH
-		then panel(hud, UDim2.fromOffset(210, 150), UDim2.fromOffset(12, 72), Vector2.zero, Z - 11,
-			Color3.fromRGB(78, 38, 46), Color3.fromRGB(36, 18, 26))
-		else panel(hud, UDim2.fromOffset(230, 180), UDim2.new(1, -12, 0.36, 0), Vector2.new(1, 0), Z - 11,
-			Color3.fromRGB(78, 38, 46), Color3.fromRGB(36, 18, 26))
-	local incTitle = label(incoming, "NEXT WAVE", 18, Color3.fromRGB(255, 180, 70), Z - 10)
-	incTitle.Position = UDim2.fromOffset(0, 8)
-	incTitle.Size = UDim2.new(1, 0, 0, 22)
-	local incPattern = label(incoming, "", 15, WHITE, Z - 10, 1.3)
-	incPattern.Position = UDim2.fromOffset(0, 30)
-	incPattern.Size = UDim2.new(1, 0, 0, 18)
+		then panel(hud, UDim2.fromOffset(200, 0), UDim2.fromOffset(12, 72), Vector2.zero, Z - 11, nil, nil, 12)
+		else panel(hud, UDim2.fromOffset(220, 0), UDim2.new(1, -12, 0.36, 0), Vector2.new(1, 0), Z - 11, nil, nil, 12)
+	incoming.AutomaticSize = Enum.AutomaticSize.Y
+	local incPad = Instance.new("UIPadding")
+	incPad.PaddingTop = UDim.new(0, 0)
+	incPad.PaddingBottom = UDim.new(0, 10)
+	incPad.Parent = incoming
+	list(incoming, false, 4)
+	local incHead = Instance.new("Frame")
+	incHead.LayoutOrder = 0
+	incHead.Size = UDim2.new(1, 0, 0, 34)
+	incHead.BackgroundColor3 = WHITE
+	incHead.ZIndex = Z - 10
+	incHead.Parent = incoming
+	FancyKit.corner(incHead, 12)
+	local incHeadGrad = FancyKit.gradient(incHead, { Color3.fromRGB(255, 140, 60), Color3.fromRGB(200, 60, 60) }, 90)
+	local incTitle = label(incHead, "NEXT WAVE", 16, WHITE, Z - 9, 1.6)
+	incTitle.Position = UDim2.fromOffset(10, 0)
+	incTitle.Size = UDim2.new(1, -20, 1, 0)
+	incTitle.TextXAlignment = Enum.TextXAlignment.Left
+	local routeChip, routeText = chip(incHead, "", Color3.fromRGB(60, 60, 90), Z - 8, 84)
+	routeChip.AnchorPoint = Vector2.new(1, 0.5)
+	routeChip.Position = UDim2.new(1, -8, 0.5, 0)
+	routeChip.Size = UDim2.fromOffset(84, 20)
+	routeText.TextSize = 11
 	local incList = Instance.new("Frame")
-	incList.Position = UDim2.fromOffset(12, 54)
-	incList.Size = UDim2.new(1, -24, 1, -60)
+	incList.LayoutOrder = 1
+	incList.Size = UDim2.new(1, 0, 0, 0)
+	incList.AutomaticSize = Enum.AutomaticSize.Y
 	incList.BackgroundTransparency = 1
 	incList.ZIndex = Z - 10
 	incList.Parent = incoming
-	list(incList, false, 2)
+	local incListPad = Instance.new("UIPadding")
+	incListPad.PaddingLeft = UDim.new(0, 10)
+	incListPad.PaddingRight = UDim.new(0, 10)
+	incListPad.PaddingTop = UDim.new(0, 4)
+	incListPad.Parent = incList
+	list(incList, false, 4)
+	-- Yaratık renkleri (noktalar)
+	local KIND_COLOR = {
+		Grub = Color3.fromRGB(120, 220, 110), Skitter = Color3.fromRGB(90, 200, 255),
+		Spitter = Color3.fromRGB(220, 120, 255), Brute = Color3.fromRGB(255, 170, 70), Boss = Color3.fromRGB(255, 80, 80),
+	}
+
 	-- Hız: alttaki düğme sırasının sağında (hazırlıkta da savaşta da aynı yer)
 	local speedB = button(hud, "▶ 1x", UDim2.fromOffset(104, 54), GREY, Z - 10, 20)
 	speedB.holder.AnchorPoint = Vector2.new(0, 1)
@@ -845,8 +959,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		local low = frac < 0.35
 		hullGrad.Color = if low then ColorSequence.new(Color3.fromRGB(255, 140, 120), Color3.fromRGB(220, 50, 50))
 			else ColorSequence.new(Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230))
-		hullText.Text = string.format("🛡 SHIP HULL  %d / %d%s", hull, maxHull,
-			if enemies then string.format("     👾 %d", enemies) else "")
+		hullText.Text = string.format("HULL %d/%d%s", hull, maxHull,
+			if enemies then string.format("   ·   👾 %d", enemies) else "")
 	end
 
 	local function renderIncoming()
@@ -858,35 +972,52 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		if not run then
 			return
 		end
-		incPattern.Text = "Route: " .. run.plan.name
-		incTitle.Text = if mode == "fight" then "⚔ FIGHTING" else "NEXT WAVE"
+		routeText.Text = run.plan.name
+		local fighting = mode == "fight"
+		incTitle.Text = if fighting then "⚔ FIGHTING" elseif run.plan.boss then "⚠ BOSS WAVE" else "NEXT WAVE"
+		incHeadGrad.Color = if run.plan.boss then ColorSequence.new(Color3.fromRGB(255, 70, 90), Color3.fromRGB(150, 20, 40))
+			elseif fighting then ColorSequence.new(Color3.fromRGB(255, 120, 60), Color3.fromRGB(190, 50, 40))
+			else ColorSequence.new(Color3.fromRGB(255, 160, 60), Color3.fromRGB(210, 90, 50))
 		local order = 0
-		for _, id in { "Grub", "Skitter", "Spitter", "Brute", "Boss" } do
+		for _, id in { "Boss", "Brute", "Spitter", "Grub", "Skitter" } do
 			local n = run.plan.counts[id]
 			local def = DefenseConfig.Enemies[id]
 			if n and def then
 				order += 1
-				local line = label(incList, string.format("%s  × %d", def.name, n), 15,
-					if id == "Boss" then Color3.fromRGB(255, 110, 110) else WHITE, Z - 9, 1.2)
-				line.LayoutOrder = order
-				line.Size = UDim2.new(1, 0, 0, 20)
-				line.TextXAlignment = Enum.TextXAlignment.Left
+				local row = Instance.new("Frame")
+				row.LayoutOrder = order
+				row.Size = UDim2.new(1, 0, 0, 22)
+				row.BackgroundTransparency = 1
+				row.ZIndex = Z - 9
+				row.Parent = incList
+				local dot = Instance.new("Frame")
+				dot.AnchorPoint = Vector2.new(0, 0.5)
+				dot.Position = UDim2.new(0, 0, 0.5, 0)
+				dot.Size = UDim2.fromOffset(12, 12)
+				dot.BackgroundColor3 = KIND_COLOR[id] or WHITE
+				dot.ZIndex = Z - 8
+				dot.Parent = row
+				FancyKit.corner(dot, 6)
+				FancyKit.border(dot, OUTLINE, 1.5)
+				local name = label(row, def.name, 14, if id == "Boss" then Color3.fromRGB(255, 130, 130) else WHITE, Z - 8, 1.2)
+				name.Position = UDim2.fromOffset(18, 0)
+				name.Size = UDim2.new(1, -64, 1, 0)
+				name.TextXAlignment = Enum.TextXAlignment.Left
+				local countChip, _ = chip(row, "×" .. n, Color3.fromRGB(70, 76, 110), Z - 8, 40)
+				countChip.AnchorPoint = Vector2.new(1, 0.5)
+				countChip.Position = UDim2.new(1, 0, 0.5, 0)
+				countChip.Size = UDim2.fromOffset(40, 18)
 			end
-		end
-		if run.plan.boss then
-			local warn = label(incList, "⚠ BOSS WAVE", 16, Color3.fromRGB(255, 90, 90), Z - 9)
-			warn.LayoutOrder = 99
-			warn.Size = UDim2.new(1, 0, 0, 22)
 		end
 	end
 
 	local function renderHud()
 		local gold = if data then data.gold else 0
 		goldChipText.Text = "🪙 " .. tostring(gold)
-		planetTitle.Text = "🪐 " .. planetName(currentPlanet)
+		planetTitle.Text = planetName(currentPlanet)
 		mode = if run == nil then "idle" elseif run.phase == "fight" then "fight" else "prep"
 		if run then
-			sectorChipText.Text = "SECTOR " .. run.sector
+			sectorChipText.Text = "S" .. run.sector
 			waveChipText.Text = string.format("WAVE %d/%d", run.waveInSector, DefenseConfig.WavesPerSector)
 			sectorChip.Visible = true
 			waveChip.Visible = true
@@ -906,7 +1037,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		if mode == "idle" then
 			mainB.set("⚔ DEFEND", GREEN)
 			sideB.set("🚀 TAKE OFF", BLUE)
-			hint.Text = "Press ⚔ DEFEND to pick your crew and gear"
+			hint.Text = ""
 		elseif mode == "prep" then
 			mainB.set("▶ START WAVE", if #run.units > 0 then GREEN else nil)
 			sideB.set("↩ RETREAT", RED)
@@ -933,6 +1064,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		end
 		table.clear(chosen)
 		chosenSector = maxSector()
+		page = "crew"
 		-- Varsa gear'ı öne seç
 		chosenGear = ""
 		if data then

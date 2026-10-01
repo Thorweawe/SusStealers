@@ -46,6 +46,7 @@ export type SimUnit = {
 	engage: number,
 	block: number,        -- aynı anda tutabildiği yakın dövüşçü düşman
 	post: Vector2,        -- oyuncunun koyduğu yer (karakol)
+	focus: number?,       -- hedeflediği düşman (eid); aynı düşmana yığılmasınlar
 	leash: number,        -- karakoldan en fazla bu kadar uzaklaşıyor
 	moveSpeed: number,
 	cooldown: number,
@@ -71,7 +72,8 @@ export type SimEnemy = {
 	leak: number,
 	cleave: number,
 	foe: number?,         -- dövüştüğü crewmate (uid)
-	offPath: boolean,     -- dövüşmek için yoldan çıktı (bitince yola dönüyor)
+	offPath: boolean,
+	ai: string,           -- DefenseConfig.Enemies[*].ai     -- dövüşmek için yoldan çıktı (bitince yola dönüyor)
 }
 
 export type Event = { [number]: any }
@@ -287,6 +289,7 @@ local function spawnEnemy(sim: Sim, spawn: DefenseConfig.Spawn)
 		cleave = def.cleave or 0,
 		foe = nil,
 		offPath = false,
+		ai = def.ai or "melee",
 	}
 	e.pos = enemyPos(sim, e)
 	sim.nextEid += 1
@@ -322,9 +325,22 @@ local function pickFoe(sim: Sim, e: SimEnemy, held: { [number]: number }): SimUn
 		-- Yakın dövüşçü düşman, kapasitesi dolu crewmate'in yanından geçiyor
 		if u.alive and not (melee and (held[u.uid] or 0) >= u.block) then
 			local d = (u.pos - e.pos).Magnitude
-			local reach = math.max(e.range, u.engage)
+			local blocker = u.role == "Guard" or u.role == "Brawler"
+			-- Koşucu yalnızca önünü kesen dövüşçüyle oyalanıyor, diğerlerine çarpmadıkça bakmıyor
+			local reach = if e.ai == "rusher" and not blocker then math.min(e.range, 2.5) else math.max(e.range, u.engage)
 			if d <= reach then
-				local score = d - (if u.role == "Guard" then 100 else 0)
+				local score = d
+				if u.role == "Guard" then
+					score -= 100            -- tank üstüne çekiyor
+				end
+				if e.ai == "sniper" and (u.role == "Shooter" or u.role == "Medic") then
+					score -= 40             -- tükürücü arka sırayı seçiyor
+				elseif e.ai == "tank" and blocker then
+					score -= 40             -- golem dövüşçülere yükleniyor
+				end
+				if e.ai ~= "sniper" then
+					score += (u.hp / u.maxHp) * 6   -- yaralıya yüklen
+				end
 				if score < bestScore then
 					bestScore = score
 					best = u
@@ -385,7 +401,7 @@ local function stepEnemies(sim: Sim, dt: number)
 		-- Uzaktan vuran düşman ateş ederken ilerlemeye devam ediyor (yakına
 		-- gelene kadar): menzil dışındaki bir crewmate'i sonsuza dek taciz
 		-- edip dalgayı kilitlemesin
-		local advancing = foe ~= nil and e.range > 4 and (foe.pos - e.pos).Magnitude > ADVANCE_UNTIL
+		local advancing = foe ~= nil and e.range > 4 and e.ai ~= "sniper" and (foe.pos - e.pos).Magnitude > ADVANCE_UNTIL
 		if foe and isMelee(e) then
 			-- Guard/Brawler düşmanı uzaktan (engage) kendine çekiyor: düşman
 			-- yolu bırakıp dibine kadar yürüyor. Yoksa ikisi de birbirinin
@@ -450,10 +466,61 @@ end
 	girince dur; medic yaralı müttefiğe; kimse yoksa karakola dön. Karakoldan
 	leash'ten fazla uzaklaşmıyor (yolu kesip durduruyor, peşinden koşmuyor).
 ]]
-local function moveUnit(sim: Sim, u: SimUnit, dt: number)
+--[[
+	Crewmate'in düşman puanı (büyük = önce). Hedefler paylaşılıyor: bir
+	düşmana zaten başkaları bakıyorsa puanı düşüyor (yığılmasınlar).
+	Assassin önce tükürücüleri, sonra en canlıyı; diğerleri kapıya en
+	yakını seçiyor.
+]]
+local function enemyScore(sim: Sim, u: SimUnit, e: SimEnemy, focus: { [number]: number }): number
+	local score
+	if u.target == "strongest" then
+		score = (if e.ai == "sniper" then 2 else 0) + e.hp / math.max(1, sim.hpMul) / 200
+	else
+		score = progressOf(sim, e)
+	end
+	local others = (focus[e.eid] or 0) - (if u.focus == e.eid then 1 else 0)
+	return score - 0.35 * math.max(0, others) - (e.pos - u.pos).Magnitude * 0.002
+end
+
+local function chooseEnemy(sim: Sim, u: SimUnit, center: Vector2, radius: number, focus: { [number]: number }): SimEnemy?
+	local best: SimEnemy? = nil
+	local bestScore = -math.huge
+	for _, e in sim.enemies do
+		if e.hp > 0 and (e.pos - center).Magnitude <= radius then
+			local score = enemyScore(sim, u, e, focus)
+			if score > bestScore then
+				bestScore = score
+				best = e
+			end
+		end
+	end
+	return best
+end
+
+local function moveUnit(sim: Sim, u: SimUnit, dt: number, focus: { [number]: number })
 	local goal: Vector2? = nil
 	local stopAt = 0
-	if u.heal > 0 then
+	-- Atıcı ve medic: yakına gelen yakın dövüşçü düşmandan geri çekil
+	if u.role == "Shooter" or u.role == "Medic" then
+		local threat: SimEnemy? = nil
+		local nearest = 6
+		for _, e in sim.enemies do
+			if e.hp > 0 and isMelee(e) then
+				local d = (e.pos - u.pos).Magnitude
+				if d < nearest then
+					nearest = d
+					threat = e
+				end
+			end
+		end
+		if threat then
+			local away = u.pos - threat.pos
+			goal = u.pos + (if away.Magnitude > 0.01 then away.Unit else Vector2.new(0, -1)) * 6
+			stopAt = 0
+		end
+	end
+	if not goal and u.heal > 0 then
 		local worst = 0.85
 		for _, other in sim.units do
 			if other.alive and other ~= u and (other.pos - u.post).Magnitude <= u.leash + u.healRange then
@@ -467,15 +534,17 @@ local function moveUnit(sim: Sim, u: SimUnit, dt: number)
 		end
 	end
 	if not goal then
-		local best = -math.huge
-		for _, e in sim.enemies do
-			if e.hp > 0 and (e.pos - u.post).Magnitude <= u.leash + u.range then
-				local score = if u.target == "strongest" then e.hp else progressOf(sim, e)
-				if score > best then
-					best = score
-					goal = e.pos
-					stopAt = u.range * 0.8
-				end
+		local e = chooseEnemy(sim, u, u.post, u.leash + u.range, focus)
+		u.focus = if e then e.eid else nil
+		if e then
+			if u.role == "Guard" then
+				-- Tank yolu önden kesiyor: düşmanın birkaç adım ilerisine
+				local ahead = DefenseSim.PointAt(sim.paths[e.path], sim.pathLens[e.path], e.dist + 7)
+				goal = ahead
+				stopAt = 0.5
+			else
+				goal = e.pos
+				stopAt = u.range * 0.8
 			end
 		end
 	end
@@ -496,11 +565,18 @@ local function moveUnit(sim: Sim, u: SimUnit, dt: number)
 end
 
 local function stepUnits(sim: Sim, dt: number)
+	-- Hangi düşmana kaç crewmate bakıyor (hedef paylaşımı)
+	local focus: { [number]: number } = {}
+	for _, u in sim.units do
+		if u.alive and u.focus then
+			focus[u.focus] = (focus[u.focus] or 0) + 1
+		end
+	end
 	for _, u in sim.units do
 		if not u.alive then
 			continue
 		end
-		moveUnit(sim, u, dt)
+		moveUnit(sim, u, dt, focus)
 		u.timer -= dt
 		if u.timer > 0 then
 			continue
@@ -527,17 +603,7 @@ local function stepUnits(sim: Sim, dt: number)
 			end
 		end
 
-		local target: SimEnemy? = nil
-		local best = -math.huge
-		for _, e in sim.enemies do
-			if e.hp > 0 and (e.pos - u.pos).Magnitude <= u.range then
-				local score = if u.target == "strongest" then e.hp else progressOf(sim, e)
-				if score > best then
-					best = score
-					target = e
-				end
-			end
-		end
+		local target = chooseEnemy(sim, u, u.pos, u.range, focus)
 		if target then
 			u.timer = u.cooldown
 			emit(sim, { "uatk", u.uid, target.eid })

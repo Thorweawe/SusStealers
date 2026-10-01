@@ -283,10 +283,13 @@ function Hotbar.Create(screen: ScreenGui): Bar
 			end
 		end
 		-- Sıra kalıcı: ekipman kimliğine göre (kuşanınca yer değiştirmesin)
+		-- Gezegende: crewmate'ler solda, silah (kılıç / ışın tabancası) en sağda
+		local function key(t: Tool): string
+			local gear = t:GetAttribute("DefenseSaber") ~= nil or t:GetAttribute("DefenseRayGun") ~= nil
+			return (if gear then "~" else "") .. tostring(t:GetAttribute("GearId") or t.Name)
+		end
 		table.sort(list, function(a, b)
-			local ka = tostring(a:GetAttribute("GearId") or a.Name)
-			local kb = tostring(b:GetAttribute("GearId") or b.Name)
-			return ka < kb
+			return key(a) < key(b)
 		end)
 		return list
 	end

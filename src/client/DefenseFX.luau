@@ -73,6 +73,7 @@ type UnitView = {
 	prompt: ProximityPrompt,   -- hazırlıkta "Pick up"
 	weapon: Model?,            -- rol silahı
 	-- Sunucudan gelen konum (crewmate'ler artık yürüyor): ara değerleme
+	area: Model,               -- karakolun çevresindeki hareket alanı halkası
 	from: Vector3,
 	to: Vector3,
 	t0: number,
@@ -301,6 +302,35 @@ local function anchorAll(model: Model)
 	end
 end
 
+--[[
+	Hareket alanı (Batur: "ne kadar alan içinde iş yaptıkları belli değil, bir
+	alan olsun altlarında, çok göz almayan ama belli olan"): karakolun
+	çevresinde rol renginde ince halka + çok silik disk, leash yarıçapında.
+]]
+local AREA_SEGMENTS = 28
+
+local function buildArea(roleId: string, color: Color3): Model
+	local role = DefenseConfig.Roles[roleId]
+	local r = if role then role.leash else 8
+	local m = Instance.new("Model")
+	m.Name = "Area"
+	local disc = fxPart("AreaDisc", Vector3.new(0.06, r * 2, r * 2), CFrame.Angles(0, 0, math.rad(90)), color, Enum.PartType.Cylinder)
+	disc.Transparency = 0.93
+	disc.Material = Enum.Material.SmoothPlastic
+	disc.Parent = m
+	for k = 0, AREA_SEGMENTS - 1 do
+		local a0 = k / AREA_SEGMENTS * math.pi * 2
+		local a1 = (k + 1) / AREA_SEGMENTS * math.pi * 2
+		local p0 = Vector3.new(math.cos(a0) * r, 0.12, math.sin(a0) * r)
+		local p1 = Vector3.new(math.cos(a1) * r, 0.12, math.sin(a1) * r)
+		local seg = fxPart("AreaRing", Vector3.new(0.3, 0.08, (p1 - p0).Magnitude + 0.05), CFrame.lookAt((p0 + p1) / 2, p1), color)
+		seg.Transparency = 0.55
+		seg.Parent = m
+	end
+	m.PrimaryPart = disc
+	return m
+end
+
 local function buildUnit(info: any): UnitView?
 	local ok, model = pcall(UnitModel.Build, info.unitId, info.mutationId)
 	if not (ok and model) then
@@ -327,6 +357,9 @@ local function buildUnit(info: any): UnitView?
 	local hand = CFrame.new(width * 0.5 + 0.2 * s, height * 0.42, -0.4 * s)
 	weapon:PivotTo(base * hand)
 	weapon.Parent = model
+	local area = buildArea(role.id, role.color)
+	area:PivotTo(CFrame.new(pos + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)))
+	area.Parent = root()
 	model:SetAttribute("DefenseUid", info.uid)
 	model.Parent = root()
 
@@ -384,6 +417,7 @@ local function buildUnit(info: any): UnitView?
 		hand = hand,
 		swing = 0,
 		height = height,
+		area = area,
 		from = pos,
 		to = pos,
 		t0 = os.clock(),
@@ -413,6 +447,7 @@ function DefenseFX.SyncUnits(list: { any })
 		else
 			local pos = world(Vector2.new(info.x, info.z))
 			view.base = CFrame.lookAt(pos, pos + Vector3.new(0, 0, 1))
+			view.area:PivotTo(CFrame.new(pos + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)))
 			-- Hazırlıkta karakoluna yürüyerek dönüyor
 			local now = os.clock()
 			local a = math.clamp((now - view.t0) / SNAP_GAP, 0, 1)
@@ -424,6 +459,7 @@ function DefenseFX.SyncUnits(list: { any })
 	for uid, view in units do
 		if not seen[uid] and not view.fallen then
 			view.model:Destroy()
+			view.area:Destroy()
 			units[uid] = nil
 		end
 	end
@@ -760,6 +796,7 @@ local function onUnitFall(uid: number)
 			units[uid] = nil
 		end
 		u.model:Destroy()
+		u.area:Destroy()
 	end)
 end
 
@@ -1043,6 +1080,7 @@ function DefenseFX.Clear()
 	table.clear(enemies)
 	for _, view in units do
 		view.model:Destroy()
+		view.area:Destroy()
 	end
 	table.clear(units)
 	DefenseFX.ShowPaths(nil)

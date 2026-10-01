@@ -422,6 +422,8 @@ end
 local CREW_HOLD_HEIGHT = 2.8
 local DROP_AHEAD = 4.5
 local PICKUP_RANGE = 14
+-- Fareyle / dokunarak hedefli bırakma: karakterden en fazla bu kadar uzağa
+local DROP_REACH = 45
 
 local function findUnit(run: Run, uid: number): Deployed?
 	for _, u in run.units do
@@ -472,6 +474,25 @@ takeDefenseTools = function(player: Player, onlyUid: number?)
 				end
 			end
 		end
+	end
+end
+
+--[[ İstemcinin seçtiği noktaya bırak (karakterin erişiminde olmalı). ]]
+local function dropAt(player: Player, uid: number, pos: Vector2)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local s = sessions[player]
+	if not (root and s and s.arena) then
+		return
+	end
+	local rel = root.Position - DefenseConfig.WorldOrigin(s.arena)
+	if (Vector2.new(rel.X, rel.Z) - pos).Magnitude > DROP_REACH then
+		notify(player, "Too far - walk closer", true)
+		return
+	end
+	if placeAt(player, uid, pos) then
+		takeDefenseTools(player, uid)
+		send(player, "dropped", uid)
 	end
 end
 
@@ -539,9 +560,9 @@ local function makeCrewTool(player: Player, u: Deployed): Tool?
 		model.Name = "Held"
 		model.Parent = tool
 	end
-	tool.Activated:Connect(function()
-		dropCrew(player, u.uid)
-	end)
+	-- Bırakma istemciden geliyor ("drop", hedef noktayla): fareyle tam istenen
+	-- yere koyulabilsin (Batur: "tam istediğim yere koyamıyorum"). Gamepad'de
+	-- ya da hedef yoksa istemci karakterin önünü gönderiyor.
 	tool.Parent = backpack
 	return tool
 end
@@ -1368,6 +1389,10 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 				end
 			end
 			prepare(player, math.floor(a), slots, c or "")
+		end
+	elseif action == "drop" then
+		if valid(a) and valid(b) and valid(c) then
+			dropAt(player, math.floor(a), Vector2.new(b, c))
 		end
 	elseif action == "pickup" then
 		if valid(a) then

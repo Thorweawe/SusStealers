@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (82) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `DefenseClient`, `Hotbar`, `Objective`)
+
+Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Arayüz Studio'da ekran görüntüsü ve yol ile tıklama (`user_mouse_input` instance_path) ile denendi: DEFEND iki sayfa, BEST CREW, liste kaydırma (tıklayınca yerinde kalıyor), NEXT → gear, DEFEND! → hazırlık ekranı; hedefli bırakma (14, 64) tam yerine.
+
+- **Daha akıllı yapay zekâ** (`DefenseSim`): düşmanlara `ai` (melee / rusher / sniper / tank / boss): Gloop Mite yalnızca Guard/Brawler'la oyalanıyor, Spore Spitter menzilde durup atıcı/medic'i seçiyor, Ooze Golem dövüşçülere yükleniyor, diğerleri yaralıya. Crewmate'ler hedef paylaşıyor (`focus`, aynı düşmana yığılmıyor), Assassin önce tükürücüleri, Guard düşmanın yolunu önden kesiyor, Shooter/Medic yakın dövüşçüden kaçıyor.
+- **Hedefli bırakma**: crewmate elindeyken farenin gösterdiği yerde yeşil/kırmızı halka + rolün hareket alanı; tıklayınca oraya (`drop(uid, x, z)`, karakterden ≤ 45 stud, sunucu doğruluyor). Telefonda dokunulan nokta, yoksa karakterin önü. Sunucudaki Tool.Activated bırakması kalktı.
+- **Hareket alanı halkası**: her crewmate'in karakolu çevresinde rol renginde ince halka + çok silik disk (leash yarıçapı).
+- **DEFEND penceresi iki sayfa** (1 crew → NEXT → 2 bölüm + gear). Seçimde liste yeniden çizilmiyor (kaydırma en üste sıçrıyordu).
+- **Üst durum** ince tek satır (gezegen / S / dalga / altın + gövde çubuğu); ipucu şeridi kalktı, yönlendirme alttaki düğmelerin üstünde kutusuz. **NEXT WAVE** kartı: renkli başlık şeridi, rota rozeti, yaratık satırları (renkli nokta + adet rozeti), boss dalgasında kırmızı.
+- **Hotbar**: gezegende silah en sağda. **Objective** (GOL kartı) gezegende gizli: durum çubuğunun üstüne biniyordu.
 ## 2026-10-02 (81) — Yusuf (Studio'yu git'e eşitledi: 16 dosya, iki şerit)
 
 **Batur, devam etmeden önce oku.** Studio'daki place ESKİ bir hâle dönmüştü: 16 betik git'teki eski sürümlerle birebir aynıydı (benimkiler 17:52 öncesi, seninkiler 21:31-22:08 arası) ve `ReplicatedStorage.MonsterMeshes/UnitMeshes` silinmişti. Büyük ihtimalle bir oturum eski yerel dosyaları Studio'ya bastı ya da eski sürüm geri yüklendi.
