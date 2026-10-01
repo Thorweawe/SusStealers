@@ -2,11 +2,15 @@
 --[[
 	Gezegen savunmasının 2B arayüzü (DefenseClient kuruyor ve besliyor).
 
-	  Pilot penceresi  — gezegen listesi: en iyi bölüm, yıldızlar, kilit, LAND
-	  Komuta ekranı    — taktik görünümde: üstte gezegen/bölüm/dalga/gövde/altın;
-	                     koşu yoksa bölüm seçimi; hazırlıkta alttaki ekip şeridi,
-	                     gelen dalga kartı, START / RETREAT; savaşta destekler
-	  Dükkânlar        — Armory (rol seviyesi), Command Shop (slot, gövde),
+	2026-10-01 ikinci sürüm (Batur): ayrı taktik ekran YOK. Oyuncu gezegende
+	yürüyor; seçtiği crewmate'ler alet çubuğunda, tıklayıp alana bırakıyor.
+
+	  DEFEND penceresi — bölüm, crewmate seçimi (role göre gruplu, en güçlüden
+	                     zayıfa, hakkı kadar), gear seçimi → "prepare"
+	  Yürüme ekranı    — üstte gezegen/bölüm/dalga/gövde/altın, sağda gelen
+	                     dalga; altta DEFEND/TAKE OFF, hazırlıkta START WAVE/
+	                     RETREAT, savaşta destekler
+	  Dükkânlar        — Armory (kılıç, rol seviyesi), Command Shop (slot, gövde),
 	                     Market (destekler), Hospital (revive / let go)
 	  Sonuç bantları   — dalga / bölüm / yenilgi
 
@@ -36,28 +40,19 @@ local Z = 50
 
 export type Hooks = {
 	send: (...any) -> (),
-	pickCrew: (slot: number?) -> (),
 	pickSupport: (id: string?) -> (),
-	moveSelected: () -> (),
-	recallSelected: () -> (),
-	deselect: () -> (),
-	exitView: () -> (),
-	openCommand: () -> (),
 	takeoff: () -> (),
 }
 
 export type UI = {
-	OpenPilot: () -> (),
+	OpenPrepare: () -> (),
 	OpenShop: (kind: string) -> (),
 	CloseAll: () -> (),
 	SetData: (data: any) -> (),
 	SetRun: (run: any?, planet: number?) -> (),
-	SetCommand: (visible: boolean) -> (),
-	SetSelected: (info: any?) -> (),
-	SetPicked: (slot: number?, support: string?) -> (),
+	SetPicked: (support: string?) -> (),
 	SetTick: (snap: any) -> (),
 	Banner: (title: string, sub: string, color: Color3) -> (),
-	Hint: (text: string?) -> (),
 	SetPlanetHud: (visible: boolean) -> (),
 }
 
@@ -125,7 +120,9 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	local currentPlanet = 1
 	local chosenSector = 1
 	local openShop: string? = nil
-	local picked: { slot: number?, support: string? } = { slot = nil, support = nil }
+	local picked: { support: string? } = { support = nil }
+	local ui: UI
+	local renderPrep: () -> ()
 
 	-- ═══ Pencere iskeleti ═══════════════════════════════════════════════════
 	local function window(name: string, title: string, colors: { Color3 }, w: number, h: number): (Frame, Frame)
@@ -147,81 +144,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		body.ZIndex = Z + 2
 		body.Parent = root
 		return root, body
-	end
-
-	-- ═══ Pilot penceresi ════════════════════════════════════════════════════
-	local pilotRoot, pilotBody = window("DefensePilot", "PLANETS", {
-		Color3.fromRGB(60, 120, 255), Color3.fromRGB(150, 80, 255), Color3.fromRGB(40, 200, 220),
-	}, 760, 470)
-	local pilotHint = label(pilotBody, "Land on a planet and defend it with your crew. Clear sectors for ★ and gold.",
-		15, Color3.fromRGB(210, 220, 255), Z + 3)
-	pilotHint.Size = UDim2.new(1, 0, 0, 20)
-	local pilotList = Instance.new("ScrollingFrame")
-	pilotList.Position = UDim2.fromOffset(0, 26)
-	pilotList.Size = UDim2.new(1, 0, 1, -26)
-	pilotList.BackgroundTransparency = 1
-	pilotList.BorderSizePixel = 0
-	pilotList.ScrollBarThickness = 6
-	pilotList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	pilotList.CanvasSize = UDim2.new()
-	pilotList.ZIndex = Z + 3
-	pilotList.Parent = pilotBody
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(170, 176)
-	grid.CellPadding = UDim2.fromOffset(10, 10)
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = pilotList
-
-	local function renderPilot()
-		for _, c in pilotList:GetChildren() do
-			if c:IsA("Frame") then
-				c:Destroy()
-			end
-		end
-		for i, def in Config.SpaceMonsters do
-			local info = data and data.planets and data.planets[i]
-			local unlocked = info and info.unlocked
-			local card = panel(pilotList, UDim2.fromOffset(170, 176), UDim2.new(), Vector2.zero, Z + 4,
-				def.planetColor:Lerp(Color3.new(0, 0, 0), 0.35), def.planetColor2:Lerp(Color3.new(0, 0, 0), 0.6))
-			card.LayoutOrder = i
-			local disc = Instance.new("Frame")
-			disc.AnchorPoint = Vector2.new(0.5, 0)
-			disc.Position = UDim2.new(0.5, 0, 0, 10)
-			disc.Size = UDim2.fromOffset(58, 58)
-			disc.BackgroundColor3 = WHITE
-			disc.ZIndex = Z + 5
-			disc.Parent = card
-			FancyKit.corner(disc, 29)
-			FancyKit.border(disc, OUTLINE, 3)
-			FancyKit.gradient(disc, { def.planetColor:Lerp(WHITE, 0.2), def.planetColor2 }, 45)
-			local name = label(card, string.upper(def.planet), 18, WHITE, Z + 5)
-			name.Position = UDim2.fromOffset(0, 72)
-			name.Size = UDim2.new(1, 0, 0, 22)
-			local total = 0
-			if info and info.stars then
-				for _, n in info.stars do
-					total += n
-				end
-			end
-			local best = label(card, if info and info.best > 0
-				then string.format("Sector %d  ★%d", info.best, total) else "New planet",
-				14, GOLD, Z + 5)
-			best.Position = UDim2.fromOffset(0, 96)
-			best.Size = UDim2.new(1, 0, 0, 18)
-			if unlocked then
-				local land = button(card, "LAND", UDim2.new(1, -24, 0, 44), GREEN, Z + 5, 20)
-				land.holder.Position = UDim2.new(0, 12, 1, -54)
-				land.button.Activated:Connect(function()
-					pilotRoot.Visible = false
-					hooks.send("land", i)
-				end)
-			else
-				local why = label(card, "🔒 " .. tostring(info and info.why or "Locked"), 12, Color3.fromRGB(255, 170, 170), Z + 5, 1.4)
-				why.Position = UDim2.new(0, 8, 1, -58)
-				why.Size = UDim2.new(1, -16, 0, 48)
-				why.TextWrapped = true
-			end
-		end
 	end
 
 	-- ═══ Dükkân penceresi (dört dükkân aynı pencerede) ═════════════════════
@@ -312,7 +234,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			local level = data.saber or 0
 			local saberCost = if level == 0 then S.price else S.upgradeCosts[level]
 			shopRow(0, "⚔", if level == 0 then "LIGHTSABER" else string.format("LIGHTSABER  Lv %d/%d", level, #S.upgradeCosts + 1),
-				if level == 0 then "Fight with your crew! During a wave press EXIT VIEW and slash enemies yourself."
+				if level == 0 then "Fight with your crew! Pick it as your gear when you press DEFEND."
 					else "Hits every enemy in front of you. Higher level = more damage.",
 				if saberCost then "🪙 " .. saberCost else "MAX", if saberCost and gold >= saberCost then GREEN else GREY,
 				function()
@@ -373,187 +295,413 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		end
 	end
 
-	-- ═══ Komuta ekranı ══════════════════════════════════════════════════════
-	local hud = Instance.new("Frame")
-	hud.Name = "DefenseHud"
-	hud.Size = UDim2.fromScale(1, 1)
-	hud.BackgroundTransparency = 1
-	hud.Visible = false
-	hud.ZIndex = Z - 10
-	hud.Parent = screen
+	-- ═══ DEFEND penceresi: bölüm → crewmate'ler → gear ══════════════════════
+	--[[
+		2026-10-01 (Batur): "DEFEND'e basınca hangi amongusları istediğimizi
+		sorsun, elindekileri göstersin (shooter'lar şunlar, en iyiden en
+		kötüye), hakkı kadar seçsin; sonra hangi gear'ı kullanacağımızı
+		sorsun, o elimize gelsin". İki adım; DEFEND! ile sunucuya gidiyor.
+	]]
+	local prepRoot, prepBody = window("DefensePrepare", "DEFEND", {
+		Color3.fromRGB(60, 200, 110), Color3.fromRGB(40, 150, 230), Color3.fromRGB(120, 230, 90),
+	}, 820, 520)
+	local prepStep = "crew"
+	local chosen: { [number]: boolean } = {}
+	local chosenGear = ""
 
-	-- Üst şerit
-	local top = panel(hud, UDim2.fromOffset(560, 74), UDim2.new(0.5, 0, 0, 8), Vector2.new(0.5, 0), Z - 9)
-	local topTitle = label(top, "", 22, WHITE, Z - 8)
-	topTitle.Position = UDim2.fromOffset(14, 6)
-	topTitle.Size = UDim2.new(1, -150, 0, 28)
-	topTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local topGold = label(top, "", 22, GOLD, Z - 8)
-	topGold.AnchorPoint = Vector2.new(1, 0)
-	topGold.Position = UDim2.new(1, -14, 0, 6)
-	topGold.Size = UDim2.fromOffset(130, 28)
-	topGold.TextXAlignment = Enum.TextXAlignment.Right
-	local hullBack = Instance.new("Frame")
-	hullBack.Position = UDim2.fromOffset(14, 42)
-	hullBack.Size = UDim2.new(1, -28, 0, 20)
-	hullBack.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
-	hullBack.ZIndex = Z - 8
-	hullBack.Parent = top
-	FancyKit.corner(hullBack, 10)
-	local hullFill = Instance.new("Frame")
-	hullFill.Size = UDim2.fromScale(1, 1)
-	hullFill.BackgroundColor3 = WHITE
-	hullFill.ZIndex = Z - 7
-	hullFill.Parent = hullBack
-	FancyKit.corner(hullFill, 10)
-	FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 90)
-	local hullText = label(hullBack, "", 14, WHITE, Z - 6, 1.4)
-	hullText.Size = UDim2.fromScale(1, 1)
+	-- Üst satır: bölüm seçimi ve sayaç
+	local topRow = Instance.new("Frame")
+	topRow.Size = UDim2.new(1, 0, 0, 56)
+	topRow.BackgroundTransparency = 1
+	topRow.ZIndex = Z + 3
+	topRow.Parent = prepBody
+	local prevB = button(topRow, "◀", UDim2.fromOffset(46, 46), BLUE, Z + 4, 22)
+	local sectorLabel = label(topRow, "", 24, WHITE, Z + 4)
+	sectorLabel.Position = UDim2.fromOffset(52, 0)
+	sectorLabel.Size = UDim2.fromOffset(170, 30)
+	local sectorSub = label(topRow, "", 13, GOLD, Z + 4, 1.2)
+	sectorSub.Position = UDim2.fromOffset(52, 28)
+	sectorSub.Size = UDim2.fromOffset(170, 18)
+	local nextSB = button(topRow, "▶", UDim2.fromOffset(46, 46), BLUE, Z + 4, 22)
+	nextSB.holder.Position = UDim2.fromOffset(226, 0)
+	local stepLabel = label(topRow, "", 20, Color3.fromRGB(150, 255, 180), Z + 4)
+	stepLabel.Position = UDim2.fromOffset(290, 0)
+	stepLabel.Size = UDim2.new(1, -290, 0, 26)
+	stepLabel.TextXAlignment = Enum.TextXAlignment.Right
+	local countLabel = label(topRow, "", 16, WHITE, Z + 4, 1.3)
+	countLabel.Position = UDim2.fromOffset(290, 28)
+	countLabel.Size = UDim2.new(1, -290, 0, 20)
+	countLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-	-- Bölüm seçimi (koşu yokken)
-	local start = panel(hud, UDim2.fromOffset(420, 250), UDim2.fromScale(0.5, 0.5), Vector2.new(0.5, 0.5), Z - 9)
-	local startTitle = label(start, "CHOOSE SECTOR", 26, GOLD, Z - 8)
-	startTitle.Position = UDim2.fromOffset(0, 10)
-	startTitle.Size = UDim2.new(1, 0, 0, 32)
-	local sectorText = label(start, "", 40, WHITE, Z - 8)
-	sectorText.Position = UDim2.fromOffset(70, 48)
-	sectorText.Size = UDim2.new(1, -140, 0, 46)
-	local sectorSub = label(start, "", 16, Color3.fromRGB(200, 210, 240), Z - 8, 1.4)
-	sectorSub.Position = UDim2.fromOffset(20, 96)
-	sectorSub.Size = UDim2.new(1, -40, 0, 40)
-	sectorSub.TextWrapped = true
-	local prev = button(start, "◀", UDim2.fromOffset(52, 52), BLUE, Z - 8, 24)
-	prev.holder.Position = UDim2.fromOffset(14, 48)
-	local nextB = button(start, "▶", UDim2.fromOffset(52, 52), BLUE, Z - 8, 24)
-	nextB.holder.AnchorPoint = Vector2.new(1, 0)
-	nextB.holder.Position = UDim2.new(1, -14, 0, 48)
-	local beginB = button(start, "BEGIN", UDim2.fromOffset(180, 58), GREEN, Z - 8, 24)
-	beginB.holder.Position = UDim2.new(0.5, 6, 1, -74)
-	local leaveB = button(start, "EXIT", UDim2.fromOffset(140, 58), GREY, Z - 8, 20)
-	leaveB.holder.AnchorPoint = Vector2.new(1, 0)
-	leaveB.holder.Position = UDim2.new(0.5, -6, 1, -74)
+	local prepList = Instance.new("ScrollingFrame")
+	prepList.Position = UDim2.fromOffset(0, 62)
+	prepList.Size = UDim2.new(1, 0, 1, -128)
+	prepList.BackgroundTransparency = 1
+	prepList.BorderSizePixel = 0
+	prepList.ScrollBarThickness = 6
+	prepList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	prepList.CanvasSize = UDim2.new()
+	prepList.ZIndex = Z + 3
+	prepList.Parent = prepBody
+	local prepLayout = Instance.new("UIListLayout")
+	prepLayout.Padding = UDim.new(0, 6)
+	prepLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	prepLayout.Parent = prepList
+
+	local backB = button(prepBody, "◀ BACK", UDim2.fromOffset(150, 54), GREY, Z + 4, 18)
+	backB.holder.AnchorPoint = Vector2.new(0, 1)
+	backB.holder.Position = UDim2.new(0, 0, 1, 0)
+	local autoB = button(prepBody, "⚡ BEST CREW", UDim2.fromOffset(180, 54), BLUE, Z + 4, 18)
+	autoB.holder.AnchorPoint = Vector2.new(0, 1)
+	autoB.holder.Position = UDim2.new(0, 0, 1, 0)
+	local goPrepB = button(prepBody, "NEXT ▶", UDim2.fromOffset(220, 54), GREEN, Z + 4, 22)
+	goPrepB.holder.AnchorPoint = Vector2.new(1, 1)
+	goPrepB.holder.Position = UDim2.new(1, 0, 1, 0)
 
 	local function maxSector(): number
 		local p = data and data.planets and data.planets[currentPlanet]
 		return (if p then p.best else 0) + 1
 	end
 
-	local function renderStart()
+	local function freeCrew(): { any }
+		local list = {}
+		for _, c in (if data then data.crew else nil) or {} do
+			if not c.away then
+				table.insert(list, c)
+			end
+		end
+		return list
+	end
+
+	local function chosenCount(): number
+		local n = 0
+		for _ in chosen do
+			n += 1
+		end
+		return n
+	end
+
+	local function crewCard(parent: Instance, c: any, order: number)
+		local def = Config.GetUnit(c.unitId)
+		local role = DefenseConfig.GetRole(c.unitId)
+		local selected = chosen[c.slot] == true
+		local card = Instance.new("TextButton")
+		card.LayoutOrder = order
+		card.Size = UDim2.fromOffset(112, 112)
+		card.BackgroundColor3 = WHITE
+		card.AutoButtonColor = false
+		card.Text = ""
+		card.ZIndex = Z + 5
+		card.Parent = parent
+		FancyKit.corner(card, 10)
+		FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 4 else 2.5)
+		local rarity = def and Config.Rarities[def.rarity]
+		local tint = if rarity then rarity.color else GREY
+		FancyKit.gradient(card, { tint:Lerp(WHITE, 0.15), tint:Lerp(Color3.new(0, 0, 0), 0.45) }, 90)
+		local iconHolder = Instance.new("Frame")
+		iconHolder.Size = UDim2.fromOffset(60, 60)
+		iconHolder.Position = UDim2.fromOffset(26, 4)
+		iconHolder.BackgroundTransparency = 1
+		iconHolder.ZIndex = Z + 6
+		iconHolder.Parent = card
+		pcall(UiKit.UnitIcon, iconHolder, 60, c.unitId)
+		local mutation = Config.GetMutation(c.mutationId)
+		local name = label(card, (if mutation then mutation.name .. " " else "") .. (if def then def.name else c.unitId), 12, WHITE, Z + 7, 1.3)
+		name.Position = UDim2.fromOffset(3, 66)
+		name.Size = UDim2.new(1, -6, 0, 16)
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local pw = label(card, string.format("POWER %.2f", DefenseConfig.GetPower(c.unitId, c.mutationId)), 12, GOLD, Z + 7, 1.2)
+		pw.Position = UDim2.fromOffset(3, 84)
+		pw.Size = UDim2.new(1, -6, 0, 16)
+		if selected then
+			local tick = label(card, "✓", 26, Color3.fromRGB(120, 255, 140), Z + 8)
+			tick.Position = UDim2.new(1, -30, 0, 2)
+			tick.Size = UDim2.fromOffset(28, 28)
+		end
+		local _ = role
+		card.Activated:Connect(function()
+			if chosen[c.slot] then
+				chosen[c.slot] = nil
+			elseif data and chosenCount() < data.slots then
+				chosen[c.slot] = true
+			end
+			renderPrep()
+		end)
+	end
+
+	renderPrep = function()
+		for _, ch in prepList:GetChildren() do
+			if ch:IsA("GuiObject") then
+				ch:Destroy()
+			end
+		end
 		local maxS = maxSector()
 		chosenSector = math.clamp(chosenSector, 1, maxS)
-		sectorText.Text = "SECTOR " .. chosenSector
 		local per = DefenseConfig.WavesPerSector
-		local got = sectorStars(data, currentPlanet, chosenSector)
-		sectorSub.Text = string.format("Waves %d-%d   %s   %s", (chosenSector - 1) * per + 1, chosenSector * per,
-			stars(got), if chosenSector == maxS then "NEW!" else "")
-		prev.set("◀", if chosenSector > 1 then BLUE else nil)
-		nextB.set("▶", if chosenSector < maxS then BLUE else nil)
+		sectorLabel.Text = "SECTOR " .. chosenSector
+		sectorSub.Text = string.format("Waves %d-%d  %s%s", (chosenSector - 1) * per + 1, chosenSector * per,
+			stars(sectorStars(data, currentPlanet, chosenSector)), if chosenSector == maxS then "  NEW!" else "")
+		prevB.set("◀", if chosenSector > 1 then BLUE else nil)
+		nextSB.set("▶", if chosenSector < maxS then BLUE else nil)
+		local cap = if data then data.slots else DefenseConfig.BaseSlots
+		countLabel.Text = string.format("CREW %d / %d", chosenCount(), cap)
+
+		if prepStep == "crew" then
+			stepLabel.Text = "1. PICK YOUR CREW"
+			backB.holder.Visible = false
+			autoB.holder.Visible = true
+			goPrepB.set("NEXT ▶", if chosenCount() > 0 then GREEN else nil)
+			local free = freeCrew()
+			if #free == 0 then
+				local none = label(prepList, "No crewmates at your base. Steal some in space first!", 18, Color3.fromRGB(220, 220, 240), Z + 5)
+				none.Size = UDim2.new(1, 0, 0, 60)
+				return
+			end
+			-- Role göre gruplar, her grupta en güçlüden zayıfa
+			for r, roleId in DefenseConfig.RoleOrder do
+				local role = DefenseConfig.Roles[roleId]
+				local group = {}
+				for _, c in free do
+					if DefenseConfig.GetRole(c.unitId).id == roleId then
+						table.insert(group, c)
+					end
+				end
+				if #group > 0 then
+					table.sort(group, function(a, b)
+						return DefenseConfig.GetPower(a.unitId, a.mutationId) > DefenseConfig.GetPower(b.unitId, b.mutationId)
+					end)
+					local header = label(prepList, string.format("%s %sS  ·  %s", role.icon, string.upper(role.name), role.desc),
+						16, role.color, Z + 5, 1.4)
+					header.LayoutOrder = r * 2 - 1
+					header.Size = UDim2.new(1, -10, 0, 22)
+					header.TextXAlignment = Enum.TextXAlignment.Left
+					local row = Instance.new("Frame")
+					row.LayoutOrder = r * 2
+					row.Size = UDim2.new(1, -10, 0, 0)
+					row.AutomaticSize = Enum.AutomaticSize.Y
+					row.BackgroundTransparency = 1
+					row.ZIndex = Z + 4
+					row.Parent = prepList
+					local grid = Instance.new("UIGridLayout")
+					grid.CellSize = UDim2.fromOffset(112, 112)
+					grid.CellPadding = UDim2.fromOffset(8, 8)
+					grid.SortOrder = Enum.SortOrder.LayoutOrder
+					grid.Parent = row
+					for i, c in group do
+						crewCard(row, c, i)
+					end
+				end
+			end
+		else
+			stepLabel.Text = "2. PICK YOUR GEAR"
+			backB.holder.Visible = true
+			autoB.holder.Visible = false
+			goPrepB.set("DEFEND! ▶", GREEN)
+			local saber = if data then (data.saber or 0) else 0
+			local options = {
+				{ id = "", icon = "✋", title = "NO GEAR", sub = "Just command your crew.", owned = true },
+				{ id = "Lightsaber", icon = "⚔", title = if saber > 0 then string.format("LIGHTSABER  Lv %d", saber) else "LIGHTSABER",
+					sub = if saber > 0 then "Slash enemies yourself while your crew fights." else "Buy it at the ARMORY with gold.",
+					owned = saber > 0 },
+			}
+			for i, o in options do
+				local selected = chosenGear == o.id
+				local card = Instance.new("TextButton")
+				card.LayoutOrder = i
+				card.Size = UDim2.new(1, -10, 0, 84)
+				card.BackgroundColor3 = WHITE
+				card.AutoButtonColor = false
+				card.Text = ""
+				card.ZIndex = Z + 5
+				card.Parent = prepList
+				FancyKit.corner(card, 12)
+				FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 4 else 2.5)
+				FancyKit.gradient(card, if o.owned then { Color3.fromRGB(60, 80, 120), Color3.fromRGB(30, 36, 60) }
+					else { Color3.fromRGB(60, 60, 70), Color3.fromRGB(34, 34, 40) }, 90)
+				local ic = label(card, o.icon, 40, WHITE, Z + 6, 0)
+				ic.Size = UDim2.fromOffset(80, 84)
+				local t = label(card, o.title .. (if o.owned then "" else "  🔒"), 22, WHITE, Z + 6)
+				t.Position = UDim2.fromOffset(84, 12)
+				t.Size = UDim2.new(1, -120, 0, 28)
+				t.TextXAlignment = Enum.TextXAlignment.Left
+				local sb = label(card, o.sub, 15, Color3.fromRGB(200, 210, 240), Z + 6, 1.3)
+				sb.Position = UDim2.fromOffset(84, 44)
+				sb.Size = UDim2.new(1, -120, 0, 26)
+				sb.TextXAlignment = Enum.TextXAlignment.Left
+				if selected then
+					local tick = label(card, "✓", 32, Color3.fromRGB(120, 255, 140), Z + 7)
+					tick.Position = UDim2.new(1, -50, 0, 22)
+					tick.Size = UDim2.fromOffset(40, 40)
+				end
+				card.Activated:Connect(function()
+					if o.owned then
+						chosenGear = o.id
+						renderPrep()
+					end
+				end)
+			end
+		end
 	end
-	prev.button.Activated:Connect(function()
+
+	prevB.button.Activated:Connect(function()
 		chosenSector = math.max(1, chosenSector - 1)
-		renderStart()
+		renderPrep()
 	end)
-	nextB.button.Activated:Connect(function()
+	nextSB.button.Activated:Connect(function()
 		chosenSector = math.min(maxSector(), chosenSector + 1)
-		renderStart()
+		renderPrep()
 	end)
-	beginB.button.Activated:Connect(function()
-		hooks.send("begin", chosenSector)
+	autoB.button.Activated:Connect(function()
+		-- En güçlüler, ama her rolden en az biri (varsa) önce
+		table.clear(chosen)
+		local free = freeCrew()
+		table.sort(free, function(a, b)
+			return DefenseConfig.GetPower(a.unitId, a.mutationId) > DefenseConfig.GetPower(b.unitId, b.mutationId)
+		end)
+		local cap = if data then data.slots else DefenseConfig.BaseSlots
+		local seenRole: { [string]: boolean } = {}
+		for _, c in free do
+			local r = DefenseConfig.GetRole(c.unitId).id
+			if not seenRole[r] and chosenCount() < cap then
+				seenRole[r] = true
+				chosen[c.slot] = true
+			end
+		end
+		for _, c in free do
+			if chosenCount() >= cap then
+				break
+			end
+			chosen[c.slot] = true
+		end
+		renderPrep()
 	end)
-	leaveB.button.Activated:Connect(function()
-		hooks.exitView()
+	backB.button.Activated:Connect(function()
+		prepStep = "crew"
+		renderPrep()
+	end)
+	goPrepB.button.Activated:Connect(function()
+		if prepStep == "crew" then
+			if chosenCount() == 0 then
+				return
+			end
+			prepStep = "gear"
+			if chosenGear == "" and data and (data.saber or 0) > 0 then
+				chosenGear = "Lightsaber"
+			end
+			renderPrep()
+			return
+		end
+		local slots = {}
+		for slot in chosen do
+			table.insert(slots, slot)
+		end
+		prepRoot.Visible = false
+		hooks.send("prepare", chosenSector, slots, chosenGear)
 	end)
 
-	-- Nasıl oynanır (bölüm seçimi açıkken, solda)
-	local howTo = panel(hud, UDim2.fromOffset(330, 250), UDim2.new(0.5, -230, 0.5, 0), Vector2.new(1, 0.5), Z - 9,
-		Color3.fromRGB(30, 60, 50), Color3.fromRGB(18, 30, 28))
-	local howTitle = label(howTo, "HOW TO DEFEND", 22, Color3.fromRGB(120, 255, 160), Z - 8)
-	howTitle.Position = UDim2.fromOffset(0, 8)
-	howTitle.Size = UDim2.new(1, 0, 0, 26)
-	local howBody = label(howTo, table.concat({
-		"1. Pick a sector and press BEGIN",
-		"2. Tap a crewmate card below, then tap the field to place it near the orange arrows",
-		"3. Press START WAVE: your crew fights on its own",
-		"4. Got a Lightsaber? Press EXIT VIEW in a wave and slash enemies yourself",
-		"5. 5 waves = 1 sector: ★ and gold. Fallen crew go to the Hospital",
-	}, "\n"), 14, WHITE, Z - 8, 1.3)
-	howBody.Position = UDim2.fromOffset(14, 38)
-	howBody.Size = UDim2.new(1, -28, 1, -46)
-	howBody.TextWrapped = true
-	howBody.TextXAlignment = Enum.TextXAlignment.Left
-	howBody.TextYAlignment = Enum.TextYAlignment.Top
+	-- ═══ Gezegende yürürken: durum, düğmeler, destekler ═════════════════════
+	local hud = Instance.new("Frame")
+	hud.Name = "DefensePlanetHud"
+	hud.Size = UDim2.fromScale(1, 1)
+	hud.BackgroundTransparency = 1
+	hud.Visible = false
+	hud.ZIndex = Z - 12
+	hud.Parent = screen
 
-	-- Gelen dalga kartı (sağda)
-	local incoming = panel(hud, UDim2.fromOffset(230, 210), UDim2.new(1, -12, 0, 96), Vector2.new(1, 0), Z - 9,
+	-- Üstte durum
+	local top = panel(hud, UDim2.fromOffset(520, 70), UDim2.new(0.5, 0, 0, 8), Vector2.new(0.5, 0), Z - 11)
+	local topTitle = label(top, "", 20, WHITE, Z - 10)
+	topTitle.Position = UDim2.fromOffset(14, 6)
+	topTitle.Size = UDim2.new(1, -140, 0, 26)
+	topTitle.TextXAlignment = Enum.TextXAlignment.Left
+	local topGold = label(top, "", 20, GOLD, Z - 10)
+	topGold.AnchorPoint = Vector2.new(1, 0)
+	topGold.Position = UDim2.new(1, -14, 0, 6)
+	topGold.Size = UDim2.fromOffset(120, 26)
+	topGold.TextXAlignment = Enum.TextXAlignment.Right
+	local hullBack = Instance.new("Frame")
+	hullBack.Position = UDim2.fromOffset(14, 40)
+	hullBack.Size = UDim2.new(1, -28, 0, 18)
+	hullBack.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
+	hullBack.ZIndex = Z - 10
+	hullBack.Parent = top
+	FancyKit.corner(hullBack, 9)
+	local hullFill = Instance.new("Frame")
+	hullFill.Size = UDim2.fromScale(1, 1)
+	hullFill.BackgroundColor3 = WHITE
+	hullFill.ZIndex = Z - 9
+	hullFill.Parent = hullBack
+	FancyKit.corner(hullFill, 9)
+	FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 90)
+	local hullText = label(hullBack, "", 13, WHITE, Z - 8, 1.3)
+	hullText.Size = UDim2.fromScale(1, 1)
+	local hint = label(hud, "", 17, WHITE, Z - 10)
+	hint.AnchorPoint = Vector2.new(0.5, 0)
+	hint.Position = UDim2.new(0.5, 0, 0, 84)
+	hint.Size = UDim2.fromOffset(760, 24)
+
+	-- Sağda gelen dalga
+	local incoming = panel(hud, UDim2.fromOffset(220, 150), UDim2.new(1, -12, 0, 200), Vector2.new(1, 0), Z - 11,
 		Color3.fromRGB(70, 34, 40), Color3.fromRGB(34, 18, 26))
-	local incTitle = label(incoming, "INCOMING", 20, Color3.fromRGB(255, 170, 60), Z - 8)
-	incTitle.Position = UDim2.fromOffset(0, 8)
-	incTitle.Size = UDim2.new(1, 0, 0, 24)
-	local incBody = label(incoming, "", 16, WHITE, Z - 8, 1.4)
-	incBody.Position = UDim2.fromOffset(12, 36)
-	incBody.Size = UDim2.new(1, -24, 1, -44)
+	local incTitle = label(incoming, "INCOMING", 18, Color3.fromRGB(255, 170, 60), Z - 10)
+	incTitle.Position = UDim2.fromOffset(0, 6)
+	incTitle.Size = UDim2.new(1, 0, 0, 22)
+	local incBody = label(incoming, "", 15, WHITE, Z - 10, 1.3)
+	incBody.Position = UDim2.fromOffset(12, 32)
+	incBody.Size = UDim2.new(1, -24, 1, -38)
 	incBody.TextWrapped = true
 	incBody.TextYAlignment = Enum.TextYAlignment.Top
 	incBody.TextXAlignment = Enum.TextXAlignment.Left
 	incBody.RichText = true
 
-	-- Ekip şeridi (altta)
-	local crewBar = panel(hud, UDim2.new(1, -380, 0, 132), UDim2.new(0, 12, 1, -12), Vector2.new(0, 1), Z - 9)
-	local crewTitle = label(crewBar, "", 17, WHITE, Z - 8)
-	crewTitle.Position = UDim2.fromOffset(12, 4)
-	crewTitle.Size = UDim2.new(1, -24, 0, 22)
-	crewTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local crewList = Instance.new("ScrollingFrame")
-	crewList.Position = UDim2.fromOffset(8, 28)
-	crewList.Size = UDim2.new(1, -16, 1, -34)
-	crewList.BackgroundTransparency = 1
-	crewList.BorderSizePixel = 0
-	crewList.ScrollBarThickness = 5
-	crewList.ScrollingDirection = Enum.ScrollingDirection.X
-	crewList.AutomaticCanvasSize = Enum.AutomaticSize.X
-	crewList.CanvasSize = UDim2.new()
-	crewList.ZIndex = Z - 8
-	crewList.Parent = crewBar
-	local crewLayout = Instance.new("UIListLayout")
-	crewLayout.FillDirection = Enum.FillDirection.Horizontal
-	crewLayout.Padding = UDim.new(0, 8)
-	crewLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	crewLayout.Parent = crewList
-
-	-- Sağ alt: düğmeler
-	local actions = Instance.new("Frame")
-	actions.AnchorPoint = Vector2.new(1, 1)
-	actions.Position = UDim2.new(1, -12, 1, -12)
-	actions.Size = UDim2.fromOffset(350, 132)
-	actions.BackgroundTransparency = 1
-	actions.ZIndex = Z - 9
-	actions.Parent = hud
-	local goB = button(actions, "START WAVE ▶", UDim2.fromOffset(350, 64), GREEN, Z - 8, 24)
-	local retreatB = button(actions, "RETREAT", UDim2.fromOffset(170, 56), RED, Z - 8, 18)
-	retreatB.holder.Position = UDim2.fromOffset(0, 72)
-	local exitB = button(actions, "EXIT VIEW", UDim2.fromOffset(170, 56), GREY, Z - 8, 18)
-	exitB.holder.Position = UDim2.fromOffset(180, 72)
-	goB.button.Activated:Connect(function()
-		hooks.send("go")
+	-- Altta (alet çubuğunun üstünde) düğmeler
+	local bottom = Instance.new("Frame")
+	bottom.AnchorPoint = Vector2.new(0.5, 1)
+	bottom.Position = UDim2.new(0.5, 0, 1, -96)
+	bottom.Size = UDim2.fromOffset(480, 70)
+	bottom.BackgroundTransparency = 1
+	bottom.ZIndex = Z - 11
+	bottom.Parent = hud
+	local mainB = button(bottom, "⚔ DEFEND", UDim2.fromOffset(250, 66), GREEN, Z - 10, 26)
+	local sideB = button(bottom, "🚀 TAKE OFF", UDim2.fromOffset(200, 58), BLUE, Z - 10, 18)
+	sideB.holder.Position = UDim2.fromOffset(264, 4)
+	local mode = "idle"
+	mainB.button.Activated:Connect(function()
+		if mode == "idle" then
+			ui.OpenPrepare()
+		elseif mode == "prep" then
+			hooks.send("go")
+		end
 	end)
-	retreatB.button.Activated:Connect(function()
-		hooks.send("retreat")
+	sideB.button.Activated:Connect(function()
+		if mode == "idle" then
+			hooks.takeoff()
+		elseif mode == "prep" then
+			hooks.send("retreat")
+		end
 	end)
-	exitB.button.Activated:Connect(function()
-		hooks.exitView()
+	-- DEFEND / START hafifçe nabız atıyor
+	task.spawn(function()
+		while hud.Parent do
+			if hud.Visible and mode ~= "fight" then
+				local t = os.clock()
+				mainB.holder.Size = UDim2.fromOffset(250 + math.sin(t * 4) * 6, 66 + math.sin(t * 4) * 2)
+			end
+			task.wait(0.05)
+		end
 	end)
 
-	-- Savaşta: destek düğmeleri
+	-- Savaşta destekler
 	local supportBar = Instance.new("Frame")
 	supportBar.AnchorPoint = Vector2.new(0.5, 1)
-	supportBar.Position = UDim2.new(0.5, 0, 1, -12)
-	supportBar.Size = UDim2.fromOffset(3 * 150 + 20, 70)
+	supportBar.Position = UDim2.new(0.5, 0, 1, -96)
+	supportBar.Size = UDim2.fromOffset(3 * 150 + 20, 64)
 	supportBar.BackgroundTransparency = 1
-	supportBar.ZIndex = Z - 9
+	supportBar.ZIndex = Z - 11
 	supportBar.Parent = hud
 	local supportButtons: { [string]: FancyKit.Button } = {}
 	for i, s in DefenseConfig.Supports do
-		local b = button(supportBar, "", UDim2.fromOffset(140, 64), Color3.fromRGB(150, 90, 255), Z - 8, 17)
+		local b = button(supportBar, "", UDim2.fromOffset(140, 60), Color3.fromRGB(150, 90, 255), Z - 10, 16)
 		b.holder.Position = UDim2.fromOffset((i - 1) * 160, 0)
 		b.button.Activated:Connect(function()
 			hooks.pickSupport(if picked.support == s.id then nil else s.id)
@@ -561,35 +709,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		supportButtons[s.id] = b
 	end
 
-	-- Seçili crewmate şeridi
-	local selBar = panel(hud, UDim2.fromOffset(470, 58), UDim2.new(0.5, 0, 1, -152), Vector2.new(0.5, 1), Z - 9)
-	selBar.Visible = false
-	local selText = label(selBar, "", 17, WHITE, Z - 8)
-	selText.Position = UDim2.fromOffset(12, 0)
-	selText.Size = UDim2.new(1, -250, 1, 0)
-	selText.TextXAlignment = Enum.TextXAlignment.Left
-	selText.TextTruncate = Enum.TextTruncate.AtEnd
-	local moveB = button(selBar, "MOVE", UDim2.fromOffset(100, 44), BLUE, Z - 8, 16)
-	moveB.holder.AnchorPoint = Vector2.new(1, 0.5)
-	moveB.holder.Position = UDim2.new(1, -124, 0.5, 2)
-	local recallB = button(selBar, "RECALL", UDim2.fromOffset(104, 44), RED, Z - 8, 16)
-	recallB.holder.AnchorPoint = Vector2.new(1, 0.5)
-	recallB.holder.Position = UDim2.new(1, -12, 0.5, 2)
-	moveB.button.Activated:Connect(function()
-		hooks.moveSelected()
-	end)
-	recallB.button.Activated:Connect(function()
-		hooks.recallSelected()
-	end)
-
-	-- İpucu satırı
-	local hint = label(hud, "", 17, WHITE, Z - 8)
-	hint.AnchorPoint = Vector2.new(0.5, 0)
-	hint.Position = UDim2.new(0.5, 0, 0, 88)
-	hint.Size = UDim2.fromOffset(700, 24)
-
 	-- Sonuç bandı
-	local banner = panel(hud, UDim2.fromOffset(520, 120), UDim2.fromScale(0.5, 0.36), Vector2.new(0.5, 0.5), Z + 20)
+	local banner = panel(screen, UDim2.fromOffset(520, 120), UDim2.fromScale(0.5, 0.36), Vector2.new(0.5, 0.5), Z + 20)
 	banner.Visible = false
 	local bannerTitle = label(banner, "", 34, WHITE, Z + 21)
 	bannerTitle.Position = UDim2.fromOffset(0, 12)
@@ -599,128 +720,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	bannerSub.Size = UDim2.new(1, -20, 0, 46)
 	bannerSub.TextWrapped = true
 	local bannerToken = 0
-
-	-- ═══ Gezegende yürürken: DEFEND / TAKE OFF ve koşu durumu ════════════════
-	local planetHud = Instance.new("Frame")
-	planetHud.Name = "DefensePlanetHud"
-	planetHud.AnchorPoint = Vector2.new(0.5, 1)
-	planetHud.Position = UDim2.new(0.5, 0, 1, -96)
-	planetHud.Size = UDim2.fromOffset(420, 120)
-	planetHud.BackgroundTransparency = 1
-	planetHud.Visible = false
-	planetHud.ZIndex = Z - 12
-	planetHud.Parent = screen
-	local status = label(planetHud, "", 17, WHITE, Z - 11)
-	status.Size = UDim2.new(1, 0, 0, 24)
-	local defendB = button(planetHud, "⚔ DEFEND", UDim2.fromOffset(240, 66), GREEN, Z - 11, 28)
-	defendB.holder.Position = UDim2.fromOffset(0, 32)
-	local offB = button(planetHud, "🚀 TAKE OFF", UDim2.fromOffset(170, 58), BLUE, Z - 11, 18)
-	offB.holder.Position = UDim2.fromOffset(250, 36)
-	defendB.button.Activated:Connect(function()
-		hooks.openCommand()
-	end)
-	offB.button.Activated:Connect(function()
-		hooks.takeoff()
-	end)
-	-- DEFEND hafifçe nabız atıyor (ilk bakışta fark edilsin)
-	task.spawn(function()
-		while planetHud.Parent do
-			if planetHud.Visible then
-				local t = os.clock()
-				defendB.holder.Size = UDim2.fromOffset(240 + math.sin(t * 4) * 6, 66 + math.sin(t * 4) * 2)
-			end
-			task.wait(0.05)
-		end
-	end)
-
-	local function renderPlanetHud()
-		if run then
-			local fight = run.phase == "fight"
-			status.Text = string.format("SECTOR %d · WAVE %d/%d · HULL %d/%d%s", run.sector, run.waveInSector,
-				DefenseConfig.WavesPerSector, run.hull, run.maxHull,
-				if fight and data and (data.saber or 0) > 0 then "  ·  SLASH WITH YOUR LIGHTSABER!" elseif fight then "  ·  FIGHTING" else "")
-			defendB.set(if fight then "🎯 COMMAND" else "⚔ DEFEND", GREEN)
-		else
-			status.Text = ""
-			defendB.set("⚔ DEFEND", GREEN)
-		end
-	end
-
-	-- ═══ Çizim ══════════════════════════════════════════════════════════════
-	local function deployedSlots(): { [number]: boolean }
-		local set = {}
-		if run then
-			for _, u in run.units do
-				set[u.slot] = true
-			end
-		end
-		return set
-	end
-
-	local function renderCrew()
-		for _, c in crewList:GetChildren() do
-			if c:IsA("GuiObject") then
-				c:Destroy()
-			end
-		end
-		if not (data and run) then
-			return
-		end
-		local used = deployedSlots()
-		local list = {}
-		for _, c in data.crew or {} do
-			if not c.away and not used[c.slot] then
-				table.insert(list, c)
-			end
-		end
-		table.sort(list, function(a, b)
-			return DefenseConfig.GetPower(a.unitId, a.mutationId) > DefenseConfig.GetPower(b.unitId, b.mutationId)
-		end)
-		crewTitle.Text = string.format("YOUR CREW   %d / %d on the field", #run.units, data.slots)
-		if #list == 0 then
-			local none = label(crewList, "No crewmates left at your base. Steal more in space!", 15, Color3.fromRGB(200, 210, 240), Z - 7, 1.3)
-			none.Size = UDim2.fromOffset(420, 90)
-			return
-		end
-		for i, c in list do
-			local def = Config.GetUnit(c.unitId)
-			local role = DefenseConfig.GetRole(c.unitId)
-			local selected = picked.slot == c.slot
-			local card = Instance.new("TextButton")
-			card.LayoutOrder = i
-			card.Size = UDim2.fromOffset(104, 92)
-			card.BackgroundColor3 = WHITE
-			card.AutoButtonColor = false
-			card.Text = ""
-			card.ZIndex = Z - 7
-			card.Parent = crewList
-			FancyKit.corner(card, 10)
-			FancyKit.border(card, if selected then GOLD else OUTLINE, if selected then 4 else 2.5)
-			local rarity = def and Config.Rarities[def.rarity]
-			local tint = if rarity then rarity.color else GREY
-			FancyKit.gradient(card, { tint:Lerp(WHITE, 0.15), tint:Lerp(Color3.new(0, 0, 0), 0.45) }, 90)
-			local iconHolder = Instance.new("Frame")
-			iconHolder.Size = UDim2.fromOffset(52, 52)
-			iconHolder.Position = UDim2.fromOffset(26, 2)
-			iconHolder.BackgroundTransparency = 1
-			iconHolder.ZIndex = Z - 6
-			iconHolder.Parent = card
-			pcall(UiKit.UnitIcon, iconHolder, 52, c.unitId)
-			local badge = label(card, role.icon, 16, WHITE, Z - 5, 0)
-			badge.Position = UDim2.fromOffset(4, 2)
-			badge.Size = UDim2.fromOffset(22, 22)
-			local name = label(card, if def then def.name else c.unitId, 12, WHITE, Z - 5, 1.3)
-			name.Position = UDim2.fromOffset(3, 54)
-			name.Size = UDim2.new(1, -6, 0, 16)
-			name.TextTruncate = Enum.TextTruncate.AtEnd
-			local pw = label(card, string.format("%s · %.2f", role.name, DefenseConfig.GetPower(c.unitId, c.mutationId)), 11, GOLD, Z - 5, 1.2)
-			pw.Position = UDim2.fromOffset(3, 72)
-			pw.Size = UDim2.new(1, -6, 0, 14)
-			card.Activated:Connect(function()
-				hooks.pickCrew(if picked.slot == c.slot then nil else c.slot)
-			end)
-		end
-	end
 
 	local function renderSupports()
 		for _, s in DefenseConfig.Supports do
@@ -733,29 +732,14 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	local function renderHud()
-		local planetLabel = planetName(currentPlanet)
 		local gold = if data then data.gold else 0
 		topGold.Text = "🪙 " .. tostring(gold)
+		local name = planetName(currentPlanet)
+		mode = if run == nil then "idle" elseif run.phase == "fight" then "fight" else "prep"
 		if run then
-			topTitle.Text = string.format("%s · SECTOR %d · WAVE %d/%d", planetLabel, run.sector, run.waveInSector,
-				DefenseConfig.WavesPerSector)
+			topTitle.Text = string.format("%s · SECTOR %d · WAVE %d/%d", name, run.sector, run.waveInSector, DefenseConfig.WavesPerSector)
 			hullFill.Size = UDim2.fromScale(math.clamp(run.hull / math.max(1, run.maxHull), 0, 1), 1)
 			hullText.Text = string.format("SHIP HULL %d / %d", run.hull, run.maxHull)
-		else
-			topTitle.Text = planetLabel .. " · DEFENSE"
-			local hull = if data then data.hull else DefenseConfig.BaseHull
-			hullFill.Size = UDim2.fromScale(1, 1)
-			hullText.Text = string.format("SHIP HULL %d", hull)
-		end
-		local prep = run ~= nil and run.phase == "prep"
-		local fight = run ~= nil and run.phase == "fight"
-		start.Visible = run == nil
-		howTo.Visible = run == nil
-		incoming.Visible = run ~= nil
-		crewBar.Visible = prep
-		actions.Visible = prep
-		supportBar.Visible = fight
-		if run then
 			local lines = { string.format("<b>%s</b>", run.plan.name) }
 			for _, id in { "Grub", "Skitter", "Spitter", "Brute", "Boss" } do
 				local n = run.plan.counts[id]
@@ -766,24 +750,49 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			if run.plan.boss then
 				table.insert(lines, "<font color=\"#ff6060\">⚠ BOSS WAVE</font>")
 			end
-			table.insert(lines, string.format("Losses this sector: %d", run.sectorLosses))
 			incBody.Text = table.concat(lines, "\n")
-			incTitle.Text = if fight then "FIGHTING" else "INCOMING"
-			goB.set("START WAVE ▶", if #run.units > 0 then GREEN else nil)
+			incTitle.Text = if mode == "fight" then "FIGHTING" else "NEXT WAVE"
 		else
-			renderStart()
+			topTitle.Text = name .. " · DEFENSE"
+			local hull = if data then data.hull else DefenseConfig.BaseHull
+			hullFill.Size = UDim2.fromScale(1, 1)
+			hullText.Text = string.format("SHIP HULL %d", hull)
 		end
-		renderCrew()
+		incoming.Visible = run ~= nil
+		bottom.Visible = mode ~= "fight"
+		supportBar.Visible = mode == "fight"
+		if mode == "idle" then
+			mainB.set("⚔ DEFEND", GREEN)
+			sideB.set("🚀 TAKE OFF", BLUE)
+			hint.Text = "Press ⚔ DEFEND to pick your crew"
+		elseif mode == "prep" then
+			mainB.set("▶ START WAVE", if #run.units > 0 then GREEN else nil)
+			sideB.set("↩ RETREAT", RED)
+			hint.Text = if (run.carried or 0) > 0
+				then "Pick a crewmate from your bar, walk on the field and CLICK to drop it (near the orange arrows)"
+				else "Your crew is ready - press START WAVE!"
+		else
+			hint.Text = if run.gear == "Lightsaber" then "Defend the ship! Equip your Lightsaber and slash enemies"
+				elseif (run.carried or 0) > 0 then "Defend the ship! You can still drop crewmates from your bar"
+				else "Defend the ship!"
+		end
 		renderSupports()
-		renderPlanetHud()
 	end
 
 	-- ═══ Dışa açık ══════════════════════════════════════════════════════════
-	local ui: UI = {} :: any
+	ui = {} :: any
 
-	function ui.OpenPilot()
-		renderPilot()
-		pilotRoot.Visible = true
+	function ui.OpenPrepare()
+		if run then
+			return
+		end
+		prepStep = "crew"
+		table.clear(chosen)
+		chosenSector = maxSector()
+		shopRoot.Visible = false
+		hooks.send("sync")
+		renderPrep()
+		prepRoot.Visible = true
 	end
 
 	function ui.OpenShop(kind: string)
@@ -793,14 +802,24 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	function ui.CloseAll()
-		pilotRoot.Visible = false
+		prepRoot.Visible = false
 		shopRoot.Visible = false
 	end
 
 	function ui.SetData(d: any)
 		data = d
-		if pilotRoot.Visible then
-			renderPilot()
+		if prepRoot.Visible then
+			-- Seçili olup artık evde olmayanları düş
+			local free: { [number]: boolean } = {}
+			for _, c in freeCrew() do
+				free[c.slot] = true
+			end
+			for slot in chosen do
+				if not free[slot] then
+					chosen[slot] = nil
+				end
+			end
+			renderPrep()
 		end
 		if shopRoot.Visible then
 			renderShop()
@@ -813,55 +832,28 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		if planet then
 			currentPlanet = planet
 		end
-		if not r then
-			chosenSector = maxSector()
+		if r then
+			prepRoot.Visible = false
 		end
 		renderHud()
 	end
 
 	function ui.SetPlanetHud(visible: boolean)
-		planetHud:SetAttribute("Wanted", visible)
-		planetHud.Visible = visible and not hud.Visible
-		renderPlanetHud()
-	end
-
-	function ui.SetCommand(visible: boolean)
 		hud.Visible = visible
-		planetHud.Visible = not visible and planetHud:GetAttribute("Wanted") == true
-		if visible then
-			pilotRoot.Visible = false
-			shopRoot.Visible = false
-			if not run then
-				chosenSector = maxSector()
-			end
-			renderHud()
+		if not visible then
+			ui.CloseAll()
 		end
+		renderHud()
 	end
 
-	function ui.SetSelected(info: any?)
-		if not info then
-			selBar.Visible = false
-			return
-		end
-		local def = Config.GetUnit(info.unitId)
-		local role = DefenseConfig.GetRole(info.unitId)
-		selText.Text = string.format("%s %s · %s", role.icon, if def then def.name else info.unitId, role.name)
-		selBar.Visible = run ~= nil and run.phase == "prep"
-	end
-
-	function ui.SetPicked(slot: number?, support: string?)
-		picked.slot = slot
+	function ui.SetPicked(support: string?)
 		picked.support = support
-		renderCrew()
 		renderSupports()
 	end
 
 	function ui.SetTick(snap: any)
 		if run then
 			run.hull = snap.hull
-			if planetHud.Visible then
-				renderPlanetHud()
-			end
 			hullFill.Size = UDim2.fromScale(math.clamp(snap.hull / math.max(1, run.maxHull), 0, 1), 1)
 			hullText.Text = string.format("SHIP HULL %d / %d   ·   enemies %d", snap.hull, run.maxHull, #(snap.e or {}))
 		end
@@ -882,10 +874,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 				banner.Visible = false
 			end
 		end)
-	end
-
-	function ui.Hint(text: string?)
-		hint.Text = text or ""
 	end
 
 	return ui

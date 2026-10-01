@@ -63,6 +63,8 @@ type UnitView = {
 	lunge: number,
 	lungeDir: Vector3,
 	fallen: boolean,
+	born: number,              -- elden düşme animasyonu
+	prompt: ProximityPrompt,   -- hazırlıkta "Pick up"
 }
 
 local folder: Folder? = nil
@@ -77,6 +79,10 @@ local marker: BasePart? = nil
 local rangeRing: BasePart? = nil
 local selectRing: BasePart? = nil
 local lastSound: { [string]: number } = {}
+local prepMode = false
+local pickupHandler: ((number) -> ())? = nil
+local DROP_HEIGHT = 5
+local DROP_TIME = 0.38
 
 local function root(): Folder
 	local f = folder
@@ -228,6 +234,23 @@ local function buildUnit(info: any): UnitView?
 	ic.CornerRadius = UDim.new(1, 0)
 	ic.Parent = icon
 
+	-- Hazırlıkta yanına gelince geri al (istemcide; sunucu mesafeyi doğruluyor)
+	local def = Config.GetUnit(info.unitId)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pick up"
+	prompt.ObjectText = if def then def.name else ""
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0.15
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Enabled = prepMode
+	prompt.Parent = anchor
+	prompt.Triggered:Connect(function()
+		if pickupHandler then
+			pickupHandler(info.uid)
+		end
+	end)
+
 	return {
 		uid = info.uid,
 		unitId = info.unitId,
@@ -239,6 +262,8 @@ local function buildUnit(info: any): UnitView?
 		lunge = 0,
 		lungeDir = Vector3.zero,
 		fallen = false,
+		born = os.clock(),
+		prompt = prompt,
 	}
 end
 
@@ -253,10 +278,14 @@ function DefenseFX.SyncUnits(list: { any })
 			if built then
 				units[info.uid] = built
 				-- Kondu: küçük bir zıplama
-				local p = fxPart("Drop", Vector3.new(0.3, 5, 5), CFrame.new(world(Vector2.new(info.x, info.z), 0.2)) * CFrame.Angles(0, 0, math.rad(90)),
-					Color3.fromRGB(120, 220, 255), Enum.PartType.Cylinder)
-				p.Transparency = 0.3
-				fadeAway(p, 0.5, Vector3.new(0.3, 9, 9))
+				-- Elden düşüyor; yere değince toz halkası
+				local at = world(Vector2.new(info.x, info.z), 0.2)
+				task.delay(DROP_TIME, function()
+					local p = fxPart("Drop", Vector3.new(0.3, 5, 5), CFrame.new(at) * CFrame.Angles(0, 0, math.rad(90)),
+						Color3.fromRGB(120, 220, 255), Enum.PartType.Cylinder)
+					p.Transparency = 0.3
+					fadeAway(p, 0.5, Vector3.new(0.3, 9, 9))
+				end)
 			end
 		else
 			local pos = world(Vector2.new(info.x, info.z))
@@ -790,6 +819,18 @@ function DefenseFX.Select(uid: number?)
 end
 
 --[[ Her şeyi kaldırır (koşu bitti / gezegenden ayrıldı). ]]
+--[[ Hazırlık mı (yerdekiler geri alınabilir), savaş mı. ]]
+function DefenseFX.SetPrep(flag: boolean)
+	prepMode = flag
+	for _, view in units do
+		view.prompt.Enabled = flag and not view.fallen
+	end
+end
+
+function DefenseFX.OnPickup(handler: (number) -> ())
+	pickupHandler = handler
+end
+
 function DefenseFX.Clear()
 	for _, view in enemies do
 		view.model:Destroy()
@@ -858,7 +899,9 @@ function DefenseFX.Start()
 		for _, view in units do
 			if not view.fallen then
 				view.lunge = math.max(0, view.lunge - dt * 6)
+				local fall = math.clamp((now - view.born) / DROP_TIME, 0, 1)
 				local offset = view.lungeDir * (math.sin(view.lunge * math.pi) * 0.8)
+					+ Vector3.new(0, DROP_HEIGHT * (1 - fall) * (1 - fall), 0)
 				local base = view.base
 				local look = if view.lungeDir.Magnitude > 0.01 then view.lungeDir else base.LookVector
 				local p = base.Position + offset

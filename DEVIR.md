@@ -13,6 +13,20 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (78) — Batur (Yusuf'un şeridine de yazıldı: `Hotbar`, `SpaceFX`, `DefenseClient/FX/UI`)
+
+Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda denendi: iniş → hazırlık → 4 crewmate çubukta (uzay gear'ları gizli) → alana yürüyüp bırakma → dalga başladı, Glorp'lar çiziliyor.
+
+- **Gezegen savunması yeni akış** (Batur: "ayrı ekran olmasın; DEFEND'e basınca crewmate ve gear sorsun, seçilenler alttaki çubukta, tıklayıp haritada dolaşarak koysun"):
+  - Taktik kamera kalktı. **DEFEND** → pencere: bölüm, crewmate'ler (role göre gruplu, en güçlüden zayıfa, slot kadar; "BEST CREW" otomatik), gear (yok / ışın kılıcı). Sunucuya `prepare(sector, {slot}, gear)`.
+  - Seçilen crewmate'ler **Tool** (`DefenseCrew` = uid, `UnitId`): elde küçük modeli, tıklayınca karakterin 4.5 stud önüne bırakılıyor (konumu sunucu hesaplıyor), düşme animasyonu. Hazırlıkta yanına gidip **Pick up** (istemci istemi → `pickup`). Dalga sürerken de bırakılabiliyor (`DefenseSim.AddUnit`).
+  - Yürürken altta START WAVE / RETREAT, savaşta destekler (Orbital Strike: sonraki tıklama yerde).
+- **Hotbar**: gezegendeyken (`DefensePlanet`) yalnızca savunma aletleri (crewmate ve kılıç), gemide yalnızca normal gear; inince eldeki gear bırakılıyor. Crewmate yuvasında `UnitIcon`.
+- **SpaceFX**: Return to Station'ın üstünde **🪐 DEFEND PLANET** (mod açıksa). Sunucu artık uzaydan inişe izin veriyor (taşırken / yakalanmışken değil).
+- **Gemiler** elips gövdeli (SpecialMesh Sphere; Ball şekli hep küre çiziyordu, eski gemiler bu yüzden kötüydü). Dükkân gemicikleri alana dönük, yay biçiminde. Mantar şapkaları da elips.
+
+---
+
 ## 2026-10-01 (77) — Batur (Yusuf'un şeridine de yazıldı: `CrewAura`, `DefenseClient/FX/UI`)
 
 Studio'ya aktarıldı, **195/195 test temiz**, konsol temiz. Oyunda denendi: pilot → arena 1'e iniş, Terrain zemin, DEFEND düğmesi ve ışık sütunu, taktik görünüm, kılıç alma/kuşanma/savaşta sallama.

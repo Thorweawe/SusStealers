@@ -100,6 +100,27 @@ local function ball(parent: Instance, name: string, cf: CFrame, size: Vector3, c
 	return p
 end
 
+-- ─── Elips gövde ────────────────────────────────────────────────────────────
+
+--[[
+	Roblox'un Ball şekli HER ZAMAN küre (en küçük kenar): eski gemilerde
+	uzun gövdeler topa dönüşüyordu, "gemiler kötü" görünmesinin sebebi.
+	Gerçek elips için blok + SpecialMesh(Sphere). Çarpışma kutu olduğundan
+	gövdelerde kapalı; altına daha küçük, görünmez çarpışma kutuları.
+]]
+local function ellipsoid(parent: Instance, name: string, cf: CFrame, size: Vector3, color: Color3, props: Props?): Part
+	local p = part(parent, name, size, cf, color, props)
+	p.CanCollide = false
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	return p
+end
+
+local function blocker(parent: Instance, cf: CFrame, size: Vector3)
+	part(parent, "Collision", size, cf, WHITE, { Transparency = 1, CanQuery = false, CastShadow = false })
+end
+
 local function signBoard(parent: Instance, name: string, cf: CFrame, size: Vector2, text: string, color: Color3)
 	local board = part(parent, name, Vector3.new(size.X, size.Y, 0.5), cf, DARK)
 	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
@@ -185,7 +206,7 @@ local function buildTerrain(origin: Vector3, def: Config.SpaceMonsterDef, rng: R
 		local radius = rng:NextNumber(130, L.groundRadius - 90)
 		local x, z = math.cos(angle) * radius, math.sin(angle) * radius
 		local inField = math.abs(x) < F.halfWidth + 24 and z > F.zMin - 20 and z < F.zMax + 60
-		local nearBase = math.abs(x) < 120 and z < 30 and z > -160
+		local nearBase = math.abs(x) < 140 and z < 45 and z > -160
 		if inField or nearBase then
 			continue
 		end
@@ -235,7 +256,7 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 
 	local function free(x: number, z: number): boolean
 		local inField = math.abs(x) < F.halfWidth + 14 and z > F.zMin - 12 and z < F.zMax + 40
-		local nearBase = math.abs(x) < 118 and z < 30 and z > -150
+		local nearBase = math.abs(x) < 140 and z < 45 and z > -150
 		return not inField and not nearBase and (x * x + z * z) < (L.groundRadius - 60) ^ 2
 	end
 
@@ -251,14 +272,14 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 		local p = origin + Vector3.new(x, 0, z)
 		cyl(f, "Stem", alongY(CFrame.new(p + Vector3.new(0, h / 2, 0))), h, h * 0.16, Color3.fromRGB(230, 225, 205))
 		local capW = h * rng:NextNumber(0.7, 1.0)
-		ball(f, "Cap", CFrame.new(p + Vector3.new(0, h, 0)), Vector3.new(capW, capW * 0.45, capW), light_:Lerp(WHITE, 0.15),
+		ellipsoid(f, "Cap", CFrame.new(p + Vector3.new(0, h, 0)), Vector3.new(capW, capW * 0.45, capW), light_:Lerp(WHITE, 0.15),
 			{ Material = Enum.Material.SmoothPlastic })
 		for k = 1, 4 do
 			local a = k / 4 * math.pi * 2 + rng:NextNumber(0, 1)
 			ball(f, "Spot", CFrame.new(p + Vector3.new(math.cos(a) * capW * 0.28, h + capW * 0.16, math.sin(a) * capW * 0.28)),
 				Vector3.one * capW * 0.14, WHITE, glow(WHITE, { CanCollide = false }))
 		end
-		local glowPart = ball(f, "CapGlow", CFrame.new(p + Vector3.new(0, h - capW * 0.12, 0)), Vector3.new(capW * 0.8, capW * 0.2, capW * 0.8),
+		local glowPart = ellipsoid(f, "CapGlow", CFrame.new(p + Vector3.new(0, h - capW * 0.12, 0)), Vector3.new(capW * 0.8, capW * 0.2, capW * 0.8),
 			light_, glow(light_, { CanCollide = false }))
 		if rng:NextNumber() < 0.3 then
 			light(glowPart, light_, 18, 1)
@@ -311,102 +332,104 @@ local function buildShip(model: Model, origin: Vector3)
 	ship.Name = "LandedShip"
 	ship.Parent = model
 	local c = origin + Vector3.new(0, 0, L.shipZ)
-	local Y = 22          -- gövde ekseninin yüksekliği
-	local D = 30          -- gövde çapı
-	local LEN = 104
+	local Y = 22           -- gövde ekseni
+	local W, H, LEN = 30, 26, 118
 
 	local function rel(x: number, y: number, z: number): CFrame
 		return CFrame.new(c + Vector3.new(x, y, z))
 	end
-
-	-- Gövde: uzun silindir, burun ve kuyruk küreleri
-	cyl(ship, "Fuselage", alongZ(rel(0, Y, 0)), LEN, D, HULL)
-	ball(ship, "Nose", rel(0, Y, LEN / 2), Vector3.new(D, D, 40), HULL)
-	ball(ship, "Tail", rel(0, Y, -LEN / 2), Vector3.new(D, D, 22), HULL2)
-	-- Sırt kamburu
-	cyl(ship, "Dorsal", alongZ(rel(0, Y + 9, -6)), 70, 20, HULL)
-	ball(ship, "DorsalFront", rel(0, Y + 9, 29), Vector3.new(20, 20, 18), HULL)
-	-- Alt karın (kargo)
-	part(ship, "Belly", Vector3.new(22, 5, 88), rel(0, Y - 13.5, -4), PANEL)
-	-- Kokpit camı ve çerçevesi
-	ball(ship, "Cockpit", rel(0, Y + 8, LEN / 2 + 4), Vector3.new(22, 13, 22), GLASS,
-		{ Material = Enum.Material.Glass, Transparency = 0.2, Reflectance = 0.2 })
-	ball(ship, "CockpitRim", rel(0, Y + 7.4, LEN / 2 + 3.4), Vector3.new(23.4, 12.4, 22.6), DARK)
-	-- Panel çizgileri (gövdeyi saran halkalar)
-	for z = -40, 40, 16 do
-		cyl(ship, "PanelRing", alongZ(rel(0, Y, z)), 0.8, D + 0.5, PANEL)
+	-- Elips gövdenin z'deki yarı genişliği (pencere, tabela yerleşimi)
+	local function halfWidth(z: number, y: number): number
+		local k = 1 - (z / (LEN / 2)) ^ 2 - (y / (H / 2)) ^ 2
+		return (W / 2) * math.sqrt(math.max(0, k))
 	end
-	-- Yan kırmızı şerit ve pencere sırası
+
+	-- Gövde katmanları
+	ellipsoid(ship, "Fuselage", rel(0, Y, 0), Vector3.new(W, H, LEN), HULL)
+	ellipsoid(ship, "Belly", rel(0, Y - 9, -2), Vector3.new(W - 4, 12, LEN - 16), HULL2)
+	ellipsoid(ship, "Stripe", rel(0, Y - 2.5, 0), Vector3.new(W + 0.5, 2.6, LEN + 0.5), TRIM)
+	ellipsoid(ship, "StripeThin", rel(0, Y + 1.2, 0), Vector3.new(W + 0.3, 0.8, LEN + 0.3), TRIM)
+	ellipsoid(ship, "Deck", rel(0, Y + 9, -10), Vector3.new(22, 14, 78), HULL)
+	-- Kokpit camı (üst önde) ve çerçevesi
+	ellipsoid(ship, "CockpitRim", rel(0, Y + 7.6, 38), Vector3.new(20, 11, 30), DARK)
+	ellipsoid(ship, "Cockpit", rel(0, Y + 8.2, 39), Vector3.new(18.6, 10, 28.6), GLASS,
+		{ Material = Enum.Material.Glass, Transparency = 0.15, Reflectance = 0.25 })
+	blocker(ship, rel(0, Y, 0), Vector3.new(W - 6, H - 6, LEN - 14))
+
+	-- Pencere sırası (gövdenin kavisine oturuyor)
 	for side = -1, 1, 2 do
-		part(ship, "Stripe", Vector3.new(0.6, 3, LEN - 4), rel(side * (D / 2 - 0.1), Y - 3, 0), TRIM)
-		part(ship, "StripeThin", Vector3.new(0.6, 0.8, LEN - 4), rel(side * (D / 2 - 0.1), Y - 0.6, 0), TRIM)
-		for z = -36, 36, 9 do
-			cyl(ship, "WindowRim", rel(side * (D / 2 - 0.6), Y + 4, z), 1.2, 4.2, DARK)
-			cyl(ship, "Window", rel(side * (D / 2 - 0.3), Y + 4, z), 1.2, 3.2, Color3.fromRGB(255, 236, 170),
-				glow(Color3.fromRGB(255, 236, 170)))
+		for z = -40, 32, 8 do
+			local hw = halfWidth(z, 3)
+			if hw > 4 then
+				local at = rel(side * (hw - 0.3), Y + 3, z) * CFrame.Angles(0, if side > 0 then 0 else math.rad(180), 0)
+				cyl(ship, "WindowRim", at, 0.8, 3.6, DARK)
+				cyl(ship, "Window", at * CFrame.new(0.25, 0, 0), 0.6, 2.8, Color3.fromRGB(255, 236, 170),
+					glow(Color3.fromRGB(255, 236, 170), { CanCollide = false }))
+			end
 		end
 		-- Adı
-		signBoard(ship, "ShipName", CFrame.lookAt((rel(side * (D / 2 + 0.4), Y + 10.5, -18)).Position,
-			(rel(side * 40, Y + 10.5, -18)).Position), Vector2.new(30, 4), "S.S. CREWMATE", TRIM)
+		local hw = halfWidth(-14, 9)
+		local p = (rel(side * (hw + 0.3), Y + 9, -14)).Position
+		signBoard(ship, "ShipName", CFrame.lookAt(p, p + Vector3.new(side, 0, 0)), Vector2.new(24, 3.6), "S.S. CREWMATE", TRIM)
 	end
-	-- Kanatlar: geriye süpürülmüş, uçlarında kırmızı motor kapsülü ve ışık
+
+	-- Kanatlar: yuvarlak hatlı, geriye süpürülmüş; uçlarda kapsül ve ışık
 	for side = -1, 1, 2 do
-		local wing = rel(side * 30, Y - 6, -14) * CFrame.Angles(0, math.rad(side * 18), math.rad(side * -5))
-		part(ship, "Wing", Vector3.new(36, 2.6, 30), wing, HULL2)
-		part(ship, "WingEdge", Vector3.new(36, 1, 1.4), wing * CFrame.new(0, 0, -15.4), TRIM)
-		local tip = rel(side * 49, Y - 6, -20)
-		cyl(ship, "WingPod", alongZ(tip), 24, 6, TRIM)
-		ball(ship, "WingPodNose", tip * CFrame.new(0, 0, 12), Vector3.new(6, 6, 6), TRIM)
-		ball(ship, "WingLight", tip * CFrame.new(0, 0, 14.6), Vector3.one * 1.6,
+		local wing = rel(side * 27, Y - 5, -18) * CFrame.Angles(0, math.rad(side * 22), math.rad(side * -6))
+		ellipsoid(ship, "Wing", wing, Vector3.new(40, 3, 26), HULL2)
+		ellipsoid(ship, "WingEdge", wing * CFrame.new(0, 0.4, -9), Vector3.new(36, 2.4, 6), TRIM)
+		local tip = rel(side * 46, Y - 4, -26)
+		ellipsoid(ship, "WingPod", tip, Vector3.new(6, 6, 24), TRIM)
+		cyl(ship, "WingPodGlow", alongZ(tip * CFrame.new(0, 0, -12.2)), 0.4, 3.6, FLAME, glow(FLAME))
+		ball(ship, "WingLight", tip * CFrame.new(0, 0, 12.4), Vector3.one * 1.6,
 			if side < 0 then Color3.fromRGB(255, 70, 70) else Color3.fromRGB(70, 255, 120),
 			glow(if side < 0 then Color3.fromRGB(255, 70, 70) else Color3.fromRGB(70, 255, 120)))
 	end
-	-- Kuyruk kanadı
-	local fin = rel(0, Y + 24, -40) * CFrame.Angles(math.rad(-20), 0, 0)
-	part(ship, "Fin", Vector3.new(2.2, 22, 18), fin, HULL)
-	part(ship, "FinTip", Vector3.new(2.4, 4, 18.4), fin * CFrame.new(0, 10, 0), TRIM)
+	-- Kuyruk kanadı ve yatay kanatçıklar
+	local fin = rel(0, Y + 20, -44) * CFrame.Angles(math.rad(-24), 0, 0)
+	ellipsoid(ship, "Fin", fin, Vector3.new(2.4, 24, 22), HULL)
+	ellipsoid(ship, "FinStripe", fin * CFrame.new(0, 7, 0), Vector3.new(2.6, 6, 16), TRIM)
 	for side = -1, 1, 2 do
-		part(ship, "TailWing", Vector3.new(16, 1.6, 10), rel(side * 9, Y + 12, -46) * CFrame.Angles(0, 0, math.rad(side * 12)), HULL2)
+		ellipsoid(ship, "TailWing", rel(side * 10, Y + 8, -48) * CFrame.Angles(0, math.rad(side * 15), math.rad(side * 10)),
+			Vector3.new(18, 2, 11), HULL2)
 	end
-	-- Motorlar
-	local engines = { { 0, Y + 2, 16 }, { -13, Y - 6, 11 }, { 13, Y - 6, 11 } }
+	-- Motorlar (arka)
+	local engines = { { 0, Y + 3, 15 }, { -12, Y - 5, 10 }, { 12, Y - 5, 10 } }
 	for _, e in engines do
 		local ex, ey, ed = e[1], e[2], e[3]
-		local back = rel(ex, ey, -LEN / 2 - 6)
+		local back = rel(ex, ey, -LEN / 2 + 2)
 		cyl(ship, "Engine", alongZ(back), 16, ed, METAL)
+		cyl(ship, "EngineRing", alongZ(back * CFrame.new(0, 0, -4)), 1.2, ed + 1, TRIM)
 		cyl(ship, "Nozzle", alongZ(back * CFrame.new(0, 0, -8.5)), 3, ed + 2, DARK)
 		local g = cyl(ship, "EngineGlow", alongZ(back * CFrame.new(0, 0, -10.1)), 0.6, ed - 1.5, FLAME, glow(FLAME))
 		cyl(ship, "EngineCore", alongZ(back * CFrame.new(0, 0, -10.3)), 0.6, ed * 0.45, Color3.fromRGB(140, 220, 255),
 			glow(Color3.fromRGB(140, 220, 255)))
 		light(g, FLAME, 26, 2)
 	end
-	-- Anten, radar çanağı, uyarı ışığı
-	cyl(ship, "Antenna", alongY(rel(6, Y + 26, -14)), 10, 0.6, METAL)
-	ball(ship, "AntennaTip", rel(6, Y + 31.4, -14), Vector3.one * 1.2, TRIM, glow(TRIM))
-	cyl(ship, "DishPole", alongY(rel(-7, Y + 22, -22)), 5, 1, METAL)
-	ball(ship, "Dish", rel(-7, Y + 25, -22) * CFrame.Angles(math.rad(-35), 0, 0), Vector3.new(9, 2.5, 9), HULL2)
+	-- Anten, radar çanağı
+	cyl(ship, "Antenna", alongY(rel(5, Y + 21, -16)), 9, 0.6, METAL)
+	ball(ship, "AntennaTip", rel(5, Y + 26, -16), Vector3.one * 1.2, TRIM, glow(TRIM))
+	cyl(ship, "DishPole", alongY(rel(-6, Y + 18, -26)), 4, 1, METAL)
+	ellipsoid(ship, "Dish", rel(-6, Y + 21, -26) * CFrame.Angles(math.rad(-35), 0, 0), Vector3.new(9, 2.4, 9), HULL2)
 	-- İniş ayakları
-	for _, z in { -36, -4, 28 } do
+	for _, z in { -38, -6, 26 } do
 		for side = -1, 1, 2 do
-			local foot = c + Vector3.new(side * 13, 0, z)
-			local top = c + Vector3.new(side * 9, Y - 13, z)
+			local foot = c + Vector3.new(side * 14, 0, z)
+			local top = c + Vector3.new(side * 9, Y - 10, z)
 			local mid = (foot + top) / 2
 			part(ship, "Leg", Vector3.new(1.8, (top - foot).Magnitude, 1.8), CFrame.lookAt(mid, top) * CFrame.Angles(math.rad(90), 0, 0), METAL)
-			part(ship, "Piston", Vector3.new(1.1, (top - foot).Magnitude * 0.7, 1.1),
-				CFrame.lookAt(mid + Vector3.new(0, 0, 1.6), top + Vector3.new(0, 0, 1.6)) * CFrame.Angles(math.rad(90), 0, 0), PANEL)
 			cyl(ship, "Foot", alongY(CFrame.new(foot + Vector3.new(0, 0.5, 0))), 1, 6, DARK)
 		end
 	end
 
 	-- Rampa: burnun altındaki kapıdan savunma çizgisine
-	local doorZ = LEN / 2 - 2
-	local top = c + Vector3.new(0, Y - 14, doorZ)
+	local top = c + Vector3.new(0, 12, 40)
 	local bottom = origin + Vector3.new(F.gate.X, 0.3, F.gate.Y)
 	local len = (top - bottom).Magnitude
 	local rampCf = CFrame.lookAt((top + bottom) / 2, bottom)
 	part(ship, "Ramp", Vector3.new(12, 0.8, len), rampCf, PANEL)
-	for k = -2, 2 do
-		part(ship, "RampTread", Vector3.new(11, 0.2, 0.6), rampCf * CFrame.new(0, 0.5, k * len / 5), DARK)
+	for k = -3, 3 do
+		part(ship, "RampTread", Vector3.new(11, 0.2, 0.6), rampCf * CFrame.new(0, 0.5, k * len / 7), DARK)
 	end
 	for side = -1, 1, 2 do
 		part(ship, "RampRail", Vector3.new(0.5, 0.5, len), rampCf * CFrame.new(side * 5.8, 2.4, 0), TRIM, glow(TRIM))
@@ -414,7 +437,7 @@ local function buildShip(model: Model, origin: Vector3)
 			part(ship, "RailPost", Vector3.new(0.4, 2.4, 0.4), rampCf * CFrame.new(side * 5.8, 1.2, k * len / 5), METAL)
 		end
 	end
-	local door = part(ship, "Door", Vector3.new(11, 0.4, 8), CFrame.new(top + Vector3.new(0, 0.2, -2)), Color3.fromRGB(255, 240, 200),
+	local door = part(ship, "Door", Vector3.new(11, 0.4, 9), CFrame.new(top + Vector3.new(0, 0.6, -3)), Color3.fromRGB(255, 240, 200),
 		glow(Color3.fromRGB(255, 240, 200), { CanCollide = false }))
 	light(door, Color3.fromRGB(255, 230, 180), 30, 2)
 end
@@ -430,59 +453,61 @@ local STALLS: { [string]: Stall } = {
 	market = { kind = "market", title = "☄ MARKET", name = "MARKET", color = Color3.fromRGB(180, 100, 255), action = "Buy", npc = "Jester" },
 }
 
+--[[
+	Küçük gemi. Yerel çerçeve: -Z = savaş alanına doğru (kapak, tezgâh,
+	tabela o yüzde), gövde X ekseninde uzanıyor (burun +X). Dükkânlar alana
+	bakıyor ve yay biçiminde dizili (DefenseConfig.Layout).
+]]
 local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector2, info: Stall)
 	local p = origin + Vector3.new(at.X, 0, at.Y)
-	-- Gövde z boyunca (ana gemiye paralel); yan kapak ana gemiye (x = 0) bakıyor
-	local side = if at.X > 0 then -1 else 1
+	local facing = origin + Vector3.new(0, 0, DefenseConfig.Layout.shopsFace)
+	local frame = CFrame.lookAt(p, Vector3.new(facing.X, p.Y, facing.Z))
 	local f = Instance.new("Model")
 	f.Name = "Stall_" .. info.kind
 	f.Parent = model
-	local Y, D, LEN = 8, 12, 26
 	local color = info.color
+	local Y = 8
 	local function rel(x: number, y: number, z: number): CFrame
-		return CFrame.new(p + Vector3.new(x, y, z))
+		return frame * CFrame.new(x, y, z)
 	end
 
-	cyl(f, "Body", alongZ(rel(0, Y, 0)), LEN, D, HULL)
-	ball(f, "Nose", rel(0, Y, LEN / 2), Vector3.new(D, D, 14), HULL)
-	ball(f, "Tail", rel(0, Y, -LEN / 2), Vector3.new(D, D, 8), HULL2)
-	ball(f, "Cockpit", rel(0, Y + 3, LEN / 2 + 1.5), Vector3.new(8, 5, 9), GLASS,
-		{ Material = Enum.Material.Glass, Transparency = 0.2 })
-	-- Renk bandı ve kuyruk
-	cyl(f, "Band", alongZ(rel(0, Y, 4)), 5, D + 0.3, color)
-	cyl(f, "Band2", alongZ(rel(0, Y, -6)), 2, D + 0.3, color)
-	part(f, "Fin", Vector3.new(1.2, 8, 7), rel(0, Y + 8, -10) * CFrame.Angles(math.rad(-18), 0, 0), color)
+	-- Gövde
+	ellipsoid(f, "Body", rel(0, Y, 0), Vector3.new(28, 12, 13), HULL)
+	ellipsoid(f, "Belly", rel(-1, Y - 3.2, 0), Vector3.new(24, 6, 11), HULL2)
+	ellipsoid(f, "Band", rel(0, Y - 0.6, 0), Vector3.new(28.4, 2.4, 13.4), color)
+	ellipsoid(f, "Cockpit", rel(9, Y + 3.2, 0), Vector3.new(10, 6, 8.4), GLASS,
+		{ Material = Enum.Material.Glass, Transparency = 0.15, Reflectance = 0.2 })
+	ellipsoid(f, "Roof", rel(-3, Y + 4.8, 0), Vector3.new(14, 4, 8), HULL)
+	blocker(f, rel(0, Y, 0), Vector3.new(24, 10, 10))
+	-- Kuyruk, kanatlar, motorlar
+	ellipsoid(f, "Fin", rel(-11, Y + 6, 0) * CFrame.Angles(0, 0, math.rad(18)), Vector3.new(7, 9, 1.6), color)
 	for s = -1, 1, 2 do
-		part(f, "Wing", Vector3.new(9, 1.2, 8), rel(s * 9, Y - 2, -6) * CFrame.Angles(0, 0, math.rad(s * -8)), HULL2)
-		local eng = rel(s * 3.6, Y - 1, -LEN / 2 - 3)
-		cyl(f, "Engine", alongZ(eng), 6, 4, METAL)
-		cyl(f, "EngineGlow", alongZ(eng * CFrame.new(0, 0, -3.1)), 0.4, 3, FLAME, glow(FLAME))
-		for _, z in { -8, 8 } do
-			local foot = p + Vector3.new(s * 4.5, 0, z)
-			part(f, "Leg", Vector3.new(1, Y - 4, 1), CFrame.new(foot + Vector3.new(0, (Y - 4) / 2, 0)), METAL)
+		ellipsoid(f, "Wing", rel(-4, Y - 2.5, s * 8) * CFrame.Angles(math.rad(s * 8), 0, 0), Vector3.new(11, 1.4, 8), HULL2)
+		local eng = rel(-14.5, Y - 1, s * 3)
+		cyl(f, "Engine", eng, 5, 4, METAL)
+		cyl(f, "EngineGlow", eng * CFrame.new(-2.6, 0, 0), 0.4, 3, FLAME, glow(FLAME))
+		for _, x in { -8, 8 } do
+			local foot = (rel(x, 0, s * 4)).Position
+			part(f, "Leg", Vector3.new(0.9, Y - 4, 0.9), CFrame.new(foot + Vector3.new(0, (Y - 4) / 2, 0)), METAL)
 			cyl(f, "Foot", alongY(CFrame.new(foot + Vector3.new(0, 0.3, 0))), 0.6, 3, DARK)
 		end
 	end
-	-- Yan kapak: dışa açılmış rampa-tezgâh
-	local hatchX = side * (D / 2 + 0.2)
-	part(f, "HatchFrame", Vector3.new(0.6, 7.4, 11.4), rel(hatchX, Y, 0), DARK)
-	part(f, "HatchLight", Vector3.new(0.4, 6.4, 10.4), rel(hatchX + side * 0.15, Y, 0), Color3.fromRGB(255, 240, 210),
+	-- Kapak (alana dönük yüz) ve ışığı
+	part(f, "HatchFrame", Vector3.new(11.6, 7.6, 0.6), rel(0, Y, -6.2), DARK)
+	part(f, "HatchLight", Vector3.new(10.6, 6.6, 0.4), rel(0, Y, -6.4), Color3.fromRGB(255, 240, 210),
 		glow(Color3.fromRGB(255, 240, 210), { CanCollide = false }))
-	-- Platform: kapaktan yere inen kısa rampa ve önünde tezgâh
-	local deckX = side * (D / 2 + 6)
-	part(f, "Deck", Vector3.new(12, 0.8, 14), rel(deckX, 0.4, 0), PANEL)
-	local counterX = side * (D / 2 + 10.5)
-	part(f, "Counter", Vector3.new(2.4, 3.6, 12), rel(counterX, 2.6, 0), WHITE)
-	local top = part(f, "CounterTop", Vector3.new(3, 0.5, 12.6), rel(counterX, 4.6, 0), color, glow(color))
-	-- Tente (gövdeden dışa)
+	-- Platform, tezgâh, tente
+	part(f, "Deck", Vector3.new(15, 0.8, 11), rel(0, 0.4, -11.5), PANEL)
+	part(f, "Counter", Vector3.new(13, 3.6, 2.4), rel(0, 2.6, -16), WHITE)
+	local counterTop = part(f, "CounterTop", Vector3.new(13.6, 0.5, 3), rel(0, 4.6, -16), color, glow(color))
 	for k = -2, 2 do
-		part(f, "Awning", Vector3.new(11, 0.4, 2.6),
-			rel(side * (D / 2 + 5.4), 10.6, k * 2.6) * CFrame.Angles(0, 0, math.rad(side * -12)),
+		part(f, "Awning", Vector3.new(2.8, 0.4, 11), rel(k * 2.8, 11.4, -11.5) * CFrame.Angles(math.rad(14), 0, 0),
 			if k % 2 == 0 then color else WHITE)
 	end
-	-- Tabela: tentenin üstünde, ana gemiye dönük
-	local signPos = p + Vector3.new(side * (D / 2 + 4), 15, 0)
-	signBoard(f, "Sign", CFrame.lookAt(signPos, signPos + Vector3.new(side, 0, 0)), Vector2.new(13, 3.4), info.title, color)
+	-- Tabela: çatının üstünde, alana dönük
+	signBoard(f, "Sign", rel(0, 17.5, -2), Vector2.new(15, 3.6), info.title, color)
+	cyl(f, "SignPole", alongY(rel(-5, 14.5, -2)), 3, 0.4, METAL)
+	cyl(f, "SignPole", alongY(rel(5, 14.5, -2)), 3, 0.4, METAL)
 
 	-- Tezgâhtar
 	local ok, npc = pcall(UnitModel.Build, info.npc, nil)
@@ -494,34 +519,33 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 				d.CanCollide = false
 			end
 		end
-		local stand = p + Vector3.new(side * (D / 2 + 6.5), 0.8, 0)
-		npc:PivotTo(CFrame.lookAt(stand, stand + Vector3.new(side, 0, 0)))
+		npc:PivotTo(rel(0, 0.8, -12))
 		npc.Parent = f
 	end
-	addPrompt(top, arena, info.kind, info.action, info.name, 0.2)
+	addPrompt(counterTop, arena, info.kind, info.action, info.name, 0.2)
 
 	-- Ne olduğu uzaktan belli olsun
 	if info.kind == "hospital" then
-		for _, s in { -1, 1 } do
-			local crossAt = rel(s * (D / 2 + 0.1), Y + 1, -6)
-			part(f, "CrossV", Vector3.new(0.4, 5, 1.6), crossAt, color, glow(color))
-			part(f, "CrossH", Vector3.new(0.4, 1.6, 5), crossAt, color, glow(color))
+		for _, z in { -6.3, 6.3 } do
+			local crossAt = rel(-6, Y + 1, z)
+			part(f, "CrossV", Vector3.new(1.4, 4.6, 0.3), crossAt, color, glow(color, { CanCollide = false }))
+			part(f, "CrossH", Vector3.new(4.6, 1.4, 0.3), crossAt, color, glow(color, { CanCollide = false }))
 		end
-		part(f, "Bed", Vector3.new(4, 1.2, 7), rel(side * (D / 2 + 4), 1.4, -9.5), WHITE)
+		part(f, "Bed", Vector3.new(6, 1.2, 3.4), rel(-10, 1.4, -11), WHITE)
 	elseif info.kind == "armory" then
 		for k = -2, 2 do
-			part(f, "Blade", Vector3.new(0.3, 4, 0.5), rel(counterX, 7.2, k * 2.2) * CFrame.Angles(0, 0, math.rad(10)),
+			part(f, "Blade", Vector3.new(0.3, 4, 0.5), rel(k * 2.2, 7.2, -16) * CFrame.Angles(0, 0, math.rad(10)),
 				Color3.fromRGB(210, 220, 235), { Material = Enum.Material.Metal })
 		end
 	elseif info.kind == "market" then
-		for k = -1, 1 do
-			part(f, "Crate", Vector3.new(3, 3, 3), rel(side * (D / 2 + 4), 2.3, -10 + k * 0.2) * CFrame.new(0, 0, k * 3.4),
+		for k = 0, 2 do
+			part(f, "Crate", Vector3.new(3, 3, 3), rel(-10 + k * 0.4, 1.9 + k * 3, -11) * CFrame.Angles(0, k * 0.4, 0),
 				Color3.fromRGB(170, 120, 70), { Material = Enum.Material.WoodPlanks })
 		end
 	else
-		part(f, "Screen", Vector3.new(0.4, 4, 8), rel(side * (D / 2 + 0.5), Y + 1, -8), color, glow(color))
+		part(f, "Screen", Vector3.new(8, 4, 0.4), rel(-6, Y + 1, -6.6), color, glow(color, { CanCollide = false }))
 	end
-	light(top, color, 20, 1.5)
+	light(counterTop, color, 22, 1.5)
 end
 
 -- ─── Konsollar ──────────────────────────────────────────────────────────────

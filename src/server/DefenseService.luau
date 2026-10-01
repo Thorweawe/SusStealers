@@ -19,11 +19,12 @@
 	  - Dalga ortasında oyundan çıkan kaybetmiş sayılır (kaçış hilesi yok).
 
 	Remote "Defense" (istemci → sunucu): action, ...
-	  land(planet) · takeoff() · begin(sector) · place(slot, x, z) ·
-	  move(uid, x, z) · recall(uid) · go() · retreat() · support(id, x, z) ·
-	  buy(kind, id) · revive(slot) · release(slot) · sync()
+	  land() · takeoff() · prepare(sector, {slot}, gear) · pickup(uid) ·
+	  go() · retreat() · support(id, x, z) · buy(kind, id) · revive(slot) ·
+	  release(slot) · sync()
+	  (yere bırakma Tool.Activated ile: konum sunucuda karakterden)
 	Remote "DefenseState" (sunucu → istemci): kind, payload
-	  pilot · data · landing · arrived · launch · home · command · open ·
+	  data · landing · arrived · launch · home · defend · open · dropped ·
 	  run · tick · waveEnd · over
 ]]
 
@@ -36,6 +37,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local DefenseConfig = require(Shared.DefenseConfig)
 local DefenseSim = require(Shared.DefenseSim)
+local UnitModel = require(Shared.UnitModel)
 
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
@@ -55,6 +57,7 @@ type Deployed = {
 	mutationId: string?,
 	pos: Vector2,
 	fallen: boolean,
+	placed: boolean,      -- alana kondu mu (değilse oyuncunun elinde)
 }
 
 type Run = {
@@ -78,6 +81,7 @@ type Run = {
 	pending: { DefenseSim.Event },
 	wavesCleared: number,
 	goldEarned: number,
+	gear: string,                  -- seçilen gear ("" / "Lightsaber")
 }
 
 type Session = {
@@ -243,8 +247,12 @@ end
 
 local function runPayload(run: Run): any
 	local units = {}
+	local carried = 0
 	for _, u in run.units do
-		if not u.fallen then
+		if not u.fallen and not u.placed then
+			carried += 1
+		end
+		if not u.fallen and u.placed then
 			table.insert(units, {
 				uid = u.uid, slot = u.slot, unitId = u.unitId, mutationId = u.mutationId,
 				x = u.pos.X, z = u.pos.Y, role = DefenseConfig.GetRole(u.unitId).id,
@@ -267,6 +275,8 @@ local function runPayload(run: Run): any
 		maxHull = run.maxHull,
 		units = units,
 		sectorLosses = run.sectorLosses,
+		carried = carried,
+		gear = run.gear,
 		plan = { name = run.plan.name, pattern = run.plan.pattern, paths = run.plan.paths, counts = counts, boss = run.plan.boss },
 		goldEarned = run.goldEarned,
 	}
@@ -300,6 +310,9 @@ local function preparePlan(run: Run)
 	run.plan = DefenseConfig.BuildWave(run.planet, run.wave, run.seed, run.lastPattern)
 end
 
+-- Aşağıda tanımlı (eldeki crewmate'ler ve kılıç); endRun önce çağırıyor
+local takeDefenseTools: (Player, number?) -> ()
+
 --[[ Koşuyu bitirir. Ayakta kalanlar `toHospital` ise hastaneye, değilse kaideye. ]]
 local function endRun(player: Player, toHospital: boolean, reason: string)
 	local s = sessions[player]
@@ -308,10 +321,12 @@ local function endRun(player: Player, toHospital: boolean, reason: string)
 		return
 	end
 	local fell = 0
+	takeDefenseTools(player)
 	for _, u in run.units do
 		local podium = podiumBySlot(player, u.slot)
 		if podium and PlotService.GetAway(podium) == "mission" then
-			if toHospital then
+			-- Elde kalan (yere konmamış) savaşmadı: kaideye dönüyor
+			if toHospital and u.placed then
 				PlotService.SetAway(podium, "hospital")
 				fell += 1
 			else
@@ -342,7 +357,7 @@ local function positionOk(run: Run, pos: Vector2, ignoreUid: number?): (boolean,
 		return false, "Place your crew inside the field"
 	end
 	for _, u in run.units do
-		if not u.fallen and u.uid ~= ignoreUid and (u.pos - pos).Magnitude < DefenseConfig.UnitSpacing then
+		if u.placed and not u.fallen and u.uid ~= ignoreUid and (u.pos - pos).Magnitude < DefenseConfig.UnitSpacing then
 			return false, "Too close to another crewmate"
 		end
 	end
@@ -380,53 +395,29 @@ local function begin(player: Player, sector: number)
 		pending = {},
 		wavesCleared = 0,
 		goldEarned = 0,
+		gear = "",
 	}
 	preparePlan(run)
 	s.run = run
 	pushRun(player)
 end
 
-local function place(player: Player, slot: number, pos: Vector2)
-	local s = sessions[player]
-	local run = s and s.run
-	local profile = DataService.Get(player)
-	if not (run and profile) or run.phase ~= "prep" then
-		return
-	end
-	if aliveDeployed(run) >= DefenseConfig.GetSlots(profile.defense.slots) then
-		notify(player, "No free crew slots - buy more at the Command Shop", true)
-		return
-	end
-	local podium = podiumBySlot(player, slot)
-	if not (podium and PlotService.IsOccupied(podium)) then
-		return
-	end
-	if PlotService.GetAway(podium) then
-		notify(player, "That crewmate is already away", true)
-		return
-	end
-	local ok, why = positionOk(run, pos, nil)
-	if not ok then
-		notify(player, why or "Can't place there", true)
-		return
-	end
-	local unitId = podium:GetAttribute("UnitId") :: string
-	local m = podium:GetAttribute("MutationId") :: string
-	PlotService.SetAway(podium, "mission")
-	table.insert(run.units, {
-		uid = run.nextUid,
-		slot = slot,
-		unitId = unitId,
-		mutationId = if m == "" then nil else m,
-		pos = pos,
-		fallen = false,
-	})
-	run.nextUid += 1
-	refreshDeployedFlag(player)
-	pushRun(player)
-end
+--[[
+	2026-10-01 (Batur: "tek tek koyma yöntemini sevmedim; DEFEND'e basınca
+	hangi amongusları istediğimizi sorsun, sonra gear'ı sorsun; seçilenler
+	alttaki çubukta gözüksün, tıklayıp haritada dolaşarak koysun").
 
-local function findDeployed(run: Run, uid: number): Deployed?
+	Seçilen crewmate'ler oyuncunun elinde birer Tool ("DefenseCrew" = uid):
+	kuşanınca elinde tutuyor, tıklayınca önüne bırakıyor (dropCrew, konum
+	sunucuda karakterden hesaplanıyor). Hazırlıkta yanına gidip geri
+	alabiliyor (pickup). Dalga sürerken de bırakılabiliyor (sim'e ekleniyor).
+]]
+
+local CREW_HOLD_HEIGHT = 2.8
+local DROP_AHEAD = 4.5
+local PICKUP_RANGE = 14
+
+local function findUnit(run: Run, uid: number): Deployed?
 	for _, u in run.units do
 		if u.uid == uid and not u.fallen then
 			return u
@@ -435,43 +426,212 @@ local function findDeployed(run: Run, uid: number): Deployed?
 	return nil
 end
 
-local function move(player: Player, uid: number, pos: Vector2)
+--[[ Bırakılmış crewmate'i alana koyar (doğrulamalı). Testler de çağırıyor. ]]
+local function placeAt(player: Player, uid: number, pos: Vector2): boolean
 	local s = sessions[player]
 	local run = s and s.run
-	if not run or run.phase ~= "prep" then
-		return
+	local profile = DataService.Get(player)
+	if not (run and profile) then
+		return false
 	end
-	local u = findDeployed(run, uid)
-	if not u then
-		return
+	local u = findUnit(run, uid)
+	if not u or u.placed then
+		return false
 	end
 	local ok, why = positionOk(run, pos, uid)
 	if not ok then
-		notify(player, why or "Can't move there", true)
-		pushRun(player)
-		return
+		notify(player, why or "Can't place there", true)
+		return false
 	end
+	u.placed = true
 	u.pos = pos
+	local sim = run.sim
+	if sim and run.phase == "fight" then
+		DefenseSim.AddUnit(sim, { uid = u.uid, unitId = u.unitId, mutationId = u.mutationId, pos = pos }, profile.defense.roles)
+	end
 	pushRun(player)
+	return true
 end
 
-local function recall(player: Player, uid: number)
-	local s = sessions[player]
-	local run = s and s.run
-	if not run or run.phase ~= "prep" then
-		return
-	end
-	for i, u in run.units do
-		if u.uid == uid and not u.fallen then
-			local podium = podiumBySlot(player, u.slot)
-			if podium and PlotService.GetAway(podium) == "mission" then
-				PlotService.SetAway(podium, nil)
+takeDefenseTools = function(player: Player, onlyUid: number?)
+	for _, container in { player:FindFirstChildOfClass("Backpack"), player.Character } do
+		if container then
+			for _, item in container:GetChildren() do
+				if item:IsA("Tool") then
+					local uid = item:GetAttribute("DefenseCrew")
+					if (onlyUid and uid == onlyUid) or (not onlyUid and (uid ~= nil or item:GetAttribute("DefenseSaber") ~= nil)) then
+						item:Destroy()
+					end
+				end
 			end
-			table.remove(run.units, i)
-			break
 		end
 	end
+end
+
+local function dropCrew(player: Player, uid: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local s = sessions[player]
+	if not (root and s and s.arena) then
+		return
+	end
+	local p = root.Position + root.CFrame.LookVector * DROP_AHEAD
+	local rel = p - DefenseConfig.WorldOrigin(s.arena)
+	if placeAt(player, uid, Vector2.new(rel.X, rel.Z)) then
+		takeDefenseTools(player, uid)
+		send(player, "dropped", uid)
+	end
+end
+
+--[[ Elde tutulan crewmate: küçültülmüş model, sapı görünmez. ]]
+local function makeCrewTool(player: Player, u: Deployed): Tool?
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack then
+		return nil
+	end
+	local def = Config.GetUnit(u.unitId)
+	local tool = Instance.new("Tool")
+	tool.Name = if def then def.name else u.unitId
+	tool.ToolTip = "Click to drop on the field"
+	tool.CanBeDropped = false
+	tool.RequiresHandle = true
+	tool:SetAttribute("DefenseCrew", u.uid)
+	tool:SetAttribute("UnitId", u.unitId)
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.4, 0.4, 0.4)
+	handle.Transparency = 1
+	handle.CanCollide = false
+	handle.Massless = true
+	handle.Parent = tool
+	local ok, model = pcall(UnitModel.Build, u.unitId, u.mutationId)
+	if ok and model then
+		local height = model:GetExtentsSize().Y
+		if height > 0.1 then
+			pcall(function()
+				model:ScaleTo(model:GetScale() * CREW_HOLD_HEIGHT / height)
+			end)
+		end
+		-- Crewmate elin biraz önünde ve altında dursun
+		model:PivotTo(handle.CFrame * CFrame.new(0, -CREW_HOLD_HEIGHT * 0.45, -0.6))
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				d.Anchored = false
+				d.CanCollide = false
+				d.CanQuery = false
+				d.CanTouch = false
+				d.Massless = true
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = handle
+				weld.Part1 = d
+				weld.Parent = d
+			elseif d:IsA("BillboardGui") then
+				d:Destroy()
+			end
+		end
+		model.Name = "Held"
+		model.Parent = tool
+	end
+	tool.Activated:Connect(function()
+		dropCrew(player, u.uid)
+	end)
+	tool.Parent = backpack
+	return tool
+end
+
+--[[ Koşudaki, henüz yere konmamış crewmate'leri ve seçilen gear'ı ele verir. ]]
+local function giveTools(player: Player)
+	local s = sessions[player]
+	local run = s and s.run
+	takeDefenseTools(player)
+	if not run then
+		return
+	end
+	for _, u in run.units do
+		if not u.placed and not u.fallen then
+			makeCrewTool(player, u)
+		end
+	end
+	if run.gear == "Lightsaber" then
+		DefenseService.GiveSaber(player)
+	end
+end
+
+--[[
+	DEFEND penceresinin sonucu: bölüm, seçilen kaideler, gear. Koşu yoksa
+	açıyor; seçilen crewmate'ler kaideden ayrılıp ele geliyor.
+]]
+local function prepare(player: Player, sector: number, slots: { number }, gear: string)
+	local s = session(player)
+	local profile = DataService.Get(player)
+	if not (profile and s.planet) or s.run then
+		return
+	end
+	local cap = DefenseConfig.GetSlots(profile.defense.slots)
+	local picked: { [number]: boolean } = {}
+	local podiums: { Part } = {}
+	for _, slot in slots do
+		if #podiums >= cap then
+			break
+		end
+		if not picked[slot] then
+			local podium = podiumBySlot(player, slot)
+			if podium and PlotService.IsOccupied(podium) and not PlotService.GetAway(podium) then
+				picked[slot] = true
+				table.insert(podiums, podium)
+			end
+		end
+	end
+	if #podiums == 0 then
+		notify(player, "Pick at least one crewmate", true)
+		return
+	end
+	begin(player, sector)
+	local run = s.run
+	if not run then
+		return
+	end
+	run.gear = if gear == "Lightsaber" and profile.defense.saber > 0 then "Lightsaber" else ""
+	for _, podium in podiums do
+		local unitId = podium:GetAttribute("UnitId") :: string
+		local m = podium:GetAttribute("MutationId") :: string
+		PlotService.SetAway(podium, "mission")
+		table.insert(run.units, {
+			uid = run.nextUid,
+			slot = podium:GetAttribute("SlotIndex") :: number,
+			unitId = unitId,
+			mutationId = if m == "" then nil else m,
+			pos = Vector2.zero,
+			fallen = false,
+			placed = false,
+		})
+		run.nextUid += 1
+	end
 	refreshDeployedFlag(player)
+	giveTools(player)
+	pushRun(player)
+	DefenseService.PushData(player)
+end
+
+--[[ Hazırlıkta yere konmuş crewmate'i geri ele alır (yanında olmalı). ]]
+local function pickup(player: Player, uid: number)
+	local s = sessions[player]
+	local run = s and s.run
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not (run and root and s.arena) or run.phase ~= "prep" then
+		return
+	end
+	local u = findUnit(run, uid)
+	if not (u and u.placed) then
+		return
+	end
+	local at = DefenseConfig.ToWorld(s.arena, u.pos, root.Position.Y - DefenseConfig.WorldOrigin(s.arena).Y)
+	if (at - root.Position).Magnitude > PICKUP_RANGE then
+		return
+	end
+	u.placed = false
+	makeCrewTool(player, u)
 	pushRun(player)
 end
 
@@ -484,12 +644,12 @@ local function go(player: Player)
 	end
 	local inputs: { DefenseSim.UnitInput } = {}
 	for _, u in run.units do
-		if not u.fallen then
+		if u.placed and not u.fallen then
 			table.insert(inputs, { uid = u.uid, unitId = u.unitId, mutationId = u.mutationId, pos = u.pos })
 		end
 	end
 	if #inputs == 0 then
-		notify(player, "Place at least one crewmate first", true)
+		notify(player, "Drop at least one crewmate on the field first", true)
 		return
 	end
 	local sim = DefenseSim.New(run.planet, run.wave, run.seed, inputs, profile.defense.roles,
@@ -843,8 +1003,10 @@ function DefenseService.Land(player: Player, planet: number): boolean
 	if not profile or s.busy or s.planet then
 		return false
 	end
-	if player:GetAttribute("InSpace") == true or player:GetAttribute("SpaceCarry") == true then
-		notify(player, "Come back aboard first", true)
+	-- Uzaydan da inilebiliyor (Return to Station'ın yanındaki düğme); taşırken
+	-- ya da canavarın elindeyken değil
+	if player:GetAttribute("SpaceCarry") == true or player:GetAttribute("SpaceGrabbed") ~= nil then
+		notify(player, "Not while carrying a crewmate!", true)
 		return false
 	end
 	local ok, why = DefenseService.IsPlanetUnlocked(profile, planet)
@@ -885,7 +1047,6 @@ function DefenseService.Land(player: Player, planet: number): boolean
 		teleport(player, PlanetWorldService.SpawnCFrame(arena))
 		send(player, "arrived", { planet = planet, arena = arena })
 		DefenseService.PushData(player)
-		DefenseService.GiveSaber(player)
 	end)
 	return true
 end
@@ -1071,26 +1232,23 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 	end
 	if action == "takeoff" then
 		DefenseService.TakeOff(player)
-	elseif action == "command" then
-		-- Ekrandaki DEFEND düğmesi: konsola yürümeden taktik görünüm
-		DefenseService.PushData(player)
-		pushRun(player)
-		send(player, "command", s.planet)
-	elseif action == "begin" then
+	elseif action == "prepare" then
+		-- (bölüm, { kaide numarası }, gear)
+		if valid(a) and typeof(b) == "table" and (c == nil or typeof(c) == "string") then
+			local slots: { number } = {}
+			for i, slot in b do
+				if i > 30 then
+					break
+				end
+				if valid(slot) then
+					table.insert(slots, math.floor(slot))
+				end
+			end
+			prepare(player, math.floor(a), slots, c or "")
+		end
+	elseif action == "pickup" then
 		if valid(a) then
-			begin(player, a)
-		end
-	elseif action == "place" then
-		if valid(a) and valid(b) and valid(c) then
-			place(player, math.floor(a), Vector2.new(b, c))
-		end
-	elseif action == "move" then
-		if valid(a) and valid(b) and valid(c) then
-			move(player, math.floor(a), Vector2.new(b, c))
-		end
-	elseif action == "recall" then
-		if valid(a) then
-			recall(player, math.floor(a))
+			pickup(player, math.floor(a))
 		end
 	elseif action == "go" then
 		go(player)
@@ -1115,7 +1273,7 @@ local function onPrompt(player: Player, arena: number, kind: string)
 	DefenseService.PushData(player)
 	if kind == "command" then
 		pushRun(player)
-		send(player, "command", s.planet)
+		send(player, "defend", s.planet)
 	else
 		send(player, "open", kind)
 	end
@@ -1169,7 +1327,7 @@ local function onCharacterAdded(player: Player, character: Model)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if root and arena and s.arena == arena and player.Parent then
 			teleport(player, PlanetWorldService.SpawnCFrame(arena))
-			DefenseService.GiveSaber(player)
+			giveTools(player)
 		end
 	end)
 end
@@ -1194,9 +1352,17 @@ function DefenseService.Start()
 		local s = sessions[player]
 		local run = s and s.run
 		local fighting = run ~= nil and run.phase == "fight"
+		local placed: { [number]: boolean } = {}
+		if run then
+			for _, u in run.units do
+				if u.placed then
+					placed[u.slot] = true
+				end
+			end
+		end
 		for _, entry in profile.units do
 			if entry.away == "mission" then
-				entry.away = if fighting then "hospital" else nil
+				entry.away = if fighting and placed[entry.slot] then "hospital" else nil
 			end
 		end
 	end)
@@ -1228,7 +1394,9 @@ end
 -- Testler için
 DefenseService._sessions = sessions
 DefenseService._begin = begin
-DefenseService._place = place
+DefenseService._prepare = prepare
+DefenseService._placeAt = placeAt
+DefenseService._pickup = pickup
 DefenseService._go = go
 DefenseService._step = stepAll
 DefenseService._retreat = retreat

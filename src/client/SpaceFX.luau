@@ -526,6 +526,35 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		end
 	end
 	table.insert(connections, returnButton.Activated:Connect(requestReturn))
+
+	--[[
+		Gezegen savunmasına uzaydan da gidilsin (2026-10-01, Batur: "return to
+		ship'in orada oyunu başlatma seçeneği"). Return'ün üstünde; mod kapalıyken
+		(canlı oyun, DefenseConfig.Live) hiç görünmüyor.
+	]]
+	local DefenseConfig = require(Shared:WaitForChild("DefenseConfig")) :: any
+	local defendButton = Instance.new("TextButton")
+	defendButton.Name = "DefendPlanet"
+	defendButton.AnchorPoint = Vector2.new(1, 1)
+	defendButton.Position = UDim2.new(1, -24, 1, -168)
+	defendButton.Size = UDim2.fromOffset(210, 50)
+	defendButton.AutoButtonColor = false
+	defendButton.Text = ""
+	defendButton.Visible = false
+	defendButton.ZIndex = Z
+	defendButton.Parent = screen
+	CardKit.corner(defendButton, 14)
+	CardKit.border(defendButton, CardKit.OUTLINE, 3)
+	CardKit.gradient(defendButton, Color3.fromRGB(120, 230, 130), Color3.fromRGB(40, 150, 70))
+	local defendLabel = CardKit.bold(defendButton, "🪐 DEFEND PLANET", 17, CardKit.WHITE, Z + 1, 2.5)
+	defendLabel.Size = UDim2.fromScale(1, 1)
+	CardKit.fit(defendLabel, 17, 10)
+	table.insert(connections, defendButton.Activated:Connect(function()
+		if defendButton.Visible then
+			Net.Get("Defense"):FireServer("land")
+		end
+	end))
+	local defenseOn = DefenseConfig.IsEnabled()
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
 		if not processed and input.KeyCode == Enum.KeyCode.R then
 			requestReturn()
@@ -1211,6 +1240,10 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		local canReturn = flying and not grab and player:GetAttribute("SpaceCarry") ~= true
 		if returnButton.Visible ~= canReturn then
 			returnButton.Visible = canReturn
+		end
+		local canDefend = canReturn and defenseOn
+		if defendButton.Visible ~= canDefend then
+			defendButton.Visible = canDefend
 		end
 		if flying then
 			stepRings(root)

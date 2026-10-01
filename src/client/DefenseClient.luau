@@ -45,32 +45,13 @@ function DefenseClient.Start(screen: ScreenGui)
 	-- Oyuncunun gezegen kopyası (dünya konumu buna göre)
 	local arena = 1
 	local beacon: BasePart? = nil
-	local command = false
-	local selectedUid: number? = nil
-	local pickedSlot: number? = nil
 	local pickedSupport: string? = nil
-	local moving = false
 
 	local function send(...: any)
 		remote:FireServer(...)
 	end
 
-	--[[
-		Taktik görünümde karakter yerinde dursun. Bu oyunda Roblox'un
-		PlayerModule'ü YOK (WaitForChild sonsuza dek bekliyordu ve DEFEND
-		açılmıyordu); kök parçayı yerelde sabitliyoruz. Karakter istemcinin
-		fiziğinde, başkası görmüyor zaten (herkes kendi arenasında).
-	]]
-	local function freezeCharacter(frozen: boolean)
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if root then
-			if frozen then
-				root.AssemblyLinearVelocity = Vector3.zero
-			end
-			root.Anchored = frozen
-		end
-	end
+
 
 	-- ─── Ekranın üstündeki perde (animasyonlar) ─────────────────────────────
 	local overlayGui = Instance.new("ScreenGui")
@@ -178,133 +159,28 @@ function DefenseClient.Start(screen: ScreenGui)
 
 	-- ─── Taktik görünüm ─────────────────────────────────────────────────────
 	local camera = workspace.CurrentCamera
-	local savedFov = 70
-
-	local function tacticalCFrame(index: number): CFrame
-		local eye = DefenseConfig.ToWorld(index, Vector2.new(0, -26), 128)
-		local target = DefenseConfig.ToWorld(index, Vector2.new(0, 118), 0)
-		return CFrame.lookAt(eye, target)
-	end
-
 	local ui: DefenseUI.UI
-
-	local function clearPick()
-		pickedSlot = nil
-		pickedSupport = nil
-		moving = false
-		ui.SetPicked(nil, nil)
-		DefenseFX.Marker(nil, false)
-	end
-
-	local function select(uid: number?)
-		selectedUid = uid
-		moving = false
-		DefenseFX.Select(uid)
-		local info = nil
-		if uid and run then
-			for _, u in run.units do
-				if u.uid == uid then
-					info = u
-				end
-			end
-		end
-		ui.SetSelected(info)
-	end
-
-	local function updateHint()
-		if not command then
-			return
-		end
-		if not run then
-			ui.Hint("Pick a sector and press BEGIN")
-		elseif run.phase == "fight" then
-			ui.Hint(if pickedSupport == "Strike" then "Tap the field to call the Orbital Strike" else "Defend the ship!")
-		elseif pickedSlot then
-			ui.Hint("Tap the field to place your crewmate")
-		elseif moving then
-			ui.Hint("Tap the field to move it there")
-		elseif #run.units == 0 then
-			ui.Hint("Tap a crewmate below, then tap the field. The orange arrows show where they come from!")
-		else
-			ui.Hint("Tap a placed crewmate to move or recall it")
-		end
-	end
-
-	local function enterCommand()
-		if command or not planet then
-			return
-		end
-		command = true
-		freezeCharacter(true)
-		savedFov = camera.FieldOfView
-		camera.CameraType = Enum.CameraType.Scriptable
-		TweenService:Create(camera, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ CFrame = tacticalCFrame(arena), FieldOfView = 70 }):Play()
-		ui.SetCommand(true)
-		updateHint()
-	end
-
-	local function exitCommand()
-		if not command then
-			return
-		end
-		command = false
-		clearPick()
-		select(nil)
-		freezeCharacter(false)
-		camera.FieldOfView = savedFov
-		camera.CameraType = Enum.CameraType.Custom
-		ui.SetCommand(false)
-	end
 
 	-- ─── Arayüz kancaları ───────────────────────────────────────────────────
 	ui = DefenseUI.Create(screen, {
 		send = send,
-		pickCrew = function(slot: number?)
-			pickedSupport = nil
-			moving = false
-			select(nil)
-			pickedSlot = slot
-			ui.SetPicked(slot, nil)
-			updateHint()
-		end,
 		pickSupport = function(id: string?)
-			pickedSlot = nil
+			-- Orbital Strike nişan ister (sonraki tıklama yerde); diğerleri hemen
 			if id and id ~= "Strike" then
 				send("support", id)
 				pickedSupport = nil
-				ui.SetPicked(nil, nil)
+				ui.SetPicked(nil)
 				return
 			end
 			pickedSupport = id
-			ui.SetPicked(nil, id)
-			updateHint()
-		end,
-		moveSelected = function()
-			if selectedUid then
-				moving = true
-				updateHint()
-			end
-		end,
-		recallSelected = function()
-			if selectedUid then
-				send("recall", selectedUid)
-				select(nil)
-			end
-		end,
-		deselect = function()
-			select(nil)
-		end,
-		exitView = exitCommand,
-		openCommand = function()
-			send("command")
+			ui.SetPicked(id)
 		end,
 		takeoff = function()
 			send("takeoff")
 		end,
 	})
 
-	-- ─── Dokunma / tıklama → alan noktası ───────────────────────────────────
+	-- ─── Tıklama → yer noktası (Orbital Strike nişanı) ──────────────────────
 	local function fieldPoint(screenPos: Vector2): Vector2?
 		if not planet then
 			return nil
@@ -323,100 +199,34 @@ function DefenseClient.Start(screen: ScreenGui)
 		return Vector2.new(hit.X - origin.X, hit.Z - origin.Z)
 	end
 
-	local function placeable(p: Vector2, ignore: number?): boolean
-		local F = DefenseConfig.Field
-		if math.abs(p.X) > F.halfWidth or p.Y < F.zMin or p.Y > F.zMax then
-			return false
-		end
-		if run then
-			for _, u in run.units do
-				if u.uid ~= ignore and (Vector2.new(u.x, u.z) - p).Magnitude < DefenseConfig.UnitSpacing then
-					return false
-				end
-			end
-		end
-		return true
-	end
-
-	local function pickedRange(): number?
-		if pickedSlot and data then
-			for _, c in data.crew or {} do
-				if c.slot == pickedSlot then
-					local role = DefenseConfig.GetRole(c.unitId)
-					return math.max(role.range, role.healRange or 0)
-				end
-			end
-		end
-		if pickedSupport == "Strike" then
-			return DefenseConfig.StrikeRadius
-		end
-		return nil
-	end
-
-	local function onPoint(screenPos: Vector2)
-		local p = fieldPoint(screenPos)
-		if not p then
-			return
-		end
-		if pickedSupport == "Strike" then
-			send("support", "Strike", p.X, p.Y)
-			pickedSupport = nil
-			ui.SetPicked(nil, nil)
-			DefenseFX.Marker(nil, false)
-			updateHint()
-			return
-		end
-		if not run or run.phase ~= "prep" then
-			return
-		end
-		if pickedSlot then
-			if placeable(p, nil) then
-				send("place", pickedSlot, p.X, p.Y)
-				SoundFX.Success()
-				pickedSlot = nil
-				ui.SetPicked(nil, nil)
-				DefenseFX.Marker(nil, false)
-			else
-				SoundFX.Deny()
-			end
-			updateHint()
-			return
-		end
-		if moving and selectedUid then
-			if placeable(p, selectedUid) then
-				send("move", selectedUid, p.X, p.Y)
-				moving = false
-				DefenseFX.Marker(nil, false)
-			else
-				SoundFX.Deny()
-			end
-			updateHint()
-			return
-		end
-		select(DefenseFX.UnitNear(p, 3))
-		updateHint()
-	end
-
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not command or processed then
+		if processed or pickedSupport ~= "Strike" then
 			return
 		end
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
-			onPoint(Vector2.new(input.Position.X, input.Position.Y))
+			local p = fieldPoint(Vector2.new(input.Position.X, input.Position.Y))
+			if p then
+				send("support", "Strike", p.X, p.Y)
+				pickedSupport = nil
+				ui.SetPicked(nil)
+				DefenseFX.Marker(nil, false)
+			end
 		end
 	end)
 	UserInputService.InputChanged:Connect(function(input)
-		if not command or input.UserInputType ~= Enum.UserInputType.MouseMovement then
-			return
-		end
-		if not (pickedSlot or moving or pickedSupport == "Strike") then
+		if pickedSupport ~= "Strike" or input.UserInputType ~= Enum.UserInputType.MouseMovement then
 			return
 		end
 		local p = fieldPoint(Vector2.new(input.Position.X, input.Position.Y))
 		if p then
-			DefenseFX.Marker(p, pickedSupport == "Strike" or placeable(p, if moving then selectedUid else nil), pickedRange())
+			DefenseFX.Marker(p, true, DefenseConfig.StrikeRadius)
 		end
+	end)
+
+	-- Hazırlıkta yerdeki crewmate'in yanına gidip E: geri ele al
+	DefenseFX.OnPickup(function(uid: number)
+		send("pickup", uid)
 	end)
 
 	-- ─── İniş ve kalkış ─────────────────────────────────────────────────────
@@ -458,7 +268,6 @@ function DefenseClient.Start(screen: ScreenGui)
 			end
 		end)
 		ui.CloseAll()
-		exitCommand()
 		local def = Config.SpaceMonsters[index]
 		if def then
 			discGrad.Color = ColorSequence.new(def.planetColor:Lerp(WHITE, 0.2), def.planetColor2)
@@ -528,12 +337,10 @@ function DefenseClient.Start(screen: ScreenGui)
 				tween:Play()
 				tween.Completed:Wait()
 			end
-			if not command then
-				camera.CameraType = Enum.CameraType.Custom
-			end
+			camera.CameraType = Enum.CameraType.Custom
 		end)
 		local name = if def then string.upper(def.planet) else "PLANET"
-		ui.Banner(name, "Press ⚔ DEFEND at the bottom to command your crew!", Color3.fromRGB(120, 230, 255))
+		ui.Banner(name, "Press ⚔ DEFEND at the bottom to pick your crew!", Color3.fromRGB(120, 230, 255))
 		ui.SetPlanetHud(true)
 	end
 
@@ -545,7 +352,6 @@ function DefenseClient.Start(screen: ScreenGui)
 				fadeCurtain(false, 0.4)
 			end
 		end)
-		exitCommand()
 		ui.CloseAll()
 		curtainText.Text = "TAKING OFF..."
 		planetDisc.Position = UDim2.fromScale(0.5, 1.15)
@@ -578,8 +384,6 @@ function DefenseClient.Start(screen: ScreenGui)
 		if kind == "data" then
 			data = payload
 			ui.SetData(payload)
-		elseif kind == "pilot" then
-			ui.OpenPilot()
 		elseif kind == "landing" then
 			onLanding(payload)
 		elseif kind == "arrived" then
@@ -588,8 +392,10 @@ function DefenseClient.Start(screen: ScreenGui)
 			onLaunch()
 		elseif kind == "home" then
 			onHome()
-		elseif kind == "command" then
-			enterCommand()
+		elseif kind == "defend" then
+			ui.OpenPrepare()
+		elseif kind == "dropped" then
+			SoundFX.Success()
 		elseif kind == "open" then
 			ui.OpenShop(payload)
 		elseif kind == "run" then
@@ -606,15 +412,13 @@ function DefenseClient.Start(screen: ScreenGui)
 					DefenseFX.ResetUnitHealth()
 				end
 				DefenseFX.SyncUnits(payload.units)
+				DefenseFX.SetPrep(payload.phase == "prep")
 				DefenseFX.ShowPaths(payload.plan.paths, payload.phase == "fight")
-				if selectedUid then
-					select(selectedUid)
-				end
 			else
 				DefenseFX.Clear()
-				select(nil)
+				pickedSupport = nil
+				ui.SetPicked(nil)
 			end
-			updateHint()
 		elseif kind == "tick" then
 			DefenseFX.Tick(payload, if run then run.plan.paths else nil)
 			ui.SetTick(payload)
@@ -649,10 +453,17 @@ function DefenseClient.Start(screen: ScreenGui)
 		klasik kılıç animasyonu gibi; arenada yalnız olduğun için başkası
 		görmese de olur.
 	]]
+	local bound: { [Instance]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 	local function bindSaber(tool: Instance)
-		if not (tool:IsA("Tool") and tool:GetAttribute("DefenseSaber") ~= nil) then
+		if bound[tool] or not tool:IsA("Tool") then
 			return
 		end
+		local isSaber = tool:GetAttribute("DefenseSaber") ~= nil
+		local isCrew = tool:GetAttribute("DefenseCrew") ~= nil
+		if not (isSaber or isCrew) then
+			return
+		end
+		bound[tool] = true
 		local t = tool :: Tool
 		local baseGrip = t.Grip
 		local swinging = false
@@ -661,15 +472,21 @@ function DefenseClient.Start(screen: ScreenGui)
 				return
 			end
 			swinging = true
-			SoundFX.GearSound("GearSwing", camera.CFrame.Position)
+			SoundFX.GearSound(if isSaber then "GearSwing" else "GearPoof", camera.CFrame.Position)
 			task.spawn(function()
+				-- Kılıç: yay çizerek savur. Crewmate: öne eğilip yere bırak
+				local length = if isSaber then 0.28 else 0.22
 				local t0 = os.clock()
-				while os.clock() - t0 < 0.28 and t.Parent do
-					local a = (os.clock() - t0) / 0.28
-					t.Grip = baseGrip * CFrame.Angles(math.rad(-110 * math.sin(a * math.pi)), 0, math.rad(40 * math.sin(a * math.pi)))
+				while os.clock() - t0 < length and t.Parent do
+					local a = (os.clock() - t0) / length
+					local k = math.sin(a * math.pi)
+					t.Grip = if isSaber then baseGrip * CFrame.Angles(math.rad(-110 * k), 0, math.rad(40 * k))
+						else baseGrip * CFrame.new(0, 0, -1.2 * k) * CFrame.Angles(math.rad(50 * k), 0, 0)
 					task.wait()
 				end
-				t.Grip = baseGrip
+				if t.Parent then
+					t.Grip = baseGrip
+				end
 				swinging = false
 			end)
 		end)
@@ -684,9 +501,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		watchCharacter(player.Character)
 	end
 
-	-- Yeniden doğunca taktik görünümden çık; gezegendeysek atmosfer kalsın
 	player.CharacterAdded:Connect(function(character)
-		exitCommand()
 		watchCharacter(character)
 	end)
 	player:GetAttributeChangedSignal("DefensePlanet"):Connect(function()

@@ -255,13 +255,27 @@ function Hotbar.Create(screen: ScreenGui): Bar
 		end
 	end
 
+	--[[
+		Gezegen savunması (2026-10-01, Batur: "uzayda kullandığımız gear'lar
+		gezegene gelmesin"): gezegendeyken (DefensePlanet niteliği) çubukta
+		yalnızca savunma aletleri — seçilen crewmate'ler (DefenseCrew) ve
+		ışın kılıcı (DefenseSaber). Gemide tersi.
+	]]
+	local function isDefenseTool(tool: Tool): boolean
+		return tool:GetAttribute("DefenseCrew") ~= nil or tool:GetAttribute("DefenseSaber") ~= nil
+	end
+	local function onPlanet(): boolean
+		return typeof(player:GetAttribute("DefensePlanet")) == "number"
+	end
+
 	local function collect(): { Tool }
 		local list: { Tool } = {}
 		local backpack = player:FindFirstChildOfClass("Backpack")
+		local planet = onPlanet()
 		for _, container in { backpack, player.Character } do
 			if container then
 				for _, child in container:GetChildren() do
-					if child:IsA("Tool") then
+					if child:IsA("Tool") and isDefenseTool(child) == planet then
 						table.insert(list, child)
 					end
 				end
@@ -308,8 +322,20 @@ function Hotbar.Create(screen: ScreenGui): Bar
 			icon.ZIndex = button.ZIndex + 1
 			icon.Parent = button
 			local gearId = tool:GetAttribute("GearId")
+			local crewUnit = tool:GetAttribute("UnitId")
 			if typeof(gearId) == "string" then
 				UiKit.GearIcon(icon, 40, gearId)
+			elseif typeof(crewUnit) == "string" then
+				-- Gezegen savunması: elde taşınan crewmate
+				pcall(UiKit.UnitIcon, icon, 46, crewUnit)
+			elseif tool:GetAttribute("DefenseSaber") ~= nil then
+				local saber = Instance.new("TextLabel")
+				saber.Size = UDim2.fromScale(1, 1)
+				saber.BackgroundTransparency = 1
+				saber.TextScaled = true
+				saber.Text = "⚔"
+				saber.ZIndex = icon.ZIndex + 1
+				saber.Parent = icon
 			else
 				local name = Instance.new("TextLabel")
 				name.Size = UDim2.new(1, -8, 1, -8)
@@ -402,6 +428,15 @@ function Hotbar.Create(screen: ScreenGui): Bar
 	end
 
 	table.insert(connections, player.CharacterAdded:Connect(hookCharacter))
+	-- Gezegene inince / dönünce çubuk değişiyor; eldeki uzay gear'ı bırakılıyor
+	table.insert(connections, player:GetAttributeChangedSignal("DefensePlanet"):Connect(function()
+		local held = equippedTool()
+		local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if held and hum and isDefenseTool(held) ~= onPlanet() then
+			hum:UnequipTools()
+		end
+		redraw()
+	end))
 	table.insert(connections, player.ChildAdded:Connect(function(child)
 		if child:IsA("Backpack") then
 			watch(child)

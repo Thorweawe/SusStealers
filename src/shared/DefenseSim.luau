@@ -207,6 +207,23 @@ function DefenseSim.New(planet: number, wave: number, seed: number, units: { Uni
 	}
 end
 
+--[[
+	Dalga sürerken sahaya yeni crewmate (oyuncu elindekini yere bıraktı).
+	Aynı uid ikinci kez eklenmiyor.
+]]
+function DefenseSim.AddUnit(sim: Sim, input: UnitInput, roleLevels: { [string]: number }?)
+	for _, u in sim.units do
+		if u.uid == input.uid then
+			return
+		end
+	end
+	local u = DefenseSim.UnitStats(input.unitId, input.mutationId, roleLevels)
+	u.uid = input.uid
+	u.pos = input.pos
+	u.timer = 0.3
+	table.insert(sim.units, u)
+end
+
 -- ─── Adım ───────────────────────────────────────────────────────────────────
 
 local function emit(sim: Sim, event: Event)

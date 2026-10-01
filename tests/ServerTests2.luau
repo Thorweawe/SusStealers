@@ -2623,7 +2623,7 @@ function ServerTests2.Register(kit: Kit)
 		eq("yeni oyuncu altını", DataService._Sanitize({}).defense.gold, 0)
 	end)
 
-	case("Savunma: yerleştir → kaide görevde, gelir yok, satılamaz; geri çekil → döner", function(ctx)
+	case("Savunma: seç → ele gelir, bırak → alanda; gelir yok, satılamaz; geri çekil → döner", function(ctx)
 		clearPlot(ctx.plot)
 		local podiums = PlotService.GetPodiums(ctx.plot)
 		PlotService.PlaceUnit(podiums[1], "Sheriff")
@@ -2632,13 +2632,30 @@ function ServerTests2.Register(kit: Kit)
 		local slot2 = podiums[2]:GetAttribute("SlotIndex") :: number
 		local before = EconomyService.GetIncome(ctx.player)
 		local keepDefense = ctx.profile.defense
-		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, saber = 0, roles = {}, supports = {}, planets = {} }
 		DefenseService._setPlanet(ctx.player, 1)
-		DefenseService._begin(ctx.player, 1)
+		DefenseService._prepare(ctx.player, 1, { slot, slot2, slot }, "Lightsaber")
 		local run = DefenseService._sessions[ctx.player].run
 		ok("koşu başladı", run ~= nil and run.phase == "prep")
-		DefenseService._place(ctx.player, slot, Vector2.new(0, 40))
+		eq("iki crewmate seçildi (tekrar sayılmıyor)", run and #run.units, 2)
+		eq("kılıcı yoksa gear yok", run and run.gear, "")
+		local function crewTools(): number
+			local n = 0
+			for _, container in { ctx.player:FindFirstChildOfClass("Backpack"), ctx.player.Character } do
+				if container then
+					for _, t in container:GetChildren() do
+						if t:IsA("Tool") and t:GetAttribute("DefenseCrew") ~= nil then
+							n += 1
+						end
+					end
+				end
+			end
+			return n
+		end
+		eq("ikisi de elde", crewTools(), 2)
 		eq("kaide görevde", PlotService.GetAway(podiums[1]), "mission")
+		local uid1, uid2 = run.units[1].uid, run.units[2].uid
+		ok("alana kondu", DefenseService._placeAt(ctx.player, uid1, Vector2.new(0, 40)))
 		ok("gelir düştü", EconomyService.GetIncome(ctx.player) < before)
 		ok("ayrıldı bayrağı", ctx.player:GetAttribute("DefenseDeployed") == true)
 		local entry = nil
@@ -2648,17 +2665,16 @@ function ServerTests2.Register(kit: Kit)
 			end
 		end
 		eq("kayıtta görevde", entry and entry.away, "mission")
-		DefenseService._place(ctx.player, slot, Vector2.new(10, 40))
-		eq("aynı crewmate iki kez konmuyor", #run.units, 1)
-		DefenseService._place(ctx.player, slot2, Vector2.new(1, 41))
-		eq("çok yakına konmuyor", #run.units, 1)
-		DefenseService._place(ctx.player, slot2, Vector2.new(0, 500))
-		eq("alan dışına konmuyor", #run.units, 1)
+		ok("aynı crewmate iki kez konmuyor", not DefenseService._placeAt(ctx.player, uid1, Vector2.new(10, 40)))
+		ok("çok yakına konmuyor", not DefenseService._placeAt(ctx.player, uid2, Vector2.new(1, 41)))
+		ok("alan dışına konmuyor", not DefenseService._placeAt(ctx.player, uid2, Vector2.new(0, 500)))
 		local SellService = require(Server.SellService)
 		ok("görevdeki satılamıyor", not SellService.Sell(ctx.player, podiums[1]))
 		ok("rebirth kapalı", not RebirthService.TryRebirth(ctx.player, true))
 		DefenseService._retreat(ctx.player)
 		eq("kaideye döndü", PlotService.GetAway(podiums[1]), nil)
+		eq("eldeki de döndü", PlotService.GetAway(podiums[2]), nil)
+		eq("eldeki aletler gitti", crewTools(), 0)
 		eq("gelir geri", EconomyService.GetIncome(ctx.player), before)
 		ok("bayrak kalktı", ctx.player:GetAttribute("DefenseDeployed") == nil)
 		ok("koşu bitti", DefenseService._sessions[ctx.player].run == nil)
@@ -2677,12 +2693,12 @@ function ServerTests2.Register(kit: Kit)
 		local s2 = podiums[2]:GetAttribute("SlotIndex") :: number
 		local s3 = podiums[3]:GetAttribute("SlotIndex") :: number
 		local keepDefense = ctx.profile.defense
-		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, roles = {}, supports = {}, planets = {} }
+		ctx.profile.defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, saber = 0, roles = {}, supports = {}, planets = {} }
 		DefenseService._setPlanet(ctx.player, 1)
-		DefenseService._begin(ctx.player, 1)
+		DefenseService._prepare(ctx.player, 1, { s1, s2 }, "")
 		local run = DefenseService._sessions[ctx.player].run
-		-- Alanın en ucuna koy: düşmanlar yanından geçip gemiye ulaşsın
-		DefenseService._place(ctx.player, s1, Vector2.new(60, 196))
+		-- Alanın en ucuna koy: düşmanlar yanından geçip gemiye ulaşsın. s2 elde kalıyor
+		DefenseService._placeAt(ctx.player, run.units[1].uid, Vector2.new(60, 196))
 		run.hull = 1
 		DefenseService._go(ctx.player)
 		eq("savaş başladı", run.phase, "fight")

@@ -128,10 +128,12 @@ DefenseConfig.Layout = {
 	spawn = Vector2.new(-38, 10),
 	command = Vector2.new(18, 22),
 	takeoff = Vector2.new(-18, 22),
-	hospital = Vector2.new(-80, -6),
-	armory = Vector2.new(80, -6),
-	shop = Vector2.new(-86, -66),
-	market = Vector2.new(86, -66),
+	-- Dükkân gemicikleri alana dönük, yay biçiminde (Batur: "sıra halinde değil, biraz eğimli")
+	hospital = Vector2.new(-90, 22),
+	armory = Vector2.new(90, 22),
+	shop = Vector2.new(-110, -28),
+	market = Vector2.new(110, -28),
+	shopsFace = 120,      -- dükkânların baktığı nokta (alanın ortası, z)
 	groundRadius = 420,
 }
 
