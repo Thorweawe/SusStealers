@@ -211,24 +211,6 @@ local function newCtx(name: string, scale: number): Ctx
 	return { model = model, root = root, S = scale }
 end
 
-local function sparkles(ctx: Ctx, pos: Vector3, color: Color3, rate: number)
-	local a = Instance.new("Attachment")
-	a.Name = "FX"
-	a.Position = pos * ctx.S
-	a.Parent = ctx.root
-	local e = Instance.new("ParticleEmitter")
-	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	e.Color = ColorSequence.new(color)
-	e.LightEmission = 1
-	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5 * ctx.S), NumberSequenceKeypoint.new(1, 0) })
-	e.Transparency = NumberSequence.new(0.2, 1)
-	e.Lifetime = NumberRange.new(1.2, 2.2)
-	e.Speed = NumberRange.new(1, 3)
-	e.SpreadAngle = Vector2.new(180, 180)
-	e.Rate = rate
-	e.Parent = a
-end
-
 type VfxSpec = {
 	texture: string,
 	color: Color3,
@@ -242,6 +224,10 @@ type VfxSpec = {
 	alpha: number?,
 	spin: number?,
 	box: Vector3?,
+	inward: boolean?,  -- kutu yüzeyinden içe (kara delik emişi)
+	emission: number?, -- LightEmission (koyu duman için düşük)
+	drag: number?,
+	lockY: boolean?,   -- hıza dik yassı sprite (zemin halkası)
 }
 
 --[[ Özel dokulu parçacık (Config.Vfx). Boyut ve hız ctx.S ile ölçekli.
@@ -272,8 +258,12 @@ local function vfx(ctx: Ctx, name: string, pos: Vector3, spec: VfxSpec)
 	e.Name = name
 	e.Texture = spec.texture
 	e.Color = if spec.color2 then ColorSequence.new(spec.color, spec.color2) else ColorSequence.new(spec.color)
-	e.LightEmission = 1
+	e.LightEmission = spec.emission or 1
 	e.LightInfluence = 0
+	e.Drag = spec.drag or 0
+	if spec.lockY then
+		e.Orientation = Enum.ParticleOrientation.VelocityPerpendicular
+	end
 	local sz = spec.size * ctx.S
 	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, sz * 0.3), NumberSequenceKeypoint.new(0.25, sz), NumberSequenceKeypoint.new(1, sz * 0.15) })
 	local a0 = spec.alpha or 0.15
@@ -287,7 +277,10 @@ local function vfx(ctx: Ctx, name: string, pos: Vector3, spec: VfxSpec)
 	e.Rate = spec.rate
 	if spec.box then
 		e.Shape = Enum.ParticleEmitterShape.Box
-		e.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+		e.ShapeStyle = if spec.inward then Enum.ParticleEmitterShapeStyle.Surface else Enum.ParticleEmitterShapeStyle.Volume
+		if spec.inward then
+			e.ShapeInOut = Enum.ParticleEmitterShapeInOut.Inward
+		end
 	end
 	e.Parent = holder
 end
@@ -375,7 +368,10 @@ local function glorp(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 6, 0), glow, 6)
+	-- Balçık: yükselen köpükler, gövdeden damlayan sümük, yeşil ışıltı
+	vfx(ctx, "SlimeBubbles", Vector3.new(0, 3, 0), { texture = Config.Vfx.Bubble, color = glow, color2 = belly, size = 1.1, rate = 3, life = 2.4, speed = 1.2, spread = 30, accel = Vector3.new(0, 1.4, 0), alpha = 0.2, box = Vector3.new(10, 2, 9) })
+	vfx(ctx, "SlimeDrips", Vector3.new(0, 6, 0), { texture = Config.Vfx.Orb, color = body, color2 = dark, size = 0.7, rate = 2, life = 1.4, speed = 0.2, accel = Vector3.new(0, -9, 0), alpha = 0.1, box = Vector3.new(9, 3, 8) })
+	vfx(ctx, "SlimeGlints", Vector3.new(0, 6, 0), { texture = Config.Vfx.Star, color = rgb(230, 255, 200), size = 0.9, rate = 2, life = 1.2, speed = 0.3, box = Vector3.new(11, 10, 10), spin = 70 })
 	light(ctx, Vector3.new(0, 8, -6), glow, 16, 0.8)
 end
 
@@ -611,7 +607,10 @@ local function kraken(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 12, 2), glow, 7)
+	-- Derin uzay ahtapotu: mürekkep nebulası, yükselen camgöbeği köpükler, ışıltı
+	vfx(ctx, "InkNebula", Vector3.new(0, 8, 3), { texture = Config.Vfx.Nebula, color = skin, color2 = rgb(40, 20, 90), size = 7, rate = 1, life = 4, speed = 0.4, alpha = 0.6, spin = 10, emission = 0.6 })
+	vfx(ctx, "DeepBubbles", Vector3.new(0, 4, 0), { texture = Config.Vfx.Bubble, color = glow, color2 = pale, size = 1, rate = 3.5, life = 3, speed = 1, spread = 40, accel = Vector3.new(0, 1.6, 0), alpha = 0.2, box = Vector3.new(14, 3, 14) })
+	vfx(ctx, "AbyssGlints", Vector3.new(0, 12, 2), { texture = Config.Vfx.Star, color = glow, color2 = pale, size = 1, rate = 3, life = 1.4, speed = 0.3, box = Vector3.new(14, 10, 12), spin = 60 })
 	light(ctx, Vector3.new(0, 8, -7), glow, 22, 1)
 end
 
@@ -706,7 +705,10 @@ local function sandMaw(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 1, 2), rgb(255, 220, 160), 5)
+	-- Kum solucanı: dibinden kalkan toz bulutları, savrulan kum taneleri, ağızda camgöbeği ark
+	vfx(ctx, "DuneDust", Vector3.new(0, 1, 2), { texture = Config.Vfx.Dust, color = sand, color2 = band, size = 6, rate = 2, life = 2.6, speed = 2, spread = 60, accel = Vector3.new(0, 0.6, 0), alpha = 0.45, drag = 1, box = Vector3.new(12, 1, 12), emission = 0.15 })
+	vfx(ctx, "SandGrains", Vector3.new(0, 4, 2), { texture = Config.Vfx.Ember, color = rgb(255, 225, 170), color2 = sand, size = 0.8, rate = 6, life = 1.2, speed = 6, spread = 70, accel = Vector3.new(0, -6, 0), alpha = 0.2, box = Vector3.new(10, 4, 10), emission = 0.4 })
+	vfx(ctx, "MawArcs", face + headDir * 2, { texture = Config.Vfx.Spark, color = maw, color2 = rgb(220, 250, 255), size = 2.4, rate = 2.5, life = 0.35, speed = 0.5, spin = 200 })
 	light(ctx, face + headDir * 3, maw, 26, 2)
 end
 
@@ -783,7 +785,10 @@ local function riftStalker(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, AB, glow, 6)
+	-- Cinderhold örümceği: yanardağ korları yükseliyor, karnından camgöbeği enerji dumanı, rift kıvılcımları
+	vfx(ctx, "Cinders", Vector3.new(0, 1, 0), { texture = Config.Vfx.Ember, color = rgb(255, 200, 90), color2 = rgb(255, 70, 30), size = 0.9, rate = 7, life = 2, speed = 3, spread = 25, accel = Vector3.new(0, 3, 0), alpha = 0.1, box = Vector3.new(18, 1, 18) })
+	vfx(ctx, "RiftWisp", AB, { texture = Config.Vfx.Wisp, color = glow, color2 = rgb(20, 120, 140), size = 4, rate = 2, life = 2, speed = 1, spread = 60, accel = Vector3.new(0, 1, 0), alpha = 0.4, spin = 30 })
+	vfx(ctx, "RiftSparks", AB, { texture = Config.Vfx.Spark, color = glow, color2 = rgb(220, 255, 250), size = 2, rate = 2, life = 0.3, speed = 0.4, spin = 200, box = Vector3.new(8, 5, 8) })
 	light(ctx, Vector3.new(0, 10, -9), glow, 22, 1.2)
 end
 
@@ -888,7 +893,11 @@ local function voidLeviathan(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, crown, glow, 10)
+	-- Boşluk yılanı: koyu boşluk dumanı, mor nebula, taçta kıvılcım, dökülen yıldız tozu
+	vfx(ctx, "VoidSmoke", hc, { texture = Config.Vfx.Wisp, color = rgb(60, 20, 90), color2 = rgb(10, 5, 20), size = 7, rate = 2, life = 3, speed = 1.2, alpha = 0.35, spin = 20, emission = 0.1 })
+	vfx(ctx, "VoidNebula", hc, { texture = Config.Vfx.Nebula, color = glow, color2 = eyeC, size = 9, rate = 0.8, life = 4, speed = 0.5, alpha = 0.65, spin = 8, emission = 0.7 })
+	vfx(ctx, "CrownSparks", crown, { texture = Config.Vfx.Spark, color = glow, color2 = eyeC, size = 2.4, rate = 3, life = 0.35, speed = 0.5, spin = 220 })
+	vfx(ctx, "VoidMotes", crown, { texture = Config.Vfx.Star, color = rgb(240, 200, 255), color2 = glow, size = 1, rate = 5, life = 2.2, speed = 1.5, accel = Vector3.new(0, -1.5, 0), spin = 60 })
 	light(ctx, hc + Vector3.new(0, 0, -5), glow, 30, 1.6)
 end
 
@@ -970,7 +979,10 @@ local function frostWyrm(ctx: Ctx)
 		capsule(ctx, "HindLeg", Vector3.new(x * 3, 6, 5), Vector3.new(x * 3.4, 2.6, 5.6), 2, deep, B)
 	end
 
-	sparkles(ctx, Vector3.new(0, 9, 0), rgb(220, 250, 255), 10)
+	-- Buz ejderi: savrulan kar taneleri, yerde soğuk sis, kristal ışıltıları
+	vfx(ctx, "Snowfall", Vector3.new(0, 16, 0), { texture = Config.Vfx.Snowflake, color = rgb(240, 252, 255), color2 = crystal, size = 1, rate = 8, life = 3, speed = 0.8, accel = Vector3.new(0, -2.5, 0), alpha = 0.1, box = Vector3.new(22, 2, 22), spin = 90 })
+	vfx(ctx, "FrostMist", Vector3.new(0, 1, 0), { texture = Config.Vfx.Dust, color = rgb(220, 245, 255), color2 = deep, size = 8, rate = 1.5, life = 3.5, speed = 1, spread = 80, alpha = 0.6, drag = 0.8, box = Vector3.new(16, 1, 16), emission = 0.3 })
+	vfx(ctx, "IceGlints", Vector3.new(0, 9, 0), { texture = Config.Vfx.Star, color = crystal, color2 = rgb(255, 255, 255), size = 1.2, rate = 3, life = 1.2, speed = 0.2, box = Vector3.new(14, 12, 14), spin = 80 })
 	light(ctx, Vector3.new(0, 12, -6), crystal, 20, 1)
 end
 
@@ -1032,7 +1044,10 @@ local function crystalGolem(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 14, 1), pink, 8)
+	-- Kristal dev: etrafında süzülen kristal kırıkları, pembe-camgöbeği ışıltı, prizma halkası
+	vfx(ctx, "FloatingShards", Vector3.new(0, 10, 0), { texture = Config.Vfx.Crystal, color = pink, color2 = cyan, size = 1.6, rate = 2.5, life = 3, speed = 0.5, accel = Vector3.new(0, 0.8, 0), alpha = 0.1, box = Vector3.new(16, 14, 14), spin = 40 })
+	vfx(ctx, "PrismGlints", Vector3.new(0, 14, 1), { texture = Config.Vfx.Star, color = rgb(255, 230, 250), color2 = cyan, size = 1.3, rate = 4, life = 1.2, speed = 0.3, box = Vector3.new(12, 10, 10), spin = 90 })
+	vfx(ctx, "PrismRing", Vector3.new(0, 0.4, 0), { texture = Config.Vfx.Ring, color = pink, color2 = cyan, size = 14, rate = 0.5, life = 2.5, speed = 0.01, spread = 0, alpha = 0.5, lockY = true, spin = 5 })
 	light(ctx, Vector3.new(0, 12, -5), pink, 18, 1.1)
 end
 
@@ -1103,7 +1118,10 @@ local function solarPhoenix(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 10, 2), fire, 22)
+	-- Güneş anka kuşu: gövdeden yükselen alev dilleri, havada uçuşan korlar, ısı dalgası
+	vfx(ctx, "SolarFlames", Vector3.new(0, 9, 2), { texture = Config.Vfx.Flame, color = rgb(255, 230, 120), color2 = red, size = 4, rate = 9, life = 0.9, speed = 3, spread = 25, accel = Vector3.new(0, 6, 0), alpha = 0.1, box = Vector3.new(8, 6, 6), spin = 20 })
+	vfx(ctx, "SolarEmbers", Vector3.new(0, 10, 2), { texture = Config.Vfx.Ember, color = gold, color2 = red, size = 1, rate = 10, life = 1.8, speed = 5, accel = Vector3.new(0, 3, 0), alpha = 0.05, box = Vector3.new(18, 8, 10) })
+	vfx(ctx, "HeatWave", Vector3.new(0, 9, 2), { texture = Config.Vfx.Ring, color = fire, color2 = red, size = 18, rate = 0.6, life = 1.4, speed = 0.01, spread = 0, alpha = 0.55 })
 	light(ctx, Vector3.new(0, 11, -3), fire, 26, 1.6)
 end
 
@@ -1170,7 +1188,10 @@ local function blackHole(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 11, 0), purple, 16)
+	-- Kara delik: her yandan İÇERİ emilen yıldız tozu, dönen nebula, olay ufku halkası
+	vfx(ctx, "Accretion", Vector3.new(0, 11, 0), { texture = Config.Vfx.Star, color = pink, color2 = purple, size = 1, rate = 14, life = 1.2, speed = 9, box = Vector3.new(26, 26, 26), inward = true, spin = 120 })
+	vfx(ctx, "SpiralNebula", Vector3.new(0, 11, 0), { texture = Config.Vfx.Nebula, color = purple, color2 = rim, size = 12, rate = 1, life = 3.5, speed = 0.2, alpha = 0.55, spin = 45, emission = 0.6 })
+	vfx(ctx, "HorizonRing", Vector3.new(0, 11, 0), { texture = Config.Vfx.Ring, color = pink, color2 = purple, size = 16, rate = 0.7, life = 1.8, speed = 0.01, spread = 0, alpha = 0.4 })
 	light(ctx, Vector3.new(0, 11, -7), purple, 26, 1.3)
 end
 
@@ -1243,7 +1264,10 @@ local function galaxyTitan(ctx: Ctx)
 		end
 	end
 
-	sparkles(ctx, Vector3.new(0, 15, 0), star, 18)
+	-- Galaksi titanı: altın yıldız yağmuru, omuzlarında nebula, kozmik kıvılcımlar
+	vfx(ctx, "StarShower", Vector3.new(0, 15, 0), { texture = Config.Vfx.Star, color = star, color2 = gold, size = 1.4, rate = 8, life = 2, speed = 0.4, accel = Vector3.new(0, -1, 0), box = Vector3.new(18, 18, 12), spin = 80 })
+	vfx(ctx, "TitanNebula", Vector3.new(0, 18, 2), { texture = Config.Vfx.Nebula, color = nebula, color2 = navy, size = 12, rate = 1, life = 4, speed = 0.3, alpha = 0.6, spin = 8, emission = 0.7 })
+	vfx(ctx, "CosmicSparks", Vector3.new(0, 15, 0), { texture = Config.Vfx.Spark, color = gold, color2 = star, size = 2.2, rate = 2, life = 0.35, speed = 0.4, box = Vector3.new(14, 14, 8), spin = 200 })
 	light(ctx, Vector3.new(0, 16, -5), gold, 28, 1.3)
 end
 

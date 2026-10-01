@@ -1665,6 +1665,14 @@ Config.Vfx = {
 	Orb = "rbxassetid://126212860372362",    -- yumuşak ışık küresi + ince hale
 	Wisp = "rbxassetid://112622141038300",   -- kıvrılan enerji dumanı
 	Nebula = "rbxassetid://124233803162711", -- yıldız benekli nebula bulutu
+	Flame = "rbxassetid://102945157742109",  -- yukarı kıvrılan alev dili
+	Snowflake = "rbxassetid://137578674643370", -- altı köşeli kar/buz kristali
+	Spark = "rbxassetid://132804475238518",  -- elektrik kıvılcımı / ark
+	Crystal = "rbxassetid://119896619624902", -- köşeli kristal kümesi
+	Bubble = "rbxassetid://120737685548554", -- ince kenarlı balçık/sabun köpüğü
+	Dust = "rbxassetid://123268851481240",   -- kum/toz bulutu
+	Ember = "rbxassetid://135138067872067",  -- izli kor / kıvılcım çizgisi
+	Ring = "rbxassetid://103602259959583",   -- şok dalgası halkası
 }
 
 -- ─── Nadirlikler ────────────────────────────────────────────────────────────

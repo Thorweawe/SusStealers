@@ -13,6 +13,16 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-01 (73) — Yusuf (ortak şeride yazıldı: `Config`, `MonsterModel`, `UnitModel`)
+
+Studio'ya aktarıldı, **185/185 test temiz**.
+
+- **`Config.Vfx`**: ChatGPT ile üretilen 12 beyaz parçacık dokusu (Star, Orb, Wisp, Nebula, Flame, Snowflake, Spark, Crystal, Bubble, Dust, Ember, Ring), grup adına yüklendi. `ParticleEmitter.Color` ile boyanıyor; kaynakları `vfx_art/`.
+- **`MonsterModel`**: eski `sparkles()` yerine her boss'a temasına göre efekt (`vfx()` yardımcısı: kutu hacmi, içe emiş, düşük ışıklı duman). Chomper 3D ağ: `ReplicatedStorage.MonsterMeshes.Chomper` (Studio'da duruyor, place'le kaydediliyor) varsa ağ sürümü, yoksa eski parça modeli. Rig değişmedi; ağ parçaları `Bone` niteliğiyle aynı sistemde.
+- **`UnitModel`**: Ejected'a uzay aurası (`aura()` yardımcısı).
+- Sıradaki: diğer boss'lar da 3D'ye dönecek (`models_3d/`, `tools/split_mesh.py`). **`ReplicatedStorage.MonsterMeshes` klasörünü silme / yeniden adlandırma.**
+- Gezegen efektleri senin `SpaceService.buildPlanet`'ine dokunmadan istemcide ayrı modülle gelecek; gezegen modeli adları/nitelikleri değişirse haber ver.
+
 ## 2026-10-01 (72) — Batur (Yusuf'un şeridine de yazıldı: istemcide 18 dosya, zaman okuması)
 
 Studio'ya aktarıldı, testler temiz; crewmate geri sayımı istemcide okundu (⟳ 4:44).
