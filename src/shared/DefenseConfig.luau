@@ -155,10 +155,12 @@ DefenseConfig.Layout = {
 	command = Vector2.new(20, 12),
 	takeoff = Vector2.new(-20, 12),
 	-- Dükkân gemicikleri alana dönük, yay biçiminde (Batur: "sıra halinde değil, biraz eğimli")
-	hospital = Vector2.new(-70, 8),
-	armory = Vector2.new(70, 8),
-	shop = Vector2.new(-88, -36),
-	market = Vector2.new(88, -36),
+	-- Hastane / Armory önde, Command / Market ana geminin yanında (yay; Batur:
+	-- "arka arkaya dizilmiş gibi duruyorlar, gemiye yaklaştır")
+	hospital = Vector2.new(-72, 6),
+	armory = Vector2.new(72, 6),
+	shop = Vector2.new(-46, -26),
+	market = Vector2.new(46, -26),
 	shopsFace = 120,      -- dükkânların baktığı nokta (alanın ortası, z)
 	groundRadius = 420,
 }

@@ -332,6 +332,149 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 	end)
 
+	-- ─── Hissiyat: sporlar, sis, nabız gibi parlayan bitkiler, sesler ──────
+	--[[
+		2026-10-02 (Batur: "haritaya çok daha fazla hissiyat ekle, sesleri
+		düzenle"). Hepsi istemcide, gezegene inince kuruluyor, kalkışta
+		kalkıyor:
+		  - kameranın çevresinde süzülen parlak sporlar
+		  - mağara geçidinden yükselen sis
+		  - mantar başları, kristaller ve alan lambaları nabız gibi parlıyor
+		  - hafif gezegen renk filtresi
+		  - alçak alien rüzgârı (ortam uğultusu, perdesi düşük) ve ana geminin
+		    motor uğultusu (konumlu)
+		Ses kimlikleri SoundFX'te bu yerde yüklendiği ölçülmüş olanlar.
+	]]
+	local SoundService = game:GetService("SoundService")
+	local AMBIENT_ID = "rbxassetid://9113652844"   -- Buzzy Ambience (SoundFX.Ambient)
+	local MACHINE_ID = "rbxassetid://91861694498690" -- makine uğultusu (SoundFX.Machine)
+	local ambience: { Instance } = {}
+	local tweens: { Tween } = {}
+	local sporeHost: BasePart? = nil
+
+	local function stopAmbience()
+		for _, t in tweens do
+			t:Cancel()
+		end
+		table.clear(tweens)
+		for _, inst in ambience do
+			inst:Destroy()
+		end
+		table.clear(ambience)
+		sporeHost = nil
+	end
+
+	local function startAmbience(index: number, where: number)
+		stopAmbience()
+		local def = Config.SpaceMonsters[index]
+		local glowColor = if def then def.glow else Color3.fromRGB(150, 255, 90)
+		-- Sporlar: kameranın etrafında, yavaş yükselip süzülüyor
+		local host = Instance.new("Part")
+		host.Name = "DefenseSpores"
+		host.Anchored = true
+		host.CanCollide = false
+		host.CanQuery = false
+		host.CanTouch = false
+		host.Transparency = 1
+		host.Size = Vector3.new(90, 1, 90)
+		host.Parent = workspace
+		table.insert(ambience, host)
+		sporeHost = host
+		local spores = Instance.new("ParticleEmitter")
+		spores.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		spores.Color = ColorSequence.new(glowColor:Lerp(WHITE, 0.3), glowColor)
+		spores.LightEmission = 1
+		spores.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.2, 0.35),
+			NumberSequenceKeypoint.new(0.8, 0.3), NumberSequenceKeypoint.new(1, 0) })
+		spores.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.2),
+			NumberSequenceKeypoint.new(0.8, 0.3), NumberSequenceKeypoint.new(1, 1) })
+		spores.Lifetime = NumberRange.new(6, 10)
+		spores.Rate = 28
+		spores.Speed = NumberRange.new(0.5, 1.5)
+		spores.SpreadAngle = Vector2.new(180, 180)
+		spores.Acceleration = Vector3.new(0, 0.25, 0)
+		spores.RotSpeed = NumberRange.new(-40, 40)
+		spores.Parent = host
+
+		-- Arenanın dünyası: geçit sisi ve nabız gibi parlayan parçalar
+		local worlds = workspace:FindFirstChild("PlanetWorlds")
+		local world = worlds and worlds:FindFirstChild("Arena_" .. where)
+		if world then
+			local portal = world:FindFirstChild("Portal", true)
+			if portal and portal:IsA("BasePart") then
+				local mist = Instance.new("ParticleEmitter")
+				mist.Name = "DefenseMist"
+				mist.Texture = "rbxasset://textures/particles/smoke_main.dds"
+				mist.Color = ColorSequence.new(glowColor:Lerp(Color3.new(0, 0, 0), 0.3))
+				mist.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 6), NumberSequenceKeypoint.new(1, 18) })
+				mist.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
+				mist.Lifetime = NumberRange.new(4, 6)
+				mist.Rate = 6
+				mist.Speed = NumberRange.new(2, 4)
+				mist.EmissionDirection = Enum.NormalId.Top
+				mist.SpreadAngle = Vector2.new(40, 40)
+				mist.Parent = portal
+				table.insert(ambience, mist)
+			end
+			local k = 0
+			for _, d in world:GetDescendants() do
+				if d:IsA("BasePart") and (d.Name == "CapGlow" or d.Name == "Crystal" or d.Name == "FieldLamp"
+					or d.Name == "GlowBulb" or d.Name == "Spot") then
+					k += 1
+					local base = d.Transparency
+					local info = TweenInfo.new(1.6 + (k % 7) * 0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true, (k % 11) * 0.15)
+					local t = TweenService:Create(d, info, { Transparency = math.min(0.85, base + 0.45) })
+					t:Play()
+					table.insert(tweens, t)
+				end
+			end
+			-- Ana geminin motor uğultusu (konumlu)
+			local ship = world:FindFirstChild("LandedShip")
+			local engine = ship and ship:FindFirstChild("EngineGlow")
+			if engine and engine:IsA("BasePart") then
+				local hum = Instance.new("Sound")
+				hum.Name = "DefenseShipHum"
+				hum.SoundId = MACHINE_ID
+				hum.Looped = true
+				hum.Volume = 0.35
+				hum.PlaybackSpeed = 0.7
+				hum.RollOffMode = Enum.RollOffMode.InverseTapered
+				hum.RollOffMinDistance = 20
+				hum.RollOffMaxDistance = 160
+				hum.Parent = engine
+				hum:Play()
+				table.insert(ambience, hum)
+			end
+		end
+
+		-- Alien rüzgârı (her yerde, alçak)
+		local wind = Instance.new("Sound")
+		wind.Name = "DefenseWind"
+		wind.SoundId = AMBIENT_ID
+		wind.Looped = true
+		wind.Volume = 0.18
+		wind.PlaybackSpeed = 0.55
+		wind.Parent = SoundService
+		wind:Play()
+		table.insert(ambience, wind)
+
+		-- Renk filtresi
+		local grade = Instance.new("ColorCorrectionEffect")
+		grade.Name = "DefenseGrade"
+		grade.Saturation = 0.15
+		grade.Contrast = 0.06
+		grade.TintColor = WHITE:Lerp(glowColor, 0.08)
+		grade.Parent = Lighting
+		table.insert(ambience, grade)
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local host = sporeHost
+		if host and host.Parent then
+			host.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, -4, 0))
+		end
+	end)
+
 	-- ─── İniş ve kalkış ─────────────────────────────────────────────────────
 	local function dustAt(at: Vector3, color: Color3)
 		local p = Instance.new("Part")
@@ -399,6 +542,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		DefenseFX.SetPlanet(index)
 		DefenseFX.SetArena(arena)
 		applyEnvironment(index)
+		startAmbience(index, arena)
 		-- (Konsolun üstündeki ışık sütunu kalktı: "bozuk görünüyor"; altta DEFEND düğmesi var)
 		if beacon then
 			beacon:Destroy()
@@ -465,6 +609,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		DefenseFX.Clear()
 		applyEnvironment(nil)
+		stopAmbience()
 		camera.CameraType = Enum.CameraType.Custom
 		fadeCurtain(false, 0.6)
 	end
@@ -515,10 +660,13 @@ function DefenseClient.Start(screen: ScreenGui)
 		elseif kind == "waveEnd" then
 			if payload.won then
 				if payload.sector then
-					local sub = string.format("%s   %s", string.rep("★", payload.stars) .. string.rep("☆", 3 - payload.stars),
-						if payload.gold > 0 then string.format("+%d GOLD", payload.gold) else "no new stars")
-					ui.Banner(string.format("SECTOR %d CLEAR!", payload.sector), sub, Color3.fromRGB(255, 220, 80))
+					ui.Celebrate(payload.sector, payload.stars, payload.gold)
 					SoundFX.Success()
+					for i = 1, payload.stars do
+						task.delay(0.35 + i * 0.35, function()
+							SoundFX.StarPickup(i)
+						end)
+					end
 				else
 					ui.Banner(string.format("WAVE %d CLEARED", payload.wave),
 						if payload.losses > 0 then string.format("%d crewmate(s) sent to hospital", payload.losses) else "No losses!",
@@ -615,6 +763,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		if typeof(p) ~= "number" then
 			planet = nil
 			applyEnvironment(nil)
+			stopAmbience()
 			ui.SetPlanetHud(false)
 		end
 	end)

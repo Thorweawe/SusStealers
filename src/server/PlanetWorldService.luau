@@ -551,7 +551,8 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 	else
 		part(f, "Screen", Vector3.new(8, 4, 0.4), rel(-6, Y + 1, -6.6), color, glow(color, { CanCollide = false }))
 	end
-	light(counterTop, color, 22, 1.5)
+	-- Sönük ve beyaza yakın: renkli güçlü ışık gemiyi ve zemini pembeye boyuyordu
+	light(counterTop, color:Lerp(WHITE, 0.6), 12, 0.6)
 end
 
 -- ─── Konsollar ──────────────────────────────────────────────────────────────

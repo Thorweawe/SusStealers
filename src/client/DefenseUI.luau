@@ -69,6 +69,7 @@ export type UI = {
 	SetPicked: (support: string?) -> (),
 	SetTick: (snap: any) -> (),
 	Banner: (title: string, sub: string, color: Color3) -> (),
+	Celebrate: (sector: number, stars: number, gold: number) -> (),
 	SetPlanetHud: (visible: boolean) -> (),
 }
 
@@ -184,7 +185,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	local ui: UI
 
 	-- ═══ Pencere iskeleti ═══════════════════════════════════════════════════
-	local function window(name: string, title: string, colors: { Color3 }, w: number, h: number): (Frame, Frame, Frame)
+	local function window(name: string, title: string, colors: { Color3 }, w: number, h: number): (Frame, Frame, Frame, FancyKit.Driver)
 		local root = UiKit.Window(screen, name, colors[1])
 		root.AnchorPoint = Vector2.new(0.5, 0.5)
 		root.Position = UDim2.fromScale(0.5, 0.52)
@@ -202,7 +203,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		body.BackgroundTransparency = 1
 		body.ZIndex = Z + 2
 		body.Parent = root
-		return root, body, shell.header
+		return root, body, shell.header, driver
 	end
 
 	-- ═══ DEFEND penceresi ═══════════════════════════════════════════════════
@@ -578,78 +579,134 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end)
 
 	-- ═══ Dükkân penceresi (dört dükkân aynı pencerede) ═════════════════════
-	local shopRoot, shopBody, shopHeader = window("DefenseShop", "SHOP", {
+	--[[
+		2026-10-02 (Batur: "shopların içindeki UI çok kötü, hepsini elden
+		geçir"): oyunun mağazasındaki gibi renkli ışınlı kartlar
+		(FancyKit.card) ızgarası: büyük simge, ad, seviye noktaları,
+		"şimdi → sonra" etkisi, altta fiyat düğmesi. Hastanede crewmate'in
+		kendi simgesi, REVIVE ve LET GO.
+	]]
+	local shopRoot, shopBody, shopHeader, shopDriver = window("DefenseShop", "SHOP", {
 		Color3.fromRGB(255, 150, 40), Color3.fromRGB(255, 80, 120), Color3.fromRGB(255, 200, 60),
-	}, 720, 500)
-	local shopGold, shopGoldText = chip(shopRoot, "", Color3.fromRGB(220, 160, 30), Z + 6, 120)
+	}, 840, 540)
+	local shopGold, shopGoldText = chip(shopRoot, "", Color3.fromRGB(220, 160, 30), Z + 6, 130)
 	shopGold.AnchorPoint = Vector2.new(1, 0.5)
 	shopGold.Position = UDim2.new(1, -70, 0, 31)
-	shopGold.Size = UDim2.fromOffset(120, 32)
-	shopGoldText.TextSize = 18
-	local shopIntro = label(shopBody, "", 15, SOFT, Z + 3, 1.2)
+	shopGold.Size = UDim2.fromOffset(130, 34)
+	shopGoldText.TextSize = 19
+	local shopIntro = label(shopBody, "", 15, SOFT, Z + 3, 1.4)
 	shopIntro.Size = UDim2.new(1, 0, 0, 22)
 	shopIntro.TextXAlignment = Enum.TextXAlignment.Left
 	local shopList = scroller(shopBody, Z + 3)
-	shopList.Position = UDim2.fromOffset(0, 28)
-	shopList.Size = UDim2.new(1, 0, 1, -28)
-	list(shopList, false, 8)
+	shopList.Position = UDim2.fromOffset(0, 30)
+	shopList.Size = UDim2.new(1, 0, 1, -30)
+	shopList.ScrollBarImageColor3 = Color3.fromRGB(255, 226, 90)
+	local shopGrid = Instance.new("UIGridLayout")
+	shopGrid.CellSize = UDim2.fromOffset(190, 262)
+	shopGrid.CellPadding = UDim2.fromOffset(10, 10)
+	shopGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	shopGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	shopGrid.Parent = shopList
 
 	local SHOP_TITLE = { armory = "ARMORY", shop = "COMMAND SHOP", market = "MARKET", hospital = "HOSPITAL" }
 	local SHOP_INTRO = {
-		armory = "Gear for you and upgrades for every crew role. Paid with gold from stars.",
-		shop = "Bigger crew and a tougher ship hull.",
-		market = "One-use boosts you can fire during a wave.",
-		hospital = "Crewmates that fell in battle wait here.",
+		armory = "Gear for you and stronger crew roles. Paid with 💰 gold from stars.",
+		shop = "Take more crewmates into battle and toughen the ship.",
+		market = "One-use boosts. Fire them during a wave from the bottom bar.",
+		hospital = "Crewmates that fell in battle. Revive them or let them go.",
 	}
 
-	local function shopRow(order: number, icon: string, iconColor: Color3, title: string, sub: string, levelText: string?,
-		actionText: string?, color: Color3?, onClick: (() -> ())?, secondText: string?, onSecond: (() -> ())?)
-		local row = panel(shopList, UDim2.new(1, -10, 0, 82), UDim2.new(), Vector2.zero, Z + 4, nil, nil, 12)
-		row.LayoutOrder = order
-		local badge = Instance.new("Frame")
-		badge.Position = UDim2.fromOffset(10, 10)
-		badge.Size = UDim2.fromOffset(62, 62)
-		badge.BackgroundColor3 = WHITE
-		badge.ZIndex = Z + 5
-		badge.Parent = row
-		FancyKit.corner(badge, 31)
-		FancyKit.border(badge, OUTLINE, 3)
-		FancyKit.gradient(badge, { iconColor:Lerp(WHITE, 0.25), iconColor:Lerp(Color3.new(0, 0, 0), 0.3) }, 90)
-		local ic = label(badge, icon, 30, WHITE, Z + 6, 0)
-		ic.Size = UDim2.fromScale(1, 1)
-		local t = label(row, title, 20, WHITE, Z + 5)
-		t.Position = UDim2.fromOffset(84, 8)
-		t.Size = UDim2.new(1, -260, 0, 24)
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		if levelText then
-			local lv = label(row, levelText, 14, GOLD, Z + 5, 1.2)
-			lv.Position = UDim2.fromOffset(84, 32)
-			lv.Size = UDim2.new(1, -260, 0, 16)
-			lv.TextXAlignment = Enum.TextXAlignment.Left
+	type ShopCard = {
+		order: number,
+		tint: Color3,
+		icon: string?,
+		unitId: string?,
+		title: string,
+		level: string?,
+		effect: string?,
+		sub: string?,
+		buyText: string,
+		buyColor: Color3?,
+		onBuy: (() -> ())?,
+		altText: string?,
+		onAlt: (() -> ())?,
+	}
+
+	local function shopCard(c: ShopCard)
+		local slot = Instance.new("Frame")
+		slot.LayoutOrder = c.order
+		slot.BackgroundTransparency = 1
+		slot.ZIndex = Z + 2
+		slot.Parent = shopList
+		local card = FancyKit.card(slot, c.tint, UDim2.fromScale(1, 1), Z + 2, shopDriver, UDim2.new(0.5, 0, 0, 58))
+		FancyKit.hover(slot, 1.03)
+		-- Simge
+		local iconHolder = Instance.new("Frame")
+		iconHolder.AnchorPoint = Vector2.new(0.5, 0)
+		iconHolder.Position = UDim2.new(0.5, 0, 0, 8)
+		iconHolder.Size = UDim2.fromOffset(100, 100)
+		iconHolder.BackgroundTransparency = 1
+		iconHolder.ZIndex = Z + 4
+		iconHolder.Parent = card
+		FancyKit.glow(iconHolder, c.tint:Lerp(WHITE, 0.4), 1.1, 0.4, Z + 4)
+		if c.unitId then
+			pcall(UiKit.UnitIcon, iconHolder, 96, c.unitId)
+		else
+			local ic = label(iconHolder, c.icon or "?", 62, WHITE, Z + 5, 0)
+			ic.Size = UDim2.fromScale(1, 1)
 		end
-		local s = label(row, sub, 13, SOFT, Z + 5, 1.1)
-		s.Position = UDim2.fromOffset(84, if levelText then 50 else 36)
-		s.Size = UDim2.new(1, -260, 0, if levelText then 26 else 38)
-		s.TextXAlignment = Enum.TextXAlignment.Left
-		s.TextYAlignment = Enum.TextYAlignment.Top
-		s.TextWrapped = true
-		if actionText then
-			local b = button(row, actionText, UDim2.fromOffset(150, 50), color or GREY, Z + 5, 18)
-			if not color then
-				b.set(actionText, nil)
-			end
-			b.holder.AnchorPoint = Vector2.new(1, 0.5)
-			b.holder.Position = UDim2.new(1, if secondText then -170 else -12, 0.5, 0)
-			if onClick then
-				b.button.Activated:Connect(onClick)
-			end
+		-- Ad
+		local t = label(card, c.title, 18, WHITE, Z + 6, 2.2)
+		t.Position = UDim2.fromOffset(8, 110)
+		t.Size = UDim2.new(1, -16, 0, 22)
+		t.TextScaled = true
+		local fit = Instance.new("UITextSizeConstraint")
+		fit.MaxTextSize = 18
+		fit.MinTextSize = 11
+		fit.Parent = t
+		local y = 134
+		if c.level then
+			local lv = label(card, c.level, 15, GOLD, Z + 6, 1.6)
+			lv.Position = UDim2.fromOffset(8, y)
+			lv.Size = UDim2.new(1, -16, 0, 18)
+			y += 20
 		end
-		if secondText then
-			local b2 = button(row, secondText, UDim2.fromOffset(150, 50), RED, Z + 5, 16)
-			b2.holder.AnchorPoint = Vector2.new(1, 0.5)
-			b2.holder.Position = UDim2.new(1, -12, 0.5, 0)
-			if onSecond then
-				b2.button.Activated:Connect(onSecond)
+		if c.effect then
+			local ef = label(card, c.effect, 14, Color3.fromRGB(150, 255, 170), Z + 6, 1.6)
+			ef.Position = UDim2.fromOffset(8, y)
+			ef.Size = UDim2.new(1, -16, 0, 18)
+			y += 20
+		end
+		if c.sub then
+			local s = label(card, c.sub, 12, Color3.fromRGB(230, 236, 255), Z + 6, 1.4)
+			s.Position = UDim2.fromOffset(10, y)
+			s.Size = UDim2.new(1, -20, 0, 54 - (y - 134))
+			s.TextWrapped = true
+			s.TextYAlignment = Enum.TextYAlignment.Top
+		end
+		-- Düğmeler
+		if c.altText then
+			local buy = FancyKit.button(card, UDim2.new(0.6, -9, 0, 44), c.buyColor or GREY, 15, Z + 6, shopDriver)
+			buy.set(c.buyText, c.buyColor)
+			buy.holder.AnchorPoint = Vector2.new(0, 1)
+			buy.holder.Position = UDim2.new(0, 6, 1, -6)
+			if c.onBuy then
+				buy.button.Activated:Connect(c.onBuy)
+			end
+			local alt = FancyKit.button(card, UDim2.new(0.4, -9, 0, 44), RED, 13, Z + 6, shopDriver)
+			alt.set(c.altText, RED)
+			alt.holder.AnchorPoint = Vector2.new(1, 1)
+			alt.holder.Position = UDim2.new(1, -6, 1, -6)
+			if c.onAlt then
+				alt.button.Activated:Connect(c.onAlt)
+			end
+		else
+			local buy = FancyKit.button(card, UDim2.new(1, -16, 0, 46), c.buyColor or GREY, 18, Z + 6, shopDriver)
+			buy.set(c.buyText, c.buyColor)
+			buy.holder.AnchorPoint = Vector2.new(0.5, 1)
+			buy.holder.Position = UDim2.new(0.5, 0, 1, -6)
+			if c.onBuy then
+				buy.button.Activated:Connect(c.onBuy)
 			end
 		end
 	end
@@ -660,12 +717,12 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			return
 		end
 		for _, c in shopList:GetChildren() do
-			if c:IsA("Frame") then
+			if c:IsA("GuiObject") then
 				c:Destroy()
 			end
 		end
 		local gold = if data then data.gold else 0
-		shopGoldText.Text = "🪙 " .. tostring(gold)
+		shopGoldText.Text = "💰 " .. tostring(gold)
 		shopIntro.Text = SHOP_INTRO[kind] or ""
 		for _, d in shopHeader:GetDescendants() do
 			if d:IsA("TextLabel") and (d.Text == "SHOP" or SHOP_TITLE.armory == d.Text or SHOP_TITLE.shop == d.Text
@@ -678,82 +735,117 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		end
 		local function price(cost: number?, buyWord: boolean?): (string, Color3?)
 			if not cost then
-				return "MAX", nil
+				return "MAXED", nil
 			end
-			return (if buyWord then "BUY 🪙 " else "🪙 ") .. cost, if gold >= cost then GREEN else nil
+			return (if buyWord then "BUY  💰 " else "💰 ") .. cost, if gold >= cost then GREEN else nil
 		end
 		if kind == "armory" then
-			-- Gear'lar
 			local saber = data.saber or 0
 			local S = DefenseConfig.Saber
 			local t1, c1 = price(if saber == 0 then S.price else S.upgradeCosts[saber], saber == 0)
-			shopRow(1, "⚔", Color3.fromRGB(80, 170, 255), "LIGHTSABER",
-				"Gear: slash every enemy in front of you. Pick it when you press DEFEND.",
-				if saber > 0 then "Lv " .. pips(saber, #S.upgradeCosts + 1) else "NEW GEAR", t1, c1,
-				function()
+			shopCard({
+				order = 1, tint = Color3.fromRGB(60, 140, 255), icon = "⚔", title = "LIGHTSABER",
+				level = if saber > 0 then pips(saber, #S.upgradeCosts + 1) else "NEW GEAR",
+				effect = if saber > 0 and saber <= #S.upgradeCosts then string.format("DMG +%d%% → +%d%%",
+					math.floor(S.perLevel * (saber - 1) * 100), math.floor(S.perLevel * saber * 100)) else nil,
+				sub = "Slash every enemy in front of you.", buyText = t1, buyColor = c1,
+				onBuy = function()
 					hooks.send("buy", "saber")
-				end)
+				end,
+			})
 			local ray = data.raygun or 0
 			local R = DefenseConfig.RayGun
 			local t2, c2 = price(if ray == 0 then R.price else R.upgradeCosts[ray], ray == 0)
-			shopRow(2, "🔫", Color3.fromRGB(255, 90, 140), "RAY GUN",
-				"Gear: laser the closest enemy you aim at, from far away.",
-				if ray > 0 then "Lv " .. pips(ray, #R.upgradeCosts + 1) else "NEW GEAR", t2, c2,
-				function()
+			shopCard({
+				order = 2, tint = Color3.fromRGB(255, 70, 140), icon = "🔫", title = "RAY GUN",
+				level = if ray > 0 then pips(ray, #R.upgradeCosts + 1) else "NEW GEAR",
+				effect = if ray > 0 and ray <= #R.upgradeCosts then string.format("DMG +%d%% → +%d%%",
+					math.floor(R.perLevel * (ray - 1) * 100), math.floor(R.perLevel * ray * 100)) else nil,
+				sub = "Laser the closest enemy you aim at.", buyText = t2, buyColor = c2,
+				onBuy = function()
 					hooks.send("buy", "raygun")
-				end)
-			-- Rol yükseltmeleri
+				end,
+			})
 			for i, id in DefenseConfig.RoleOrder do
 				local role = DefenseConfig.Roles[id]
 				local level = data.roles[id] or 0
-				local bonus = math.floor(DefenseConfig.RoleLevelBonus * level * 100 + 0.5)
+				local now = math.floor(DefenseConfig.RoleLevelBonus * level * 100 + 0.5)
+				local nxt = math.floor(DefenseConfig.RoleLevelBonus * (level + 1) * 100 + 0.5)
 				local t, c = price(DefenseConfig.RoleUpgradeCost(level))
-				shopRow(10 + i, role.icon, role.color, string.upper(role.name) .. "S",
-					string.format("%s  (+%d%% health & power)", role.desc, bonus),
-					"Lv " .. pips(level, DefenseConfig.RoleMaxLevel), t, c,
-					function()
+				shopCard({
+					order = 10 + i, tint = role.color, icon = role.icon, title = string.upper(role.name) .. "S",
+					level = pips(level, DefenseConfig.RoleMaxLevel),
+					effect = if level < DefenseConfig.RoleMaxLevel then string.format("POWER +%d%% → +%d%%", now, nxt) else "POWER +" .. now .. "%",
+					sub = role.desc, buyText = t, buyColor = c,
+					onBuy = function()
 						hooks.send("buy", "role", id)
-					end)
+					end,
+				})
 			end
 		elseif kind == "shop" then
 			local t1, c1 = price(DefenseConfig.SlotCosts[data.slotLevel + 1])
-			shopRow(1, "👥", BLUE, string.format("CREW SLOTS · %d", data.slots),
-				"How many crewmates you can take into battle.",
-				"Lv " .. pips(data.slotLevel, #DefenseConfig.SlotCosts), t1, c1,
-				function()
+			shopCard({
+				order = 1, tint = Color3.fromRGB(70, 140, 255), icon = "👥", title = "CREW SLOTS",
+				level = pips(data.slotLevel, #DefenseConfig.SlotCosts),
+				effect = if DefenseConfig.SlotCosts[data.slotLevel + 1] then string.format("%d → %d CREW", data.slots, data.slots + 1)
+					else string.format("%d CREW", data.slots),
+				sub = "Crewmates you can take into one battle.", buyText = t1, buyColor = c1,
+				onBuy = function()
 					hooks.send("buy", "slot")
-				end)
+				end,
+			})
 			local t2, c2 = price(DefenseConfig.HullCosts[data.hullLevel + 1])
-			shopRow(2, "🛡", Color3.fromRGB(90, 200, 255), string.format("SHIP HULL · %d", data.hull),
-				"Enemies that reach the ship damage it. At 0 the wave is lost.",
-				"Lv " .. pips(data.hullLevel, #DefenseConfig.HullCosts), t2, c2,
-				function()
+			shopCard({
+				order = 2, tint = Color3.fromRGB(60, 190, 230), icon = "🛡", title = "SHIP HULL",
+				level = pips(data.hullLevel, #DefenseConfig.HullCosts),
+				effect = if DefenseConfig.HullCosts[data.hullLevel + 1]
+					then string.format("%d → %d HULL", data.hull, data.hull + DefenseConfig.HullPerLevel) else string.format("%d HULL", data.hull),
+				sub = "Enemies that reach the ship damage it.", buyText = t2, buyColor = c2,
+				onBuy = function()
 					hooks.send("buy", "hull")
-				end)
+				end,
+			})
 		elseif kind == "market" then
 			for i, s in DefenseConfig.Supports do
 				local have = data.supports[s.id] or 0
-				shopRow(i, s.icon, PURPLE, string.format("%s  ×%d", string.upper(s.name), have),
-					s.desc .. " One use per wave.", nil,
-					"🪙 " .. s.price, if gold >= s.price and have < DefenseConfig.SupportStack then GREEN else nil,
-					function()
+				local full = have >= DefenseConfig.SupportStack
+				shopCard({
+					order = i, tint = PURPLE:Lerp(Color3.fromRGB(255, 120, 200), (i - 1) * 0.3), icon = s.icon,
+					title = string.upper(s.name),
+					level = string.format("OWNED %d / %d", have, DefenseConfig.SupportStack),
+					sub = s.desc .. " One use per wave.",
+					buyText = if full then "FULL" else "💰 " .. s.price,
+					buyColor = if not full and gold >= s.price then GREEN else nil,
+					onBuy = function()
 						hooks.send("buy", "support", s.id)
-					end)
+					end,
+				})
 			end
 		elseif kind == "hospital" then
 			if #data.hospital == 0 then
-				shopRow(1, "✚", RED, "NOBODY HERE", "Crewmates that fall in battle come here. Revive them for 15 minutes of their earnings.")
+				shopCard({
+					order = 1, tint = Color3.fromRGB(80, 200, 120), icon = "✚", title = "ALL HEALTHY",
+					sub = "Crewmates that fall in battle come here. Revive them for 15 minutes of their earnings.",
+					buyText = "NOBODY HERE", buyColor = nil,
+				})
 			end
 			for i, h in data.hospital do
 				local def = Config.GetUnit(h.unitId)
 				local mutation = Config.GetMutation(h.mutationId)
 				local name = (if mutation then mutation.name .. " " else "") .. (if def then def.name else h.unitId)
-				shopRow(i, "🤕", RED, string.upper(name), "Fell in battle. Pay 15 minutes of its earnings to bring it back.", nil,
-					"$" .. Config.FormatCash(h.cost), GREEN, function()
+				shopCard({
+					order = i, tint = Color3.fromRGB(230, 70, 90), unitId = h.unitId, title = string.upper(name),
+					level = DefenseConfig.GetRole(h.unitId).icon .. " " .. DefenseConfig.GetRole(h.unitId).name,
+					sub = "Revive = 15 min of its earnings.",
+					buyText = "$" .. Config.FormatCash(h.cost), buyColor = GREEN,
+					onBuy = function()
 						hooks.send("revive", h.slot)
-					end, "LET GO", function()
+					end,
+					altText = "LET GO",
+					onAlt = function()
 						hooks.send("release", h.slot)
-					end)
+					end,
+				})
 			end
 		end
 	end
@@ -768,54 +860,56 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	hud.Parent = screen
 
 	--[[
-		Üstte durum (Batur: "ortada direkt kötü gözüküyor, küçült, gereksizleri
-		sil"): ince tek satırlık çubuk — gezegen, bölüm, dalga, altın, altında
-		gövde çubuğu. İpucu şeridi kalktı; yönlendirme alttaki düğmelerin
-		hemen üstünde kutusuz kısa yazı.
+		Üstte durum (Batur: "uzay gemisindeki UI'lere benzesin"): oyunun sol
+		alttaki uzay hızı / para haplarıyla AYNI bileşen (UiKit.StatPill:
+		renkli gradyan, kalın koyu kenar, nokta dokusu, soldan taşan 3B ikon).
+		Üç hap yan yana: gezegen + bölüm/dalga, gemi gövdesi (içinde ince can
+		çubuğu), altın.
 	]]
-	local top = panel(hud, UDim2.fromOffset(330, 52), UDim2.new(0.5, 0, 0, 58), Vector2.new(0.5, 0), Z - 11, nil, nil, 12)
-	top.BackgroundTransparency = 0.1
-	local topRow = Instance.new("Frame")
-	topRow.Position = UDim2.fromOffset(10, 5)
-	topRow.Size = UDim2.new(1, -20, 0, 22)
-	topRow.BackgroundTransparency = 1
-	topRow.ZIndex = Z - 10
-	topRow.Parent = top
-	local rowLayout = list(topRow, true, 6)
-	rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local planetTitle = label(topRow, "", 15, WHITE, Z - 9, 1.3)
-	planetTitle.LayoutOrder = 0
-	planetTitle.AutomaticSize = Enum.AutomaticSize.X
-	planetTitle.Size = UDim2.fromOffset(0, 22)
-	local sectorChip, sectorChipText = chip(topRow, "", BLUE, Z - 9, 54)
-	sectorChip.LayoutOrder = 1
-	sectorChip.Size = UDim2.fromOffset(54, 20)
-	sectorChipText.TextSize = 12
-	local waveChip, waveChipText = chip(topRow, "", ORANGE, Z - 9, 66)
-	waveChip.LayoutOrder = 2
-	waveChip.Size = UDim2.fromOffset(66, 20)
-	waveChipText.TextSize = 12
-	local goldChip, goldChipText = chip(topRow, "", Color3.fromRGB(220, 160, 30), Z - 9, 76)
-	goldChip.LayoutOrder = 3
-	goldChip.Size = UDim2.fromOffset(76, 20)
-	goldChipText.TextSize = 12
+	local statRow = Instance.new("Frame")
+	statRow.AnchorPoint = Vector2.new(0.5, 0)
+	statRow.Position = UDim2.new(0.5, 0, 0, 74)
+	statRow.Size = UDim2.fromOffset(660, 52)
+	statRow.BackgroundTransparency = 1
+	statRow.ZIndex = Z - 11
+	statRow.Parent = hud
+	local statLayout = list(statRow, true, 10)
+	statLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local function pill(name: string, tint: Color3, icon: string, order: number, width: number): (Frame, TextLabel, TextLabel)
+		local p, disc, value, sub = UiKit.StatPill(statRow, name, tint)
+		p.LayoutOrder = order
+		p.Size = UDim2.fromOffset(width, 50)
+		UiKit.ArtIcon(disc, 46, icon, 1.25)
+		value.TextSize = 22
+		value.TextScaled = false
+		return p, value, sub
+	end
+	local planetPill, planetValue, planetSub = pill("DefensePlanetPill", UiKit.CREW.CYAN, "Crewmate", 1, 230)
+	local hullPill, hullValue, hullSub = pill("DefenseHullPill", Color3.fromRGB(90, 170, 255), "StrongLock", 2, 190)
+	local goldPill, goldValue, goldSub = pill("DefenseGoldPill", Color3.fromRGB(255, 200, 60), "Jackpot", 3, 170)
+	goldSub.Text = "GOLD"
+	hullSub.Text = "SHIP HULL"
+	local _ = planetPill
+	local __ = goldPill
+	-- Gövde çubuğu: hapın içinde, altta ince
 	local hullBack = Instance.new("Frame")
-	hullBack.Position = UDim2.fromOffset(10, 31)
-	hullBack.Size = UDim2.new(1, -20, 0, 14)
+	hullBack.AnchorPoint = Vector2.new(0, 1)
+	hullBack.Position = UDim2.new(0, 54, 1, -5)
+	hullBack.Size = UDim2.new(1, -70, 0, 6)
 	hullBack.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
-	hullBack.ZIndex = Z - 10
-	hullBack.Parent = top
-	FancyKit.corner(hullBack, 7)
+	hullBack.BorderSizePixel = 0
+	hullBack.ZIndex = 5
+	hullBack.Parent = hullPill
+	FancyKit.corner(hullBack, 3)
 	local hullFill = Instance.new("Frame")
 	hullFill.Size = UDim2.fromScale(1, 1)
 	hullFill.BackgroundColor3 = WHITE
-	hullFill.ZIndex = Z - 9
+	hullFill.BorderSizePixel = 0
+	hullFill.ZIndex = 6
 	hullFill.Parent = hullBack
-	FancyKit.corner(hullFill, 7)
-	local hullGrad = FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 90)
-	local hullText = label(hullBack, "", 11, WHITE, Z - 8, 1.2)
-	hullText.Size = UDim2.fromScale(1, 1)
+	FancyKit.corner(hullFill, 3)
+	local hullGrad = FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 0)
+	hullSub.Position = UDim2.new(0, 55, 0, 27)
 
 	-- Yönlendirme: alttaki düğmelerin üstünde, kutusuz
 	local hint = label(hud, "", 16, WHITE, Z - 10, 2)
@@ -877,6 +971,14 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	speedB.button.Activated:Connect(function()
 		hooks.send("speed")
 	end)
+	-- AUTO: dalga bitince sonrakini kendiliğinden başlatır (sonsuz dalgalarda)
+	local autoB = button(hud, "AUTO", UDim2.fromOffset(104, 54), GREY, Z - 10, 18)
+	autoB.holder.AnchorPoint = Vector2.new(0, 1)
+	autoB.holder.Position = UDim2.new(0.5, 358, 1, -104)
+	autoB.button.Activated:Connect(function()
+		hooks.send("auto")
+	end)
+	local autoDeadline: number? = nil
 
 	-- Altta, alet çubuğunun üstünde
 	local bottom = Instance.new("Frame")
@@ -959,8 +1061,9 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		local low = frac < 0.35
 		hullGrad.Color = if low then ColorSequence.new(Color3.fromRGB(255, 140, 120), Color3.fromRGB(220, 50, 50))
 			else ColorSequence.new(Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230))
-		hullText.Text = string.format("HULL %d/%d%s", hull, maxHull,
-			if enemies then string.format("   ·   👾 %d", enemies) else "")
+		hullValue.Text = string.format("%d/%d", hull, maxHull)
+		hullValue.TextColor3 = if low then Color3.fromRGB(255, 130, 120) else Color3.fromRGB(150, 210, 255)
+		hullSub.Text = if enemies then string.format("SHIP HULL  ·  👾 %d", enemies) else "SHIP HULL"
 	end
 
 	local function renderIncoming()
@@ -1013,25 +1116,29 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 
 	local function renderHud()
 		local gold = if data then data.gold else 0
-		goldChipText.Text = "🪙 " .. tostring(gold)
-		planetTitle.Text = planetName(currentPlanet)
+		goldValue.Text = tostring(gold)
 		mode = if run == nil then "idle" elseif run.phase == "fight" then "fight" else "prep"
 		if run then
-			sectorChipText.Text = "S" .. run.sector
-			waveChipText.Text = string.format("WAVE %d/%d", run.waveInSector, DefenseConfig.WavesPerSector)
-			sectorChip.Visible = true
-			waveChip.Visible = true
+			planetValue.Text = string.format("SECTOR %d · %d/%d", run.sector, run.waveInSector, DefenseConfig.WavesPerSector)
+			planetSub.Text = planetName(currentPlanet) .. "  ·  WAVE " .. run.wave
 			setHull(run.hull, run.maxHull, nil)
 			local fast = (run.speed or 1) >= 2
 			speedB.set(if fast then "⏩ 2x" else "▶ 1x", if fast then ORANGE else GREY)
 		else
-			sectorChip.Visible = false
-			waveChip.Visible = false
+			planetValue.Text = planetName(currentPlanet)
+			planetSub.Text = "PLANET DEFENSE"
 			local hull = if data then data.hull else DefenseConfig.BaseHull
 			setHull(hull, hull, nil)
 		end
 		incoming.Visible = run ~= nil
 		speedB.holder.Visible = run ~= nil
+		autoB.holder.Visible = run ~= nil
+		if run then
+			autoB.set(if run.auto then "🔁 AUTO" else "AUTO", if run.auto then GREEN else GREY)
+			autoDeadline = if run.autoIn and run.phase == "prep" then os.clock() + run.autoIn else nil
+		else
+			autoDeadline = nil
+		end
 		bottom.Visible = mode ~= "fight"
 		supportBar.Visible = mode == "fight"
 		if mode == "idle" then
@@ -1055,8 +1162,80 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		renderSupports()
 	end
 
+	-- AUTO geri sayımı yönlendirme yazısında
+	task.spawn(function()
+		while hud.Parent do
+			local deadline = autoDeadline
+			if deadline and mode == "prep" and hud.Visible then
+				local left = math.max(0, math.ceil(deadline - os.clock()))
+				hint.Text = string.format("🔁 AUTO · next wave in %d…", left)
+			end
+			task.wait(0.2)
+		end
+	end)
+
+	-- ═══ Bölüm kutlaması: yıldızlar tek tek ═════════════════════════════════
+	local celebrate = panel(screen, UDim2.fromOffset(460, 220), UDim2.fromScale(0.5, 0.4), Vector2.new(0.5, 0.5), Z + 25,
+		Color3.fromRGB(70, 60, 140), Color3.fromRGB(30, 26, 70), 18)
+	celebrate.Visible = false
+	local celebTitle = label(celebrate, "", 34, GOLD, Z + 26, 3)
+	celebTitle.Position = UDim2.fromOffset(0, 14)
+	celebTitle.Size = UDim2.new(1, 0, 0, 40)
+	local starRow = Instance.new("Frame")
+	starRow.AnchorPoint = Vector2.new(0.5, 0)
+	starRow.Position = UDim2.new(0.5, 0, 0, 62)
+	starRow.Size = UDim2.fromOffset(300, 90)
+	starRow.BackgroundTransparency = 1
+	starRow.ZIndex = Z + 26
+	starRow.Parent = celebrate
+	local starLabels: { TextLabel } = {}
+	for i = 1, 3 do
+		local st = label(starRow, "★", 76, Color3.fromRGB(70, 70, 100), Z + 27, 4)
+		st.AnchorPoint = Vector2.new(0.5, 0.5)
+		st.Position = UDim2.new((i - 0.5) / 3, 0, 0.5, if i == 2 then -6 else 6)
+		st.Size = UDim2.fromOffset(90, 90)
+		starLabels[i] = st
+	end
+	local celebSub = label(celebrate, "", 22, WHITE, Z + 26, 2.4)
+	celebSub.Position = UDim2.fromOffset(0, 160)
+	celebSub.Size = UDim2.new(1, 0, 0, 30)
+	local celebToken = 0
+
 	-- ═══ Dışa açık ══════════════════════════════════════════════════════════
 	ui = {} :: any
+
+	function ui.Celebrate(sector: number, got: number, gold: number)
+		celebToken += 1
+		local token = celebToken
+		celebTitle.Text = string.format("SECTOR %d CLEAR!", sector)
+		celebSub.Text = if gold > 0 then string.format("+%d 💰 GOLD", gold) else "No new stars - try with fewer losses!"
+		celebSub.TextColor3 = if gold > 0 then GOLD else SOFT
+		for _, st in starLabels do
+			st.TextColor3 = Color3.fromRGB(70, 70, 100)
+			st.Size = UDim2.fromOffset(90, 90)
+		end
+		celebrate.Visible = true
+		celebrate.Size = UDim2.fromOffset(380, 180)
+		TweenService:Create(celebrate, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Size = UDim2.fromOffset(460, 220) }):Play()
+		for i = 1, got do
+			task.delay(0.35 + i * 0.35, function()
+				if celebToken ~= token then
+					return
+				end
+				local st = starLabels[i]
+				st.TextColor3 = GOLD
+				st.Size = UDim2.fromOffset(140, 140)
+				TweenService:Create(st, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.fromOffset(90, 90) }):Play()
+			end)
+		end
+		task.delay(3.8, function()
+			if celebToken == token then
+				celebrate.Visible = false
+			end
+		end)
+	end
 
 	function ui.OpenPrepare()
 		if run then

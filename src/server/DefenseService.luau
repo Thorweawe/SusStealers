@@ -85,6 +85,9 @@ type Run = {
 	-- Oyun hızı (Batur: "hızlandırma simgesi, canavarlar 2x hızda"): 1 ya da 2.
 	-- Koşu boyunca kalıyor; simülasyon aynı, yalnızca daha sık adımlanıyor.
 	speed: number,
+	-- AUTO: dalga bitince AUTO_DELAY sn sonra sonraki kendiliğinden başlıyor
+	auto: boolean,
+	autoAt: number?,
 }
 
 type Session = {
@@ -104,6 +107,8 @@ local notifyRemote: RemoteEvent? = nil
 local navSpot: CFrame? = nil
 
 local STEP = 1 / DefenseConfig.TickRate
+-- AUTO düğmesi: dalga bitince sonrakine kaç saniye
+local AUTO_DELAY = 8
 local SEND_EVERY = 0.2
 local LAND_DELAY = 2.4
 local LAUNCH_DELAY = 1.6
@@ -282,6 +287,8 @@ local function runPayload(run: Run): any
 		carried = carried,
 		gear = run.gear,
 		speed = run.speed,
+		auto = run.auto,
+		autoIn = if run.autoAt then math.max(0, run.autoAt - os.clock()) else nil,
 		plan = { name = run.plan.name, pattern = run.plan.pattern, paths = run.plan.paths, counts = counts, boss = run.plan.boss },
 		goldEarned = run.goldEarned,
 	}
@@ -326,6 +333,7 @@ local function endRun(player: Player, toHospital: boolean, reason: string)
 		return
 	end
 	local fell = 0
+	player:SetAttribute("DefenseFighting", nil)
 	takeDefenseTools(player)
 	for _, u in run.units do
 		local podium = podiumBySlot(player, u.slot)
@@ -402,6 +410,8 @@ local function begin(player: Player, sector: number)
 		goldEarned = 0,
 		gear = "",
 		speed = 1,
+		auto = false,
+		autoAt = nil,
 	}
 	preparePlan(run)
 	s.run = run
@@ -687,7 +697,10 @@ local function go(player: Player)
 	local sim = DefenseSim.New(run.planet, run.wave, run.seed, inputs, profile.defense.roles,
 		run.hull, run.maxHull, run.lastPattern)
 	run.sim = sim
+	run.autoAt = nil
 	run.phase = "fight"
+	-- İstemci müziği / atmosferi buna bakıyor (Music: savaş parçası)
+	player:SetAttribute("DefenseFighting", true)
 	run.used = {}
 	run.acc = 0
 	run.sendAcc = 0
@@ -737,6 +750,7 @@ end
 
 local function onWaveEnd(player: Player, run: Run, sim: DefenseSim.Sim)
 	run.sim = nil
+	player:SetAttribute("DefenseFighting", nil)
 	run.hull = sim.hull
 	run.lastPattern = run.plan.pattern
 	if sim.state == "lost" then
@@ -762,6 +776,9 @@ local function onWaveEnd(player: Player, run: Run, sim: DefenseSim.Sim)
 	run.wave += 1
 	run.phase = "prep"
 	preparePlan(run)
+	if run.auto then
+		run.autoAt = os.clock() + AUTO_DELAY
+	end
 	-- Düşenler sahadan çıktı (hastanede)
 	for i = #run.units, 1, -1 do
 		if run.units[i].fallen then
@@ -825,6 +842,11 @@ end
 local function stepAll(dt: number)
 	for player, s in sessions do
 		local run = s.run
+		-- AUTO: hazırlıkta süre dolunca sonraki dalga
+		if run and run.phase == "prep" and run.autoAt and os.clock() >= run.autoAt then
+			run.autoAt = nil
+			go(player)
+		end
 		local sim = run and run.sim
 		if not (run and sim) then
 			continue
@@ -1397,6 +1419,13 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 	elseif action == "pickup" then
 		if valid(a) then
 			pickup(player, math.floor(a))
+		end
+	elseif action == "auto" then
+		local run = s.run
+		if run then
+			run.auto = not run.auto
+			run.autoAt = if run.auto and run.phase == "prep" then os.clock() + AUTO_DELAY else nil
+			pushRun(player)
 		end
 	elseif action == "speed" then
 		local run = s.run

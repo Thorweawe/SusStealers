@@ -13,6 +13,20 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (83) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseClient`, `Music`)
+
+Studio'ya aktarıldı, **197/197 test temiz**. Dükkân penceresi ve durum hapları Studio ekran görüntüsüyle görüldü.
+
+- **Durum çubuğu oyunun haplarıyla** (`UiKit.StatPill` + `UiKit.ArtIcon`): gezegen/bölüm-dalga (Crewmate ikonu), gemi gövdesi (StrongLock, içinde ince can çubuğu, azalınca kırmızı), altın (Jackpot).
+- **Dükkânlar kart ızgarası** (`FancyKit.card`, oyunun mağazası gibi): büyük ikon, seviye noktaları, "şimdi → sonra" etkisi, fiyat düğmesi; hastanede crewmate ikonu + REVIVE / LET GO. 🪙 Roblox'ta çizilmiyor → 💰.
+- **AUTO dalga**: düğme açıkken dalga bitince 8 sn sonra sonraki kendiliğinden (`auto` eylemi, `run.auto/autoAt`), yönlendirme yazısında geri sayım.
+- **Bölüm kutlaması**: yıldızlar tek tek dolup parlıyor (+ yıldız sesleri), kazanılan altın.
+- **Hissiyat** (istemci, inişte kurulup kalkışta kalkıyor): kameranın çevresinde süzülen parlak sporlar, mağara geçidinde sis, mantar/kristal/lambalar nabız gibi parlıyor, hafif renk filtresi, alien rüzgârı (ortam sesi perdesi düşük) ve ana gemi motor uğultusu (konumlu).
+- **Müzik** (`Music`): `planet` (Space Stars, Light of Zetar) ve `battle` (House Of Intrigue B, Investigation Moods) bölgeleri; sunucu `DefenseFighting` niteliğini dalga boyunca açık tutuyor.
+- Dükkân gemicikleri: Command/Market ana geminin yanına (−46/46, −26), ışıkları sönük ve beyaza yakın (gemiyi pembeye boyuyordu).
+
+---
+
 ## 2026-10-02 (82) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `DefenseClient`, `Hotbar`, `Objective`)
 
 Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Arayüz Studio'da ekran görüntüsü ve yol ile tıklama (`user_mouse_input` instance_path) ile denendi: DEFEND iki sayfa, BEST CREW, liste kaydırma (tıklayınca yerinde kalıyor), NEXT → gear, DEFEND! → hazırlık ekranı; hedefli bırakma (14, 64) tam yerine.
