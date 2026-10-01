@@ -21,7 +21,10 @@ local DataService = {}
 local STORE_NAME = "PlayerData_v2"
 local AUTOSAVE_INTERVAL = 120
 local LOCK_TIMEOUT = 180      -- kilit bu kadar saniye tazelenmezse ölü sayılır
-local LOAD_RETRIES = 4
+--[[ 2026-10-01: 4 deneme (~12 sn) kısa kalıyordu — kapanan sunucunun son
+     kaydı / Studio testi kilidi tutarken oyuncu "still saving" ile atılıyordu.
+     Artık ~40 sn bekliyor (oyuncu bu sırada başlık ekranında). ]]
+local LOAD_RETRIES = 9
 
 export type StoredUnit = {
 	slot: number,
@@ -776,7 +779,7 @@ local function loadProfile(player: Player): Profile?
 		end
 
 		if attempt < LOAD_RETRIES then
-			task.wait(2 * attempt)
+			task.wait(math.min(2 * attempt, 6))
 		end
 	end
 
@@ -1060,8 +1063,33 @@ function DataService.IsFirstVisit(player: Player): boolean
 	return firstVisit[player] == true
 end
 
+--[[
+	Yalnızca oturum kilidini bırakır (profile dokunmadan). Testler yazmayı
+	durdurduğunda (savingPaused) ve Studio kapanırken kullanılıyor: yoksa
+	Studio testi canlı kaydı LOCK_TIMEOUT boyunca kilitli bırakıyordu ve
+	oyuncu canlı oyuna giremiyordu.
+]]
+local function releaseLockOnly(player: Player)
+	if not (storeAvailable and store) then
+		return
+	end
+	pcall(function()
+		(store :: DataStore):UpdateAsync(keyFor(player), function(old: Record?): Record?
+			if not old or not old.lock or old.lock.owner ~= SESSION_ID then
+				return nil
+			end
+			old.lock = nil
+			return old
+		end)
+	end)
+end
+
 local function onPlayerRemoving(player: Player)
-	saveProfile(player, true)
+	if savingPaused then
+		releaseLockOnly(player)
+	else
+		saveProfile(player, true)
+	end
 	profiles[player] = nil
 	loading[player] = nil
 	offlineEarnings[player] = nil
@@ -1113,6 +1141,11 @@ function DataService.Start()
 	-- Sunucu kapanırken herkesi kaydet. Roblox burada 30 saniye tanıyor.
 	game:BindToClose(function()
 		if RunService:IsStudio() then
+			-- Studio testi: canlı kaydı kilitli bırakma
+			for _, player in Players:GetPlayers() do
+				task.spawn(releaseLockOnly, player)
+			end
+			task.wait(2)
 			return
 		end
 
