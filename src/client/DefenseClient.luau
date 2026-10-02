@@ -188,7 +188,8 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		-- Girdi konumu üst çubuğu (GuiInset) saymıyor: ScreenPointToRay onu hesaba katıyor
 		local ray = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
-		local origin = DefenseConfig.WorldOrigin(arena)
+		-- Nişan düzlemi görünen zemin (terrain kökten GroundLift yukarıda)
+		local origin = DefenseConfig.WorldOrigin(arena) + Vector3.new(0, DefenseConfig.GroundLift, 0)
 		if math.abs(ray.Direction.Y) < 1e-4 then
 			return nil
 		end
@@ -259,7 +260,7 @@ function DefenseClient.Start(screen: ScreenGui)
 	end
 
 	local function rayToField(ray: Ray): Vector2?
-		local origin = DefenseConfig.WorldOrigin(arena)
+		local origin = DefenseConfig.WorldOrigin(arena) + Vector3.new(0, DefenseConfig.GroundLift, 0)
 		if math.abs(ray.Direction.Y) < 1e-4 then
 			return nil
 		end
@@ -691,6 +692,223 @@ function DefenseClient.Start(screen: ScreenGui)
 		klasik kılıç animasyonu gibi; arenada yalnız olduğun için başkası
 		görmese de olur.
 	]]
+	--[[
+		Işın kılıcı kombosu (2026-10-02, Batur: "animasyonu çok kötü, sadece
+		ileri geri yapıyor"). Omuz ve bel eklemi (Motor6D.C0, yalnızca bu
+		istemcide; arenada yalnızsın) ve tutuş birlikte oynuyor. Üç vuruş
+		sırayla: sağdan sola yatay, yukarıdan çapraz, üçüncüde gövde tam tur
+		dönerek. Bıçakta iz (Trail), önünde yay biçiminde parlayan kesik.
+		Açılar gövdenin ekseninde (R15 ve R6 aynı): x yukarı kaldırır,
+		y yatay süpürür (+ sola), w bel dönüşü, g bıçağı öne yatırır (-).
+	]]
+	type SaberPose = { x: number, y: number, w: number, g: number }
+	local REST: SaberPose = { x = 0, y = 0, w = 0, g = 0 }
+	local COMBOS: { { wind: SaberPose, hit: SaberPose, time: number, arc: string } } = {
+		{ wind = { x = 8, y = -75, w = -25, g = -80 }, hit = { x = 0, y = 70, w = 30, g = -85 }, time = 0.42, arc = "flat" },
+		{ wind = { x = 75, y = -20, w = -10, g = -10 }, hit = { x = -25, y = 45, w = 20, g = -105 }, time = 0.44, arc = "diag" },
+		{ wind = { x = 4, y = -80, w = -30, g = -80 }, hit = { x = 4, y = -80, w = 360, g = -85 }, time = 0.55, arc = "spin" },
+	}
+	local combo = 0
+	local lastSwingEnd = 0
+	local baseC0: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+
+	local function joints(character: Model): (Motor6D?, Motor6D?)
+		local shoulder: Instance? = nil
+		local waist: Instance? = nil
+		local upper = character:FindFirstChild("RightUpperArm")
+		local torso = character:FindFirstChild("UpperTorso")
+		if upper and torso then
+			shoulder = upper:FindFirstChild("RightShoulder")
+			waist = torso:FindFirstChild("Waist")
+		else
+			local t = character:FindFirstChild("Torso")
+			local root = character:FindFirstChild("HumanoidRootPart")
+			shoulder = t and t:FindFirstChild("Right Shoulder")
+			waist = root and root:FindFirstChild("RootJoint")
+		end
+		return if shoulder and shoulder:IsA("Motor6D") then shoulder else nil,
+			if waist and waist:IsA("Motor6D") then waist else nil
+	end
+
+	-- Eklemi gövde ekseninde, eklem noktası çevresinde döndür
+	local function turn(m: Motor6D?, rot: CFrame)
+		if not m then
+			return
+		end
+		local base = baseC0[m]
+		if not base then
+			base = m.C0
+			baseC0[m] = base
+		end
+		local p = base.Position
+		m.C0 = CFrame.new(p) * rot * CFrame.new(-p) * base
+	end
+
+	local function mix(a: SaberPose, b: SaberPose, k: number): SaberPose
+		return { x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, w = a.w + (b.w - a.w) * k, g = a.g + (b.g - a.g) * k }
+	end
+
+	-- Önünde parlayan yay: parça parça açılıp sönüyor
+	local function slashArc(kind: string, color: Color3, duration: number)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root then
+			return
+		end
+		local center = root.Position + Vector3.new(0, 0.6, 0)
+		local look = (root.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
+		local right = root.CFrame.RightVector
+		local r = 6.5
+		local points: { Vector3 } = {}
+		local n = if kind == "spin" then 26 else 12
+		for i = 0, n do
+			local s = i / n
+			local p: Vector3
+			if kind == "diag" then
+				local up = (Vector3.yAxis * 0.85 + right * 0.5).Unit
+				local th = math.rad(100 - 160 * s)
+				p = center + look * 1.5 + (look * math.cos(th) + up * math.sin(th)) * r
+			else
+				local phi = if kind == "spin" then math.rad(-80 + 380 * s) else math.rad(-80 + 150 * s)
+				p = center + (look * math.cos(phi) - right * math.sin(phi)) * r
+			end
+			points[i + 1] = p
+		end
+		for i = 1, #points - 1 do
+			local a, b = points[i], points[i + 1]
+			task.delay(duration * (i - 1) / (#points - 1), function()
+				local seg = Instance.new("Part")
+				seg.Name = "SaberArc"
+				seg.Anchored = true
+				seg.CanCollide = false
+				seg.CanQuery = false
+				seg.CanTouch = false
+				seg.CastShadow = false
+				seg.Material = Enum.Material.Neon
+				seg.Color = color:Lerp(Color3.new(1, 1, 1), 0.15)
+				seg.Transparency = 0.3
+				local mid = (a + b) / 2
+				-- Ortası kalın, uçları ince hilal
+				local s = (i - 0.5) / (#points - 1)
+				local thick = 0.25 + 0.55 * math.sin(s * math.pi)
+				seg.Size = Vector3.new(0.12, thick, (b - a).Magnitude + 0.1)
+				seg.CFrame = CFrame.lookAt(mid, b, (mid - center).Unit:Cross(b - a).Unit)
+				seg.Parent = workspace
+				TweenService:Create(seg, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Transparency = 1, Size = Vector3.new(0.05, 0.2, seg.Size.Z) }):Play()
+				task.delay(0.25, function()
+					seg:Destroy()
+				end)
+			end)
+		end
+	end
+
+	local function bladeTrail(tool: Tool): Trail?
+		local blade = tool:FindFirstChild("Handle") :: BasePart?
+		if not blade then
+			return nil
+		end
+		local existing = blade:FindFirstChild("SaberTrail")
+		if existing and existing:IsA("Trail") then
+			return existing
+		end
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 0, -2.2)
+		a0.Parent = blade
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, 0, blade.Size.Z / 2)
+		a1.Parent = blade
+		local trail = Instance.new("Trail")
+		trail.Name = "SaberTrail"
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Color = ColorSequence.new(blade.Color:Lerp(Color3.new(1, 1, 1), 0.5), blade.Color)
+		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1) })
+		trail.LightEmission = 1
+		trail.Lifetime = 0.18
+		trail.MinLength = 0.05
+		trail.FaceCamera = true
+		trail.Enabled = false
+		trail.Parent = blade
+		return trail
+	end
+
+	local function saberSwing(t: Tool, baseGrip: CFrame, done: () -> ())
+		local character = player.Character
+		if not character then
+			done()
+			return
+		end
+		local now = os.clock()
+		combo = if now - lastSwingEnd < 0.9 then combo % #COMBOS + 1 else 1
+		local spec = COMBOS[combo]
+		-- Studio'da yavaş çekim denemesi için (normalde 1)
+		local slow = player:GetAttribute("DebugSlowSwing")
+		local length = spec.time * (if typeof(slow) == "number" then slow else 1)
+		local shoulder, waist = joints(character)
+		local trail = bladeTrail(t)
+		local blade = t:FindFirstChild("Handle") :: BasePart?
+		local color = if blade then blade.Color else Color3.fromRGB(140, 220, 255)
+		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			SoundFX.WorldSound("GearSwing", root.Position, 0.6, if combo == 3 then 0.75 else (if combo == 2 then 0.9 else 1.05), 0.5)
+		end
+		local WIND, HIT = 0.22, 0.6
+		local arcDone = false
+		local t0 = os.clock()
+		local conn: RBXScriptConnection
+		conn = RunService.RenderStepped:Connect(function()
+			local a = math.clamp((os.clock() - t0) / length, 0, 1)
+			local pose: SaberPose
+			if a < WIND then
+				local k = a / WIND
+				pose = mix(REST, spec.wind, 1 - (1 - k) ^ 2)
+			elseif a < HIT then
+				local k = (a - WIND) / (HIT - WIND)
+				pose = mix(spec.wind, spec.hit, 1 - (1 - k) ^ 3)
+				if trail then
+					trail.Enabled = true
+				end
+				if not arcDone then
+					arcDone = true
+					slashArc(spec.arc, color, length * (HIT - WIND))
+				end
+			else
+				local k = (a - HIT) / (1 - HIT)
+				local e = k * k * (3 - 2 * k)
+				local hit = spec.hit
+				-- Tam tur dönüş 360° = 0°: geri dönerken ters dönmesin
+				local from = if hit.w >= 360 then { x = hit.x, y = hit.y, w = hit.w - 360, g = hit.g } else hit
+				pose = mix(from, REST, e)
+				if trail and k > 0.3 then
+					trail.Enabled = false
+				end
+			end
+			turn(shoulder, CFrame.Angles(math.rad(pose.x), math.rad(pose.y), 0))
+			turn(waist, CFrame.Angles(0, math.rad(pose.w), 0))
+			if t.Parent then
+				t.Grip = baseGrip * CFrame.Angles(math.rad(pose.g), 0, 0)
+			end
+			if a >= 1 or not t.Parent then
+				conn:Disconnect()
+				if shoulder and baseC0[shoulder] then
+					shoulder.C0 = baseC0[shoulder]
+				end
+				if waist and baseC0[waist] then
+					waist.C0 = baseC0[waist]
+				end
+				if trail then
+					trail.Enabled = false
+				end
+				if t.Parent then
+					t.Grip = baseGrip
+				end
+				lastSwingEnd = os.clock()
+				done()
+			end
+		end)
+	end
+
 	local bound: { [Instance]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 	local function bindSaber(tool: Instance)
 		if bound[tool] or not tool:IsA("Tool") then
@@ -723,18 +941,23 @@ function DefenseClient.Start(screen: ScreenGui)
 				return
 			end
 			swinging = true
+			if isSaber then
+				saberSwing(t, baseGrip, function()
+					swinging = false
+				end)
+				return
+			end
 			if not isGun then
-				SoundFX.GearSound(if isSaber then "GearSwing" else "GearPoof", camera.CFrame.Position)
+				SoundFX.GearSound("GearPoof", camera.CFrame.Position)
 			end
 			task.spawn(function()
 				-- Kılıç: yay çizerek savur. Tabanca: geri tepme. Crewmate: öne eğilip yere bırak
-				local length = if isSaber then 0.28 elseif isGun then 0.14 else 0.22
+				local length = if isGun then 0.14 else 0.22
 				local t0 = os.clock()
 				while os.clock() - t0 < length and t.Parent do
 					local a = (os.clock() - t0) / length
 					local k = math.sin(a * math.pi)
-					t.Grip = if isSaber then baseGrip * CFrame.Angles(math.rad(-110 * k), 0, math.rad(40 * k))
-						elseif isGun then baseGrip * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(math.rad(-14 * k), 0, 0)
+					t.Grip = if isGun then baseGrip * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(math.rad(-14 * k), 0, 0)
 						else baseGrip * CFrame.new(0, 0, -1.2 * k) * CFrame.Angles(math.rad(50 * k), 0, 0)
 					task.wait()
 				end

@@ -84,6 +84,7 @@ type UnitView = {
 	swing: number,             -- vuruş animasyonu 1 → 0
 	height: number,
 	hurt: number,              -- can azalınca kırmızı parlama + geriye eğilme 1 → 0
+	hpFrac: number,            -- son bilinen can oranı (azsa kırmızı nabız)
 	knock: Vector3,            -- darbeyle geri tepme
 	hurtGlow: Highlight,
 }
@@ -140,7 +141,7 @@ local function lift(): number
 		groundLift = h
 		return h
 	end
-	return 2
+	return DefenseConfig.GroundLift
 end
 
 local function world(p: Vector2, y: number?): Vector3
@@ -278,9 +279,11 @@ local function fadeAway(p: BasePart, seconds: number, grow: Vector3?)
 	end)
 end
 
+local OUTLINE = Color3.fromRGB(22, 20, 34)
+
 local function hpBar(adornee: BasePart, offset: number, width: number, color: Color3): (BillboardGui, Frame)
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(width, 7)
+	gui.Size = UDim2.fromOffset(width, 10)
 	gui.StudsOffsetWorldSpace = Vector3.new(0, offset, 0)
 	gui.AlwaysOnTop = true
 	gui.LightInfluence = 0
@@ -295,15 +298,224 @@ local function hpBar(adornee: BasePart, offset: number, width: number, color: Co
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = back
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = OUTLINE
+	stroke.Thickness = 2
+	stroke.Parent = back
+	-- İz: kaybedilen can bir an açık renkte kalıp eriyor (canın gittiği görünsün)
+	local chip = Instance.new("Frame")
+	chip.Name = "Chip"
+	chip.Size = UDim2.fromScale(1, 1)
+	chip.BackgroundColor3 = Color3.fromRGB(255, 236, 190)
+	chip.BorderSizePixel = 0
+	chip.ZIndex = 1
+	chip.Parent = back
+	local c3 = Instance.new("UICorner")
+	c3.CornerRadius = UDim.new(1, 0)
+	c3.Parent = chip
 	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(1, 1)
 	fill.BackgroundColor3 = color
 	fill.BorderSizePixel = 0
+	fill.ZIndex = 2
+	fill:SetAttribute("BaseColor", color)
 	fill.Parent = back
 	local c2 = Instance.new("UICorner")
 	c2.CornerRadius = UDim.new(1, 0)
 	c2.Parent = fill
 	return gui, fill
+end
+
+--[[
+	Çubuğu güncelle: azalınca dolgu beyaz parlayıp rengine dönüyor, açık
+	renkli iz biraz bekleyip eriyerek yetişiyor; artınca iz hemen eşitleniyor.
+]]
+local function setBar(fill: Frame, frac: number, color: Color3?)
+	frac = math.clamp(frac, 0, 1)
+	if color then
+		fill:SetAttribute("BaseColor", color)
+	end
+	local base = fill:GetAttribute("BaseColor")
+	local baseColor = if typeof(base) == "Color3" then base else WHITE
+	local old = fill.Size.X.Scale
+	if math.abs(old - frac) < 0.001 then
+		if color then
+			fill.BackgroundColor3 = baseColor
+		end
+		return
+	end
+	fill.Size = UDim2.fromScale(frac, 1)
+	local chip = fill.Parent and fill.Parent:FindFirstChild("Chip") :: Frame?
+	if frac < old then
+		fill.BackgroundColor3 = WHITE
+		TweenService:Create(fill, TweenInfo.new(0.2), { BackgroundColor3 = baseColor }):Play()
+		if chip then
+			TweenService:Create(chip, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.3),
+				{ Size = UDim2.fromScale(frac, 1) }):Play()
+		end
+	else
+		fill.BackgroundColor3 = baseColor
+		if chip then
+			chip.Size = UDim2.fromScale(frac, 1)
+		end
+	end
+end
+
+-- Crewmate can rengi: yeşil → sarı → kırmızı
+local function unitHpColor(frac: number): Color3
+	if frac > 0.5 then
+		return Color3.fromRGB(90, 230, 110)
+	elseif frac > 0.25 then
+		return Color3.fromRGB(255, 205, 60)
+	end
+	return Color3.fromRGB(255, 70, 70)
+end
+
+-- ─── Ekran: gemi hasarında kırmızı kenar, Boss can çubuğu ────────────────────
+
+local fxGui: ScreenGui? = nil
+local edges: { Frame } = {}
+local bossBar: Frame? = nil
+local bossFill: Frame? = nil
+local bossName: TextLabel? = nil
+local bossEid: number? = nil
+
+local function screenGui(): ScreenGui?
+	local g = fxGui
+	if g and g.Parent then
+		return g
+	end
+	local pg = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if not pg then
+		return nil
+	end
+	local ng = Instance.new("ScreenGui")
+	ng.Name = "DefenseFXGui"
+	ng.IgnoreGuiInset = true
+	ng.ResetOnSpawn = false
+	ng.DisplayOrder = 4
+	ng.Parent = pg
+	fxGui = ng
+	table.clear(edges)
+	-- Kenarlar: dışta kırmızı, içe doğru saydam
+	local specs = {
+		{ UDim2.new(1, 0, 0.22, 0), UDim2.fromScale(0, 0), 90 },
+		{ UDim2.new(1, 0, 0.22, 0), UDim2.fromScale(0, 0.78), -90 },
+		{ UDim2.new(0.16, 0, 1, 0), UDim2.fromScale(0, 0), 0 },
+		{ UDim2.new(0.16, 0, 1, 0), UDim2.fromScale(0.84, 0), 180 },
+	}
+	for _, s in specs do
+		local f = Instance.new("Frame")
+		f.Size = s[1]
+		f.Position = s[2]
+		f.BackgroundColor3 = Color3.fromRGB(255, 30, 40)
+		f.BackgroundTransparency = 1
+		f.BorderSizePixel = 0
+		f.Parent = ng
+		local grad = Instance.new("UIGradient")
+		grad.Rotation = s[3]
+		grad.Transparency = NumberSequence.new(0, 1)
+		grad.Parent = f
+		table.insert(edges, f)
+	end
+	-- Boss can çubuğu (üstte ortada, yalnızca Boss sahadayken)
+	local bar = Instance.new("Frame")
+	bar.Name = "BossBar"
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.new(0.5, 0, 0, 96)
+	bar.Size = UDim2.fromOffset(420, 46)
+	bar.BackgroundTransparency = 1
+	bar.Visible = false
+	bar.Parent = ng
+	local name = Instance.new("TextLabel")
+	name.Size = UDim2.new(1, 0, 0, 22)
+	name.BackgroundTransparency = 1
+	name.Font = Enum.Font.FredokaOne
+	name.TextSize = 22
+	name.TextColor3 = Color3.fromRGB(255, 120, 120)
+	name.AutoLocalize = false
+	name.Text = "BOSS"
+	name.Parent = bar
+	local ns = Instance.new("UIStroke")
+	ns.Color = OUTLINE
+	ns.Thickness = 2.5
+	ns.Parent = name
+	local back = Instance.new("Frame")
+	back.Position = UDim2.fromOffset(0, 24)
+	back.Size = UDim2.new(1, 0, 0, 18)
+	back.BackgroundColor3 = Color3.fromRGB(30, 22, 34)
+	back.BorderSizePixel = 0
+	back.Parent = bar
+	local bc = Instance.new("UICorner")
+	bc.CornerRadius = UDim.new(1, 0)
+	bc.Parent = back
+	local bs = Instance.new("UIStroke")
+	bs.Color = OUTLINE
+	bs.Thickness = 3
+	bs.Parent = back
+	local chip = Instance.new("Frame")
+	chip.Name = "Chip"
+	chip.Size = UDim2.fromScale(1, 1)
+	chip.BackgroundColor3 = Color3.fromRGB(255, 236, 190)
+	chip.BorderSizePixel = 0
+	chip.ZIndex = 1
+	chip.Parent = back
+	local cc = Instance.new("UICorner")
+	cc.CornerRadius = UDim.new(1, 0)
+	cc.Parent = chip
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = Color3.fromRGB(255, 70, 90)
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 2
+	fill:SetAttribute("BaseColor", Color3.fromRGB(255, 70, 90))
+	fill.Parent = back
+	local fc = Instance.new("UICorner")
+	fc.CornerRadius = UDim.new(1, 0)
+	fc.Parent = fill
+	local fg = Instance.new("UIGradient")
+	fg.Rotation = 90
+	fg.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 200, 200))
+	fg.Parent = fill
+	bossBar = bar
+	bossFill = fill
+	bossName = name
+	return ng
+end
+
+local function hullFlash(strength: number)
+	if not screenGui() then
+		return
+	end
+	for _, f in edges do
+		f.BackgroundTransparency = math.clamp(1 - strength, 0, 1)
+		TweenService:Create(f, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+	end
+end
+
+local function showBoss(eid: number?, name: string?)
+	if not screenGui() then
+		return
+	end
+	local bar = bossBar :: Frame
+	bossEid = eid
+	if eid then
+		(bossName :: TextLabel).Text = "⚠ " .. string.upper(name or "BOSS")
+		local fill = bossFill :: Frame
+		fill.Size = UDim2.fromScale(1, 1)
+		local chip = fill.Parent and fill.Parent:FindFirstChild("Chip") :: Frame?
+		if chip then
+			chip.Size = UDim2.fromScale(1, 1)
+		end
+		bar.Visible = true
+		bar.Position = UDim2.new(0.5, 0, 0, 60)
+		TweenService:Create(bar, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ Position = UDim2.new(0.5, 0, 0, 96) }):Play()
+	else
+		bar.Visible = false
+	end
 end
 
 -- ─── Gezegen ────────────────────────────────────────────────────────────────
@@ -501,7 +713,7 @@ local function buildUnit(info: any): UnitView?
 	hurtGlow.Parent = model
 
 	local anchor = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart") :: BasePart
-	local gui, fill = hpBar(anchor, height + 1.2, 60, Color3.fromRGB(90, 230, 110))
+	local gui, fill = hpBar(anchor, height + 1.2, 64, Color3.fromRGB(90, 230, 110))
 	-- Rol simgesi
 	local icon = Instance.new("TextLabel")
 	icon.AnchorPoint = Vector2.new(0.5, 1)
@@ -514,7 +726,7 @@ local function buildUnit(info: any): UnitView?
 	icon.TextColor3 = WHITE
 	icon.AutoLocalize = false
 	icon.Parent = gui
-	gui.Size = UDim2.fromOffset(60, 8)
+	gui.Size = UDim2.fromOffset(64, 10)
 	gui.ClipsDescendants = false
 	local ic = Instance.new("UICorner")
 	ic.CornerRadius = UDim.new(1, 0)
@@ -555,6 +767,7 @@ local function buildUnit(info: any): UnitView?
 		swing = 0,
 		height = height,
 		hurt = 0,
+		hpFrac = 1,
 		knock = Vector3.zero,
 		hurtGlow = hurtGlow,
 		area = area,
@@ -607,7 +820,8 @@ end
 
 function DefenseFX.ResetUnitHealth()
 	for _, view in units do
-		view.bar.Size = UDim2.fromScale(1, 1)
+		view.hpFrac = 1
+		setBar(view.bar, 1, unitHpColor(1))
 	end
 end
 
@@ -735,7 +949,12 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 	end
 	enemies[eid] = view
 	if kind == "Boss" then
+		-- Boss geliyor: sarsıntı, gürleme, üstte büyük can çubuğu
 		SoundFX.GearSound("GearBlast", pos)
+		SoundFX.WorldSound("CrashBoom", pos, 0.7, 0.55, 1.4)
+		addShake(0.9)
+		local def = DefenseConfig.Enemies.Boss
+		showBoss(eid, if monster then monster.name else def.name)
 	end
 	-- Kapıdan çıkış parıltısı
 	local flash = fxPart("Emerge", Vector3.one * 3, CFrame.new(pos + Vector3.new(0, 1.5, 0)), palette.glow, Enum.PartType.Ball)
@@ -769,6 +988,15 @@ local function killEnemy(eid: number)
 	if big then
 		addShake(if view.kind == "Boss" then 0.9 else 0.3)
 	end
+	-- Jöle patlıyor: yayvanlaşıp sönüyor
+	local mesh = view.mesh
+	if mesh then
+		TweenService:Create(mesh, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Scale = Vector3.new(1.6, 0.25, 1.6) }):Play()
+	end
+	if bossEid == eid then
+		showBoss(nil, nil)
+	end
 	sound("poof", 0.08, function()
 		SoundFX.WorldSound("GearPoof", at, 0.6, if big then 0.75 else 1.25, 0.7)
 	end)
@@ -787,12 +1015,16 @@ local function enemyBar(view: EnemyView, hp: number)
 	if hp < 0.999 and not view.bar then
 		local anchor = view.model.PrimaryPart :: BasePart
 		local h = view.height + 1
-		local gui, fill = hpBar(anchor, h, if view.kind == "Boss" then 100 else 44, Color3.fromRGB(255, 80, 80))
+		local gui, fill = hpBar(anchor, h, if view.kind == "Boss" then 130 elseif view.kind == "Brute" then 76 else 56, Color3.fromRGB(255, 80, 80))
 		view.bar = fill
 		view.barGui = gui
 	end
-	if view.bar then
-		view.bar.Size = UDim2.fromScale(math.clamp(hp, 0, 1), 1)
+	local bar = view.bar
+	if bar then
+		setBar(bar, hp)
+	end
+	if view.kind == "Boss" and bossFill and bossEid then
+		setBar(bossFill :: Frame, hp)
 	end
 end
 
@@ -1071,7 +1303,7 @@ local function onUnitFall(uid: number)
 		return
 	end
 	u.fallen = true
-	u.bar.Size = UDim2.fromScale(0, 1)
+	setBar(u.bar, 0)
 	local base = u.base
 	-- Devrilme: modeli pivotundan yana yatır
 	task.spawn(function()
@@ -1107,6 +1339,7 @@ local function onLeak()
 	p.Transparency = 0.2
 	fadeAway(p, 0.5, Vector3.one * 16)
 	addShake(0.6)
+	hullFlash(0.75)
 	sound("leak", 0.25, function()
 		SoundFX.ShipCrash()
 	end)
@@ -1229,6 +1462,9 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 				enemies[ev[2]] = nil
 				view.model:Destroy()
 			end
+			if bossEid == ev[2] then
+				showBoss(nil, nil)
+			end
 			onLeak()
 		elseif kind == "strike" then
 			onStrike(ev[2], ev[3])
@@ -1268,7 +1504,8 @@ function DefenseFX.Tick(snap: any, paths: { { Vector2 } }?)
 	for _, u in snap.u or {} do
 		local view = units[u[1]]
 		if view and not view.fallen then
-			view.bar.Size = UDim2.fromScale(math.clamp(u[2], 0, 1), 1)
+			view.hpFrac = math.clamp(u[2], 0, 1)
+			setBar(view.bar, view.hpFrac, unitHpColor(view.hpFrac))
 			if u[3] and u[4] then
 				local a = math.clamp((now - view.t0) / SNAP_GAP, 0, 1)
 				view.from = view.from:Lerp(view.to, a)
@@ -1392,6 +1629,9 @@ function DefenseFX.Clear()
 		view.model:Destroy()
 	end
 	table.clear(enemies)
+	if bossEid then
+		showBoss(nil, nil)
+	end
 	for _, view in units do
 		view.model:Destroy()
 		view.area:Destroy()
@@ -1407,6 +1647,9 @@ function DefenseFX.ClearEnemies()
 		view.model:Destroy()
 	end
 	table.clear(enemies)
+	if bossEid then
+		showBoss(nil, nil)
+	end
 end
 
 -- ─── Kare kare ──────────────────────────────────────────────────────────────
@@ -1506,9 +1749,12 @@ function DefenseFX.Start()
 				view.knock *= math.exp(-dt * 9)
 				view.hurt = math.max(0, view.hurt - dt * 3.5)
 				local h = view.hurt
-				view.hurtGlow.Enabled = h > 0.02
-				view.hurtGlow.FillTransparency = 1 - 0.6 * h
-				view.hurtGlow.OutlineTransparency = 1 - 0.7 * h
+				-- Canı azsa kırmızı nabız (yardım lazım, belli olsun)
+				local low = if view.hpFrac < 0.3 then 0.25 + 0.2 * math.sin(now * 9) else 0
+				local g = math.max(h, low)
+				view.hurtGlow.Enabled = g > 0.02
+				view.hurtGlow.FillTransparency = 1 - 0.6 * g
+				view.hurtGlow.OutlineTransparency = 1 - 0.7 * g
 				-- Boşta hafif nefes
 				local p = base.Position + offset + view.knock + Vector3.new(0, math.sin(now * 2.2 + view.uid) * 0.06, 0)
 				local cf = CFrame.lookAt(p, p + Vector3.new(look.X, 0, look.Z))

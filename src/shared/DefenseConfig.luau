@@ -63,6 +63,15 @@ DefenseConfig.Field = {
 DefenseConfig.WorldBase = Vector3.new(9000, 20, 2400)
 DefenseConfig.WorldGap = 1500
 
+--[[
+	Terrain yüzeyi arenanın kökünden bu kadar yukarıda (voksel yuvarlaması:
+	FillBlock üstü kökte bitse de yüzey ~2 stud yukarıda çiziliyor). Dünya
+	modeli (PlanetWorldService) bu kadar kaldırılıyor; istemcinin nişan
+	düzlemi ve çizimleri de bunu kullanıyor. Eskiden her şey gömülüydü
+	(Batur: "shoplarda crewmateler çok aşağıda").
+]]
+DefenseConfig.GroundLift = 2
+
 function DefenseConfig.WorldOrigin(planet: number): Vector3
 	return DefenseConfig.WorldBase + Vector3.new((planet - 1) * DefenseConfig.WorldGap, 0, 0)
 end

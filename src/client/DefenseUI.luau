@@ -26,7 +26,10 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local DefenseConfig = require(Shared.DefenseConfig)
 
+local EnemyModel = require(Shared.EnemyModel)
+
 local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
 local DefenseUI = {}
@@ -921,51 +924,112 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	hint.Position = UDim2.new(0.5, 0, 1, -172)
 	hint.Size = UDim2.fromOffset(560, 20)
 
-	--[[ Gelen dalga kartı: başlık şeridi + rota rozeti, her yaratık bir satır
-	     (renkli nokta, ad, adet rozeti), boss satırı kırmızı. ]]
-	local incoming = panel(side, UDim2.fromOffset(214, 0), UDim2.new(), Vector2.zero, Z - 11, nil, nil, 12)
+	--[[
+		Gelen dalga kartı (2026-10-02, Batur: "temaya uymuyor, güzel
+		durmuyor"): haplarla aynı dil — rengin koyu gradyanı, kalın koyu
+		kenar, nokta dokusu, Fredoka yazı. Her yaratık kendi küçük 3B
+		görüntüsüyle (ViewportFrame) ve büyük adet yazısıyla.
+	]]
+	local incoming = Instance.new("Frame")
+	incoming.Name = "DefenseWaveCard"
 	incoming.LayoutOrder = 3
+	incoming.Size = UDim2.fromOffset(214, 0)
 	incoming.AutomaticSize = Enum.AutomaticSize.Y
+	incoming.BackgroundColor3 = WHITE
+	incoming.BorderSizePixel = 0
+	incoming.ZIndex = Z - 11
+	incoming.Parent = side
+	UiKit.Corner(incoming, 22)
+	UiKit.Stroke(incoming, OUTLINE, 3, 0)
+	local incGrad = Instance.new("UIGradient")
+	incGrad.Rotation = 90
+	incGrad.Parent = incoming
+	local function tintCard(tint: Color3)
+		incGrad.Color = ColorSequence.new(tint:Lerp(Color3.fromRGB(34, 38, 56), 0.62), tint:Lerp(Color3.fromRGB(22, 25, 38), 0.85))
+	end
+	local incDots = Instance.new("ImageLabel")
+	incDots.Name = "Halftone"
+	incDots.BackgroundTransparency = 1
+	incDots.Size = UDim2.fromScale(1, 1)
+	incDots.Image = UiArt.Image("Texture", "halftone_fade")
+	incDots.ScaleType = Enum.ScaleType.Crop
+	incDots.ImageTransparency = 0.86
+	incDots.ZIndex = Z - 11
+	incDots.Parent = incoming
+	UiKit.Corner(incDots, 22)
+	local incBody = Instance.new("Frame")
+	incBody.Size = UDim2.new(1, 0, 0, 0)
+	incBody.AutomaticSize = Enum.AutomaticSize.Y
+	incBody.BackgroundTransparency = 1
+	incBody.ZIndex = Z - 10
+	incBody.Parent = incoming
 	local incPad = Instance.new("UIPadding")
-	incPad.PaddingTop = UDim.new(0, 0)
+	incPad.PaddingTop = UDim.new(0, 6)
 	incPad.PaddingBottom = UDim.new(0, 10)
-	incPad.Parent = incoming
-	list(incoming, false, 4)
+	incPad.PaddingLeft = UDim.new(0, 10)
+	incPad.PaddingRight = UDim.new(0, 10)
+	incPad.Parent = incBody
+	list(incBody, false, 5)
 	local incHead = Instance.new("Frame")
 	incHead.LayoutOrder = 0
-	incHead.Size = UDim2.new(1, 0, 0, 34)
-	incHead.BackgroundColor3 = WHITE
+	incHead.Size = UDim2.new(1, 0, 0, 40)
+	incHead.BackgroundTransparency = 1
 	incHead.ZIndex = Z - 10
-	incHead.Parent = incoming
-	FancyKit.corner(incHead, 12)
-	local incHeadGrad = FancyKit.gradient(incHead, { Color3.fromRGB(255, 140, 60), Color3.fromRGB(200, 60, 60) }, 90)
-	local incTitle = label(incHead, "NEXT WAVE", 16, WHITE, Z - 9, 1.6)
-	incTitle.Position = UDim2.fromOffset(10, 0)
-	incTitle.Size = UDim2.new(1, -20, 1, 0)
+	incHead.Parent = incBody
+	local incTitle = label(incHead, "NEXT WAVE", 21, WHITE, Z - 9, 2.5)
+	incTitle.Size = UDim2.new(1, 0, 0, 24)
 	incTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local routeChip, routeText = chip(incHead, "", Color3.fromRGB(60, 60, 90), Z - 8, 84)
-	routeChip.AnchorPoint = Vector2.new(1, 0.5)
-	routeChip.Position = UDim2.new(1, -8, 0.5, 0)
-	routeChip.Size = UDim2.fromOffset(84, 20)
-	routeText.TextSize = 11
+	local routeText = label(incHead, "", 13, Color3.fromRGB(215, 222, 245), Z - 9, 1.6)
+	routeText.Position = UDim2.fromOffset(1, 23)
+	routeText.Size = UDim2.new(1, 0, 0, 15)
+	routeText.TextXAlignment = Enum.TextXAlignment.Left
 	local incList = Instance.new("Frame")
 	incList.LayoutOrder = 1
 	incList.Size = UDim2.new(1, 0, 0, 0)
 	incList.AutomaticSize = Enum.AutomaticSize.Y
 	incList.BackgroundTransparency = 1
 	incList.ZIndex = Z - 10
-	incList.Parent = incoming
-	local incListPad = Instance.new("UIPadding")
-	incListPad.PaddingLeft = UDim.new(0, 10)
-	incListPad.PaddingRight = UDim.new(0, 10)
-	incListPad.PaddingTop = UDim.new(0, 4)
-	incListPad.Parent = incList
-	list(incList, false, 4)
-	-- Yaratık renkleri (noktalar)
-	local KIND_COLOR = {
-		Grub = Color3.fromRGB(120, 220, 110), Skitter = Color3.fromRGB(90, 200, 255),
-		Spitter = Color3.fromRGB(220, 120, 255), Brute = Color3.fromRGB(255, 170, 70), Boss = Color3.fromRGB(255, 80, 80),
-	}
+	incList.Parent = incBody
+	list(incList, false, 5)
+	local lastIncoming = ""
+
+	-- Yaratığın küçük 3B görüntüsü (gezegenin renklerinde, sahadakinin aynısı)
+	local function enemyIcon(parent: GuiObject, kind: string, size: number)
+		local def = Config.SpaceMonsters[currentPlanet]
+		local body = if def then def.planetColor:Lerp(def.glow, 0.25) else Color3.fromRGB(120, 220, 110)
+		local dark = if def then def.planetColor2:Lerp(Color3.new(0, 0, 0), 0.35) else Color3.fromRGB(40, 90, 40)
+		local glow = if def then def.glow else Color3.fromRGB(180, 255, 120)
+		local ok, model = pcall(EnemyModel.Build, kind, body, dark, glow)
+		if not (ok and model) then
+			return
+		end
+		for _, d in model:GetDescendants() do
+			if d:IsA("ParticleEmitter") or d:IsA("Light") or d:IsA("BillboardGui") then
+				d:Destroy()
+			end
+		end
+		local vp = Instance.new("ViewportFrame")
+		vp.AnchorPoint = Vector2.new(0, 0.5)
+		vp.Position = UDim2.new(0, -6, 0.5, 0)
+		vp.Size = UDim2.fromOffset(size, size)
+		vp.BackgroundTransparency = 1
+		vp.Ambient = Color3.fromRGB(190, 190, 200)
+		vp.LightColor = WHITE
+		vp.LightDirection = Vector3.new(-0.5, -1, -0.6)
+		vp.ZIndex = parent.ZIndex + 1
+		vp.Parent = parent
+		model:PivotTo(CFrame.new())
+		model.Parent = vp
+		local cf, sz = model:GetBoundingBox()
+		local extent = math.max(sz.X, sz.Y, sz.Z)
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 30
+		local dist = extent * 0.5 / math.tan(math.rad(15)) * 1.15
+		-- Yaratık -Z'ye bakıyor: önden, biraz yandan ve yukarıdan
+		cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(dist * 0.5, dist * 0.3, -dist * 0.8), cf.Position)
+		cam.Parent = vp
+		vp.CurrentCamera = cam
+	end
 
 	--[[
 		Sağ altta kontrol kümesi (ortada durmasın): üst sırada hız + AUTO,
@@ -1100,20 +1164,32 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 
 	local function renderIncoming()
+		if not run then
+			lastIncoming = ""
+			return
+		end
+		local fighting = mode == "fight"
+		local boss = run.plan.boss
+		incTitle.Text = if fighting then "⚔ FIGHTING" elseif boss then "⚠ BOSS WAVE" else "NEXT WAVE"
+		-- Oyunun mor-lacivert tonu; savaşta ve boss'ta kırmızıya dönüyor
+		local tint = if boss then Color3.fromRGB(255, 60, 90) elseif fighting then Color3.fromRGB(255, 90, 130) else Color3.fromRGB(130, 110, 255)
+		incTitle.TextColor3 = if fighting or boss then Color3.fromRGB(255, 170, 170) else Color3.fromRGB(200, 190, 255)
+		tintCard(tint)
+		routeText.Text = "ROUTE: " .. run.plan.name
+		-- Satırlar yalnızca dalga değişince yeniden kuruluyor (3B görüntüler pahalı)
+		local key = run.plan.name .. "|" .. currentPlanet
+		for _, id in { "Boss", "Brute", "Spitter", "Grub", "Skitter" } do
+			key ..= "|" .. tostring(run.plan.counts[id] or 0)
+		end
+		if key == lastIncoming then
+			return
+		end
+		lastIncoming = key
 		for _, c in incList:GetChildren() do
 			if c:IsA("GuiObject") then
 				c:Destroy()
 			end
 		end
-		if not run then
-			return
-		end
-		routeText.Text = run.plan.name
-		local fighting = mode == "fight"
-		incTitle.Text = if fighting then "⚔ FIGHTING" elseif run.plan.boss then "⚠ BOSS WAVE" else "NEXT WAVE"
-		incHeadGrad.Color = if run.plan.boss then ColorSequence.new(Color3.fromRGB(255, 70, 90), Color3.fromRGB(150, 20, 40))
-			elseif fighting then ColorSequence.new(Color3.fromRGB(255, 120, 60), Color3.fromRGB(190, 50, 40))
-			else ColorSequence.new(Color3.fromRGB(255, 160, 60), Color3.fromRGB(210, 90, 50))
 		local order = 0
 		for _, id in { "Boss", "Brute", "Spitter", "Grub", "Skitter" } do
 			local n = run.plan.counts[id]
@@ -1122,27 +1198,24 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 				order += 1
 				local row = Instance.new("Frame")
 				row.LayoutOrder = order
-				row.Size = UDim2.new(1, 0, 0, 22)
-				row.BackgroundTransparency = 1
+				row.Size = UDim2.new(1, 0, 0, 36)
+				row.BackgroundColor3 = if id == "Boss" then Color3.fromRGB(110, 40, 60) else Color3.fromRGB(48, 54, 78)
+				row.BackgroundTransparency = 0.15
 				row.ZIndex = Z - 9
 				row.Parent = incList
-				local dot = Instance.new("Frame")
-				dot.AnchorPoint = Vector2.new(0, 0.5)
-				dot.Position = UDim2.new(0, 0, 0.5, 0)
-				dot.Size = UDim2.fromOffset(12, 12)
-				dot.BackgroundColor3 = KIND_COLOR[id] or WHITE
-				dot.ZIndex = Z - 8
-				dot.Parent = row
-				FancyKit.corner(dot, 6)
-				FancyKit.border(dot, OUTLINE, 1.5)
-				local name = label(row, def.name, 14, if id == "Boss" then Color3.fromRGB(255, 130, 130) else WHITE, Z - 8, 1.2)
-				name.Position = UDim2.fromOffset(18, 0)
-				name.Size = UDim2.new(1, -64, 1, 0)
+				UiKit.Corner(row, 14)
+				UiKit.Stroke(row, OUTLINE, 2, 0)
+				enemyIcon(row, id, 42)
+				local name = label(row, def.name, 14, if id == "Boss" then Color3.fromRGB(255, 150, 150) else WHITE, Z - 8, 1.6)
+				name.Position = UDim2.fromOffset(40, 0)
+				name.Size = UDim2.new(1, -86, 1, 0)
 				name.TextXAlignment = Enum.TextXAlignment.Left
-				local countChip, _ = chip(row, "×" .. n, Color3.fromRGB(70, 76, 110), Z - 8, 40)
-				countChip.AnchorPoint = Vector2.new(1, 0.5)
-				countChip.Position = UDim2.new(1, 0, 0.5, 0)
-				countChip.Size = UDim2.fromOffset(40, 18)
+				name.TextTruncate = Enum.TextTruncate.AtEnd
+				local count = label(row, "×" .. n, 20, GOLD, Z - 8, 2.2)
+				count.AnchorPoint = Vector2.new(1, 0)
+				count.Position = UDim2.new(1, -8, 0, 0)
+				count.Size = UDim2.new(0, 44, 1, 0)
+				count.TextXAlignment = Enum.TextXAlignment.Right
 			end
 		end
 	end

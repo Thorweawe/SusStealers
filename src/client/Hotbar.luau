@@ -294,6 +294,55 @@ function Hotbar.Create(screen: ScreenGui): Bar
 		return list
 	end
 
+	--[[
+		Gezegen gear'ı (ışın kılıcı / tabanca): aracın kendi 3B görüntüsü,
+		kılıç çapraz (Batur: "gear simgesi güzel değil"; eskiden ⚔ / 🔫).
+		Rengi seviyeyle değiştiği için her çizimde araçtan kopyalanıyor.
+	]]
+	local function toolIcon(parent: GuiObject, tool: Tool, gun: boolean)
+		local handle = tool:FindFirstChild("Handle") :: BasePart?
+		if not handle then
+			return
+		end
+		local vp = Instance.new("ViewportFrame")
+		vp.Name = "ToolIcon"
+		vp.AnchorPoint = Vector2.new(0.5, 0.5)
+		vp.Position = UDim2.fromScale(0.5, 0.5)
+		vp.Size = UDim2.fromScale(if gun then 1.05 else 1.25, if gun then 1.05 else 1.25)
+		vp.BackgroundTransparency = 1
+		vp.Ambient = Color3.fromRGB(200, 202, 212)
+		vp.LightColor = Color3.new(1, 1, 1)
+		vp.LightDirection = Vector3.new(-0.4, -1, -0.5)
+		vp.Rotation = if gun then -12 else -45
+		vp.ZIndex = parent.ZIndex + 1
+		vp.Parent = parent
+		local model = Instance.new("Model")
+		for _, d in tool:GetDescendants() do
+			if d:IsA("BasePart") then
+				local c = d:Clone()
+				for _, x in c:GetChildren() do
+					if not x:IsA("DataModelMesh") then
+						x:Destroy()
+					end
+				end
+				c.Anchored = true
+				c.CFrame = handle.CFrame:ToObjectSpace(d.CFrame)
+				c.Parent = model
+			end
+		end
+		model.Parent = vp
+		local cf, size = model:GetBoundingBox()
+		local extent = math.max(size.X, size.Y, size.Z)
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 30
+		local dist = extent * 0.5 / math.tan(math.rad(15)) * 1.1
+		-- Kılıç yandan (bıçak sağda, döndürülünce sağ üstte); tabanca namlu sağda
+		local side = if gun then Vector3.new(dist, 0, 0) else Vector3.new(-dist, 0, 0)
+		cam.CFrame = CFrame.lookAt(cf.Position + side + Vector3.new(0, extent * 0.08, 0), cf.Position)
+		cam.Parent = vp
+		vp.CurrentCamera = cam
+	end
+
 	local function redraw()
 		for _, child in bar:GetChildren() do
 			if child:IsA("GuiObject") then
@@ -333,13 +382,7 @@ function Hotbar.Create(screen: ScreenGui): Bar
 				-- Gezegen savunması: elde taşınan crewmate
 				pcall(UiKit.UnitIcon, icon, 46, crewUnit)
 			elseif tool:GetAttribute("DefenseSaber") ~= nil or tool:GetAttribute("DefenseRayGun") ~= nil then
-				local saber = Instance.new("TextLabel")
-				saber.Size = UDim2.fromScale(1, 1)
-				saber.BackgroundTransparency = 1
-				saber.TextScaled = true
-				saber.Text = if tool:GetAttribute("DefenseRayGun") ~= nil then "🔫" else "⚔"
-				saber.ZIndex = icon.ZIndex + 1
-				saber.Parent = icon
+				toolIcon(icon, tool, tool:GetAttribute("DefenseRayGun") ~= nil)
 			else
 				local name = Instance.new("TextLabel")
 				name.Size = UDim2.new(1, -8, 1, -8)

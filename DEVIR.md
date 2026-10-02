@@ -13,6 +13,29 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (85) — Batur (Yusuf'un şeridine de yazıldı: `Hotbar`, `DefenseUI`, `DefenseFX`, `DefenseClient`)
+
+Studio'ya aktarıldı. **Testler koşulamadı** (aşağıda neden). Oyunda gerçek tıklamayla denendi: iniş, DEFEND, crewmate bırakma, dalga, kılıç savuruşları. Konsol temiz.
+
+- **Studio MCP artık kısıtlı (ikimizi de ilgilendirir):** Studio yeniden açılınca MCP'nin `execute_luau` iş parçacığı yetkisiz çalışıyor. HttpEnabled yazamıyor, ServerScriptService/Workspace'e Script koyamıyor, oyun modülünü require edemiyor, RemoteEvent ateşleyemiyor. Kaynak (`.Source`) yazmak serbest, kod öyle aktarıldı. ServerTests bu yüzden çalıştırılamadı; elle Play'de denemek gerekiyor.
+- **Dünya zemine oturdu:** Terrain yüzeyi kökten 2 stud yukarıda (`DefenseConfig.GroundLift`). `PlanetWorldService` modeli ölçüp kaldırıyor (`TranslateBy`). Tezgâhtarlar güvertede (22.8), güverte zeminde (22.0); eskiden gömülüydü. İstemcinin nişan düzlemi de zeminde.
+- **Çarpışma:** dükkân gemilerinin gövde, karın, kokpit, çatı ve kanatlarına görünmez kutular eklendi; ana geminin karnına da (içinden geçiliyordu).
+- **Kristaller:** düz beyaz neon bloklar yerine renkli cam gövde, sivri uç (iki WedgePart) ve içte sönük parlayan çekirdek ("parlayan şeyler ne belli değil").
+- **Işın kılıcı kombosu** (`DefenseClient.saberSwing`):
+  - 3 vuruş: sağdan sola yatay, yukarıdan çapraz, üçüncüsünde gövde tam tur.
+  - Omuz ve bel `Motor6D.C0` (yalnız istemcide, gövde ekseninde döndürme; R15/R6 aynı) + tutuş.
+  - Bıçakta Trail, önünde hilal biçiminde parlayan kesik. Yavaş çekim denemesi için oyuncu niteliği `DebugSlowSwing`.
+- **Çubukta gear simgesi:** emoji yerine aracın kendi 3B görüntüsü (ViewportFrame; kılıç çapraz, seviye renginde).
+- **NEXT WAVE kartı** hap dilinde: kalın koyu kenar, rengin gradyanı, nokta dokusu. Mor-lacivert, savaşta/boss'ta kırmızı. Her yaratık kendi 3B görüntüsüyle ve büyük adetle; satırlar yalnızca dalga değişince kuruluyor.
+- **Savaş hissi** (`DefenseFX`):
+  - Can çubukları büyük ve kenarlı; vurulunca dolgu beyaz parlıyor, açık renkli iz bekleyip eriyor (`setBar`).
+  - Crewmate çubuğu yeşil → sarı → kırmızı; canı %30'un altındaysa kırmızı nabız.
+  - Gemiye sızmada ekran kenarları kırmızı yanıyor.
+  - Boss gelince üstte büyük can çubuğu, sarsıntı ve gürleme (`DefenseFXGui`).
+  - Ölen yaratık yayvanlaşıp patlıyor.
+
+---
+
 ## 2026-10-02 (84) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `SoundFX`, `Config`)
 
 Studio'ya aktarıldı, **198/198 test temiz**. Oyunda 4 dalga oynatıldı; efektlerin oluştuğu sayılarak doğrulandı.

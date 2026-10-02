@@ -121,6 +121,23 @@ local function blocker(parent: Instance, cf: CFrame, size: Vector3)
 	part(parent, "Collision", size, cf, WHITE, { Transparency = 1, CanQuery = false, CastShadow = false })
 end
 
+local function wedge(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, props: Props?): WedgePart
+	local w = Instance.new("WedgePart")
+	w.Name = name
+	w.Size = size
+	w.CFrame = cf
+	w.Color = color
+	w.Anchored = true
+	w.Material = Enum.Material.SmoothPlastic
+	if props then
+		for k, v in props do
+			(w :: any)[k] = v
+		end
+	end
+	w.Parent = parent
+	return w
+end
+
 local function signBoard(parent: Instance, name: string, cf: CFrame, size: Vector2, text: string, color: Color3)
 	local board = part(parent, name, Vector3.new(size.X, size.Y, 0.5), cf, DARK)
 	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
@@ -297,12 +314,26 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 			continue
 		end
 		local p = origin + Vector3.new(x, 0, z)
-		for k = 1, rng:NextInteger(3, 6) do
+		--[[
+			Kristal (Batur: "parlayan şeyler var, ne olduğu belli değil"):
+			eskiden düz neon bloklardı, ışıltıyla beyaz kutulara dönüyordu.
+			Şimdi renkli cam gövde + sivri uç; içte sönük parlayan çekirdek.
+		]]
+		local tint = light_:Lerp(Color3.fromRGB(120, 170, 255), 0.45)
+		for _ = 1, rng:NextInteger(3, 6) do
 			local h = rng:NextNumber(3, 9)
-			part(f, "Crystal", Vector3.new(h * 0.3, h, h * 0.3),
-				CFrame.new(p + Vector3.new(rng:NextNumber(-2, 2), h * 0.4, rng:NextNumber(-2, 2)))
-					* CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, 6), rng:NextNumber(-0.4, 0.4)),
-				light_:Lerp(Color3.fromRGB(140, 200, 255), 0.4), glow(light_:Lerp(Color3.fromRGB(140, 200, 255), 0.4), { Transparency = 0.15 }))
+			local w = h * 0.3
+			local cf = CFrame.new(p + Vector3.new(rng:NextNumber(-2, 2), h * 0.4, rng:NextNumber(-2, 2)))
+				* CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, 6), rng:NextNumber(-0.4, 0.4))
+			part(f, "CrystalShard", Vector3.new(w, h, w), cf, tint,
+				{ Material = Enum.Material.Glass, Transparency = 0.3, Reflectance = 0.3 })
+			local tipH = w * 1.3
+			wedge(f, "CrystalTip", Vector3.new(w, tipH, w / 2), cf * CFrame.new(0, (h + tipH) / 2, -w / 4), tint,
+				{ Material = Enum.Material.Glass, Transparency = 0.3, Reflectance = 0.3 })
+			wedge(f, "CrystalTip", Vector3.new(w, tipH, w / 2), cf * CFrame.new(0, (h + tipH) / 2, w / 4) * CFrame.Angles(0, math.pi, 0), tint,
+				{ Material = Enum.Material.Glass, Transparency = 0.3, Reflectance = 0.3 })
+			part(f, "Crystal", Vector3.new(w * 0.35, h * 0.75, w * 0.35), cf, tint:Lerp(WHITE, 0.2),
+				glow(tint:Lerp(WHITE, 0.2), { Transparency = 0.45, CanCollide = false }))
 		end
 	end
 
@@ -357,6 +388,7 @@ local function buildShip(model: Model, origin: Vector3)
 	ellipsoid(ship, "Cockpit", rel(0, Y + 8.2, 39), Vector3.new(18.6, 10, 28.6), GLASS,
 		{ Material = Enum.Material.Glass, Transparency = 0.15, Reflectance = 0.25 })
 	blocker(ship, rel(0, Y, 0), Vector3.new(W - 6, H - 6, LEN - 14))
+	blocker(ship, rel(0, Y - 9, -2), Vector3.new(W - 10, 8, LEN - 28))
 
 	-- Pencere sırası (gövdenin kavisine oturuyor)
 	for side = -1, 1, 2 do
@@ -480,11 +512,17 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 	ellipsoid(f, "Cockpit", rel(9, Y + 3.2, 0), Vector3.new(10, 6, 8.4), GLASS,
 		{ Material = Enum.Material.Glass, Transparency = 0.15, Reflectance = 0.2 })
 	ellipsoid(f, "Roof", rel(-3, Y + 4.8, 0), Vector3.new(14, 4, 8), HULL)
-	blocker(f, rel(0, Y, 0), Vector3.new(24, 10, 10))
+	-- Çarpışma: elips gövdeler kutu çarpıştığı için kapalı; altlarında
+	-- gövdeyi saran görünmez kutular (Batur: "içinden geçebildiğimiz bloklar")
+	blocker(f, rel(0, Y, 0), Vector3.new(26, 10.5, 11.6))
+	blocker(f, rel(-1, Y - 3.2, 0), Vector3.new(21, 4, 9.5))
+	blocker(f, rel(9, Y + 3.2, 0), Vector3.new(8, 4.5, 7))
+	blocker(f, rel(-3, Y + 4.8, 0), Vector3.new(12, 3, 7))
 	-- Kuyruk, kanatlar, motorlar
 	ellipsoid(f, "Fin", rel(-11, Y + 6, 0) * CFrame.Angles(0, 0, math.rad(18)), Vector3.new(7, 9, 1.6), color)
 	for s = -1, 1, 2 do
 		ellipsoid(f, "Wing", rel(-4, Y - 2.5, s * 8) * CFrame.Angles(math.rad(s * 8), 0, 0), Vector3.new(11, 1.4, 8), HULL2)
+		blocker(f, rel(-4, Y - 2.5, s * 8) * CFrame.Angles(math.rad(s * 8), 0, 0), Vector3.new(9, 1.2, 6.5))
 		local eng = rel(-14.5, Y - 1, s * 3)
 		cyl(f, "Engine", eng, 5, 4, METAL)
 		cyl(f, "EngineGlow", eng * CFrame.new(-2.6, 0, 0), 0.4, 3, FLAME, glow(FLAME))
@@ -590,6 +628,15 @@ local function build(planet: number, arena: number): Model?
 	local rng = Random.new(planet * 7717)
 
 	buildTerrain(origin, def, rng)
+	-- Terrain yüzeyinin gerçek yüksekliği (voksel yuvarlaması; bkz. DefenseConfig.GroundLift)
+	local lift = DefenseConfig.GroundLift
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	local hit = workspace:Raycast(origin + Vector3.new(0, 40, 110), Vector3.new(0, -80, 0), params)
+	if hit then
+		lift = math.clamp(hit.Position.Y - origin.Y, -1, 4)
+	end
 	buildDecor(model, origin, def, rng)
 	buildShip(model, origin)
 
@@ -607,6 +654,9 @@ local function build(planet: number, arena: number): Model?
 	spawn:SetAttribute("DefenseSpawn", true)
 
 	model.PrimaryPart = spawn
+	-- Her şey kökte kuruldu; terrain yüzeyine oturt (gemiler, dükkânlar,
+	-- tezgâhtarlar 2 stud gömülüydü)
+	model:TranslateBy(Vector3.new(0, lift, 0))
 	model.Parent = folder
 	return model
 end
@@ -627,8 +677,8 @@ end
 --[[ Varış noktası (dünya CFrame'i), gemiye ve alana dönük. ]]
 function PlanetWorldService.SpawnCFrame(arena: number): CFrame
 	local L = DefenseConfig.Layout
-	local p = DefenseConfig.ToWorld(arena, L.spawn, 4)
-	return CFrame.lookAt(p, DefenseConfig.ToWorld(arena, Vector2.new(0, 60), 4))
+	local p = DefenseConfig.ToWorld(arena, L.spawn, 4 + DefenseConfig.GroundLift)
+	return CFrame.lookAt(p, DefenseConfig.ToWorld(arena, Vector2.new(0, 60), 4 + DefenseConfig.GroundLift))
 end
 
 function PlanetWorldService.OnPrompt(handler: (Player, number, string) -> ())
