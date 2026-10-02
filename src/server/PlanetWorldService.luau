@@ -121,6 +121,55 @@ local function blocker(parent: Instance, cf: CFrame, size: Vector3)
 	part(parent, "Collision", size, cf, WHITE, { Transparency = 1, CanQuery = false, CastShadow = false })
 end
 
+--[[
+	3D ağlar (2026-10-02, Yusuf): ReplicatedStorage.DefenseMeshes (ChatGPT
+	konsepti → TRELLIS → tools/normalize_meshes.lua; taban y=0, ortası
+	x=z=0). Şablon varsa gemi/dükkân/dekor onunla giydiriliyor; yoksa
+	aşağıdaki parça modeller aynen. Ağlar çarpışmasız: çarpışma yine
+	görünmez "Collision" kutularında.
+]]
+local function meshTemplate(name: string): Model?
+	local meshes = ReplicatedStorage:FindFirstChild("DefenseMeshes")
+	local t = meshes and meshes:FindFirstChild(name)
+	return if t and t:IsA("Model") then t else nil
+end
+
+-- Şablonun MeshPart'larını cf çerçevesine, k ölçeğinde kopyalar
+local function skin(parent: Instance, template: Model, cf: CFrame, k: number?)
+	local scale = k or 1
+	for _, src in template:GetDescendants() do
+		if not src:IsA("MeshPart") then
+			continue
+		end
+		local p = src:Clone()
+		for _, c in p:GetChildren() do
+			if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+				c:Destroy()
+			end
+		end
+		p.Name = template.Name
+		p.Size = src.Size * scale
+		p.CFrame = cf * (src.CFrame.Rotation + src.CFrame.Position * scale)
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Parent = parent
+	end
+end
+
+-- Görünmez ışık kaynağı (dokulu ağın "parlayan" yerleri gerçekten ışık saçsın)
+local function glowAt(parent: Instance, at: Vector3, color: Color3, range: number, brightness: number)
+	local a = part(parent, "GlowLight", Vector3.one * 0.2, CFrame.new(at), color,
+		{ Transparency = 1, CanCollide = false, CanQuery = false })
+	local l = Instance.new("PointLight")
+	l.Color = color
+	l.Range = range
+	l.Brightness = brightness
+	l.Shadows = false
+	l.Parent = a
+end
+
 local function wedge(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, props: Props?): WedgePart
 	local w = Instance.new("WedgePart")
 	w.Name = name
@@ -279,6 +328,10 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 		return not inField and not nearBase and (x * x + z * z) < (L.groundRadius - 60) ^ 2
 	end
 
+	local mushroom = meshTemplate("DecorMushroom")
+	local crystal = meshTemplate("DecorCrystal")
+	local rocks = meshTemplate("DecorRocks")
+
 	-- Parlayan mantar ağaçları
 	for _ = 1, 46 do
 		local angle = rng:NextNumber(0, math.pi * 2)
@@ -289,6 +342,15 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 		end
 		local h = rng:NextNumber(6, 16)
 		local p = origin + Vector3.new(x, 0, z)
+		if mushroom then
+			-- Şablon 12 boyunda; ağaçlar 1.2–2.6 kat
+			local k = h / 12 * 2
+			skin(f, mushroom, CFrame.new(p) * CFrame.Angles(0, angle * 3, 0), k)
+			if rng:NextNumber() < 0.35 then
+				glowAt(f, p + Vector3.new(0, 12 * k * 0.6, 0), light_, 22, 1.2)
+			end
+			continue
+		end
 		cyl(f, "Stem", alongY(CFrame.new(p + Vector3.new(0, h / 2, 0))), h, h * 0.16, Color3.fromRGB(230, 225, 205))
 		local capW = h * rng:NextNumber(0.7, 1.0)
 		ellipsoid(f, "Cap", CFrame.new(p + Vector3.new(0, h, 0)), Vector3.new(capW, capW * 0.45, capW), light_:Lerp(WHITE, 0.15),
@@ -314,6 +376,12 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 			continue
 		end
 		local p = origin + Vector3.new(x, 0, z)
+		if crystal then
+			local k = rng:NextNumber(0.8, 1.6)
+			skin(f, crystal, CFrame.new(p) * CFrame.Angles(0, angle * 5, 0), k)
+			glowAt(f, p + Vector3.new(0, 4 * k, 0), light_, 14, 0.8)
+			continue
+		end
 		--[[
 			Kristal (Batur: "parlayan şeyler var, ne olduğu belli değil"):
 			eskiden düz neon bloklardı, ışıltıyla beyaz kutulara dönüyordu.
@@ -337,6 +405,19 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 		end
 	end
 
+	-- Balçıklı kaya kümeleri (yalnız 3D ağ varsa; parça hâli terrain tepeleri)
+	if rocks then
+		for _ = 1, 30 do
+			local angle = rng:NextNumber(0, math.pi * 2)
+			local radius = rng:NextNumber(80, L.groundRadius - 60)
+			local x, z = math.cos(angle) * radius, math.sin(angle) * radius
+			if free(x, z) then
+				skin(f, rocks, CFrame.new(origin + Vector3.new(x, -0.4, z)) * CFrame.Angles(0, angle * 7, 0),
+					rng:NextNumber(0.7, 1.8))
+			end
+		end
+	end
+
 	-- Alan sınırı: lambalı dikmeler ve rampanın önünde savunma çizgisi
 	for side = -1, 1, 2 do
 		for z = F.zMin, F.zMax + 10, 20 do
@@ -357,6 +438,11 @@ local function buildDecor(model: Model, origin: Vector3, def: Config.SpaceMonste
 end
 
 -- ─── Ana gemi ───────────────────────────────────────────────────────────────
+
+-- 3D ana gemi: ağ geldiğinde Studio'da bakılarak ayarlandı
+local SHIP_MESH_YAW = 0
+local SHIP_MESH_OFFSET = Vector3.new(0, 0, 0)
+local SHIP_KEEP = { Collision = true, Ramp = true, RampTread = true, RampRail = true, RailPost = true, Door = true }
 
 local function buildShip(model: Model, origin: Vector3)
 	local L = DefenseConfig.Layout
@@ -474,6 +560,21 @@ local function buildShip(model: Model, origin: Vector3)
 	local door = part(ship, "Door", Vector3.new(11, 0.4, 9), CFrame.new(top + Vector3.new(0, 0.6, -3)), Color3.fromRGB(255, 240, 200),
 		glow(Color3.fromRGB(255, 240, 200), { CanCollide = false }))
 	light(door, Color3.fromRGB(255, 230, 180), 30, 2)
+
+	-- 3D ağ: gövde/kanat/motor/ayak parçaları yerine; rampa, kapı ve
+	-- çarpışma kutuları (yürünen yerler) kalıyor
+	local mesh = meshTemplate("Mothership")
+	if mesh then
+		for _, d in ship:GetChildren() do
+			if d:IsA("BasePart") and not SHIP_KEEP[d.Name] then
+				d:Destroy()
+			end
+		end
+		skin(ship, mesh, CFrame.new(c + SHIP_MESH_OFFSET) * CFrame.Angles(0, math.rad(SHIP_MESH_YAW), 0))
+		for side = -1, 1, 2 do
+			glowAt(ship, c + Vector3.new(side * 16, Y, -60), FLAME, 26, 2)
+		end
+	end
 end
 
 -- ─── Dükkân gemicikleri ─────────────────────────────────────────────────────
@@ -492,6 +593,12 @@ local STALLS: { [string]: Stall } = {
 	tabela o yüzde), gövde X ekseninde uzanıyor (burun +X). Dükkânlar alana
 	bakıyor ve yay biçiminde dizili (DefenseConfig.Layout).
 ]]
+local STALL_MESH: { [string]: string } = {
+	hospital = "ShipHospital", armory = "ShipArmory", shop = "ShipShop", market = "ShipMarket",
+}
+local STALL_MESH_YAW = 0
+local STALL_KEEP = { Deck = true, Counter = true, CounterTop = true, Sign = true }
+
 local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector2, info: Stall)
 	local p = origin + Vector3.new(at.X, 0, at.Y)
 	local facing = origin + Vector3.new(0, 0, DefenseConfig.Layout.shopsFace)
@@ -591,6 +698,24 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 	end
 	-- Sönük ve beyaza yakın: renkli güçlü ışık gemiyi ve zemini pembeye boyuyordu
 	light(counterTop, color:Lerp(WHITE, 0.6), 12, 0.6)
+
+	-- 3D ağ: gövde ve süsler yerine; güverte, tezgâh (istem), tabela ve
+	-- tezgâhtar kalıyor. Ağın vitrini -Z'de (alana dönük).
+	local mesh = meshTemplate(STALL_MESH[info.kind])
+	if mesh then
+		for _, d in f:GetChildren() do
+			if d:IsA("BasePart") and not STALL_KEEP[d.Name] then
+				d:Destroy()
+			end
+		end
+		skin(f, mesh, rel(0, 0, 0) * CFrame.Angles(0, math.rad(STALL_MESH_YAW), 0))
+		local ext = mesh:GetExtentsSize()
+		blocker(f, rel(0, ext.Y * 0.4, 0), Vector3.new(ext.X * 0.85, ext.Y * 0.75, ext.Z * 0.75))
+		local sign = f:FindFirstChild("Sign")
+		if sign and sign:IsA("BasePart") then
+			sign.CFrame = rel(0, ext.Y + 2.5, -2)
+		end
+	end
 end
 
 -- ─── Konsollar ──────────────────────────────────────────────────────────────

@@ -88,3 +88,6 @@ models_3d/starfall/*.glb
 !models_3d/starfall/*_lo.glb
 models_3d/starfall/*_concept.png
 models_3d/starfall/*.mp4
+models_3d/defense/*_concept.png
+models_3d/defense/*.mp4
+models_3d/defense/[A-Z]*.glb

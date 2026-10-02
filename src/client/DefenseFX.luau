@@ -54,6 +54,7 @@ type EnemyView = {
 	born: number,
 	body: BasePart?,           -- jöle gibi esneyen gövde
 	mesh: SpecialMesh?,
+	meshSize: Vector3?,        -- 3D ağ gövde (EnemyModel/DefenseMeshes): Size ile esniyor
 	bodyColor: Color3,
 	flash: number,             -- vurulunca beyaz parlama 1 → 0
 	squash: number,            -- vurulunca jöle gibi ezilme 1 → 0
@@ -568,6 +569,57 @@ end
 
 local METAL_DARK = Color3.fromRGB(60, 64, 76)
 
+--[[
+	3D silahlar (2026-10-02, Yusuf): ReplicatedStorage.DefenseMeshes.Wpn*
+	(ChatGPT → TRELLIS → tools/normalize_meshes.lua) silahın kendi
+	uzayında (s = 1, tutuş noktası orijinde) duruyor. Varsa parça silah
+	gizlenip ağ biniyor; Grip ve Muzzle (mermi/iyileştirme çıkış noktası)
+	görünmez olarak yerinde. Kalkancının copu parça kalıyor.
+]]
+local WEAPON_MESH: { [string]: { name: string, at: { CFrame } } } = {
+	Shooter = { name = "WpnBlaster", at = { CFrame.new(0, 0, -1.05) } },
+	Brawler = { name = "WpnSword", at = { CFrame.new() } },
+	Guard = { name = "WpnShield", at = { CFrame.new(-1.1, 0, -0.9) } },
+	Assassin = { name = "WpnDagger", at = { CFrame.new(0, 0, -0.6), CFrame.new(-2, 0, -0.6) } },
+	Medic = { name = "WpnStaff", at = { CFrame.new() } },
+}
+
+local function skinWeapon(w: Model, role: string, s: number)
+	local spec = WEAPON_MESH[role] or WEAPON_MESH.Medic
+	local meshes = ReplicatedStorage:FindFirstChild("DefenseMeshes")
+	local template = meshes and meshes:FindFirstChild(spec.name)
+	if not (template and template:IsA("Model")) then
+		return
+	end
+	for _, d in w:GetChildren() do
+		if d:IsA("BasePart") and d.Name ~= "Baton" then
+			d.Transparency = 1
+		end
+	end
+	for _, at in spec.at do
+		for _, src in template:GetDescendants() do
+			if not src:IsA("MeshPart") then
+				continue
+			end
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Name = "WeaponMesh"
+			p.Size = src.Size * s
+			p.CFrame = CFrame.new(at.Position * s) * at.Rotation * (src.CFrame.Rotation + src.CFrame.Position * s)
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = w
+		end
+	end
+end
+
 local function buildWeapon(role: string, color: Color3, s: number): Model
 	local w = Instance.new("Model")
 	w.Name = "Weapon"
@@ -610,6 +662,7 @@ local function buildWeapon(role: string, color: Color3, s: number): Model
 		weaponPart(w, "CrossV", Vector3.new(0.12, 0.7, 0.2) * s, CFrame.new(0, 3.2 * s, -0.42 * s), WHITE, true)
 		weaponPart(w, "CrossH", Vector3.new(0.7, 0.12, 0.2) * s, CFrame.new(0, 3.2 * s, -0.42 * s), WHITE, true)
 	end
+	skinWeapon(w, role, s)
 	return w
 end
 
@@ -928,6 +981,7 @@ local function spawnEnemy(eid: number, kind: string, pathIndex: number, lane: nu
 		born = os.clock(),
 		body = body,
 		mesh = mesh,
+		meshSize = if not mesh and body and body:IsA("MeshPart") then body.Size else nil,
 		bodyColor = if body then body.Color else WHITE,
 		flash = 0,
 		squash = 0,
@@ -993,6 +1047,9 @@ local function killEnemy(eid: number)
 	if mesh then
 		TweenService:Create(mesh, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ Scale = Vector3.new(1.6, 0.25, 1.6) }):Play()
+	elseif view.meshSize and view.body then
+		TweenService:Create(view.body, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = view.meshSize * Vector3.new(1.5, 0.3, 1.5) }):Play()
 	end
 	if bossEid == eid then
 		showBoss(nil, nil)
@@ -1361,6 +1418,21 @@ end
 
 local function onFreeze(seconds: number)
 	for _, e in enemies do
+		if e.meshSize or e.rig then
+			-- Dokulu 3D ağda Color görünmüyor: buz mavisi Highlight
+			local ice = Instance.new("Highlight")
+			ice.Name = "Frozen"
+			ice.FillColor = Color3.fromRGB(150, 215, 255)
+			ice.FillTransparency = 0.45
+			ice.OutlineColor = Color3.fromRGB(220, 245, 255)
+			ice.OutlineTransparency = 0.2
+			ice.DepthMode = Enum.HighlightDepthMode.Occluded
+			ice.Adornee = e.model
+			ice.Parent = e.model
+			task.delay(seconds, function()
+				ice:Destroy()
+			end)
+		end
 		for _, d in e.model:GetDescendants() do
 			if d:IsA("BasePart") and d.Name == "Body" then
 				local original = d.Color
@@ -1695,7 +1767,15 @@ function DefenseFX.Start()
 				local s = view.squash
 				local q = math.sin(s * math.pi * 1.5) * s * 0.28
 				mesh.Scale = Vector3.new(1 + w + q, 1 - w - q, 1 + w + q)
+			elseif view.meshSize and view.body then
+				-- 3D ağ: aynı esneme Size ile; ayaklar yerden kalkmasın diye
+				-- gövde ezildiği kadar aşağı (aşağıda "sink")
+				local w = math.sin(now * (if walking then 9 else 4) + view.t0) * (if walking then 0.07 else 0.04)
+				local s = view.squash
+				local q = math.sin(s * math.pi * 1.5) * s * 0.22
+				view.body.Size = view.meshSize * Vector3.new(1 + w + q, 1 - w - q, 1 + w + q)
 			end
+			local sink = if view.meshSize and view.body then (view.meshSize.Y - view.body.Size.Y) / 2 else 0
 			if view.flash > 0 then
 				view.flash = math.max(0, view.flash - dt * 6)
 				if view.body then
@@ -1710,7 +1790,7 @@ function DefenseFX.Start()
 			view.knock *= math.exp(-dt * 8)
 			view.lunge = math.max(0, view.lunge - dt * 5)
 			local lunge = face * (math.sin(view.lunge * math.pi) * 0.9)
-			local at = pos + Vector3.new(0, bob, 0) + lunge + view.knock
+			local at = pos + Vector3.new(0, bob - sink, 0) + lunge + view.knock
 			if face.Magnitude > 0.01 then
 				local cf = CFrame.lookAt(at, at + Vector3.new(face.X, 0, face.Z))
 				local rig = view.rig

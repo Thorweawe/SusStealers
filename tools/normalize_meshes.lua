@@ -160,6 +160,29 @@ local SPEC = {
 	Stellar_lo = { "Stellar", 2.4, -1.55, "JetpackMeshes", 180, "w" },
 	Supernova_lo = { "Supernova", 2.4, -1.55, "JetpackMeshes", 180, "w" },
 	CosmicJet_lo = { "CosmicJet", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	-- gezegen savunması (DefenseMeshes; EnemyModel / PlanetWorldService / DefenseFX)
+	-- düşmanlar: EnemyModel'in parça boyları (DefenseFX sonra ENEMY_SCALE ile büyütüyor)
+	defGrub_lo = { "Grub", 5.3, 0, "DefenseMeshes", 0, "h" },
+	defSkitter_lo = { "Skitter", 3.5, 0, "DefenseMeshes", 0, "h" },
+	defSpitter_lo = { "Spitter", 5.2, 0, "DefenseMeshes", 0, "h" },
+	defBrute_lo = { "Brute", 7.2, 0, "DefenseMeshes", 0, "h" },
+	-- ana gemi (boy 118'lik parça gemi) ve dükkân gemicikleri (gövde 28)
+	defMothership_lo = { "Mothership", 120, 0, "DefenseMeshes", 0, "w" },
+	defShipHospital_lo = { "ShipHospital", 26, 0, "DefenseMeshes", 0, "w" },
+	defShipArmory_lo = { "ShipArmory", 26, 0, "DefenseMeshes", 0, "w" },
+	defShipShop_lo = { "ShipShop", 26, 0, "DefenseMeshes", 0, "w" },
+	defShipMarket_lo = { "ShipMarket", 26, 0, "DefenseMeshes", 0, "w" },
+	-- silahlar: silahın kendi uzayında (s = 1, tutuş orijinde)
+	defWpnBlaster_lo = { "WpnBlaster", 3.0, -0.75, "DefenseMeshes", 0, "w" },
+	defWpnSword_lo = { "WpnSword", 4.2, -0.45, "DefenseMeshes", 0, "h" },
+	defWpnShield_lo = { "WpnShield", 3.0, -1.3, "DefenseMeshes", 0, "h" },
+	defWpnDagger_lo = { "WpnDagger", 1.9, -0.35, "DefenseMeshes", 0, "w" },
+	defWpnStaff_lo = { "WpnStaff", 4.7, -1.0, "DefenseMeshes", 0, "h" },
+	defWpnRayGun_lo = { "WpnRayGun", 2.4, -1.0, "DefenseMeshes", 0, "w" },
+	-- dekor (PlanetWorldService ölçekliyor)
+	defDecorMushroom_lo = { "DecorMushroom", 12, 0, "DefenseMeshes", 0, "h" },
+	defDecorRocks_lo = { "DecorRocks", 10, 0, "DefenseMeshes", 0, "w" },
+	defDecorCrystal_lo = { "DecorCrystal", 8, 0, "DefenseMeshes", 0, "h" },
 }
 local out = {}
 for _, m in workspace:GetChildren() do

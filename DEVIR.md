@@ -13,6 +13,24 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (90) — Yusuf → **Batur, oku** (gezegen savunması 3D; SENİN dosyalarına dokunuldu)
+- Kullanıcı isteği: "farklı mape gidiyorsun, ordaki modelleri de 3d yap herşeyi, efektleri ayarla".
+  Hepsi **ağ yoksa eski hâline düşüyor**: `ReplicatedStorage.DefenseMeshes.<ad>` yoksa senin parça
+  modellerin aynen kuruluyor. Ağlar `models_3d/defense` (ChatGPT konsepti → TRELLIS), Studio için
+  `SusStealers_IMPORT/7_savunma/def*_lo.glb`, ölçüler `tools/normalize_meshes.lua` ("gezegen savunması").
+- `EnemyModel` (shared): `meshEnemy` — Grub/Skitter/Spitter/Brute 3D; en büyük MeshPart "Body".
+- `DefenseFX`: 3D gövde `meshSize` ile Size'tan jöle esnemesi (ayak yere oturuyor, "sink"),
+  ölümde yayvanlaşma; vurulma parlaması mevcut Highlight yolu. `onFreeze` 3D/iskeletli düşmana buz
+  mavisi Highlight. `skinWeapon`: rol silahları (Blaster/Sword/Shield/Dagger/Staff) 3D; Grip/Muzzle
+  görünmez yerinde, kalkancının copu parça.
+- `PlanetWorldService`: `meshTemplate`/`skin`/`glowAt`. Ana gemi (`Mothership`): gövde parçaları
+  silinip ağ; **rampa, kapı, Collision kutuları aynen**. Dükkânlar (`Ship*`): güverte, tezgâh (istem),
+  tabela (ağın üstüne taşınıyor), tezgâhtar kalıyor; yeni tek Collision kutusu ağın ölçüsünden.
+  Dekor: mantar ağacı, kristal kümesi 3D (+ görünmez PointLight), yeni balçıklı kaya kümeleri.
+  `SHIP_MESH_YAW/OFFSET`, `STALL_MESH_YAW` import'tan sonra Studio'da bakılıp ayarlanacak.
+- `DefenseService.GiveRayGun`: `WpnRayGun` ağı tutamağa kaynaklı; Lightsaber'a dokunulmadı
+  (seviye rengindeki neon bıçak kalsın).
+
 ## 2026-10-02 (89) — Yusuf → **Batur, oku** (dal `crew-efektler`: main birleştirildi, Studio'ya henüz basılmadı)
 - Yusuf'un GitHub hesabı askıya alındı: `git push` 403. Dal sana **git bundle** olarak geliyor
   (Discord'dan `crew-efektler.bundle`). Kendi makinende:

@@ -1280,6 +1280,42 @@ function DefenseService.GiveRayGun(player: Player)
 	piece("Muzzle", Vector3.one * 0.32, CFrame.new(0, 0.12, -1.85), color, true, Enum.PartType.Ball)
 	piece("Grip", Vector3.new(0.38, 0.8, 0.45), CFrame.new(0, -0.6, 0.45) * CFrame.Angles(math.rad(-18), 0, 0), Color3.fromRGB(50, 54, 66), false)
 	piece("Sight", Vector3.new(0.12, 0.2, 0.3), CFrame.new(0, 0.45, -0.3), color, true)
+	--[[
+		3D ağ (2026-10-02, Yusuf): ReplicatedStorage.DefenseMeshes.WpnRayGun
+		(tutamağın uzayında, namlu -Z) varsa parça tabanca gizlenip ağ
+		kaynaklanıyor; Muzzle görünmez olarak yerinde (ışın oradan çıkıyor).
+	]]
+	local meshes = ReplicatedStorage:FindFirstChild("DefenseMeshes")
+	local template = meshes and meshes:FindFirstChild("WpnRayGun")
+	if template and template:IsA("Model") then
+		for _, d in tool:GetChildren() do
+			if d:IsA("BasePart") then
+				d.Transparency = 1
+			end
+		end
+		for _, src in template:GetDescendants() do
+			if src:IsA("MeshPart") then
+				local p = src:Clone()
+				for _, c in p:GetChildren() do
+					if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+						c:Destroy()
+					end
+				end
+				p.Name = "GunMesh"
+				p.Anchored = false
+				p.CanCollide = false
+				p.CanQuery = false
+				p.CanTouch = false
+				p.Massless = true
+				p.CFrame = body.CFrame * CFrame.new(0, 0, -0.55) * src.CFrame
+				p.Parent = tool
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = body
+				weld.Part1 = p
+				weld.Parent = p
+			end
+		end
+	end
 	tool.Activated:Connect(function()
 		shoot(player)
 	end)

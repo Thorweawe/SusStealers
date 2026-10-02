@@ -67,12 +67,57 @@ local function eye(model: Model, at: CFrame, size: number)
 		{ Material = Enum.Material.Neon })
 end
 
+--[[
+	3D ağ (2026-10-02, Yusuf): ReplicatedStorage.DefenseMeshes.<kind> varsa
+	(ChatGPT konsepti → TRELLIS → tools/normalize_meshes.lua; taban y=0,
+	yüzü -Z, boy aşağıdaki parça modelle aynı) parça gövde yerine o ağ.
+	En büyük MeshPart "Body" adını alıyor: DefenseFX onu SpecialMesh yerine
+	Size ile esnetiyor, parlamayı Highlight ile yapıyor.
+]]
+local function meshEnemy(model: Model, kind: string): boolean
+	local meshes = game:GetService("ReplicatedStorage"):FindFirstChild("DefenseMeshes")
+	local template = meshes and meshes:FindFirstChild(kind)
+	if not (template and template:IsA("Model")) then
+		return false
+	end
+	local best: MeshPart? = nil
+	for _, src in template:GetDescendants() do
+		if not src:IsA("MeshPart") then
+			continue
+		end
+		local p = src:Clone()
+		for _, c in p:GetChildren() do
+			if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+				c:Destroy()
+			end
+		end
+		p.Name = "Mesh"
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Parent = model
+		if not best or p.Size.Magnitude > best.Size.Magnitude then
+			best = p
+		end
+	end
+	if not best then
+		return false
+	end
+	best.Name = "Body"
+	return true
+end
+
 --[[ kind: DefenseConfig.Enemies kimliği. body/dark/glow: gezegenin paleti. ]]
 function EnemyModel.Build(kind: string, body: Color3, dark: Color3, glow: Color3): Model
 	local model = Instance.new("Model")
 	model.Name = "Enemy_" .. kind
 	local root = part(model, "Root", Vector3.new(1, 1, 1), CFrame.new(), body, { Transparency = 1 })
 	model.PrimaryPart = root
+	if meshEnemy(model, kind) then
+		return model
+	end
 	local o = CFrame.new()
 	local light = body:Lerp(WHITE, 0.3)
 
