@@ -281,15 +281,19 @@ function LimitedFX.Start(screen: Instance): Handle
 
 	--[[
 		Yağmurun düşen parçaları sunucuda neon küre (LimitedEventService,
-		"EventStars"). Cadılar Bayramında 3D şeker varsa küre yerelde gizlenip
-		dönen şeker biniyor; ışık, parıltı ve üstteki simge aynen kalıyor.
+		"EventStars"). Temanın 3D parçası varsa (Starfall: Star, Cadılar
+		Bayramı: Candy; ReplicatedStorage.EventMeshes) küre yerelde gizlenip
+		ağ biniyor; ışık, parıltı ve üstteki simge aynen kalıyor.
 	]]
 	local candyConn: RBXScriptConnection? = nil
-	if Config.LimitedEvent.decor == "pumpkins" then
+	local pickupMesh = if Config.LimitedEvent.decor == "pumpkins" then "Candy"
+		elseif Config.LimitedEvent.decor == "stars" then "Star"
+		else nil
+	if pickupMesh then
 		local function dress(d: Instance)
 			if d:IsA("BasePart") and (d.Name == "EventStar" or d.Name == "SuperStar") then
 				task.defer(function()
-					if meshOn(d, "Candy", d.Size.X * 1.6) then
+					if meshOn(d, pickupMesh :: string, d.Size.X * 1.6) then
 						d.Transparency = 1
 					end
 				end)

@@ -30,6 +30,7 @@
 ]]
 
 local Config = require(script.Parent.Config)
+local PetFX = require(script.Parent.PetFX)
 
 local PetModel = {}
 
@@ -777,6 +778,61 @@ function PetModel.Build(key: string): Model?
 			light.Parent = body
 		end
 	end
+
+	--[[
+		3D ağ (2026-10-02): ReplicatedStorage.PetMeshes.<id> varsa (ChatGPT
+		konsepti → TRELLIS → tools/normalize_meshes.lua; tasarım uzayında,
+		taban y=0) parça gövde GİZLENİP ağ biniyor. Gövde parçası yerinde
+		kalıyor: ışık, parıltı ve takip ölçüleri (Lift) ona bağlı. Ayak altı
+		halkası (Aura) görünür kalıyor. Mutasyonda ağın üstüne mutasyon
+		renginde ince ForceField kabuk (crewmate'teki gibi).
+	]]
+	local meshes = game:GetService("ReplicatedStorage"):FindFirstChild("PetMeshes")
+	local template = meshes and meshes:FindFirstChild(def.id)
+	if template and template:IsA("Model") then
+		for _, p in model:GetChildren() do
+			if p:IsA("BasePart") and p.Name ~= "Aura" then
+				p.Transparency = 1
+			end
+		end
+		for _, src in template:GetDescendants() do
+			if not src:IsA("MeshPart") then
+				continue
+			end
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Name = "Mesh" .. src.Name
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = model
+			if mutation then
+				local shell = src:Clone()
+				shell:ClearAllChildren()
+				shell.Name = "MutationShell"
+				shell.TextureID = ""
+				shell.Material = Enum.Material.ForceField
+				shell.Color = mutation.tint
+				shell.Size = src.Size * 1.05
+				shell.CFrame = src.CFrame
+				shell.Anchored = true
+				shell.CanCollide = false
+				shell.CanQuery = false
+				shell.CanTouch = false
+				shell.CastShadow = false
+				shell.Parent = model
+			end
+		end
+	end
+
+	-- Tema efekti (ölçeklemeden önce: ScaleTo yayıcıları da büyütüyor)
+	PetFX.Apply(body, def.id)
 
 	model.PrimaryPart = body
 

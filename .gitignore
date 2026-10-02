@@ -80,3 +80,11 @@ models_3d/event/*.mp4
 models_3d/props/*_concept.png
 ui_art/event/*_raw.png
 ui_art/event/icon_raw_*.png
+models_3d/pets/*.glb
+!models_3d/pets/*_lo.glb
+models_3d/pets/*_concept.png
+models_3d/pets/*.mp4
+models_3d/starfall/*.glb
+!models_3d/starfall/*_lo.glb
+models_3d/starfall/*_concept.png
+models_3d/starfall/*.mp4
