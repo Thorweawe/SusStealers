@@ -127,6 +127,73 @@ local function makePart(piece: Piece): Part
 	return p
 end
 
+--[[
+	3D ağ (2026-10-03, Yusuf): ReplicatedStorage.GearMeshes.<id> varsa
+	(ChatGPT konsepti → TRELLIS → tools/normalize_meshes.lua; yönü
+	parçalarla aynı: +Y yukarı, eldivende parmaklar +Y, tabancada namlu -Z)
+	parça alet görünmez olup ağ biniyor. Ağ, parçaların sapa göre kapladığı
+	kutuya oturtuluyor (en uzun kenar eşit, ortalar çakışık); Handle ve
+	Grip aynen kaldığı için tutuş ve vuruş değişmiyor.
+]]
+local function meshFor(id: string): Model?
+	local meshes = game:GetService("ReplicatedStorage"):FindFirstChild("GearMeshes")
+	local template = meshes and meshes:FindFirstChild(id)
+	return if template and template:IsA("Model") then template else nil
+end
+
+-- Ağın sap uzayındaki yerleşimi: her MeshPart için (kaynak, sap→parça CFrame, boy)
+local function meshFit(id: string, template: Model): { { src: MeshPart, cf: CFrame, size: Vector3 } }
+	local lo, hi = Vector3.one * 1e9, -Vector3.one * 1e9
+	for _, piece in pieces(id) do
+		for _, sx in { -1, 1 } do for _, sy in { -1, 1 } do for _, sz in { -1, 1 } do
+			local w = piece.cf:PointToWorldSpace(piece.size * Vector3.new(sx, sy, sz) / 2)
+			lo = lo:Min(w)
+			hi = hi:Max(w)
+		end end end
+	end
+	-- Şablonun kutusu dünya eksenlerinde (modelin pivot dönüşü karışmasın)
+	local tlo, thi = Vector3.one * 1e9, -Vector3.one * 1e9
+	for _, src in template:GetDescendants() do
+		if src:IsA("BasePart") then
+			for _, sx in { -1, 1 } do for _, sy in { -1, 1 } do for _, sz in { -1, 1 } do
+				local w = src.CFrame:PointToWorldSpace(src.Size * Vector3.new(sx, sy, sz) / 2)
+				tlo = tlo:Min(w)
+				thi = thi:Max(w)
+			end end end
+		end
+	end
+	local want, tsize = hi - lo, thi - tlo
+	local k = math.max(want.X, want.Y, want.Z) / math.max(tsize.X, tsize.Y, tsize.Z)
+	local center, tcenter = (lo + hi) / 2, (tlo + thi) / 2
+	local out = {}
+	for _, src in template:GetDescendants() do
+		if src:IsA("MeshPart") then
+			table.insert(out, {
+				src = src,
+				cf = CFrame.new(center) * (src.CFrame.Rotation + (src.CFrame.Position - tcenter) * k),
+				size = src.Size * k,
+			})
+		end
+	end
+	return out
+end
+
+local function meshPart(src: MeshPart, size: Vector3): MeshPart
+	local p = src:Clone()
+	for _, c in p:GetChildren() do
+		if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+			c:Destroy()
+		end
+	end
+	p.Name = "GearMesh"
+	p.Size = size
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	return p
+end
+
 --[[ Sırt çantasına giden Tool. Tanınmayan kimlik nil. ]]
 function GearModel.BuildTool(id: string): Tool?
 	local def = Config.GetGear(id)
@@ -154,6 +221,26 @@ function GearModel.BuildTool(id: string): Tool?
 		weld.Part0 = handle
 		weld.Part1 = part
 		weld.Parent = part
+	end
+
+	local template = meshFor(id)
+	if template then
+		for _, d in tool:GetChildren() do
+			if d:IsA("BasePart") then
+				d.Transparency = 1
+			end
+		end
+		for _, fit in meshFit(id, template) do
+			local p = meshPart(fit.src, fit.size)
+			p.Anchored = false
+			p.Massless = true
+			p.CFrame = handle.CFrame * fit.cf
+			p.Parent = tool
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = handle
+			weld.Part1 = p
+			weld.Parent = p
+		end
 	end
 
 	--[[
@@ -193,6 +280,20 @@ function GearModel.BuildDisplay(id: string, at: CFrame): Model?
 		part.Parent = model
 		if i == 1 then
 			base = part
+		end
+	end
+	local template = meshFor(id)
+	if template then
+		for _, d in model:GetChildren() do
+			if d:IsA("BasePart") then
+				d.Transparency = 1
+			end
+		end
+		for _, fit in meshFit(id, template) do
+			local p = meshPart(fit.src, fit.size)
+			p.Anchored = true
+			p.CFrame = at * fit.cf
+			p.Parent = model
 		end
 	end
 	model.PrimaryPart = base
