@@ -28,6 +28,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local CosmeticModel = require(Shared.CosmeticModel)
+local PetModel = require(Shared.PetModel)
 
 local CardKit = require(script.Parent.CardKit)
 local FancyKit = require(script.Parent.FancyKit)
@@ -114,7 +115,7 @@ function EventPanel.Create(screen: Instance): Panel
 	local driver = FancyKit.driver(root)
 	local shell = FancyKit.shell(root, e.emoji .. " " .. e.name, { e.color, e.color2, e.color:Lerp(Color3.new(1, 1, 1), 0.3) }, HEADER, Z, driver, 44)
 	local body = shell.body
-	local icons = UiArt.EventIcon[e.id] or { currency = 0, crew = 0 }
+	local icons = UiArt.EventIcon[e.id] or { currency = 0, crew = 0, egg = 0 }
 	local function iconImage(parent: Instance, id: number, size: UDim2, z: number): ImageLabel
 		local img = Instance.new("ImageLabel")
 		img.BackgroundTransparency = 1
@@ -215,6 +216,8 @@ function EventPanel.Create(screen: Instance): Panel
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = list
 
+	local spinners: { Model } = {} -- dönen 3B önizlemeler (kozmetik, sınırlı pet)
+
 	-- ─── Yağmur, yıldız yolu, giriş takvimi (listenin başı) ─────────────
 	local function section(order: number, height: number, tint: Color3): Frame
 		local holder = Instance.new("Frame")
@@ -232,6 +235,92 @@ function EventPanel.Create(screen: Instance): Panel
 		l.TextXAlignment = Enum.TextXAlignment.Left
 		CardKit.fit(l, size, 9)
 		return l
+	end
+
+	--[[
+		SINIRLI YUMURTA (2026-10-02, Config.LimitedEggs / e.egg): listenin
+		başında. Altı sınırlı pet dönen 3B önizlemeyle ve ihtimalleriyle
+		(şeffaflık), açma düğmeleri Stardust'la. Açılış animasyonu her
+		yumurtadaki gibi (PetHatched → HatchFX). Kıtlık: "etkinlikten sonra
+		bir daha çıkmıyor".
+	]]
+	local eggDef = if e.egg then Config.GetEgg(e.egg) else nil
+	local eggButtons: { { buy: CardKit.Button, count: number } } = {}
+	if eggDef then
+		local pets = Config.GetEggPets(eggDef.id)
+		local total = 0
+		for _, w in eggDef.weights do
+			total += w
+		end
+		local eggCard = section(-6, 214, e.color2:Lerp(e.color, 0.35))
+		if (icons.egg or 0) ~= 0 then
+			-- Yumurtanın ikonu sağ üstte, kartın kenarından taşarak
+			local eggIcon = iconImage(eggCard, icons.egg :: number, UDim2.fromOffset(64, 64), Z + 6)
+			eggIcon.AnchorPoint = Vector2.new(1, 0)
+			eggIcon.Position = UDim2.new(1, -8, 0, -6)
+		end
+		line(eggCard, string.format("%s %s  ·  LIMITED PETS", e.emoji, string.upper(eggDef.name)), 20, CardKit.YELLOW, 8)
+		line(eggCard, "Only during " .. e.name .. " - these pets never come back!", 13, Color3.fromRGB(220, 230, 255), 32)
+		local row = Instance.new("Frame")
+		row.Position = UDim2.fromOffset(10, 52)
+		row.Size = UDim2.new(1, -20, 0, 96)
+		row.BackgroundTransparency = 1
+		row.ZIndex = Z + 4
+		row.Parent = eggCard
+		for i, def in pets do
+			local slot = Instance.new("Frame")
+			slot.Position = UDim2.new((i - 1) / #pets, 3, 0, 0)
+			slot.Size = UDim2.new(1 / #pets, -6, 1, 0)
+			slot.BackgroundColor3 = Color3.fromRGB(20, 22, 44)
+			slot.BackgroundTransparency = 0.25
+			slot.BorderSizePixel = 0
+			slot.ZIndex = Z + 4
+			slot.Parent = row
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 10)
+			corner.Parent = slot
+			local rarity = Config.Rarities[def.rarity]
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = rarity.color
+			stroke.Thickness = 2
+			stroke.Parent = slot
+			local vp = Instance.new("ViewportFrame")
+			vp.Size = UDim2.new(1, 0, 1, -18)
+			vp.BackgroundTransparency = 1
+			vp.Ambient = Color3.fromRGB(190, 185, 200)
+			vp.LightColor = Color3.new(1, 1, 1)
+			vp.ZIndex = Z + 5
+			vp.Parent = slot
+			local model = PetModel.Build(def.id)
+			if model then
+				model.Parent = vp
+				local cf, size = model:GetBoundingBox()
+				local cam = Instance.new("Camera")
+				local dist = math.max(size.X, size.Y, size.Z) * 1.9
+				cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, dist * 0.25, -dist), cf.Position)
+				cam.FieldOfView = 40
+				cam.Parent = vp
+				vp.CurrentCamera = cam
+				table.insert(spinners, model)
+			end
+			local pct = (eggDef.weights[def.rarity] or 0) / math.max(total, 1) * 100
+			local odds = CardKit.bold(slot, if pct < 1 then string.format("%.1f%%", pct) else string.format("%d%%", math.floor(pct + 0.5)),
+				13, rarity.color:Lerp(Color3.new(1, 1, 1), 0.3), Z + 6, 1.5)
+			odds.AnchorPoint = Vector2.new(0, 1)
+			odds.Position = UDim2.new(0, 0, 1, -2)
+			odds.Size = UDim2.new(1, 0, 0, 16)
+		end
+		local hatchRemote = Net.Get("PetHatch")
+		for k, n in { 1, Config.TripleHatchCount } do
+			local b = CardKit.button(eggCard, UDim2.new(0.5, -18, 0, 50), Z + 4, 20, CardKit.GREEN)
+			b.holder.Position = UDim2.new((k - 1) * 0.5, 12, 0, 156)
+			b.button.Activated:Connect(function()
+				if b.button.Active then
+					hatchRemote:FireServer(eggDef.id, n, false)
+				end
+			end)
+			table.insert(eggButtons, { buy = b, count = n })
+		end
 	end
 
 	-- Yıldız yağmuru: ne zaman, ne kadar (ihtimal açık)
@@ -483,7 +572,6 @@ function EventPanel.Create(screen: Instance): Panel
 	local shopRemote = Net.Get("EventShop")
 	type Row = { item: any, buy: CardKit.Button, count: TextLabel }
 	local rows: { Row } = {}
-	local spinners: { Model } = {}
 
 	for i, item in e.shop do
 		local holder = Instance.new("Frame")
@@ -710,6 +798,13 @@ function EventPanel.Create(screen: Instance): Panel
 		local candy = player:GetAttribute("EventCandy")
 		candy = if typeof(candy) == "number" then candy else 0
 		candyText.Text = string.format("%s %d", e.icon, candy)
+		if eggDef then
+			for _, eb in eggButtons do
+				local cost = eggDef.price * eb.count
+				local label = string.format("%s %s %d", if eb.count > 1 then "HATCH x" .. eb.count else "HATCH", e.icon, cost)
+				eb.buy.set(label, if active and candy >= cost then CardKit.GREEN else CardKit.GREEN:Lerp(CardKit.GREY, 0.55))
+			end
+		end
 		local bought = boughtMap()
 		for _, row in rows do
 			local have = bought[row.item.id] or 0

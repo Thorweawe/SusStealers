@@ -227,6 +227,30 @@ local FX: { [string]: (b: BasePart) -> () } = {
 	end,
 }
 
+-- ⭐ Starfall Egg (SINIRLI): hepsi yıldız ailesinde, kademe yükseldikçe gösterişli
+FX.StarMote = function(b) -- yıldız tozu
+	emit(b, "Dust", O, V.Star, c3(230, 240, 255), c3(150, 200, 255), 0.16, 2, 1, { surface = true, speed = 0.2, accel = RISE, spin = 140 })
+end
+FX.MeteorMole = function(b) -- kabuktan kor + toz
+	emit(b, "Ember", TOP, V.Ember, c3(255, 200, 110), c3(255, 100, 30), 0.16, 1.6, 1, { speed = 0.6, up = true, spread = 40 })
+	emit(b, "Dust", LOW, V.Dust, c3(150, 120, 100), c3(90, 70, 60), 0.5, 0.6, 1.2, { speed = 0.3, spread = 80, alpha = 0.6, emission = 0.1 })
+end
+FX.StarOwl = function(b) -- kuyruktan kayan yıldız izi
+	emit(b, "Trail", BACK, T("shooting", V.Star), c3(220, 235, 255), c3(255, 210, 100), 0.28, 2.5, 0.9, { speed = 0.6, spread = 25, accel = Vector3.new(0, -0.4, 0.8), spin = 60 })
+end
+FX.StarDrake = function(b) -- kanatlardan yıldız + mor nebula nefesi
+	emit(b, "Stars", O, V.Star, c3(255, 245, 200), c3(150, 120, 255), 0.22, 2.5, 1, { surface = true, speed = 0.3, spin = 160 })
+	emit(b, "Breath", Vector3.new(0, 0.2, -0.9), V.Nebula, c3(180, 140, 255), c3(80, 50, 200), 0.8, 1, 0.9, { speed = 0.8, spread = 20, alpha = 0.45, emission = 0.6, spin = 30 })
+end
+FX.GalaxyCorn = function(b) -- galaksi yelesi + gökkuşağı ışıltısı
+	emit(b, "Mane", TOP, T("galaxy", V.Nebula), c3(200, 150, 255), c3(90, 60, 200), 1, 0.8, 1.6, { speed = 0.2, up = true, spread = 40, alpha = 0.5, emission = 0.7, spin = 20 })
+	emit(b, "Sparkle", O, V.Star, c3(255, 200, 240), c3(150, 230, 255), 0.2, 3, 0.8, { surface = true, speed = 0.2, spin = 160 })
+end
+FX.WishStar = function(b) -- dilek: altın yıldız yağmuru + sıcak hale
+	emit(b, "Wish", TOP, T("shooting", V.Star), c3(255, 250, 210), c3(255, 210, 90), 0.3, 3, 1.4, { speed = 0.8, spread = 70, accel = Vector3.new(0, -1.2, 0), spin = 140 })
+	emit(b, "Halo", O, V.Orb, c3(255, 245, 200), c3(255, 215, 120), 2.2, 0.5, 1.6, { speed = 0, alpha = 0.6 })
+end
+
 --[[ Petin tema efektini gövdeye takar (yoksa bir şey yapmaz). ]]
 function PetFX.Apply(body: BasePart, petId: string)
 	local f = FX[petId]

@@ -556,7 +556,7 @@ function PetPanel.Create(screen: ScreenGui, auto: AutoHatch.Handle?, host: Frame
 			eksik" sorusunu tek bakışta cevaplasın. Yumurta içinde kademe
 			sırası (Common önce); kademe kartın alt satırında yazıyor.
 		]]
-		for _, egg in Config.Eggs do
+		for _, egg in Config.AllEggs() do
 			local tint = eggTint(egg)
 
 			-- Bu yumurtanın sahip olunan anahtarları ve hiç bulunmamış petleri

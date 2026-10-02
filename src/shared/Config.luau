@@ -2113,7 +2113,8 @@ export type PetDef = {
 	id: string,
 	name: string,
 	rarity: Rarity,
-	egg: string,           -- çıktığı TEK yumurta (Config.Eggs kimliği)
+	egg: string,           -- çıktığı TEK yumurta (Config.Eggs ya da Config.LimitedEggs kimliği)
+	limited: string?,      -- sınırlı etkinlik petiyse etkinliğin kimliği (yalnız o hafta çıkıyor)
 	incomeBonus: number,   -- gelire eklenen oran (0.25 = +%25)
 	speedBonus: number,    -- taşıma hızına eklenen stud/s
 	color: Color3,
@@ -2167,6 +2168,8 @@ local EGG_TIER = {
 	-- Rebirth yumurtaları (2026-09-30): geç oyunda pet yeniden anlamlı
 	NebulaEgg    = { income = 6.5, speed = 2.3 },
 	CelestialEgg = { income = 10,  speed = 2.8 },
+	-- Sınırlı etkinlik yumurtası (2026-10-02): herkes açabiliyor, Polus ile Void arası güç
+	StarfallEgg  = { income = 3.0, speed = 1.7 },
 }
 
 --[[
@@ -2212,6 +2215,11 @@ local PET_STYLE = {
 	runner   = { income = 0.85, speed = 1.25 },  -- koşucu: taşıma hızı önde
 }
 
+-- Sınırlı yumurtaların petleri hangi etkinliğe ait (Config.LimitedEggs)
+local EGG_LIMITED: { [string]: string } = {
+	StarfallEgg = "Starfall2026",
+}
+
 local function pet(id: string, name: string, rarity: Rarity, egg: string, color: Color3, style: string?): PetDef
 	local base = PET_TIER[rarity]
 	local eggTier = EGG_TIER[egg]
@@ -2232,6 +2240,7 @@ local function pet(id: string, name: string, rarity: Rarity, egg: string, color:
 		color = color,
 		escape = if perk == "escape" then PET_PERK.escape[rarity] else nil,
 		luck = if perk == "luck" then PET_PERK.luck[rarity] else nil,
+		limited = EGG_LIMITED[egg],
 	}
 end
 
@@ -2295,6 +2304,14 @@ Config.Pets = {
 	pet("PrismFox",   "Prism Fox",        "Legendary", "CelestialEgg", Color3.fromRGB(120, 255, 235)),
 	pet("CometKing",  "Comet King",       "Mythic",    "CelestialEgg", Color3.fromRGB(255, 110, 150)),
 	pet("CelestCore", "Celestial Core",   "Secret",    "CelestialEgg", Color3.fromRGB(110, 250, 230)),
+
+	-- ⭐ STARFALL EGG (SINIRLI, Starfall2026): yalnızca etkinlik haftası, Stardust'la
+	pet("StarMote",   "Stardust Mote",    "Common",    "StarfallEgg", Color3.fromRGB(200, 225, 255)),
+	pet("MeteorMole", "Meteor Mole",      "Rare",      "StarfallEgg", Color3.fromRGB(120,  90,  80)),
+	pet("StarOwl",    "Shooting Star Owl", "Epic",     "StarfallEgg", Color3.fromRGB( 60,  90, 200)),
+	pet("StarDrake",  "Starfall Drake",   "Legendary", "StarfallEgg", Color3.fromRGB(120,  90, 230)),
+	pet("GalaxyCorn", "Galaxy Unicorn",   "Mythic",    "StarfallEgg", Color3.fromRGB(190, 140, 255)),
+	pet("WishStar",   "Wishing Star",     "Secret",    "StarfallEgg", Color3.fromRGB(255, 235, 150)),
 } :: { PetDef }
 
 -- Aynı anda takılabilecek pet sayısı. Üç: sıralı bir seçim yapacak kadar
@@ -2515,6 +2532,8 @@ export type EggDef = {
 	weights: { [string]: number },  -- nadirlik -> ağırlık
 	tint: Color3,                   -- yumurtanın ışık/yazı rengi (kuluçka ve arayüz)
 	rebirths: number?,              -- açmak için gereken rebirth (yoksa herkese açık)
+	currency: string?,              -- "event": fiyat etkinlik parasıyla (Stardust/Candy), nakit değil
+	limited: string?,               -- yalnız bu etkinlik (Config.LimitedEvent.id) sürerken açılıyor
 }
 
 --[[
@@ -2552,6 +2571,30 @@ Config.Eggs = {
 		weights = { Common = 38, Uncommon = 27, Rare = 17, Epic = 10, Legendary = 5.5, Mythic = 2, Secret = 0.5 },
 		tint = Color3.fromRGB(110, 250, 230) },
 } :: { EggDef }
+
+--[[
+	SINIRLI etkinlik yumurtaları (2026-10-02, Yusuf: "bu günkü etkinliğe özel
+	yumurta, limited petler"). Config.Eggs'ten AYRI liste: kuluçkadaki
+	Egg1..6 yerleri ve yumurta sırası testleri bozulmasın. Kuluçkada değil,
+	etkinlik penceresinden açılıyor; fiyatı etkinlik parası (Stardust), nakit
+	değil. Etkinlik bitince açılmıyor, petleri bir daha çıkmıyor (kıtlık).
+	Kademe ağırlıkları yalnız petin olduğu kademeler (Uncommon yok).
+]]
+Config.LimitedEggs = {
+	{ id = "StarfallEgg", name = "Starfall Egg", price = 40, currency = "event", limited = "Starfall2026",
+		weights = { Common = 58, Rare = 27, Epic = 11, Legendary = 3.3, Mythic = 0.6, Secret = 0.1 },
+		tint = Color3.fromRGB(120, 190, 255) },
+} :: { EggDef }
+
+--[[ Bütün yumurtalar: kuluçkadakiler, sonra sınırlılar (envanter ve indeks
+     listeleri; sınırlı pet sahibinin envanterinde de görünsün). ]]
+function Config.AllEggs(): { EggDef }
+	local out = table.clone(Config.Eggs)
+	for _, egg in Config.LimitedEggs do
+		table.insert(out, egg)
+	end
+	return out
+end
 
 --[[ Yumurta bu rebirth sayısında açılabiliyor mu. ]]
 function Config.EggUnlocked(egg: EggDef, rebirths: number): boolean
@@ -2616,6 +2659,11 @@ end
 
 function Config.GetEgg(id: string): EggDef?
 	for _, def in Config.Eggs do
+		if def.id == id then
+			return def
+		end
+	end
+	for _, def in Config.LimitedEggs do
 		if def.id == id then
 			return def
 		end
@@ -2940,6 +2988,7 @@ export type LimitedEventDef = {
 	community: { name: string, tiers: { { at: number, label: string, reward: RewardDef } } },
 	decor: string,           -- "stars" | "pumpkins"
 	railHat: string,         -- sol raydaki EVENT düğmesinde dönen şapka
+	egg: string?,            -- etkinliğin SINIRLI yumurtası (Config.LimitedEggs), penceresinde açılıyor
 	text: { teaser: string, live: string, hunters: string, path: string, pickup: string? }, -- pickup: yağmurda düşen şeyin adı ("Stars")
 	leaderboard: { rows: number, rewardTop: number, reward: string },
 	shop: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
@@ -2995,6 +3044,7 @@ Config.LimitedEvent = {
 	},
 	decor = "stars",
 	railHat = "CometCrown",
+	egg = "StarfallEgg",
 	text = {
 		teaser = "LIMITED EVENT · STARDUST SHOP",
 		live = "STARBORN CREW · LIMITED HATS",

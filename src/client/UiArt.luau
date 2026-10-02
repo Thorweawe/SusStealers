@@ -86,9 +86,9 @@ UiArt.EventArt = {
 --[[ Etkinlik ikonları (2026-10-02, ChatGPT; ui_art/event/): etkinlik parası ve
      etkinlik mutasyonlu crewmate. 0 = yok (pencere emojiye düşüyor). ]]
 UiArt.EventIcon = {
-	Starfall2026 = { currency = 0, crew = 0 },
-	Spooky2026 = { currency = 0, crew = 0 },
-} :: { [string]: { currency: number, crew: number } }
+	Starfall2026 = { currency = 0, crew = 0, egg = 0 },
+	Spooky2026 = { currency = 0, crew = 0, egg = 0 },
+} :: { [string]: { currency: number, crew: number, egg: number? } }
 
 function UiArt.Image(kind: string, name: string): string
 	local id = (UiArt :: any)[kind][name]

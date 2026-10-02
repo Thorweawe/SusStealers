@@ -878,7 +878,7 @@ function Index.Create(screen: ScreenGui): Catalog
 
 	do
 		local number = 0
-		for eggIndex, egg in Config.Eggs do
+		for eggIndex, egg in Config.AllEggs() do
 			local tone = eggTone(egg)
 			local pets = Config.GetEggPets(egg.id)
 			local row = Instance.new("Frame")
@@ -888,7 +888,11 @@ function Index.Create(screen: ScreenGui): Catalog
 			row.BackgroundTransparency = 1
 			row.ZIndex = Z + 2
 			row.Parent = petList
-			header(row, string.format("%s  ·  $%s%s", string.upper(egg.name), Config.FormatCash(egg.price),
+			-- Sınırlı yumurta: fiyat etkinlik parasıyla ve "LIMITED" damgası
+			local price = if egg.currency == "event"
+				then string.format("LIMITED  ·  %s %d", Config.LimitedEvent.icon, egg.price)
+				else "$" .. Config.FormatCash(egg.price)
+			header(row, string.format("%s  ·  %s%s", string.upper(egg.name), price,
 				if egg.rebirths then string.format("  ·  REBIRTH %d", egg.rebirths) else ""), tone, Z + 3)
 			local strip = Instance.new("ScrollingFrame")
 			strip.Position = UDim2.fromOffset(0, 22)

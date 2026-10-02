@@ -127,7 +127,18 @@ function ServerTests2.Register(kit: Kit)
 			byEgg[def.egg][def.rarity] = byEgg[def.egg][def.rarity] or {}
 			table.insert(byEgg[def.egg][def.rarity], def)
 		end
-		eq("pet sayısı (yumurta başına kademe başına bir)", #Config.Pets, 39)
+		local regular = 0
+		for _, def in Config.Pets do
+			if not def.limited then
+				regular += 1
+			end
+		end
+		eq("pet sayısı (yumurta başına kademe başına bir; sınırlılar hariç)", regular, 39)
+		for _, egg in Config.LimitedEggs do
+			for rarity in egg.weights do
+				ok(egg.id .. " " .. rarity .. " peti var", byEgg[egg.id] ~= nil and byEgg[egg.id][rarity] ~= nil)
+			end
+		end
 
 		local function minIncome(list: { Config.PetDef }): number
 			local m = math.huge

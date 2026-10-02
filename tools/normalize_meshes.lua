@@ -92,6 +92,14 @@ local SPEC = {
 	prismfox_lo = { "PrismFox", 2.0, 0.15, "PetMeshes", 180, "h" },
 	cometking_lo = { "CometKing", 2.0, 0.15, "PetMeshes", 180, "h" },
 	celestcore_lo = { "CelestCore", 2.0, 0.15, "PetMeshes", 180, "h" },
+	-- Starfall sınırlı petler + yumurta (EggMeshes: ileride kuluçka/vitrin)
+	starmote_lo = { "StarMote", 2.0, 0.15, "PetMeshes", 180, "h" },
+	meteormole_lo = { "MeteorMole", 2.0, 0.15, "PetMeshes", 180, "h" },
+	starowl_lo = { "StarOwl", 2.0, 0.15, "PetMeshes", 180, "h" },
+	stardrake_lo = { "StarDrake", 2.0, 0.15, "PetMeshes", 180, "h" },
+	galaxycorn_lo = { "GalaxyCorn", 2.0, 0.15, "PetMeshes", 180, "h" },
+	wishstar_lo = { "WishStar", 2.0, 0.15, "PetMeshes", 180, "h" },
+	StarfallEgg_lo = { "StarfallEgg", 6, 0, "EggMeshes", 0, "h" },
 	-- jetpackler (JetpackModel; genişlik 2.4, alt = meme ağzı -1.55; arkadan görünüş konsepti → 180 tahmini)
 	Starter_lo = { "Starter", 2.4, -1.55, "JetpackMeshes", 180, "w" },
 	Scout_lo = { "Scout", 2.4, -1.55, "JetpackMeshes", 180, "w" },

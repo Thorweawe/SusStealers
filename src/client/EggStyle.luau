@@ -84,6 +84,12 @@ local STYLES: { [string]: Style } = {
 		glow = rgb(150, 255, 238), backdrop = rgb(4, 26, 28),
 		idle = "spin", crack = "spin", bits = "stars", reflect = 0.18,
 	},
+	-- Sınırlı etkinlik yumurtası (2026-10-02, etkinlik penceresinden açılıyor)
+	StarfallEgg = {
+		title = "STARFALL EGG", shell = rgb(70, 110, 230), accent = rgb(255, 215, 100),
+		glow = rgb(150, 210, 255), backdrop = rgb(6, 10, 34),
+		idle = "drift", crack = "implode", bits = "stars", reflect = 0.15,
+	},
 }
 
 local DEFAULT: Style = {

@@ -402,6 +402,25 @@ function LimitedEventService.Buy(player: Player, itemId: string): (boolean, stri
 	return true, "You got " .. got .. "!"
 end
 
+--[[
+	Etkinlik parası harca (sınırlı yumurta, PetService.EventSpend). Yalnızca
+	etkinlik sürerken; satın alınan para da harcanabiliyor (dükkân gibi).
+]]
+function LimitedEventService.TrySpendCandy(player: Player, amount: number): boolean
+	local profile = DataService.Get(player)
+	if not profile or amount <= 0 or not Config.IsLimitedEventActive(now()) then
+		return false
+	end
+	roll(profile)
+	if profile.limited.candy < amount then
+		return false
+	end
+	profile.limited.candy -= math.floor(amount)
+	LimitedEventService.Publish(player)
+	DataService.RequestSave(player)
+	return true
+end
+
 --[[ Testler için saati sabitler (nil = gerçek saat). ]]
 function LimitedEventService._SetNow(t: number?)
 	nowOverride = t
@@ -885,6 +904,9 @@ end
 
 function LimitedEventService.Start()
 	notifyRemote = Net.Get("Notify")
+
+	-- Sınırlı yumurta Stardust'la açılıyor (PetService'e harcama işlevi; require döngüsü yok, çalışma anında)
+	require(script.Parent.PetService).EventSpend = LimitedEventService.TrySpendCandy
 
 	-- Robux paketleri (makbuz MonetizationService'te; kaydetme orada)
 	MonetizationService.RegisterGranter("stardust", function(player, product)

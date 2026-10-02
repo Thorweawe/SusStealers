@@ -388,6 +388,14 @@ end
 	hatasında ya da tavana çarpan bir sonuçta oyuncunun parası hiçbir şey
 	vermeden yanmasın.
 ]]
+--[[
+	Sınırlı etkinlik yumurtasının (Config.LimitedEggs, currency "event")
+	parasını harcayan işlev. LimitedEventService.Start atıyor: doğrudan
+	require döngü yaratırdı (LimitedEventService → RewardService → PetService).
+	Atanmadıysa etkinlik yumurtası açılmıyor.
+]]
+PetService.EventSpend = nil :: ((player: Player, amount: number) -> boolean)?
+
 function PetService.TryHatch(player: Player, eggId: string, count: number?, auto: boolean?): { string }?
 	local egg = Config.GetEgg(eggId)
 	if not egg then
@@ -402,6 +410,13 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 	-- Rebirth yumurtası: yeterli rebirth yoksa açılmıyor
 	if not Config.EggUnlocked(egg, profile.rebirths) then
 		notify(player, string.format("%s unlocks at REBIRTH %d!", egg.name, egg.rebirths or 0), true)
+		return nil
+	end
+
+	-- Sınırlı yumurta: yalnızca kendi etkinliği sürerken
+	local eventEgg = egg.currency == "event"
+	if egg.limited and not (egg.limited == Config.LimitedEvent.id and Config.IsLimitedEventActive(Config.ServerNow())) then
+		notify(player, egg.name .. " is a LIMITED egg - its event is not on right now", true)
 		return nil
 	end
 
@@ -454,7 +469,14 @@ function PetService.TryHatch(player: Player, eggId: string, count: number?, auto
 		table.insert(deleted, drop)
 	end
 
-	if not EconomyService.TrySpend(player, egg.price * amount) then
+	if eventEgg then
+		local spend = PetService.EventSpend
+		if not (spend and spend(player, egg.price * amount)) then
+			local e = Config.LimitedEvent
+			notify(player, string.format("You need %d %s %s", egg.price * amount, e.icon, e.currency), true)
+			return nil
+		end
+	elseif not EconomyService.TrySpend(player, egg.price * amount) then
 		notify(player, if amount > 1 then "Not enough cash for 3 eggs" else "Not enough cash for that egg", true)
 		return nil
 	end
