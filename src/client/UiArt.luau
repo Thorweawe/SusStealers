@@ -79,15 +79,15 @@ UiArt.Icon = {
 	ortası sakin, kenarlarda temanın süsleri (kartlar üstüne çiziliyor).
 ]]
 UiArt.EventArt = {
-	Starfall2026 = 0,
-	Spooky2026 = 0,
+	Starfall2026 = 108816904618367,
+	Spooky2026 = 122653922985764,
 } :: { [string]: number }
 
 --[[ Etkinlik ikonları (2026-10-02, ChatGPT; ui_art/event/): etkinlik parası ve
      etkinlik mutasyonlu crewmate. 0 = yok (pencere emojiye düşüyor). ]]
 UiArt.EventIcon = {
-	Starfall2026 = { currency = 0, crew = 0, egg = 0 },
-	Spooky2026 = { currency = 0, crew = 0, egg = 0 },
+	Starfall2026 = { currency = 128326808881128, crew = 110567546413682, egg = 138771601239015 },
+	Spooky2026 = { currency = 114255378192611, crew = 97201831635569, egg = 0 },
 } :: { [string]: { currency: number, crew: number, egg: number? } }
 
 function UiArt.Image(kind: string, name: string): string
