@@ -1,5 +1,5 @@
 {
- "_not": "Grubun (814468451) yüklü 3D modelleri. Studio'da game:GetObjects('rbxassetid://ID') ile gelir; models: workspace'e koy + tools/normalize_meshes.lua. EggMeshes/GearMeshes: doğrudan klasöre (taban y=0, ortalı; boy kodda ayarlanıyor). 2026-10-03.",
+ "_not": "Grubun (814468451) yüklü 3D modelleri. Studio'da game:GetObjects('rbxassetid://ID') ile gelir; models: workspace'e koy + tools/normalize_meshes.lua. EggMeshes/GearMeshes: doğrudan klasöre (taban y=0, ortalı; boy kodda ayarlanıyor). 2026-10-03. CosmeticMeshes (dükkân şapkaları): 180° çevir, tools/normalize_meshes.lua 'hat*_lo' ölçüleri; PartyHat 1.05, TrafficCone 1.12 genişliğe daraltıldı.",
  "models": {
   "Airship_lo": 111214801715910,
   "AmogusPrime_lo": 95580813755111,
@@ -171,5 +171,19 @@
   "StunGun": 139151227746366,
   "EmergencyButton": 81105092422142,
   "GhostSerum": 75885117889602
+ },
+ "CosmeticMeshes": {
+  "Sprout": 91464976546748,
+  "PartyHat": 130201748275305,
+  "ToiletPaper": 117602047221033,
+  "Antenna": 90323472576143,
+  "FriedEgg": 128430772301652,
+  "ChefHat": 107961176784181,
+  "TrafficCone": 76953206014567,
+  "Horns": 137005866682588,
+  "Crown": 98104816923851,
+  "Halo": 129566226636810,
+  "NebulaCrown": 72715113533774,
+  "OrbitRings": 127731241939216
  }
 }
