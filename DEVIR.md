@@ -13,7 +13,23 @@ Kayıt kalıbı:
 
 ---
 
-## 2026-10-02 (83) — Yusuf (dal `crew-efektler`, Studio'ya HENÜZ aktarılmadı; Batur'un şeridine de dokunuldu)
+## 2026-10-02 (89) — Yusuf → **Batur, oku** (dal `crew-efektler`: main birleştirildi, Studio'ya henüz basılmadı)
+- Yusuf'un GitHub hesabı askıya alındı: `git push` 403. Dal sana **git bundle** olarak geliyor
+  (Discord'dan `crew-efektler.bundle`). Kendi makinende:
+  `git fetch crew-efektler.bundle crew-efektler:crew-efektler` → `git push origin crew-efektler`.
+- Bu dalda main (86 dahil) birleşik; çakışma yalnız DEVIR'deydi. Config/test ufak eklemeler otomatik birleşti.
+- Yeni (87–88'e ek):
+  - **Starfall Egg (SINIRLI):** `Config.LimitedEggs` (40 Stardust, yalnız etkinlikte), 6 sınırlı pet
+    (`pet.limited`), `Config.AllEggs()`. **Senin dosyaların:** `PetService.TryHatch` etkinlik yumurtasını
+    Stardust'la açıyor (`PetService.EventSpend`, `LimitedEventService.Start` atıyor; `TrySpendCandy`).
+    Etkinlik penceresinin başında yumurta kartı (3B pet önizleme + ihtimaller + HATCH/x3). Envanter ve
+    Index sınırlı yumurtayı da listeliyor. Test: 39 sayımı sınırlıları saymıyor + sınırlı yumurta kademeleri.
+  - **39 + 6 pet 3D** (`models_3d/pets/*_lo.glb`), `PetFX` (her pete tema efekti), `PetModel` `PetMeshes` yolu.
+  - Starfall 3D: Star Visor, Comet Crown, Galaxy Halo (`CosmeticMeshes`), yağmur yıldızı (`EventMeshes.Star`).
+- Studio'ya aktarılacak 3B dosyaların listesi ve ölçüleri `tools/normalize_meshes.lua`'da. MonsterMeshes/UnitMeshes/
+  HatMeshes klasörleri Studio'da yok (86) — import'u birlikte yapacağız.
+
+## 2026-10-02 (88) — Yusuf (dal `crew-efektler`, Studio'ya HENÜZ aktarılmadı; Batur'un şeridine de dokunuldu)
 - Mutasyon efekt + animasyonları: `UnitModel` MUT_FX (yayıcılar) ve YENİ istemci `MutationFX`
   (yörünge, titreyen ışık, püskürme, pet boyu halkası). **Batur'a:** `PetModel` artık
   `MutationId` ve `PetSize` StringValue'ları da koyuyor (MutationFX okuyor).
@@ -32,7 +48,7 @@ Kayıt kalıbı:
   `vfx_art/vfx_*.png` (45 → `VfxThemes`), `ui_art/event/event_*.png` (2 → `UiArt.EventArt`).
   Ölçüler `tools/normalize_meshes.lua`'da tahmini; Studio'da bakıp düzeltilecek.
 
-## 2026-10-02 (82) — Yusuf (dal `crew-efektler`, HENÜZ main'de ve Studio'da DEĞİL)
+## 2026-10-02 (87) — Yusuf (dal `crew-efektler`, HENÜZ main'de ve Studio'da DEĞİL)
 - Her şeye kendi tarzında parçacık efekti, hepsi `Config.Vfx` dokularıyla:
   - `src/shared/UnitModel.luau`: `CREW_FX` — 39 crewmate'e aksesuarına uygun efekt
     (`aura()`'ya grow/emission/spread/up/perp seçenekleri). BasePart eklemiyor, test imzası aynı.
@@ -43,6 +59,96 @@ Kayıt kalıbı:
 - Batur'a: senin dosyalarına (SpaceService, SpaceFX, JetpackModel, EggStyle, CosmeticService)
   dokunulmadı; yalnızca adlarını okuyor. Bu adları değiştirirsen StyleFX'e haber ver.
   Batur dönünce birlikte Studio'da bakıp main'e alacağız.
+
+## 2026-10-02 (86) — Batur → **Yusuf, oku** (Studio git HEAD'e eşitlendi, senin iki dosyan dahil)
+
+- Batur'un isteğiyle Studio'daki bütün betikler git HEAD (74878ab) ile karşılaştırıldı. Tek fark senin iki dosyandı: `MonsterModel` ve `UnitModel` 30 Eylül sürümündeydi (2544ed6). Git'teki son hâllerin (649a31c / 620e8cf) Studio'ya basıldı. Play'de konsol temiz, 55 crewmate modeli kuruluyor.
+- **`ReplicatedStorage.MonsterMeshes`, `UnitMeshes`, `HatMeshes` klasörleri Studio'da hâlâ YOK.** Kod onları bulamayınca eski parça modellerine dönüyor, yani 3B ağların oyunda görünmüyor. Senin Studio'nda duruyorsa place'i kaydet/yayınla ya da yeniden import et. Batur yayınlamadan önce bunu bekliyor.
+- **Studio MCP kısıtlandı** (bkz. 85): MCP'nin `execute_luau`'su artık HttpEnabled yazamıyor, oyuna Script koyamıyor, modül require edemiyor. Kaynak (`.Source`) yazmak serbest. Sync sunucusu yolu çalışmıyor, dosyalar betiğe gömülerek basılıyor. ServerTests MCP'den koşulamıyor.
+- Senin şeridine dokunduklarım (84–85): `DefenseUI`, `DefenseFX`, `DefenseClient`, `Hotbar`, `SoundFX` (`WorldSound` eklendi), `Config` (çark 5'li paket etiketi 99). Ayrıntılar aşağıda.
+
+---
+
+## 2026-10-02 (85) — Batur (Yusuf'un şeridine de yazıldı: `Hotbar`, `DefenseUI`, `DefenseFX`, `DefenseClient`)
+
+Studio'ya aktarıldı. **Testler koşulamadı** (aşağıda neden). Oyunda gerçek tıklamayla denendi: iniş, DEFEND, crewmate bırakma, dalga, kılıç savuruşları. Konsol temiz.
+
+- **Studio MCP artık kısıtlı (ikimizi de ilgilendirir):** Studio yeniden açılınca MCP'nin `execute_luau` iş parçacığı yetkisiz çalışıyor. HttpEnabled yazamıyor, ServerScriptService/Workspace'e Script koyamıyor, oyun modülünü require edemiyor, RemoteEvent ateşleyemiyor. Kaynak (`.Source`) yazmak serbest, kod öyle aktarıldı. ServerTests bu yüzden çalıştırılamadı; elle Play'de denemek gerekiyor.
+- **Dünya zemine oturdu:** Terrain yüzeyi kökten 2 stud yukarıda (`DefenseConfig.GroundLift`). `PlanetWorldService` modeli ölçüp kaldırıyor (`TranslateBy`). Tezgâhtarlar güvertede (22.8), güverte zeminde (22.0); eskiden gömülüydü. İstemcinin nişan düzlemi de zeminde.
+- **Çarpışma:** dükkân gemilerinin gövde, karın, kokpit, çatı ve kanatlarına görünmez kutular eklendi; ana geminin karnına da (içinden geçiliyordu).
+- **Kristaller:** düz beyaz neon bloklar yerine renkli cam gövde, sivri uç (iki WedgePart) ve içte sönük parlayan çekirdek ("parlayan şeyler ne belli değil").
+- **Işın kılıcı kombosu** (`DefenseClient.saberSwing`):
+  - 3 vuruş: sağdan sola yatay, yukarıdan çapraz, üçüncüsünde gövde tam tur.
+  - Omuz ve bel `Motor6D.C0` (yalnız istemcide, gövde ekseninde döndürme; R15/R6 aynı) + tutuş.
+  - Bıçakta Trail, önünde hilal biçiminde parlayan kesik. Yavaş çekim denemesi için oyuncu niteliği `DebugSlowSwing`.
+- **Çubukta gear simgesi:** emoji yerine aracın kendi 3B görüntüsü (ViewportFrame; kılıç çapraz, seviye renginde).
+- **NEXT WAVE kartı** hap dilinde: kalın koyu kenar, rengin gradyanı, nokta dokusu. Mor-lacivert, savaşta/boss'ta kırmızı. Her yaratık kendi 3B görüntüsüyle ve büyük adetle; satırlar yalnızca dalga değişince kuruluyor.
+- **Savaş hissi** (`DefenseFX`):
+  - Can çubukları büyük ve kenarlı; vurulunca dolgu beyaz parlıyor, açık renkli iz bekleyip eriyor (`setBar`).
+  - Crewmate çubuğu yeşil → sarı → kırmızı; canı %30'un altındaysa kırmızı nabız.
+  - Gemiye sızmada ekran kenarları kırmızı yanıyor.
+  - Boss gelince üstte büyük can çubuğu, sarsıntı ve gürleme (`DefenseFXGui`).
+  - Ölen yaratık yayvanlaşıp patlıyor.
+
+---
+
+## 2026-10-02 (84) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `SoundFX`, `Config`)
+
+Studio'ya aktarıldı, **198/198 test temiz**. Oyunda 4 dalga oynatıldı; efektlerin oluştuğu sayılarak doğrulandı.
+
+- **Yusuf, bilgin olsun:** Studio'da `MonsterModel` ve `UnitModel` yine 30 Eylül sürümünde (2544ed6), `MonsterMeshes/UnitMeshes/HatMeshes` klasörleri de yok. Dokunmadım (senin şeridin). `Config` de 415d477 sürümündeydi; HEAD + benim değişiklikle basıldı.
+- **Ekranın ortası boş** (Batur: "ortadaki UI'ler saçma, gold'a gerek yok"):
+  - Altın hapı kalktı; altın yalnızca dükkânda görünüyor.
+  - Gezegen ve gövde hapları sağ sütunda, NEXT WAVE kartının üstünde (telefonda sol üstte, 0.8 ölçek).
+  - Hız, AUTO ve destekler sağ altta bir kümede; yalnızca elde olan destekler görünüyor. AUTO geri sayımı düğmenin üstünde.
+  - Yönlendirme yazısı savaşta gizli; sonuç bandı küçüldü ve üstte.
+- **Zemin:** alan Terrain'i arenanın kökünden 2 stud yukarıda (voksel yuvarlaması). Halkalar, yol okları ve crewmate ayakları gömülüydü. `DefenseFX.world` zemini bir kez ışınla ölçüyor (`lift`). Alan halkaları kalınlaştı ve belirginleşti.
+- **Vuruş hissi** (`DefenseFX.hitEnemy` / `hurtUnit`):
+  - Yaratıklar: beyaz parlama (Boss'ta Highlight), jöle gibi ezilme, geri tepme, kıvılcım ve jöle damlası, hasar sayısı.
+  - Crewmate'ler: kırmızı Highlight, geri tepme ve geriye eğilme, kırmızı kıvılcım, hasar sayısı.
+  - Ölümde yerde jöle lekesi. Boss/Golem darbesi, sızma, Orbital Strike ve kılıç isabetinde kamera sarsıntısı (`DefenseShake`).
+  - Paylaşılan parçacık yayıcıları `Terrain.DefenseBursts`.
+  - Olaylara hasar eklendi: `uatk` 4., `pshot` 5., `slash` 5. alan.
+- **Sesler:** `SoundFX.WorldSound(key, pos, volume, pitch, length)` — perde her çalışta biraz oynuyor, sonu kısılarak kesiliyor. Darbe, ölüm ve düşme sesleri buna geçti.
+- **Düşman yapay zekâsı** (Batur: "zigzag çiziyorlar, hepsi birbirinin arkasından geliyor"):
+  - Yollar Chaikin ile yumuşatılıyor; ZIGZAG deseni kalktı. Yeni desenler WEDGE (ok ucu) ve TRIDENT (3 kol, dalga ≥6).
+  - Düşmanlar 2–6'lık gruplar halinde yan yana şeritlerde çıkıyor (`BuildWave`). Çıkış listesi zamana göre sıralı.
+  - Sim'de şerit yönetimi (`steerLanes`): komşudan ayrışma; koşucu önündeki Guard/Brawler'ın yanından dolaşıyor. Şerit yumuşakça kayıyor (±14), dövüşten sonra yola çapraz öne katılıyor. `SimEnemy.home` eklendi.
+- **Zorluk** (Batur: "çok kolay, ama aşırı da değil"):
+  - Bütçe 3.5+1.8w (eski 3+1.4w); can büyümesi 1.105 (1.09), hasar büyümesi 1.06 (1.05).
+  - Gear artık dalgayla tam büyümüyor (`GearScale` 0.6). Kılıç 16 hasar / 9 yarıçap / 0.5 sn (eski 34/10/0.45); tabanca 8 (15).
+  - Ölçüm: 4 Common 1. bölümü kayıpla geçip 8. dalgada düşüyor; dolu lv10 ekip 15. dalga civarı.
+- **Çark:** 5'li paket etiketi 99 R$ (`Config.SpinPack.robux`). Asıl fiyat Creator Hub'daki ürün ayarından (3715307547) değiştirilmeli.
+- Yeni test: yollar yumuşak, gruplar yan yana, koşucu kalkanın yanından dolaşıyor.
+
+---
+
+## 2026-10-02 (83) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseClient`, `Music`)
+
+Studio'ya aktarıldı, **197/197 test temiz**. Dükkân penceresi ve durum hapları Studio ekran görüntüsüyle görüldü.
+
+- **Durum çubuğu oyunun haplarıyla** (`UiKit.StatPill` + `UiKit.ArtIcon`): gezegen/bölüm-dalga (Crewmate ikonu), gemi gövdesi (StrongLock, içinde ince can çubuğu, azalınca kırmızı), altın (Jackpot).
+- **Dükkânlar kart ızgarası** (`FancyKit.card`, oyunun mağazası gibi): büyük ikon, seviye noktaları, "şimdi → sonra" etkisi, fiyat düğmesi; hastanede crewmate ikonu + REVIVE / LET GO. 🪙 Roblox'ta çizilmiyor → 💰.
+- **AUTO dalga**: düğme açıkken dalga bitince 8 sn sonra sonraki kendiliğinden (`auto` eylemi, `run.auto/autoAt`), yönlendirme yazısında geri sayım.
+- **Bölüm kutlaması**: yıldızlar tek tek dolup parlıyor (+ yıldız sesleri), kazanılan altın.
+- **Hissiyat** (istemci, inişte kurulup kalkışta kalkıyor): kameranın çevresinde süzülen parlak sporlar, mağara geçidinde sis, mantar/kristal/lambalar nabız gibi parlıyor, hafif renk filtresi, alien rüzgârı (ortam sesi perdesi düşük) ve ana gemi motor uğultusu (konumlu).
+- **Müzik** (`Music`): `planet` (Space Stars, Light of Zetar) ve `battle` (House Of Intrigue B, Investigation Moods) bölgeleri; sunucu `DefenseFighting` niteliğini dalga boyunca açık tutuyor.
+- Dükkân gemicikleri: Command/Market ana geminin yanına (−46/46, −26), ışıkları sönük ve beyaza yakın (gemiyi pembeye boyuyordu).
+
+---
+
+## 2026-10-02 (82) — Batur (Yusuf'un şeridine de yazıldı: `DefenseUI`, `DefenseFX`, `DefenseClient`, `Hotbar`, `Objective`)
+
+Studio'ya aktarıldı, **197/197 test temiz**, konsol temiz. Arayüz Studio'da ekran görüntüsü ve yol ile tıklama (`user_mouse_input` instance_path) ile denendi: DEFEND iki sayfa, BEST CREW, liste kaydırma (tıklayınca yerinde kalıyor), NEXT → gear, DEFEND! → hazırlık ekranı; hedefli bırakma (14, 64) tam yerine.
+
+- **Daha akıllı yapay zekâ** (`DefenseSim`): düşmanlara `ai` (melee / rusher / sniper / tank / boss): Gloop Mite yalnızca Guard/Brawler'la oyalanıyor, Spore Spitter menzilde durup atıcı/medic'i seçiyor, Ooze Golem dövüşçülere yükleniyor, diğerleri yaralıya. Crewmate'ler hedef paylaşıyor (`focus`, aynı düşmana yığılmıyor), Assassin önce tükürücüleri, Guard düşmanın yolunu önden kesiyor, Shooter/Medic yakın dövüşçüden kaçıyor.
+- **Hedefli bırakma**: crewmate elindeyken farenin gösterdiği yerde yeşil/kırmızı halka + rolün hareket alanı; tıklayınca oraya (`drop(uid, x, z)`, karakterden ≤ 45 stud, sunucu doğruluyor). Telefonda dokunulan nokta, yoksa karakterin önü. Sunucudaki Tool.Activated bırakması kalktı.
+- **Hareket alanı halkası**: her crewmate'in karakolu çevresinde rol renginde ince halka + çok silik disk (leash yarıçapı).
+- **DEFEND penceresi iki sayfa** (1 crew → NEXT → 2 bölüm + gear). Seçimde liste yeniden çizilmiyor (kaydırma en üste sıçrıyordu).
+- **Üst durum** ince tek satır (gezegen / S / dalga / altın + gövde çubuğu); ipucu şeridi kalktı, yönlendirme alttaki düğmelerin üstünde kutusuz. **NEXT WAVE** kartı: renkli başlık şeridi, rota rozeti, yaratık satırları (renkli nokta + adet rozeti), boss dalgasında kırmızı.
+- **Hotbar**: gezegende silah en sağda. **Objective** (GOL kartı) gezegende gizli: durum çubuğunun üstüne biniyordu.
+
+---
 
 ## 2026-10-02 (81) — Yusuf (Studio'yu git'e eşitledi: 16 dosya, iki şerit)
 

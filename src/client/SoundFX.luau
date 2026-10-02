@@ -624,6 +624,38 @@ function SoundFX.GearSound(key: string, position: Vector3)
 end
 
 --[[
+	Gezegen savunmasının darbe sesleri (2026-10-02, Batur: "vuruş hissi yok,
+	sesleri güzelleştir"). Kütüphanede doğrulanmış seslerden; her çalışta
+	perde biraz oynuyor (aynı ses art arda makineli gibi duyulmasın), sonu
+	kısılarak kesiliyor (tık sesi olmasın).
+]]
+function SoundFX.WorldSound(key: string, position: Vector3, volume: number, pitch: number, length: number)
+	local id = ID[key]
+	if not id then
+		return
+	end
+	local template = effect(key, id, volume)
+	local holder = Instance.new("Attachment")
+	holder.Name = "WorldSound"
+	holder.WorldPosition = position
+	holder.Parent = workspace.Terrain
+	local s = template:Clone()
+	s.Volume = volume
+	s.PlaybackSpeed = pitch * (0.93 + math.random() * 0.14)
+	s.RollOffMinDistance = 16
+	s.RollOffMaxDistance = 170
+	s.RollOffMode = Enum.RollOffMode.InverseTapered
+	s.Parent = holder
+	s:Play()
+	task.delay(math.max(0, length - 0.12), function()
+		TweenService:Create(s, TweenInfo.new(0.12), { Volume = 0 }):Play()
+	end)
+	task.delay(length, function()
+		holder:Destroy()
+	end)
+end
+
+--[[
 	Sesleri önden yükler. Oyuna girer girmez çağrılmalı: ilk tetiklemeden
 	önce hazır olsunlar diye.
 ]]

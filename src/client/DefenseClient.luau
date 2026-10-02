@@ -14,6 +14,7 @@
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -187,7 +188,8 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		-- Girdi konumu üst çubuğu (GuiInset) saymıyor: ScreenPointToRay onu hesaba katıyor
 		local ray = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
-		local origin = DefenseConfig.WorldOrigin(arena)
+		-- Nişan düzlemi görünen zemin (terrain kökten GroundLift yukarıda)
+		local origin = DefenseConfig.WorldOrigin(arena) + Vector3.new(0, DefenseConfig.GroundLift, 0)
 		if math.abs(ray.Direction.Y) < 1e-4 then
 			return nil
 		end
@@ -227,6 +229,251 @@ function DefenseClient.Start(screen: ScreenGui)
 	-- Hazırlıkta yerdeki crewmate'in yanına gidip E: geri ele al
 	DefenseFX.OnPickup(function(uid: number)
 		send("pickup", uid)
+	end)
+
+	--[[
+		Hedefli bırakma (Batur: "elimle koymak çok zor, tam istediğim yere
+		koyamıyorum"): crewmate elindeyken yerde nereye düşeceği halkayla
+		görünüyor; tıklayınca FARENİN gösterdiği noktaya (telefonda dokunulan
+		yere) bırakılıyor. Karakterden en fazla DROP_REACH; gamepad'de ya da
+		nokta yoksa karakterin önü. Sunucu da erişimi doğruluyor.
+	]]
+	local DROP_REACH = 42
+	local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local lastTouch: Vector2? = nil
+	local lastTouchAt = 0
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			lastTouch = Vector2.new(input.Position.X, input.Position.Y)
+			lastTouchAt = os.clock()
+		end
+	end)
+
+	local function rootLocal(): (Vector2?, Vector3?)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not (root and planet) then
+			return nil, nil
+		end
+		local rel = root.Position - DefenseConfig.WorldOrigin(arena)
+		return Vector2.new(rel.X, rel.Z), root.CFrame.LookVector
+	end
+
+	local function rayToField(ray: Ray): Vector2?
+		local origin = DefenseConfig.WorldOrigin(arena) + Vector3.new(0, DefenseConfig.GroundLift, 0)
+		if math.abs(ray.Direction.Y) < 1e-4 then
+			return nil
+		end
+		local t = (origin.Y - ray.Origin.Y) / ray.Direction.Y
+		if t <= 0 then
+			return nil
+		end
+		local hit = ray.Origin + ray.Direction * t
+		return Vector2.new(hit.X - origin.X, hit.Z - origin.Z)
+	end
+
+	-- Bırakılacak nokta: fare / son dokunuş; erişim dışındaysa karakterin önü
+	local function aimPoint(preview: boolean): Vector2?
+		local me, look = rootLocal()
+		if not (me and look) then
+			return nil
+		end
+		local p: Vector2? = nil
+		if not touchOnly and UserInputService.MouseEnabled then
+			local m = UserInputService:GetMouseLocation()
+			p = rayToField(camera:ViewportPointToRay(m.X, m.Y))
+		elseif not preview and lastTouch and os.clock() - lastTouchAt < 0.6 then
+			p = rayToField(camera:ScreenPointToRay(lastTouch.X, lastTouch.Y))
+		end
+		if p and (p - me).Magnitude <= DROP_REACH then
+			return p
+		end
+		return me + Vector2.new(look.X, look.Z).Unit * 5
+	end
+
+	local function dropOk(p: Vector2): boolean
+		local F = DefenseConfig.Field
+		if math.abs(p.X) > F.halfWidth or p.Y < F.zMin or p.Y > F.zMax then
+			return false
+		end
+		if run then
+			for _, u in run.units do
+				if (Vector2.new(u.x, u.z) - p).Magnitude < DefenseConfig.UnitSpacing then
+					return false
+				end
+			end
+		end
+		return true
+	end
+
+	local function heldCrew(): Tool?
+		local character = player.Character
+		local tool = character and character:FindFirstChildOfClass("Tool")
+		return if tool and tool:GetAttribute("DefenseCrew") ~= nil then tool else nil
+	end
+
+	local previewing = false
+	RunService.RenderStepped:Connect(function()
+		local tool = heldCrew()
+		if not tool or pickedSupport == "Strike" then
+			if previewing then
+				previewing = false
+				if pickedSupport ~= "Strike" then
+					DefenseFX.Marker(nil, false)
+				end
+			end
+			return
+		end
+		local p = aimPoint(true)
+		if p then
+			previewing = true
+			local unitId = tool:GetAttribute("UnitId")
+			local role = if typeof(unitId) == "string" then DefenseConfig.GetRole(unitId) else nil
+			DefenseFX.Marker(p, dropOk(p), if role then role.leash else nil)
+		end
+	end)
+
+	-- ─── Hissiyat: sporlar, sis, nabız gibi parlayan bitkiler, sesler ──────
+	--[[
+		2026-10-02 (Batur: "haritaya çok daha fazla hissiyat ekle, sesleri
+		düzenle"). Hepsi istemcide, gezegene inince kuruluyor, kalkışta
+		kalkıyor:
+		  - kameranın çevresinde süzülen parlak sporlar
+		  - mağara geçidinden yükselen sis
+		  - mantar başları, kristaller ve alan lambaları nabız gibi parlıyor
+		  - hafif gezegen renk filtresi
+		  - alçak alien rüzgârı (ortam uğultusu, perdesi düşük) ve ana geminin
+		    motor uğultusu (konumlu)
+		Ses kimlikleri SoundFX'te bu yerde yüklendiği ölçülmüş olanlar.
+	]]
+	local SoundService = game:GetService("SoundService")
+	local AMBIENT_ID = "rbxassetid://9113652844"   -- Buzzy Ambience (SoundFX.Ambient)
+	local MACHINE_ID = "rbxassetid://91861694498690" -- makine uğultusu (SoundFX.Machine)
+	local ambience: { Instance } = {}
+	local tweens: { Tween } = {}
+	local sporeHost: BasePart? = nil
+
+	local function stopAmbience()
+		for _, t in tweens do
+			t:Cancel()
+		end
+		table.clear(tweens)
+		for _, inst in ambience do
+			inst:Destroy()
+		end
+		table.clear(ambience)
+		sporeHost = nil
+	end
+
+	local function startAmbience(index: number, where: number)
+		stopAmbience()
+		local def = Config.SpaceMonsters[index]
+		local glowColor = if def then def.glow else Color3.fromRGB(150, 255, 90)
+		-- Sporlar: kameranın etrafında, yavaş yükselip süzülüyor
+		local host = Instance.new("Part")
+		host.Name = "DefenseSpores"
+		host.Anchored = true
+		host.CanCollide = false
+		host.CanQuery = false
+		host.CanTouch = false
+		host.Transparency = 1
+		host.Size = Vector3.new(90, 1, 90)
+		host.Parent = workspace
+		table.insert(ambience, host)
+		sporeHost = host
+		local spores = Instance.new("ParticleEmitter")
+		spores.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		spores.Color = ColorSequence.new(glowColor:Lerp(WHITE, 0.3), glowColor)
+		spores.LightEmission = 1
+		spores.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.2, 0.35),
+			NumberSequenceKeypoint.new(0.8, 0.3), NumberSequenceKeypoint.new(1, 0) })
+		spores.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.2, 0.2),
+			NumberSequenceKeypoint.new(0.8, 0.3), NumberSequenceKeypoint.new(1, 1) })
+		spores.Lifetime = NumberRange.new(6, 10)
+		spores.Rate = 28
+		spores.Speed = NumberRange.new(0.5, 1.5)
+		spores.SpreadAngle = Vector2.new(180, 180)
+		spores.Acceleration = Vector3.new(0, 0.25, 0)
+		spores.RotSpeed = NumberRange.new(-40, 40)
+		spores.Parent = host
+
+		-- Arenanın dünyası: geçit sisi ve nabız gibi parlayan parçalar
+		local worlds = workspace:FindFirstChild("PlanetWorlds")
+		local world = worlds and worlds:FindFirstChild("Arena_" .. where)
+		if world then
+			local portal = world:FindFirstChild("Portal", true)
+			if portal and portal:IsA("BasePart") then
+				local mist = Instance.new("ParticleEmitter")
+				mist.Name = "DefenseMist"
+				mist.Texture = "rbxasset://textures/particles/smoke_main.dds"
+				mist.Color = ColorSequence.new(glowColor:Lerp(Color3.new(0, 0, 0), 0.3))
+				mist.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 6), NumberSequenceKeypoint.new(1, 18) })
+				mist.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.6), NumberSequenceKeypoint.new(1, 1) })
+				mist.Lifetime = NumberRange.new(4, 6)
+				mist.Rate = 6
+				mist.Speed = NumberRange.new(2, 4)
+				mist.EmissionDirection = Enum.NormalId.Top
+				mist.SpreadAngle = Vector2.new(40, 40)
+				mist.Parent = portal
+				table.insert(ambience, mist)
+			end
+			local k = 0
+			for _, d in world:GetDescendants() do
+				if d:IsA("BasePart") and (d.Name == "CapGlow" or d.Name == "Crystal" or d.Name == "FieldLamp"
+					or d.Name == "GlowBulb" or d.Name == "Spot") then
+					k += 1
+					local base = d.Transparency
+					local info = TweenInfo.new(1.6 + (k % 7) * 0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true, (k % 11) * 0.15)
+					local t = TweenService:Create(d, info, { Transparency = math.min(0.85, base + 0.45) })
+					t:Play()
+					table.insert(tweens, t)
+				end
+			end
+			-- Ana geminin motor uğultusu (konumlu)
+			local ship = world:FindFirstChild("LandedShip")
+			local engine = ship and ship:FindFirstChild("EngineGlow")
+			if engine and engine:IsA("BasePart") then
+				local hum = Instance.new("Sound")
+				hum.Name = "DefenseShipHum"
+				hum.SoundId = MACHINE_ID
+				hum.Looped = true
+				hum.Volume = 0.35
+				hum.PlaybackSpeed = 0.7
+				hum.RollOffMode = Enum.RollOffMode.InverseTapered
+				hum.RollOffMinDistance = 20
+				hum.RollOffMaxDistance = 160
+				hum.Parent = engine
+				hum:Play()
+				table.insert(ambience, hum)
+			end
+		end
+
+		-- Alien rüzgârı (her yerde, alçak)
+		local wind = Instance.new("Sound")
+		wind.Name = "DefenseWind"
+		wind.SoundId = AMBIENT_ID
+		wind.Looped = true
+		wind.Volume = 0.18
+		wind.PlaybackSpeed = 0.55
+		wind.Parent = SoundService
+		wind:Play()
+		table.insert(ambience, wind)
+
+		-- Renk filtresi
+		local grade = Instance.new("ColorCorrectionEffect")
+		grade.Name = "DefenseGrade"
+		grade.Saturation = 0.15
+		grade.Contrast = 0.06
+		grade.TintColor = WHITE:Lerp(glowColor, 0.08)
+		grade.Parent = Lighting
+		table.insert(ambience, grade)
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local host = sporeHost
+		if host and host.Parent then
+			host.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, -4, 0))
+		end
 	end)
 
 	-- ─── İniş ve kalkış ─────────────────────────────────────────────────────
@@ -296,6 +543,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		DefenseFX.SetPlanet(index)
 		DefenseFX.SetArena(arena)
 		applyEnvironment(index)
+		startAmbience(index, arena)
 		-- (Konsolun üstündeki ışık sütunu kalktı: "bozuk görünüyor"; altta DEFEND düğmesi var)
 		if beacon then
 			beacon:Destroy()
@@ -362,6 +610,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		end
 		DefenseFX.Clear()
 		applyEnvironment(nil)
+		stopAmbience()
 		camera.CameraType = Enum.CameraType.Custom
 		fadeCurtain(false, 0.6)
 	end
@@ -412,10 +661,13 @@ function DefenseClient.Start(screen: ScreenGui)
 		elseif kind == "waveEnd" then
 			if payload.won then
 				if payload.sector then
-					local sub = string.format("%s   %s", string.rep("★", payload.stars) .. string.rep("☆", 3 - payload.stars),
-						if payload.gold > 0 then string.format("+%d GOLD", payload.gold) else "no new stars")
-					ui.Banner(string.format("SECTOR %d CLEAR!", payload.sector), sub, Color3.fromRGB(255, 220, 80))
+					ui.Celebrate(payload.sector, payload.stars, payload.gold)
 					SoundFX.Success()
+					for i = 1, payload.stars do
+						task.delay(0.35 + i * 0.35, function()
+							SoundFX.StarPickup(i)
+						end)
+					end
 				else
 					ui.Banner(string.format("WAVE %d CLEARED", payload.wave),
 						if payload.losses > 0 then string.format("%d crewmate(s) sent to hospital", payload.losses) else "No losses!",
@@ -440,6 +692,223 @@ function DefenseClient.Start(screen: ScreenGui)
 		klasik kılıç animasyonu gibi; arenada yalnız olduğun için başkası
 		görmese de olur.
 	]]
+	--[[
+		Işın kılıcı kombosu (2026-10-02, Batur: "animasyonu çok kötü, sadece
+		ileri geri yapıyor"). Omuz ve bel eklemi (Motor6D.C0, yalnızca bu
+		istemcide; arenada yalnızsın) ve tutuş birlikte oynuyor. Üç vuruş
+		sırayla: sağdan sola yatay, yukarıdan çapraz, üçüncüde gövde tam tur
+		dönerek. Bıçakta iz (Trail), önünde yay biçiminde parlayan kesik.
+		Açılar gövdenin ekseninde (R15 ve R6 aynı): x yukarı kaldırır,
+		y yatay süpürür (+ sola), w bel dönüşü, g bıçağı öne yatırır (-).
+	]]
+	type SaberPose = { x: number, y: number, w: number, g: number }
+	local REST: SaberPose = { x = 0, y = 0, w = 0, g = 0 }
+	local COMBOS: { { wind: SaberPose, hit: SaberPose, time: number, arc: string } } = {
+		{ wind = { x = 8, y = -75, w = -25, g = -80 }, hit = { x = 0, y = 70, w = 30, g = -85 }, time = 0.42, arc = "flat" },
+		{ wind = { x = 75, y = -20, w = -10, g = -10 }, hit = { x = -25, y = 45, w = 20, g = -105 }, time = 0.44, arc = "diag" },
+		{ wind = { x = 4, y = -80, w = -30, g = -80 }, hit = { x = 4, y = -80, w = 360, g = -85 }, time = 0.55, arc = "spin" },
+	}
+	local combo = 0
+	local lastSwingEnd = 0
+	local baseC0: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+
+	local function joints(character: Model): (Motor6D?, Motor6D?)
+		local shoulder: Instance? = nil
+		local waist: Instance? = nil
+		local upper = character:FindFirstChild("RightUpperArm")
+		local torso = character:FindFirstChild("UpperTorso")
+		if upper and torso then
+			shoulder = upper:FindFirstChild("RightShoulder")
+			waist = torso:FindFirstChild("Waist")
+		else
+			local t = character:FindFirstChild("Torso")
+			local root = character:FindFirstChild("HumanoidRootPart")
+			shoulder = t and t:FindFirstChild("Right Shoulder")
+			waist = root and root:FindFirstChild("RootJoint")
+		end
+		return if shoulder and shoulder:IsA("Motor6D") then shoulder else nil,
+			if waist and waist:IsA("Motor6D") then waist else nil
+	end
+
+	-- Eklemi gövde ekseninde, eklem noktası çevresinde döndür
+	local function turn(m: Motor6D?, rot: CFrame)
+		if not m then
+			return
+		end
+		local base = baseC0[m]
+		if not base then
+			base = m.C0
+			baseC0[m] = base
+		end
+		local p = base.Position
+		m.C0 = CFrame.new(p) * rot * CFrame.new(-p) * base
+	end
+
+	local function mix(a: SaberPose, b: SaberPose, k: number): SaberPose
+		return { x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, w = a.w + (b.w - a.w) * k, g = a.g + (b.g - a.g) * k }
+	end
+
+	-- Önünde parlayan yay: parça parça açılıp sönüyor
+	local function slashArc(kind: string, color: Color3, duration: number)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root then
+			return
+		end
+		local center = root.Position + Vector3.new(0, 0.6, 0)
+		local look = (root.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
+		local right = root.CFrame.RightVector
+		local r = 6.5
+		local points: { Vector3 } = {}
+		local n = if kind == "spin" then 26 else 12
+		for i = 0, n do
+			local s = i / n
+			local p: Vector3
+			if kind == "diag" then
+				local up = (Vector3.yAxis * 0.85 + right * 0.5).Unit
+				local th = math.rad(100 - 160 * s)
+				p = center + look * 1.5 + (look * math.cos(th) + up * math.sin(th)) * r
+			else
+				local phi = if kind == "spin" then math.rad(-80 + 380 * s) else math.rad(-80 + 150 * s)
+				p = center + (look * math.cos(phi) - right * math.sin(phi)) * r
+			end
+			points[i + 1] = p
+		end
+		for i = 1, #points - 1 do
+			local a, b = points[i], points[i + 1]
+			task.delay(duration * (i - 1) / (#points - 1), function()
+				local seg = Instance.new("Part")
+				seg.Name = "SaberArc"
+				seg.Anchored = true
+				seg.CanCollide = false
+				seg.CanQuery = false
+				seg.CanTouch = false
+				seg.CastShadow = false
+				seg.Material = Enum.Material.Neon
+				seg.Color = color:Lerp(Color3.new(1, 1, 1), 0.15)
+				seg.Transparency = 0.3
+				local mid = (a + b) / 2
+				-- Ortası kalın, uçları ince hilal
+				local s = (i - 0.5) / (#points - 1)
+				local thick = 0.25 + 0.55 * math.sin(s * math.pi)
+				seg.Size = Vector3.new(0.12, thick, (b - a).Magnitude + 0.1)
+				seg.CFrame = CFrame.lookAt(mid, b, (mid - center).Unit:Cross(b - a).Unit)
+				seg.Parent = workspace
+				TweenService:Create(seg, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+					{ Transparency = 1, Size = Vector3.new(0.05, 0.2, seg.Size.Z) }):Play()
+				task.delay(0.25, function()
+					seg:Destroy()
+				end)
+			end)
+		end
+	end
+
+	local function bladeTrail(tool: Tool): Trail?
+		local blade = tool:FindFirstChild("Handle") :: BasePart?
+		if not blade then
+			return nil
+		end
+		local existing = blade:FindFirstChild("SaberTrail")
+		if existing and existing:IsA("Trail") then
+			return existing
+		end
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 0, -2.2)
+		a0.Parent = blade
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, 0, blade.Size.Z / 2)
+		a1.Parent = blade
+		local trail = Instance.new("Trail")
+		trail.Name = "SaberTrail"
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Color = ColorSequence.new(blade.Color:Lerp(Color3.new(1, 1, 1), 0.5), blade.Color)
+		trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1) })
+		trail.LightEmission = 1
+		trail.Lifetime = 0.18
+		trail.MinLength = 0.05
+		trail.FaceCamera = true
+		trail.Enabled = false
+		trail.Parent = blade
+		return trail
+	end
+
+	local function saberSwing(t: Tool, baseGrip: CFrame, done: () -> ())
+		local character = player.Character
+		if not character then
+			done()
+			return
+		end
+		local now = os.clock()
+		combo = if now - lastSwingEnd < 0.9 then combo % #COMBOS + 1 else 1
+		local spec = COMBOS[combo]
+		-- Studio'da yavaş çekim denemesi için (normalde 1)
+		local slow = player:GetAttribute("DebugSlowSwing")
+		local length = spec.time * (if typeof(slow) == "number" then slow else 1)
+		local shoulder, waist = joints(character)
+		local trail = bladeTrail(t)
+		local blade = t:FindFirstChild("Handle") :: BasePart?
+		local color = if blade then blade.Color else Color3.fromRGB(140, 220, 255)
+		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			SoundFX.WorldSound("GearSwing", root.Position, 0.6, if combo == 3 then 0.75 else (if combo == 2 then 0.9 else 1.05), 0.5)
+		end
+		local WIND, HIT = 0.22, 0.6
+		local arcDone = false
+		local t0 = os.clock()
+		local conn: RBXScriptConnection
+		conn = RunService.RenderStepped:Connect(function()
+			local a = math.clamp((os.clock() - t0) / length, 0, 1)
+			local pose: SaberPose
+			if a < WIND then
+				local k = a / WIND
+				pose = mix(REST, spec.wind, 1 - (1 - k) ^ 2)
+			elseif a < HIT then
+				local k = (a - WIND) / (HIT - WIND)
+				pose = mix(spec.wind, spec.hit, 1 - (1 - k) ^ 3)
+				if trail then
+					trail.Enabled = true
+				end
+				if not arcDone then
+					arcDone = true
+					slashArc(spec.arc, color, length * (HIT - WIND))
+				end
+			else
+				local k = (a - HIT) / (1 - HIT)
+				local e = k * k * (3 - 2 * k)
+				local hit = spec.hit
+				-- Tam tur dönüş 360° = 0°: geri dönerken ters dönmesin
+				local from = if hit.w >= 360 then { x = hit.x, y = hit.y, w = hit.w - 360, g = hit.g } else hit
+				pose = mix(from, REST, e)
+				if trail and k > 0.3 then
+					trail.Enabled = false
+				end
+			end
+			turn(shoulder, CFrame.Angles(math.rad(pose.x), math.rad(pose.y), 0))
+			turn(waist, CFrame.Angles(0, math.rad(pose.w), 0))
+			if t.Parent then
+				t.Grip = baseGrip * CFrame.Angles(math.rad(pose.g), 0, 0)
+			end
+			if a >= 1 or not t.Parent then
+				conn:Disconnect()
+				if shoulder and baseC0[shoulder] then
+					shoulder.C0 = baseC0[shoulder]
+				end
+				if waist and baseC0[waist] then
+					waist.C0 = baseC0[waist]
+				end
+				if trail then
+					trail.Enabled = false
+				end
+				if t.Parent then
+					t.Grip = baseGrip
+				end
+				lastSwingEnd = os.clock()
+				done()
+			end
+		end)
+	end
+
 	local bound: { [Instance]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 	local function bindSaber(tool: Instance)
 		if bound[tool] or not tool:IsA("Tool") then
@@ -456,22 +925,39 @@ function DefenseClient.Start(screen: ScreenGui)
 		local baseGrip = t.Grip
 		local swinging = false
 		t.Activated:Connect(function()
+			if isCrew then
+				local uid = t:GetAttribute("DefenseCrew")
+				local p = aimPoint(false)
+				if typeof(uid) == "number" and p then
+					if dropOk(p) then
+						send("drop", uid, p.X, p.Y)
+					else
+						SoundFX.Deny()
+						return
+					end
+				end
+			end
 			if swinging then
 				return
 			end
 			swinging = true
+			if isSaber then
+				saberSwing(t, baseGrip, function()
+					swinging = false
+				end)
+				return
+			end
 			if not isGun then
-				SoundFX.GearSound(if isSaber then "GearSwing" else "GearPoof", camera.CFrame.Position)
+				SoundFX.GearSound("GearPoof", camera.CFrame.Position)
 			end
 			task.spawn(function()
 				-- Kılıç: yay çizerek savur. Tabanca: geri tepme. Crewmate: öne eğilip yere bırak
-				local length = if isSaber then 0.28 elseif isGun then 0.14 else 0.22
+				local length = if isGun then 0.14 else 0.22
 				local t0 = os.clock()
 				while os.clock() - t0 < length and t.Parent do
 					local a = (os.clock() - t0) / length
 					local k = math.sin(a * math.pi)
-					t.Grip = if isSaber then baseGrip * CFrame.Angles(math.rad(-110 * k), 0, math.rad(40 * k))
-						elseif isGun then baseGrip * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(math.rad(-14 * k), 0, 0)
+					t.Grip = if isGun then baseGrip * CFrame.new(0, 0, -0.35 * k) * CFrame.Angles(math.rad(-14 * k), 0, 0)
 						else baseGrip * CFrame.new(0, 0, -1.2 * k) * CFrame.Angles(math.rad(50 * k), 0, 0)
 					task.wait()
 				end
@@ -500,6 +986,7 @@ function DefenseClient.Start(screen: ScreenGui)
 		if typeof(p) ~= "number" then
 			planet = nil
 			applyEnvironment(nil)
+			stopAmbience()
 			ui.SetPlanetHud(false)
 		end
 	end)

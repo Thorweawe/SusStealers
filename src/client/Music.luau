@@ -87,6 +87,17 @@ local PLAYLIST: { [string]: { string } } = {
 		"rbxassetid://1836693755",   -- Sci Fidelity (Thomas Kane)
 		"rbxassetid://9041894478",   -- The Light of Zetar Alternate (Cezame)
 	},
+	-- Gezegen savunması (2026-10-02, Batur: "haritaya hissiyat, sesler"): yüzeyde
+	-- geniş uzay parçaları, dalga sürerken gerilimli olanlar. Hepsi bu listede
+	-- zaten yüklendiği ölçülmüş parçalar.
+	planet = {
+		"rbxassetid://9042379064",   -- Space Stars (Stereoscopic)
+		"rbxassetid://9041894478",   -- The Light of Zetar Alternate (Cezame)
+	},
+	battle = {
+		"rbxassetid://9043067384",   -- House Of Intrigue B
+		"rbxassetid://1843899070",   -- Investigation Moods 141
+	},
 	station = {
 		"rbxassetid://9045117617",   -- Sneaky Schemes - Alt4, NoPerc
 		"rbxassetid://9043067384",   -- House Of Intrigue B
@@ -133,6 +144,10 @@ export type Handle = {
 	Zemin bulunamazsa istasyon varsayılıyor — oyunun çoğu orada geçiyor.
 ]]
 local function zoneOf(position: Vector3): string
+	-- Gezegen savunmasındaysa (DefenseService nitelikleri)
+	if player:GetAttribute("DefensePlanet") ~= nil then
+		return if player:GetAttribute("DefenseFighting") == true then "battle" else "planet"
+	end
 	local decor = workspace:FindFirstChild("Decor")
 	local lobby = decor and decor:FindFirstChild("Lobby")
 	local deck = lobby and lobby:FindFirstChild("LobbyDeck")

@@ -246,8 +246,9 @@ function Objective.Start(screen: Instance, actions: { [string]: () -> () }): Han
 		-- Öğretici bitmeden hedef öğretici kartında; uzayda / kapsülde onların kartı
 		local step = num("TutorialStep", 0)
 		local tutorialDone = step >= #Config.Tutorial or step < 0
+		-- Gezegen savunmasında (DefensePlanet) da gizli: oranın kendi durum çubuğu var
 		local busy = player:GetAttribute("InSpace") == true or player:GetAttribute("InCapsule") == true
-			or player:GetAttribute("SpaceGrabbed") ~= nil
+			or player:GetAttribute("SpaceGrabbed") ~= nil or player:GetAttribute("DefensePlanet") ~= nil
 		-- Ortada bir pencere açıkken (mağaza, envanter...) kart gizli: üstüne biniyordu
 		local windowOpen = false
 		for _, child in screen:GetChildren() do

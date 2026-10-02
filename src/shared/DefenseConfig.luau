@@ -63,6 +63,15 @@ DefenseConfig.Field = {
 DefenseConfig.WorldBase = Vector3.new(9000, 20, 2400)
 DefenseConfig.WorldGap = 1500
 
+--[[
+	Terrain yüzeyi arenanın kökünden bu kadar yukarıda (voksel yuvarlaması:
+	FillBlock üstü kökte bitse de yüzey ~2 stud yukarıda çiziliyor). Dünya
+	modeli (PlanetWorldService) bu kadar kaldırılıyor; istemcinin nişan
+	düzlemi ve çizimleri de bunu kullanıyor. Eskiden her şey gömülüydü
+	(Batur: "shoplarda crewmateler çok aşağıda").
+]]
+DefenseConfig.GroundLift = 2
+
 function DefenseConfig.WorldOrigin(planet: number): Vector3
 	return DefenseConfig.WorldBase + Vector3.new((planet - 1) * DefenseConfig.WorldGap, 0, 0)
 end
@@ -112,11 +121,19 @@ DefenseConfig.MaxArenas = 10
 DefenseConfig.Saber = {
 	price = 150,                    -- ilk alış (seviye 1)
 	upgradeCosts = { 90, 140, 200, 280 },   -- seviye 2..5
-	damage = 34,                    -- × dalga can çarpanı
+	damage = 16,                    -- × dalga can çarpanı ^ GearScale
 	perLevel = 0.3,
-	radius = 10,
-	cooldown = 0.45,
+	radius = 9,
+	cooldown = 0.5,
 }
+
+--[[
+	Gear'ın hasarı dalganın can çarpanıyla TAM büyümüyor (2026-10-02, Batur:
+	"çok kolay, zorlaştır"): eskiden kılıç her dalgada aynı oranda işe
+	yarıyordu ve oyuncu tek başına her şeyi temizliyordu. Artık ileri
+	dalgalarda asıl yükü crew taşıyor; gear yardımcı.
+]]
+DefenseConfig.GearScale = 0.6
 
 --[[
 	IŞIN TABANCASI (Batur: "tabanca da alınabilsin"): Armory'den altınla.
@@ -126,7 +143,7 @@ DefenseConfig.Saber = {
 DefenseConfig.RayGun = {
 	price = 120,
 	upgradeCosts = { 80, 130, 190, 260 },   -- seviye 2..5
-	damage = 15,
+	damage = 8,
 	perLevel = 0.3,
 	range = 34,
 	cone = 0.55,            -- bakış yönüyle en az bu kadar aynı yön (cos)
@@ -134,7 +151,7 @@ DefenseConfig.RayGun = {
 }
 
 function DefenseConfig.RayGunDamage(level: number, hpMul: number): number
-	return DefenseConfig.RayGun.damage * (1 + DefenseConfig.RayGun.perLevel * math.max(0, level - 1)) * hpMul
+	return DefenseConfig.RayGun.damage * (1 + DefenseConfig.RayGun.perLevel * math.max(0, level - 1)) * hpMul ^ DefenseConfig.GearScale
 end
 
 -- Gezegende seçilebilen gear'lar (DEFEND penceresi). `field`: profildeki seviye alanı.
@@ -144,7 +161,7 @@ DefenseConfig.Gears = {
 }
 
 function DefenseConfig.SaberDamage(level: number, hpMul: number): number
-	return DefenseConfig.Saber.damage * (1 + DefenseConfig.Saber.perLevel * math.max(0, level - 1)) * hpMul
+	return DefenseConfig.Saber.damage * (1 + DefenseConfig.Saber.perLevel * math.max(0, level - 1)) * hpMul ^ DefenseConfig.GearScale
 end
 
 -- Gemi büyük (gövde ~130 stud, burnu z ≈ 6'da); dükkânlar yanlarda küçük gemiler
@@ -155,10 +172,12 @@ DefenseConfig.Layout = {
 	command = Vector2.new(20, 12),
 	takeoff = Vector2.new(-20, 12),
 	-- Dükkân gemicikleri alana dönük, yay biçiminde (Batur: "sıra halinde değil, biraz eğimli")
-	hospital = Vector2.new(-70, 8),
-	armory = Vector2.new(70, 8),
-	shop = Vector2.new(-88, -36),
-	market = Vector2.new(88, -36),
+	-- Hastane / Armory önde, Command / Market ana geminin yanında (yay; Batur:
+	-- "arka arkaya dizilmiş gibi duruyorlar, gemiye yaklaştır")
+	hospital = Vector2.new(-72, 6),
+	armory = Vector2.new(72, 6),
+	shop = Vector2.new(-46, -26),
+	market = Vector2.new(46, -26),
 	shopsFace = 120,      -- dükkânların baktığı nokta (alanın ortası, z)
 	groundRadius = 420,
 }
@@ -294,14 +313,21 @@ export type EnemyDef = {
 	from: number,        -- bu dalgadan itibaren çıkıyor
 	cleave: number?,     -- vuruş hedefin çevresine de yayılıyor (yarıçap)
 	boss: boolean?,
+	--[[ Davranış (Batur: "canavarlar daha akıllı olsun"):
+	     melee  — yolundaki crewmate'le dövüşüyor, en zayıfına yükleniyor
+	     rusher — yalnızca önünü kesen Guard / Brawler durduruyor, gemiye koşuyor
+	     sniper — menzilde durup atıcı ve medic'e tükürüyor
+	     tank   — dövüşçülere (Guard / Brawler) yükleniyor
+	     boss   — melee gibi, savuruşu çevreye yayılıyor ]]
+	ai: string,
 }
 
 DefenseConfig.Enemies = {
-	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 7,   dmg = 5,  range = 4.5,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1 },
-	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 12,  dmg = 4,  range = 4,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2 },
-	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 6,   dmg = 7,  range = 16, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3 },
-	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 4.6, dmg = 16, range = 5.5, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4 },
-	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.8, dmg = 26, range = 6.5, cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 6, boss = true },
+	Grub    = { id = "Grub",    name = "Goo Slug",    hp = 42,  speed = 7,   dmg = 5,  range = 4.5,  cooldown = 1.0, leak = 1,  size = 1.0, cost = 1,   from = 1, ai = "melee" },
+	Skitter = { id = "Skitter", name = "Gloop Mite", hp = 22,  speed = 12,  dmg = 4,  range = 4,  cooldown = 0.7, leak = 1,  size = 0.75, cost = 0.7, from = 2, ai = "rusher" },
+	Spitter = { id = "Spitter", name = "Spore Spitter", hp = 34,  speed = 6,   dmg = 7,  range = 16, cooldown = 1.3, leak = 1,  size = 0.95, cost = 1.4, from = 3, ai = "sniper" },
+	Brute   = { id = "Brute",   name = "Ooze Golem",   hp = 170, speed = 4.6, dmg = 16, range = 5.5, cooldown = 1.4, leak = 3, size = 1.6, cost = 3,   from = 4, ai = "tank" },
+	Boss    = { id = "Boss",    name = "Glorp",    hp = 520, speed = 3.8, dmg = 26, range = 6.5, cooldown = 1.6, leak = 8, size = 2.6, cost = 0,   from = 5, cleave = 6, boss = true, ai = "boss" },
 } :: { [string]: EnemyDef }
 
 DefenseConfig.EnemyOrder = { "Grub", "Skitter", "Spitter", "Brute" }
@@ -312,8 +338,8 @@ DefenseConfig.EnemyOrder = { "Grub", "Skitter", "Spitter", "Brute" }
 	ama crewmate'leri tek vuruşta silmiyor.
 ]]
 DefenseConfig.PlanetStep = 0.3
-DefenseConfig.WaveHpGrowth = 1.09
-DefenseConfig.WaveDmgGrowth = 1.05
+DefenseConfig.WaveHpGrowth = 1.105
+DefenseConfig.WaveDmgGrowth = 1.06
 
 function DefenseConfig.PlanetBase(planet: number): number
 	return 1 + DefenseConfig.PlanetStep * math.max(0, planet - 1)
@@ -336,9 +362,10 @@ DefenseConfig.Patterns = {
 	{ id = "straight", name = "HEAD-ON" },
 	{ id = "left", name = "LEFT FLANK" },
 	{ id = "right", name = "RIGHT FLANK" },
-	{ id = "zigzag", name = "ZIGZAG" },
+	{ id = "wedge", name = "WEDGE" },
 	{ id = "split", name = "SPLIT" },
 	{ id = "pincer", name = "PINCER" },
+	{ id = "trident", name = "TRIDENT" },
 	{ id = "swarm", name = "SWARM" },
 }
 
@@ -357,11 +384,23 @@ local function curve(rng: Random, xs: { number }): { Vector2 }
 	local n = #xs
 	for i, x in xs do
 		local z = f.entrance.Y - (f.entrance.Y - f.gate.Y) * i / (n + 1)
-		local jx = x + rng:NextNumber(-6, 6)
-		local jz = z + rng:NextNumber(-8, 8)
-		table.insert(points, Vector2.new(math.clamp(jx, -f.halfWidth + 4, f.halfWidth - 4), jz))
+		local jx = x + rng:NextNumber(-5, 5)
+		local jz = z + rng:NextNumber(-6, 6)
+		table.insert(points, Vector2.new(math.clamp(jx, -f.halfWidth + 6, f.halfWidth - 6), jz))
 	end
 	table.insert(points, f.gate)
+	-- Köşeleri yuvarla (Chaikin, 3 geçiş): keskin köşeli çizgide düşmanlar
+	-- zikzak çiziyordu (Batur: "zigzag çiziyorlar")
+	for _ = 1, 3 do
+		local out = { points[1] }
+		for i = 1, #points - 1 do
+			local a, b = points[i], points[i + 1]
+			table.insert(out, a:Lerp(b, 0.25))
+			table.insert(out, a:Lerp(b, 0.75))
+		end
+		table.insert(out, points[#points])
+		points = out
+	end
 	return points
 end
 
@@ -369,13 +408,13 @@ local function pathFor(rng: Random, pattern: string, side: number?): { Vector2 }
 	local s = side or (if rng:NextNumber() < 0.5 then -1 else 1)
 	if pattern == "left" or pattern == "right" then
 		local d = if pattern == "left" then -1 else 1
-		return curve(rng, { d * 40, d * 52, d * 30 })
-	elseif pattern == "zigzag" then
-		return curve(rng, { s * 42, -s * 40, s * 34, -s * 14 })
+		return curve(rng, { d * 40, d * 50, d * 28 })
 	elseif pattern == "split" then
-		return curve(rng, { s * 48, s * 46, s * 20 })
+		return curve(rng, { s * 44, s * 42, s * 18 })
 	elseif pattern == "pincer" then
-		return curve(rng, { s * 54, s * 50, s * 8 })
+		return curve(rng, { s * 52, s * 50, s * 10 })
+	elseif pattern == "trident" then
+		return curve(rng, { s * 46, s * 40, s * 16 })
 	else
 		return curve(rng, { rng:NextNumber(-14, 14), rng:NextNumber(-16, 16) })
 	end
@@ -397,7 +436,7 @@ function DefenseConfig.BuildWave(planet: number, wave: number, seed: number, las
 		local pool = {}
 		for _, p in DefenseConfig.Patterns do
 			if p.id ~= last and not (p.id == "swarm" and wave < 3) and not (p.id == "split" and wave < 3)
-				and not (p.id == "pincer" and wave < 4) then
+				and not (p.id == "pincer" and wave < 4) and not (p.id == "trident" and wave < 6) then
 				table.insert(pool, p.id)
 			end
 		end
@@ -414,12 +453,17 @@ function DefenseConfig.BuildWave(planet: number, wave: number, seed: number, las
 	if pattern == "split" or pattern == "pincer" then
 		paths[1] = pathFor(rng, pattern, -1)
 		paths[2] = pathFor(rng, pattern, 1)
+	elseif pattern == "trident" then
+		-- Üç koldan: iki kanat + orta
+		paths[1] = pathFor(rng, "trident", -1)
+		paths[2] = pathFor(rng, "straight")
+		paths[3] = pathFor(rng, "trident", 1)
 	else
 		paths[1] = pathFor(rng, pattern)
 	end
 
 	-- Bütçe → düşman listesi
-	local budget = 3 + 1.4 * wave
+	local budget = 3.5 + 1.8 * wave
 	local kinds: { string } = {}
 	if pattern == "swarm" then
 		-- Sürü: çoğu hızlı ve zayıf, bütçe biraz büyük
@@ -470,23 +514,36 @@ function DefenseConfig.BuildWave(planet: number, wave: number, seed: number, las
 		table.insert(kinds, math.max(1, math.floor(#kinds * 0.6)), "Boss")
 	end
 
-	-- Zamanlama: akış ya da gruplar
+	--[[
+		Zamanlama: GRUPLAR halinde, yan yana (Batur: "hepsi birbirinin
+		arkasından geliyor"). Her grup bir yoldan, şeritlere yayılmış çıkıyor;
+		WEDGE'de ok ucu biçiminde (ortadaki önde).
+	]]
 	local spawns: { Spawn } = {}
-	local grouped = pattern == "zigzag" or pattern == "pincer" or rng:NextNumber() < 0.35
 	local t = 1.5
-	for i, kind in kinds do
-		local path = if #paths > 1 then (i % 2) + 1 else 1
-		table.insert(spawns, { t = t, kind = kind, path = path, lane = rng:NextNumber(-3.5, 3.5) })
-		if pattern == "swarm" then
-			t += 0.35
-		elseif grouped and i % 4 == 0 then
-			t += 4.5
-		elseif grouped then
-			t += 0.45
-		else
-			t += math.max(0.55, 1.25 - wave * 0.02)
+	local i = 1
+	local group = 0
+	while i <= #kinds do
+		local size = if pattern == "swarm" then rng:NextInteger(4, 6)
+			elseif pattern == "wedge" then rng:NextInteger(4, 5)
+			else rng:NextInteger(2, 4)
+		size = math.min(size, #kinds - i + 1)
+		group += 1
+		local path = ((group - 1) % #paths) + 1
+		local spread = if pattern == "swarm" then 3.4 else 4.4
+		for k = 0, size - 1 do
+			local kind = kinds[i + k]
+			local off = k - (size - 1) / 2
+			local lane = if kind == "Boss" then 0 else off * spread + rng:NextNumber(-0.8, 0.8)
+			local lag = if pattern == "wedge" then math.abs(off) * 0.6 else rng:NextNumber(0, 0.4)
+			table.insert(spawns, { t = t + lag, kind = kind, path = path, lane = lane })
 		end
+		i += size
+		t += if pattern == "swarm" then 2.4 else math.max(2.8, 5.2 - wave * 0.08) + size * 0.35
 	end
+	table.sort(spawns, function(a, b)
+		return a.t < b.t
+	end)
 
 	return { pattern = pattern, name = name, paths = paths, spawns = spawns, boss = boss }
 end

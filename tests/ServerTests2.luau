@@ -2563,6 +2563,49 @@ function ServerTests2.Register(kit: Kit)
 		ok("aynı desen arka arkaya gelmiyor", repeatFree)
 	end)
 
+	case("Savunma: yollar yumuşak, düşmanlar gruplar halinde yan yana", function()
+		local sharp = 0
+		local abreast = 0
+		local unsorted = false
+		for seed = 1, 20 do
+			local plan = DefenseConfig.BuildWave(1, 3 + seed % 10, seed, nil)
+			for _, path in plan.paths do
+				for i = 2, #path - 1 do
+					local a, b = path[i] - path[i - 1], path[i + 1] - path[i]
+					if a.Magnitude > 0.01 and b.Magnitude > 0.01 and a.Unit:Dot(b.Unit) < 0.8 then
+						sharp += 1
+					end
+				end
+			end
+			for i = 2, #plan.spawns do
+				local s0, s1 = plan.spawns[i - 1], plan.spawns[i]
+				if s1.t < s0.t then
+					unsorted = true
+				end
+				if s1.t - s0.t < 0.7 and s1.path == s0.path and math.abs(s1.lane - s0.lane) > 2.5 then
+					abreast += 1
+				end
+			end
+		end
+		eq("keskin köşe yok", sharp, 0)
+		ok("yan yana çıkanlar var", abreast > 20, tostring(abreast))
+		ok("çıkış sırası zamana göre", not unsorted)
+		-- Koşucu önündeki Guard'ın yanından dolaşıyor (şeridi kayıyor)
+		local V = Vector2.new
+		local sim = DefenseSim.New(1, 3, 5, { { uid = 1, unitId = "GalaxyGuardian", pos = V(0, 150) } }, nil, 25, 25, nil)
+		sim.plan.spawns = { { t = 0, kind = "Skitter", path = 1, lane = 0 } }
+		sim.paths = { { V(0, 214), V(0, 26) } }
+		sim.pathLens = { DefenseSim.Cumulative(sim.paths[1]) }
+		local maxLane = 0
+		for _ = 1, 80 do
+			DefenseSim.Step(sim, 0.1)
+			for _, e in sim.enemies do
+				maxLane = math.max(maxLane, math.abs(e.lane))
+			end
+		end
+		ok("koşucu kalkanın yanından dolaştı", maxLane > 5, string.format("%.1f", maxLane))
+	end)
+
 	case("Savunma: güç farkı küçük, rol herkese var", function()
 		near("Red Crewmate ~1", DefenseConfig.GetPower("RedCrew", nil), 1.02, 0.03)
 		local top = DefenseConfig.GetPower("StarEmperor", "Impostor")
