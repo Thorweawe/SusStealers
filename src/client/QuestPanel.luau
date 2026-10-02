@@ -241,6 +241,14 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?, host: 
 	end
 
 	local cards: { Instance } = {}
+	--[[
+		Çubuğun en son gösterilen doluluğu (vade:görev). 2026-10-02 hata:
+		her sunucu güncellemesinde kartlar yeniden kuruluyor ve çubuk her
+		seferinde 0'dan dolmaya başlıyordu; görev bitince/toplanınca yarıdan
+		başa sarıp tekrar doluyordu. Artık kaldığı yerden yalnızca FARK
+		kadar akıyor; geri gidiyorsa (yeni görev) animasyonsuz.
+	]]
+	local shownRatio: { [string]: number } = {}
 
 	local function makeCard(tier: Tier, tierTint: Color3, entry: Entry, order: number)
 		local ready = entry.done and not entry.claimed
@@ -278,8 +286,22 @@ function QuestPanel.Create(screen: ScreenGui, onReady: ((number) -> ())?, host: 
 		bar.frame.Position = UDim2.fromOffset(100, 52)
 		local ratio = if entry.done then 1 else math.clamp(entry.value / math.max(1, entry.goal), 0, 1)
 		bar.set(0, if entry.done then goal .. " / " .. goal else shown .. " / " .. goal)
-		TweenService:Create(bar.fill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Size = UDim2.fromScale(ratio, 1) }):Play()
+		local key = tier.id .. ":" .. entry.id
+		local from = shownRatio[key]
+		shownRatio[key] = ratio
+		if from and ratio > from + 0.001 then
+			-- İlerleme: kaldığı yerden yeni değere
+			bar.fill.Size = UDim2.fromScale(from, 1)
+			TweenService:Create(bar.fill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ Size = UDim2.fromScale(ratio, 1) }):Play()
+		elseif from == nil and not entry.claimed then
+			-- Pencere ilk açıldığında bir kez dolarak gelsin
+			TweenService:Create(bar.fill, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ Size = UDim2.fromScale(ratio, 1) }):Play()
+		else
+			-- Değişmedi ya da geri gitti (yeni görev, sıfırlanma): doğrudan
+			bar.fill.Size = UDim2.fromScale(ratio, 1)
+		end
 		bar.fill.Visible = ratio > 0.001
 
 		-- ─── Sağ taraf: ödül / CLAIM / DONE ──────────────────────────────
