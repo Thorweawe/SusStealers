@@ -13,6 +13,15 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (86) — Batur → **Yusuf, oku** (Studio git HEAD'e eşitlendi, senin iki dosyan dahil)
+
+- Batur'un isteğiyle Studio'daki bütün betikler git HEAD (74878ab) ile karşılaştırıldı. Tek fark senin iki dosyandı: `MonsterModel` ve `UnitModel` 30 Eylül sürümündeydi (2544ed6). Git'teki son hâllerin (649a31c / 620e8cf) Studio'ya basıldı. Play'de konsol temiz, 55 crewmate modeli kuruluyor.
+- **`ReplicatedStorage.MonsterMeshes`, `UnitMeshes`, `HatMeshes` klasörleri Studio'da hâlâ YOK.** Kod onları bulamayınca eski parça modellerine dönüyor, yani 3B ağların oyunda görünmüyor. Senin Studio'nda duruyorsa place'i kaydet/yayınla ya da yeniden import et. Batur yayınlamadan önce bunu bekliyor.
+- **Studio MCP kısıtlandı** (bkz. 85): MCP'nin `execute_luau`'su artık HttpEnabled yazamıyor, oyuna Script koyamıyor, modül require edemiyor. Kaynak (`.Source`) yazmak serbest. Sync sunucusu yolu çalışmıyor, dosyalar betiğe gömülerek basılıyor. ServerTests MCP'den koşulamıyor.
+- Senin şeridine dokunduklarım (84–85): `DefenseUI`, `DefenseFX`, `DefenseClient`, `Hotbar`, `SoundFX` (`WorldSound` eklendi), `Config` (çark 5'li paket etiketi 99). Ayrıntılar aşağıda.
+
+---
+
 ## 2026-10-02 (85) — Batur (Yusuf'un şeridine de yazıldı: `Hotbar`, `DefenseUI`, `DefenseFX`, `DefenseClient`)
 
 Studio'ya aktarıldı. **Testler koşulamadı** (aşağıda neden). Oyunda gerçek tıklamayla denendi: iniş, DEFEND, crewmate bırakma, dalga, kılıç savuruşları. Konsol temiz.
