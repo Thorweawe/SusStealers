@@ -111,10 +111,10 @@ local function meshOn(host: BasePart, name: string, size: number): Model?
 	return m
 end
 
-local function skyStart(): (Vector3, Vector3)?
+local function skyStart(): (Vector3?, Vector3?)
 	local camera = workspace.CurrentCamera
 	if not camera then
-		return nil
+		return nil, nil
 	end
 	local look = camera.CFrame.LookVector
 	local flat = Vector3.new(look.X, 0, look.Z)
