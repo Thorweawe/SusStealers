@@ -382,6 +382,51 @@ local function dress(s: Styled, folder: Instance, id: string)
 end
 
 --[[
+	3D yumurta (2026-10-02): ReplicatedStorage.EggMeshes.<id> varsa (ChatGPT
+	konsepti → TRELLIS → tools/normalize_meshes.lua; boy 6, taban y=0) kabuk
+	parçası YALNIZ bu istemcide gizlenip ağ biniyor (istem/prompt parçada
+	kalıyor). Ağ kendi desenini taşıdığı için kabuğa yapışık süsler (bant,
+	vizör, kar, yarık…) gizleniyor; yörüngede dönenler, hale ve ışıklar
+	kalıyor. Ağ bir süs gibi her karede yumurtanın çerçevesini izliyor.
+]]
+local function meshEgg(s: Styled, folder: Instance, id: string)
+	local meshes = ReplicatedStorage:FindFirstChild("EggMeshes")
+	local template = meshes and meshes:FindFirstChild(id)
+	if not (template and template:IsA("Model")) then
+		return
+	end
+	local egg = s.egg
+	egg.LocalTransparencyModifier = 1
+	for _, d in s.decos do
+		if not d.orbit and d.part ~= s.halo then
+			d.part.Transparency = 1
+		end
+	end
+	s.blink = nil
+	local k = egg.Size.Y / 6
+	local bottom = CFrame.new(0, -egg.Size.Y / 2, 0)
+	for _, src in template:GetDescendants() do
+		if not src:IsA("MeshPart") then
+			continue
+		end
+		local p = src:Clone()
+		for _, c in p:GetChildren() do
+			if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+				c:Destroy()
+			end
+		end
+		p.Name = "EggMesh"
+		p.Size = src.Size * k
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Parent = folder
+		table.insert(s.decos, { part = p, offset = bottom * (src.CFrame.Rotation + src.CFrame.Position * k) })
+	end
+end
+
+--[[
 	Boşta animasyon: yumurtanın o anki konumu. `t` saniye, `s.phase` her
 	yumurtaya kaydırma (aynı anda zıplamasınlar).
 ]]
@@ -489,6 +534,7 @@ function EggStyle.Start(): Handle
 			egg:GetPropertyChangedSignal("Color"):Connect(paint)
 
 			dress(s, folder, def.id)
+			meshEgg(s, folder, def.id)
 			table.insert(styled, s)
 		end
 
