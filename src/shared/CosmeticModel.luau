@@ -260,7 +260,61 @@ end
 	fizik yok, parçalar yerinde dursun diye sabitleniyor. Karakterde
 	sabitlenmemiş ve Base'e kaynaklı.
 ]]
+--[[
+	3D ağ sürümü (2026-10-02): ReplicatedStorage.CosmeticMeshes.<id> varsa
+	(ChatGPT konsepti → TRELLIS → tools/normalize_meshes.lua) şapka parçalardan
+	değil ağdan kuruluyor. Şablon tasarım uzayında (y=0 kafanın tepesi), yani
+	CosmeticService'in yerleştirmesi aynen çalışıyor. Yoksa parça sürümü.
+]]
+local function meshHat(id: string, anchored: boolean?): Model?
+	local RS = game:GetService("ReplicatedStorage")
+	local folder = RS:FindFirstChild("CosmeticMeshes")
+	local template = folder and folder:FindFirstChild(id)
+	if not (template and template:IsA("Model")) then
+		return nil
+	end
+	local model = Instance.new("Model")
+	model.Name = "CosmeticHat"
+	local base: BasePart? = nil
+	for _, src in template:GetDescendants() do
+		if not src:IsA("MeshPart") then
+			continue
+		end
+		local p = src:Clone()
+		for _, c in p:GetChildren() do
+			if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+				c:Destroy()
+			end
+		end
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Massless = true
+		p.CastShadow = false
+		p.Anchored = anchored == true
+		p.Parent = model
+		if not base then
+			base = p
+		elseif not anchored then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = base
+			weld.Part1 = p
+			weld.Parent = p
+		end
+	end
+	if not base then
+		model:Destroy()
+		return nil
+	end
+	model.PrimaryPart = base
+	return model
+end
+
 function CosmeticModel.BuildHat(id: string, anchored: boolean?): Model?
+	local fromMesh = meshHat(id, anchored)
+	if fromMesh then
+		return fromMesh
+	end
 	local list = pieces(id)
 	if #list == 0 then
 		return nil

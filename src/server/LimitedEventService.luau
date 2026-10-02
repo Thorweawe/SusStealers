@@ -704,8 +704,8 @@ function LimitedEventService.StartShower(): (() -> ())?
 		end
 	end)
 	if notifyRemote then
-		notifyRemote:FireAllClients(string.format("%s %s! Stars are falling into space - touch them first for %s %s (1 in %d is a %s!)",
-			e.emoji, string.upper(sh.name), e.icon, e.currency, math.floor(1 / sh.superChance + 0.5), sh.superName), false, "event")
+		notifyRemote:FireAllClients(string.format("%s %s! %s are falling into space - touch them first for %s %s (1 in %d is a %s!)",
+			e.emoji, string.upper(sh.name), e.text.pickup or "Stars", e.icon, e.currency, math.floor(1 / sh.superChance + 0.5), sh.superName), false, "event")
 	end
 	return function()
 		running = false

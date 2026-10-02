@@ -73,3 +73,9 @@ models_3d/props/VoidEgg.glb
 models_3d/props/*.glb
 !models_3d/props/*_lo.glb
 models_3d/hats2/
+models_3d/event/*.glb
+!models_3d/event/*_lo.glb
+models_3d/event/*_concept.png
+models_3d/event/*.mp4
+models_3d/props/*_concept.png
+ui_art/event/*_raw.png

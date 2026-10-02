@@ -13,6 +13,25 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-02 (83) — Yusuf (dal `crew-efektler`, Studio'ya HENÜZ aktarılmadı; Batur'un şeridine de dokunuldu)
+- Mutasyon efekt + animasyonları: `UnitModel` MUT_FX (yayıcılar) ve YENİ istemci `MutationFX`
+  (yörünge, titreyen ışık, püskürme, pet boyu halkası). **Batur'a:** `PetModel` artık
+  `MutationId` ve `PetSize` StringValue'ları da koyuyor (MutationFX okuyor).
+- 3D ağ yolları (şablon yoksa eski parça sürümü aynen):
+  - `JetpackModel.Build`: `ReplicatedStorage.JetpackMeshes.<id>` → parçalar gizlenir, ağ biner;
+    FlameHost/Pack yerinde (alev ve StyleFX değişmez). **Batur'un dosyası, haberin olsun.**
+  - `CosmeticModel.BuildHat`: `CosmeticMeshes.<id>` (PumpkinHead, WitchHat, CandyCrown).
+  - Nadirlik şapkası: Secret ve Celestial için de 3D (`HatMeshes.Secret/Celestial`); Secret
+    3D şapkayla da yarı saydam kalıyor.
+  - `LimitedFX`: Cadılar Bayramında gökte yarasa sürüsü/hayalet, yağmurda 3D şeker (`EventMeshes`).
+- Etkinlik yazıları temaya bağlı: `Config.LimitedEvent.text.pickup` ("Stars"/"Candies");
+  EventPanel ve `LimitedEventService` duyurusundaki sabit "stars" kalktı (sunucuda tek satır).
+- Etkinlik penceresine tema arka planı: `UiArt.EventArt[<etkinlik id>]` (0 = yok).
+- Yüklenecek / içe aktarılacaklar (Studio'da, Batur dönünce): `models_3d/props/*_lo.glb` (12 jetpack),
+  `models_3d/hats/hat_secret_lo.glb`, `hat_celestial_lo.glb`, `models_3d/event/*_lo.glb` (5),
+  `vfx_art/vfx_*.png` (45 → `VfxThemes`), `ui_art/event/event_*.png` (2 → `UiArt.EventArt`).
+  Ölçüler `tools/normalize_meshes.lua`'da tahmini; Studio'da bakıp düzeltilecek.
+
 ## 2026-10-02 (82) — Yusuf (dal `crew-efektler`, HENÜZ main'de ve Studio'da DEĞİL)
 - Her şeye kendi tarzında parçacık efekti, hepsi `Config.Vfx` dokularıyla:
   - `src/shared/UnitModel.luau`: `CREW_FX` — 39 crewmate'e aksesuarına uygun efekt

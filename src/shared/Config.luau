@@ -2940,7 +2940,7 @@ export type LimitedEventDef = {
 	community: { name: string, tiers: { { at: number, label: string, reward: RewardDef } } },
 	decor: string,           -- "stars" | "pumpkins"
 	railHat: string,         -- sol raydaki EVENT düğmesinde dönen şapka
-	text: { teaser: string, live: string, hunters: string, path: string },
+	text: { teaser: string, live: string, hunters: string, path: string, pickup: string? }, -- pickup: yağmurda düşen şeyin adı ("Stars")
 	leaderboard: { rows: number, rewardTop: number, reward: string },
 	shop: { { id: string, name: string, kind: string, price: number, limit: number, desc: string, cosmetic: string? } },
 }
@@ -3000,6 +3000,7 @@ Config.LimitedEvent = {
 		live = "STARBORN CREW · LIMITED HATS",
 		hunters = "TOP STARDUST COLLECTORS",
 		path = "⭐ STAR PATH",
+		pickup = "Stars",
 	},
 	leaderboard = { rows = 10, rewardTop = 10, reward = "GalaxyHalo" },
 	shop = {
@@ -3070,6 +3071,7 @@ Config.SpookyEventDraft = {
 		live = "HAUNTED CREW · LIMITED HATS",
 		hunters = "TOP CANDY HUNTERS",
 		path = "🍭 CANDY PATH",
+		pickup = "Candies",
 	},
 	leaderboard = { rows = 10, rewardTop = 10, reward = "CandyCrown" },
 	shop = {

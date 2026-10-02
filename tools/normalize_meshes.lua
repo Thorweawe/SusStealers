@@ -40,6 +40,26 @@ local SPEC = {
 	hat_mythic_lo = { "Mythic", 2.8, 3.65, "HatMeshes", 180, "w" },
 	hat_secret_lo = { "Secret", 2.6, 3.55, "HatMeshes", 180, "w" },
 	hat_celestial_lo = { "Celestial", 2.7, 3.55, "HatMeshes", 180, "w" },
+	-- kozmetik şapkalar (CosmeticModel; y=0 kafanın tepesi, kafa ~1.2 geniş) — ölçüler tahmini, Studio'da bakılacak
+	pumpkinhead_lo = { "PumpkinHead", 1.9, -1.05, "CosmeticMeshes", 180, "w" },
+	witchhat_lo = { "WitchHat", 2.2, -0.1, "CosmeticMeshes", 180, "w" },
+	candycrown_lo = { "CandyCrown", 1.5, -0.1, "CosmeticMeshes", 180, "w" },
+	-- etkinlik (LimitedFX boyunu kendisi ayarlıyor; burada yalnızca yön ve orta)
+	ghost_lo = { "Ghost", 4, 0, "EventMeshes", 180, "h" },
+	candy_lo = { "Candy", 3, 0, "EventMeshes", 0, "w" },
+	-- jetpackler (JetpackModel; genişlik 2.4, alt = meme ağzı -1.55; arkadan görünüş konsepti → 180 tahmini)
+	Starter_lo = { "Starter", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Scout_lo = { "Scout", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Comet_lo = { "Comet", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Plasma_lo = { "Plasma", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Nova_lo = { "Nova", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Pulsar_lo = { "Pulsar", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Quasar_lo = { "Quasar", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Galaxy_lo = { "Galaxy", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	NebulaJet_lo = { "NebulaJet", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Stellar_lo = { "Stellar", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	Supernova_lo = { "Supernova", 2.4, -1.55, "JetpackMeshes", 180, "w" },
+	CosmicJet_lo = { "CosmicJet", 2.4, -1.55, "JetpackMeshes", 180, "w" },
 }
 local out = {}
 for _, m in workspace:GetChildren() do

@@ -148,6 +148,45 @@ function JetpackModel.Build(def: Config.JetpackDef, origin: CFrame, scale: numbe
 		light.Parent = core
 	end
 
+	--[[
+		3D ağ (2026-10-02): ReplicatedStorage.JetpackMeshes.<id> varsa (ChatGPT
+		konsepti → TRELLIS → tools/normalize_meshes.lua, ortası x/z = 0, alt =
+		meme ağzı) parçalar GİZLENİP ağ takılıyor. Parçalar silinmiyor: alev
+		noktaları (FlameHost), Pack (StyleFX efektleri) ve ışıklar yerinde kalsın.
+		Ağ sırttan MESH_Z kadar geride (parça sürümünün tank hizası).
+	]]
+	local meshes = ReplicatedStorage:FindFirstChild("JetpackMeshes")
+	local template = meshes and meshes:FindFirstChild(def.id)
+	if template and template:IsA("Model") then
+		for _, p in model:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.Transparency = 1
+			end
+		end
+		local MESH_Z = 0.8
+		for _, src in template:GetDescendants() do
+			if not src:IsA("MeshPart") then
+				continue
+			end
+			local p = src:Clone()
+			for _, c in p:GetChildren() do
+				if not (c:IsA("SurfaceAppearance") or c:IsA("Decal") or c:IsA("Texture")) then
+					c:Destroy()
+				end
+			end
+			p.Name = "Mesh" .. src.Name
+			p.Size = src.Size * S
+			p.CFrame = at(src.Position.X, src.Position.Y, src.Position.Z + MESH_Z) * src.CFrame.Rotation
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.Massless = true
+			p.CastShadow = false
+			p.Parent = model
+		end
+	end
+
 	model.PrimaryPart = plate
 	return model
 end

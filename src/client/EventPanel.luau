@@ -32,6 +32,7 @@ local CosmeticModel = require(Shared.CosmeticModel)
 local CardKit = require(script.Parent.CardKit)
 local FancyKit = require(script.Parent.FancyKit)
 local UiKit = require(script.Parent.UiKit)
+local UiArt = require(script.Parent.UiArt)
 
 local EventPanel = {}
 
@@ -114,6 +115,32 @@ function EventPanel.Create(screen: Instance): Panel
 	local shell = FancyKit.shell(root, e.emoji .. " " .. e.name, { e.color, e.color2, e.color:Lerp(Color3.new(1, 1, 1), 0.3) }, HEADER, Z, driver, 44)
 	local body = shell.body
 
+	-- Tema arka planı (UiArt.EventArt): kenarlarda temanın süsü, ortası kartların altında sakin
+	local artId = UiArt.EventArt[e.id]
+	if artId and artId ~= 0 then
+		local art = Instance.new("ImageLabel")
+		art.Name = "ThemeArt"
+		art.BackgroundTransparency = 1
+		art.Image = "rbxassetid://" .. artId
+		art.ScaleType = Enum.ScaleType.Crop
+		art.ImageTransparency = 0.25
+		art.Size = UDim2.fromScale(1, 1)
+		art.ZIndex = Z
+		art.Parent = body
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 16)
+		corner.Parent = art
+		-- Başlık şeridinde de aynı sahne (üst bant), rengin üstünde hafif
+		local header = root:FindFirstChild("Header")
+		if header then
+			local strip = art:Clone()
+			strip.Name = "ThemeStrip"
+			strip.ImageTransparency = 0.45
+			strip.ZIndex = Z + 1
+			strip.Parent = header
+		end
+	end
+
 	-- ─── Üst: geri sayım + şeker ────────────────────────────────────────
 	local top = CardKit.hero(body, e.color2, UDim2.new(1, -24, 0, 92), Z + 1, UDim2.fromScale(0.2, 0.5), 420)
 	top.Position = UDim2.fromOffset(12, 10)
@@ -140,8 +167,8 @@ function EventPanel.Create(screen: Instance): Panel
 
 	-- ─── Nasıl kazanılır ────────────────────────────────────────────────
 	local how = CardKit.bold(body, string.format(
-		"Steal crewmates for %s %s  ·  %s gives %dx  ·  catch falling stars",
-		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
+		"Steal crewmates for %s %s  ·  %s gives %dx  ·  catch falling %s",
+		e.icon, e.currency, string.upper(e.mutation), e.eventMutationMul, string.lower(e.text.pickup or "Stars")), 15, Color3.fromRGB(220, 226, 245), Z + 2, 2)
 	how.Position = UDim2.fromOffset(12, 108)
 	how.Size = UDim2.new(1, -24, 0, 20)
 	CardKit.fit(how, 15, 10)
@@ -192,8 +219,8 @@ function EventPanel.Create(screen: Instance): Panel
 	local sh = e.shower
 	local showerCard = section(-4, 68, e.color:Lerp(Color3.new(0, 0, 0), 0.25))
 	local showerTitle = line(showerCard, "", 20, Color3.new(1, 1, 1), 8)
-	line(showerCard, string.format("Stars give %d-%d %s  ·  1 in %d is a %s (%d %s)  ·  first to touch wins!",
-		sh.min, sh.max, e.icon, math.floor(1 / sh.superChance + 0.5), sh.superName, sh.superAmount, e.icon),
+	line(showerCard, string.format("%s give %d-%d %s  ·  1 in %d is a %s (%d %s)  ·  first to touch wins!",
+		e.text.pickup or "Stars", sh.min, sh.max, e.icon, math.floor(1 / sh.superChance + 0.5), sh.superName, sh.superAmount, e.icon),
 		14, Color3.fromRGB(255, 235, 170), 38)
 	local showerDef: Config.EventDef? = nil
 	for _, def in Config.Events do
@@ -344,7 +371,7 @@ function EventPanel.Create(screen: Instance): Panel
 		if not active then
 			showerTitle.Text = string.format("%s %s: every %d min during the event", e.emoji, sh.name, sh.every // 60)
 		elseif workspace:GetAttribute("EventId") == "EventShower" then
-			showerTitle.Text = string.format("%s %s IS ON! Fly into space and catch stars!", e.emoji, sh.name)
+			showerTitle.Text = string.format("%s %s IS ON! Fly into space and catch %s!", e.emoji, sh.name, string.lower(e.text.pickup or "Stars"))
 		elseif showerDef then
 			showerTitle.Text = string.format("%s %s every %d min  ·  next in %s", e.emoji, sh.name, sh.every // 60,
 				clock(Config.GetNextEventStart(showerDef, now) - now))
@@ -501,7 +528,7 @@ function EventPanel.Create(screen: Instance): Panel
 	local packCard = section(50, 128, Color3.fromRGB(30, 120, 60))
 	line(packCard, string.format("NEED MORE %s %s?", e.icon, string.upper(e.currency)), 20, CardKit.YELLOW, 8)
 	-- Adil oyun: satın alınan yalnızca harcanır, yarışa sayılmaz (şeffaflık)
-	line(packCard, "Bought " .. e.currency .. " is for the shop only - it doesn't count for the leaderboard, Star Path or Galaxy Goal",
+	line(packCard, "Bought " .. e.currency .. " is for the shop only - it doesn't count for the leaderboard, " .. e.text.path .. " or " .. e.community.name,
 		12, Color3.fromRGB(210, 235, 215), 32)
 	local packButtons: { { def: any, buy: CardKit.Button } } = {}
 	local packPrices: { [number]: string } = {}

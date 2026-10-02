@@ -73,6 +73,16 @@ UiArt.Icon = {
 	Troll_Alarm = 115282988948591,
 }
 
+--[[
+	Etkinlik penceresinin tema arka planı (2026-10-02, ChatGPT; ui_art/event/).
+	Etkinlik kimliğiyle; 0 = yok (pencere düz renkte kalıyor). Kare görsel:
+	ortası sakin, kenarlarda temanın süsleri (kartlar üstüne çiziliyor).
+]]
+UiArt.EventArt = {
+	Starfall2026 = 0,
+	Spooky2026 = 0,
+} :: { [string]: number }
+
 function UiArt.Image(kind: string, name: string): string
 	local id = (UiArt :: any)[kind][name]
 	return if id then "rbxassetid://" .. id else ""
