@@ -68,3 +68,8 @@ models_3d/props/SkeldEgg.glb
 models_3d/props/Starter.glb
 models_3d/props/SupplyEgg.glb
 models_3d/props/VoidEgg.glb
+
+# 2026-10-02: ham TRELLIS çıktıları desenle (yalnızca *_lo.glb git'e)
+models_3d/props/*.glb
+!models_3d/props/*_lo.glb
+models_3d/hats2/

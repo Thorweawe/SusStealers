@@ -287,6 +287,44 @@ local CREW_FX: { [string]: (k: Kit) -> () } = {
 }
 
 --[[
+	Mutasyon efektleri (2026-10-02, Yusuf: "her mutasyon için efekt ve
+	animasyon"). Karakter efektinin ÜSTÜNE biniyor, rengi mutasyonun. Burada
+	yalnızca yayıcılar; canlı kısım (yörüngede dönen parça, titreşen ışık,
+	ara ara püskürme) istemcide MutationFX'te, "MutationId" değerine bakarak.
+]]
+local MUT_FX: { [string]: (k: Kit) -> () } = {
+	Impostor = function(k) -- kızıl göz parlaması + ayaktan kara duman + bozulma kıvılcımı
+		aura(k, "MutGlare", CHEST + Vector3.new(0.2, 1, 0), T("eye", V.Star), c3(255, 70, 70), c3(190, 0, 20), 0.7, 0.7, 0.6, { speed = 0, spin = 20 })
+		aura(k, "MutSmoke", FEET, V.Wisp, c3(120, 0, 15), c3(25, 0, 0), 1.4, 1.4, 1.8, { speed = 0.4, up = true, spread = 60, alpha = 0.45, emission = 0.05 })
+		aura(k, "MutGlitch", Vector3.zero, V.Spark, c3(255, 90, 90), c3(160, 0, 0), 0.5, 1.2, 0.2, { surface = true, speed = 0.2, spin = 300 })
+	end,
+	Golden = function(k) -- yüzeyde altın ışıltı + sıcak hale
+		aura(k, "MutGold", Vector3.zero, V.Star, c3(255, 250, 200), c3(255, 200, 60), 0.45, 3, 0.7, { surface = true, speed = 0.1, spin = 160 })
+		aura(k, "MutGoldGlow", Vector3.new(0, 0.6, 0), V.Orb, c3(255, 230, 140), c3(255, 180, 40), 3.2, 0.6, 1.8, { speed = 0, alpha = 0.7, spin = 8 })
+	end,
+	Ejected = function(k) -- uzay boşluğu: yıldız tozu + lacivert bulut
+		aura(k, "MutVoidStars", Vector3.zero, T("shooting", V.Star), c3(220, 230, 255), c3(110, 120, 255), 0.35, 1.6, 2.2, { surface = true, speed = 0.3, spin = 60 })
+		aura(k, "MutVoid", Vector3.zero, V.Nebula, c3(70, 70, 160), c3(20, 20, 60), 3, 0.6, 3, { speed = 0.1, alpha = 0.65, emission = 0.4, spin = 6 })
+	end,
+	Vented = function(k) -- ayaktan havalandırma dumanı + buhar
+		aura(k, "MutVentDust", FEET, V.Dust, c3(170, 185, 195), c3(100, 115, 125), 1.4, 1.4, 1.6, { speed = 0.8, spread = 80, alpha = 0.55, emission = 0.1 })
+		aura(k, "MutSteam", FEET, T("steam", V.Wisp), c3(230, 240, 245), c3(170, 185, 195), 0.8, 0.8, 1.6, { speed = 0.8, up = true, spread = 25, alpha = 0.55, emission = 0.2 })
+	end,
+	Sus = function(k) -- başında pembe "!" ve kalp kabarcığı
+		aura(k, "MutSus", HEAD + Vector3.new(0, 0.4, 0), T("alert", V.Ring), c3(255, 150, 200), c3(255, 80, 160), 0.8, 0.5, 1, { speed = 0.3, up = true, spread = 10, alpha = 0.25, spin = 0 })
+		aura(k, "MutSusHearts", Vector3.zero, T("heart", V.Bubble), c3(255, 170, 210), c3(255, 90, 170), 0.3, 1.2, 1.6, { surface = true, speed = 0.4, accel = UP, spin = 30 })
+	end,
+	Starborn = function(k) -- etkinlik: başından kayan yıldız yağmuru
+		aura(k, "MutStarRain", HEAD + Vector3.new(0, 0.9, 0), T("shooting", V.Star), c3(220, 240, 255), c3(120, 190, 255), 0.45, 2.5, 1.6, { speed = 0.6, spread = 60, accel = Vector3.new(0, -1.6, 0), spin = 60 })
+		aura(k, "MutStarDust", Vector3.zero, V.Star, c3(255, 255, 255), c3(150, 215, 255), 0.3, 3, 0.8, { surface = true, speed = 0.2, spin = 160 })
+	end,
+	Haunted = function(k) -- etkinlik: yeşil hayalet buğusu + yarasa + ay ışığı
+		aura(k, "MutGhost", Vector3.zero, V.Wisp, c3(190, 255, 220), c3(90, 200, 150), 1.4, 1.4, 2, { surface = true, speed = 0.4, accel = UP, alpha = 0.5, emission = 0.6, spin = 20 })
+		aura(k, "MutBats", HEAD, T("bat", V.Star), c3(150, 90, 200), c3(40, 20, 70), 0.45, 0.8, 1.6, { speed = 1.4, up = true, spread = 70, emission = 0.3, spin = 20 })
+	end,
+}
+
+--[[
 	3D ağ sürümü (2026-10-01): ReplicatedStorage.UnitMeshes.<id> varsa
 	(ChatGPT konsepti → TRELLIS → tools/split_mesh.py → Studio Import 3D;
 	ölçek 1, ayak tabanı y=0, yüz -Z) parça modelinin görsel parçaları
@@ -941,8 +979,10 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 		local halo = cosmetic("Halo", Vector3.new(3.1, 0.18, 3.1),
 			CFrame.new(0, 5.75, 0) * CFrame.Angles(math.rad(10), 0, math.rad(6)), accent, Enum.Material.Neon)
 		halo.Transparency = 0.35
+	end
 
-	elseif def.rarity == "Secret" then
+	-- Gizli kademe: 3D şapkası olsa da gövde yarı saydam ve karanlık kalıyor
+	if def.rarity == "Secret" then
 		--[[
 			Gizli kademe hiçbir şey TAKMIYOR: tam tersine, karakterin kendisi
 			yarı saydam ve gövdesi karanlık. "Bu ne takmış" değil "bu ne
@@ -991,6 +1031,10 @@ function UnitModel.Build(unitId: string, mutationId: string?): Model
 	local crewFx = CREW_FX[def.id]
 	if crewFx then
 		crewFx({ body = body } :: any)
+	end
+	local mutFx = if mutation then MUT_FX[mutation.id] else nil
+	if mutFx then
+		mutFx({ body = body } :: any)
 	end
 
 	--[[

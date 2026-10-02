@@ -785,6 +785,16 @@ function PetModel.Build(key: string): Model?
 	tag.Value = def.id
 	tag.Parent = model
 
+	-- İstemci MutationFX bunlara bakıp yörünge/halka animasyonunu kuruyor
+	local mutTag = Instance.new("StringValue")
+	mutTag.Name = "MutationId"
+	mutTag.Value = if mutation then mutation.id else ""
+	mutTag.Parent = model
+	local sizeTag = Instance.new("StringValue")
+	sizeTag.Name = "PetSize"
+	sizeTag.Value = if size then size.id else ""
+	sizeTag.Parent = model
+
 	--[[
 		Ölçek en sonda: bütün ölçüler 1.0'a göre yazıldı. Işık ve parıltı da
 		ScaleTo ile birlikte büyüyor. Titan oyuncudan büyük — adının hakkı.

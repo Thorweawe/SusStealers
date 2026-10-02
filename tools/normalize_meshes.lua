@@ -38,6 +38,8 @@ local SPEC = {
 	hat_epic_lo = { "Epic", 2.7, 3.7, "HatMeshes", 180, "w" },
 	hat_legendary_lo = { "Legendary", 2.15, 3.7, "HatMeshes", 180, "w" },
 	hat_mythic_lo = { "Mythic", 2.8, 3.65, "HatMeshes", 180, "w" },
+	hat_secret_lo = { "Secret", 2.6, 3.55, "HatMeshes", 180, "w" },
+	hat_celestial_lo = { "Celestial", 2.7, 3.55, "HatMeshes", 180, "w" },
 }
 local out = {}
 for _, m in workspace:GetChildren() do

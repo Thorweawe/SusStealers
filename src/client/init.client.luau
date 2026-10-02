@@ -84,6 +84,7 @@ local SettingsPanel = require(script.SettingsPanel)
 local SpinPanel = require(script.SpinPanel)
 local CrewAura = require(script.CrewAura)
 local StyleFX = require(script.StyleFX)
+local MutationFX = require(script.MutationFX)
 local WeeklyPanel = require(script.WeeklyPanel)
 local SeasonPanel = require(script.SeasonPanel)
 local SpaceEventsFX = require(script.SpaceEventsFX)
@@ -965,6 +966,11 @@ end)
 -- Her şeye kendi tarzında efekt: gezegen, jetpack, şapka, yumurta
 mountPanel("StyleFX", function()
 	StyleFX.Start()
+end)
+
+-- Mutasyon ve pet boyu animasyonları (yörünge, titreşen ışık, püskürme, halka)
+mountPanel("MutationFX", function()
+	MutationFX.Start()
 end)
 
 -- Tek hedef kartı (üst orta): öğretici bitince "şimdi ne yapmalıyım"
