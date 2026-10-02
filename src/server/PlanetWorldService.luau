@@ -439,10 +439,15 @@ end
 
 -- ─── Ana gemi ───────────────────────────────────────────────────────────────
 
--- 3D ana gemi: ağ geldiğinde Studio'da bakılarak ayarlandı
-local SHIP_MESH_YAW = 0
+-- 3D ana gemi (Studio'da bakılarak, 2026-10-02): ağın burnu -Z'de → 180°.
+-- Ağın kendi rampası burnun altında (z 30→50); parça rampa onunla çakıştığı
+-- için ağ varken yalnız Collision kutuları kalıyor, ağ rampasının altına
+-- görünmez yürünür rampa (SHIP_RAMP_*) konuyor.
+local SHIP_MESH_YAW = 180
 local SHIP_MESH_OFFSET = Vector3.new(0, 0, 0)
-local SHIP_KEEP = { Collision = true, Ramp = true, RampTread = true, RampRail = true, RailPost = true, Door = true }
+local SHIP_KEEP = { Collision = true }
+local SHIP_RAMP_TOP = Vector3.new(0, 13, 31)
+local SHIP_RAMP_BOTTOM = Vector3.new(0, 0.4, 52)
 
 local function buildShip(model: Model, origin: Vector3)
 	local L = DefenseConfig.Layout
@@ -571,6 +576,10 @@ local function buildShip(model: Model, origin: Vector3)
 			end
 		end
 		skin(ship, mesh, CFrame.new(c + SHIP_MESH_OFFSET) * CFrame.Angles(0, math.rad(SHIP_MESH_YAW), 0))
+		local rTop, rBottom = c + SHIP_RAMP_TOP, c + SHIP_RAMP_BOTTOM
+		part(ship, "Collision", Vector3.new(11, 1, (rTop - rBottom).Magnitude), CFrame.lookAt((rTop + rBottom) / 2, rBottom),
+			WHITE, { Transparency = 1, CanQuery = false, CastShadow = false })
+		glowAt(ship, rTop + Vector3.new(0, 3, -2), Color3.fromRGB(255, 230, 180), 30, 2)
 		for side = -1, 1, 2 do
 			glowAt(ship, c + Vector3.new(side * 16, Y, -60), FLAME, 26, 2)
 		end
@@ -597,6 +606,10 @@ local STALL_MESH: { [string]: string } = {
 	hospital = "ShipHospital", armory = "ShipArmory", shop = "ShipShop", market = "ShipMarket",
 }
 local STALL_MESH_YAW = 0
+-- Şablon 26 genişlikte (normalize); tezgâh/tezgâhtar önde kalsın diye
+-- 20'ye küçültülüp biraz geriye (+Z) alınıyor
+local STALL_MESH_SCALE = 20 / 26
+local STALL_MESH_BACK = 2
 local STALL_KEEP = { Deck = true, Counter = true, CounterTop = true, Sign = true }
 
 local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector2, info: Stall)
@@ -708,9 +721,9 @@ local function miniShip(model: Model, arena: number, origin: Vector3, at: Vector
 				d:Destroy()
 			end
 		end
-		skin(f, mesh, rel(0, 0, 0) * CFrame.Angles(0, math.rad(STALL_MESH_YAW), 0))
-		local ext = mesh:GetExtentsSize()
-		blocker(f, rel(0, ext.Y * 0.4, 0), Vector3.new(ext.X * 0.85, ext.Y * 0.75, ext.Z * 0.75))
+		skin(f, mesh, rel(0, 0, STALL_MESH_BACK) * CFrame.Angles(0, math.rad(STALL_MESH_YAW), 0), STALL_MESH_SCALE)
+		local ext = mesh:GetExtentsSize() * STALL_MESH_SCALE
+		blocker(f, rel(0, ext.Y * 0.4, STALL_MESH_BACK), Vector3.new(ext.X * 0.85, ext.Y * 0.75, ext.Z * 0.75))
 		local sign = f:FindFirstChild("Sign")
 		if sign and sign:IsA("BasePart") then
 			sign.CFrame = rel(0, ext.Y + 2.5, -2)
