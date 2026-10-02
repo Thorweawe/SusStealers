@@ -92,3 +92,11 @@ models_3d/defense/*_concept.png
 models_3d/defense/*.mp4
 models_3d/defense/[A-Z]*.glb
 !models_3d/defense/*_lo.glb
+models_3d/gear/*_concept.png
+models_3d/gear/*.mp4
+models_3d/gear/[A-Z]*.glb
+!models_3d/gear/*_lo.glb
+models_3d/hats2/*_concept.png
+models_3d/hats2/*.mp4
+models_3d/hats2/[A-Z]*.glb
+!models_3d/hats2/*_lo.glb
