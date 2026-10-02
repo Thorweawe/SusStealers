@@ -104,6 +104,16 @@ function TaskService.TryComplete(player: Player, taskId: any, now: number?): num
 	local rewards = lastReward[player] or {}
 	lastReward[player] = rewards
 	local last = rewards[taskId]
+	--[[ Kayıttaki bekleme (çıkıp girince / sunucu değiştirince de geçerli).
+	     `now` verilmişse test saatidir; o zaman yalnızca bellek kuralı. ]]
+	local profile = DataService.Get(player)
+	local readyAt = profile and profile.taskReadyAt and profile.taskReadyAt[taskId]
+	if now == nil and readyAt and os.time() < readyAt then
+		(mine :: any)[taskId] = nil
+		local left = readyAt - os.time()
+		notify(player, string.format("%s done! Next reward in %d:%02d", def.name, left // 60, left % 60))
+		return nil
+	end
 	if last and t - last < def.cooldown then
 		-- Gerçekten oynanmış bir görev: ödül yok ama ne zaman geleceğini söyle
 		(mine :: any)[taskId] = nil
@@ -117,6 +127,9 @@ function TaskService.TryComplete(player: Player, taskId: any, now: number?): num
 
 	(mine :: any)[taskId] = nil
 	rewards[taskId] = t
+	if profile and profile.taskReadyAt then
+		profile.taskReadyAt[taskId] = os.time() + def.cooldown
+	end
 	player:SetAttribute("TaskReady_" .. taskId, os.time() + def.cooldown)
 	local reward = TaskService.RewardFor(player, def)
 	EconomyService.AddCash(player, reward)
@@ -129,8 +142,12 @@ end
 function TaskService._Reset(player: Player)
 	startedAt[player] = nil
 	lastReward[player] = nil
+	local profile = DataService.Get(player)
 	for _, def in Config.Tasks do
 		player:SetAttribute("TaskReady_" .. def.id, nil)
+		if profile and profile.taskReadyAt then
+			profile.taskReadyAt[def.id] = nil
+		end
 	end
 end
 
@@ -190,6 +207,24 @@ function TaskService.Start()
 		startedAt[player] = nil
 		lastReward[player] = nil
 	end)
+	-- Girişte kayıttaki beklemeleri işaretle (konsoldaki "!" ve penceredeki süre doğru olsun)
+	local function publish(player: Player)
+		local profile = DataService.WaitForProfile(player, 30)
+		if not (profile and profile.taskReadyAt) then
+			return
+		end
+		for id, at in profile.taskReadyAt do
+			if at > os.time() and Config.GetTask(id) then
+				player:SetAttribute("TaskReady_" .. id, at)
+			end
+		end
+	end
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(publish, player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(publish, player)
+	end
 end
 
 return TaskService

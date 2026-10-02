@@ -190,6 +190,11 @@ export type Profile = {
 	questsClaimed: number,
 	dailyClaims: number,
 	tasksDone: number,
+	--[[ Görev/mini oyun ödülünün tekrar alınabileceği an (Unix sn; TaskService
+	     görev kimliğiyle, MinigameService "Asteroids"). 2026-10-02: bekleme
+	     eskiden yalnızca sunucu belleğindeydi; çıkıp girince sıfırlanıyor ve
+	     para kasılıyordu. Kayıtta durunca sunucu değiştirmek de işe yaramıyor. ]]
+	taskReadyAt: { [string]: number },
 	-- Kozmetikler: sahip olunanlar (kimlik -> true) ve takılı şapka / iz.
 	-- Boş dize = takılı değil. Kalıcı; rebirth'te sıfırlanmıyor.
 	cosmetics: { [string]: boolean },
@@ -305,6 +310,7 @@ local function newProfile(): Profile
 		questsClaimed = 0,
 		dailyClaims = 0,
 		tasksDone = 0,
+		taskReadyAt = {},
 		cosmetics = {},
 		hat = "",
 		trail = "",
@@ -377,6 +383,16 @@ local function sanitize(raw: any): Profile
 		local value = (raw :: any)[field]
 		if typeof(value) == "number" and value >= 0 then
 			(profile :: any)[field] = math.floor(value)
+		end
+	end
+
+	if typeof(raw.taskReadyAt) == "table" then
+		local now = os.time()
+		for id, at in raw.taskReadyAt do
+			-- Geçmişte kalan (dolmuş) bekleme taşınmıyor; saçma büyük değer de (en fazla 1 gün)
+			if typeof(id) == "string" and typeof(at) == "number" and at > now and at < now + 86400 then
+				profile.taskReadyAt[id] = math.floor(at)
+			end
 		end
 	end
 

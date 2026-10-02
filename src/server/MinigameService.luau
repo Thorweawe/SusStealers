@@ -23,6 +23,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local EconomyService = require(script.Parent.EconomyService)
+local DataService = require(script.Parent.DataService)
 local PromptGuard = require(script.Parent.PromptGuard)
 
 local MinigameService = {}
@@ -86,6 +87,15 @@ function MinigameService.TryComplete(player: Player, now: number?): number?
 		return nil
 	end
 	local last = lastReward[player]
+	-- Kayıttaki bekleme (çıkıp girince de geçerli; `now` verilmişse test saati)
+	local profile = DataService.Get(player)
+	local readyAt = profile and profile.taskReadyAt and profile.taskReadyAt.Asteroids
+	if now == nil and readyAt and os.time() < readyAt then
+		startedAt[player] = nil
+		local left = readyAt - os.time()
+		notify(player, string.format("Asteroids cleared! Next reward in %d:%02d", left // 60, left % 60))
+		return nil
+	end
 	if last and t - last < rules.cooldown then
 		-- Gerçekten oynanmış bir oyun: ödül yok ama ne zaman geleceğini söyle
 		startedAt[player] = nil
@@ -100,6 +110,9 @@ function MinigameService.TryComplete(player: Player, now: number?): number?
 
 	startedAt[player] = nil
 	lastReward[player] = t
+	if profile and profile.taskReadyAt then
+		profile.taskReadyAt.Asteroids = os.time() + rules.cooldown
+	end
 	-- İstemci pencerede kalan süreyi gösterebilsin (duvar saati)
 	player:SetAttribute("AsteroidReadyAt", os.time() + rules.cooldown)
 	local reward = MinigameService.RewardFor(player)
@@ -113,6 +126,10 @@ function MinigameService._Reset(player: Player)
 	startedAt[player] = nil
 	lastReward[player] = nil
 	player:SetAttribute("AsteroidReadyAt", nil)
+	local profile = DataService.Get(player)
+	if profile and profile.taskReadyAt then
+		profile.taskReadyAt.Asteroids = nil
+	end
 end
 
 --[[
@@ -161,6 +178,20 @@ function MinigameService.Start()
 		startedAt[player] = nil
 		lastReward[player] = nil
 	end)
+	-- Girişte kayıttaki bekleme (penceredeki kalan süre doğru olsun)
+	local function publish(player: Player)
+		local profile = DataService.WaitForProfile(player, 30)
+		local at = profile and profile.taskReadyAt and profile.taskReadyAt.Asteroids
+		if at and at > os.time() then
+			player:SetAttribute("AsteroidReadyAt", at)
+		end
+	end
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(publish, player)
+	end)
+	for _, player in Players:GetPlayers() do
+		task.spawn(publish, player)
+	end
 end
 
 return MinigameService
