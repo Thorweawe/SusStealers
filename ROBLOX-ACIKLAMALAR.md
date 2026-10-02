@@ -10,6 +10,41 @@ karakter; aşağıdaki uzun sürüm ~950.
 
 ---
 
+## 0a. ŞU AN KULLAN: STARFALL + SINIRLI YUMURTA (2026-10-02)
+
+Starfall Egg ve 3D pet/crewmate güncellemesi yayınlanınca 0'daki açıklamanın
+yerine bu. (819 karakter, sınır 1000.)
+
+**Oyun adı:** `[🌠 EVENT] Steal a Crewmate` (aynı kalıyor)
+
+**Açıklama:**
+
+> 🌠 STARFALL EVENT: the LIMITED Starfall Egg is here! 6 new pets that never come back after this week.
+>
+> Fly to alien planets and steal the rarest crewmates from sleeping space monsters. Wake one up and it hunts you down; get caught and you're thrown back to the ship. Make it home and your crew earns cash every second.
+>
+> 🥚 Starfall Egg: Galaxy Unicorn, Starfall Drake, Wishing Star (SECRET) and more
+> ⭐ Catch falling stars for Stardust, open the egg, buy limited hats
+> 🪐 11 planets and monsters, each guarding rarer crew
+> 💎 Common to CELESTIAL, Golden, Impostor and Starborn mutations
+> 🏆 Top 10 Stardust collectors win the LIMITED Galaxy Halo (only earned Stardust counts)
+> 🔁 Rebirths, 45 pets, quests, spin wheel and live station events
+>
+> 🎁 CODES: TIKTOK · RELEASE · CREWMATE · SUS
+> ⭐ Favorite so you don't miss the next event.
+
+**Kapak sırası:** 1. `thumbnails/final/thumb_starfall_egg.png` (yeni), 2. `thumbnails/v2/thumb_2_starfall.png`,
+sonra eski sıra (6 WORTH IT, 5 POV, 3 PLANETS, 7 SUS).
+
+**Reklam (16+):** `ads/final/ad_16x9_starfall_egg.png` + `ad_1x1_starfall_egg.png` yeni kampanya;
+mevcutlardan en düşük CTR'liyi kapat.
+
+**Grup duyurusu (Shout):**
+
+> 🥚 NEW LIMITED STARFALL EGG! 6 pets that never come back: Galaxy Unicorn, Starfall Drake, Wishing Star 🌠 Open it with Stardust in the EVENT window. Code TIKTOK = free egg 🎁
+
+---
+
 ## 0. ŞU AN KULLAN: 16+ dönemi + STARFALL (2026-10-01)
 
 Oyun şimdilik yalnızca 16+ hesaplara açık, reklam da 16+'ya gidiyor. Metinler

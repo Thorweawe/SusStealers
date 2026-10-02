@@ -3,7 +3,7 @@ Dışarıda (yapay zeka görsel aracı / sanatçı) yapılmış YAZISIZ görseli
 bizim kapak yazılarını ve reklam düzenini ekler.
 
     python tools/overlay_thumb.py <görsel.png> <kalıp> [ad] [left|right|band]   (son: 16:9 reklamda logo tarafı)
-        kalıp: rift | rift_ring | sneak | split | starfall | bosses | kraken | leviathan | worth | none
+        kalıp: rift | rift_ring | sneak | split | starfall | starfallegg | bosses | kraken | leviathan | worth | none
     ->  thumbnails/final/thumb_<ad>.png (1920x1080) + ads/final/ad_16x9_/ad_1x1_<ad>.png
 
 Yazılar oyundaki gerçek sayılarla (Config): Rift Stalker'da SECRET %2 = "1 in 50",
@@ -83,6 +83,11 @@ def apply(c, preset):
         V.ribbon(c, "NEW EVENT!", (900, 300), 150, angle=-6)
         put_text(c, "STARFALL", (1000, 620), 300, angle=-6, fill=gold_fill(), stroke=(110, 60, 0))
         put_text(c, "LIMITED!", (1000, 900), 150, angle=-6, fill=(255, 255, 255), stroke=(200, 30, 60))
+    elif preset == "starfallegg":
+        # 2026-10-02: sınırlı Starfall Egg + 6 sınırlı pet (Config.LimitedEggs)
+        V.ribbon(c, "LIMITED EGG!", (530, 210), 100, angle=-6)
+        put_text(c, "NEW PETS", (530, 430), 180, angle=-6, fill=gold_fill(), stroke=(110, 60, 0))
+        put_text(c, "1 WEEK ONLY", (530, 620), 110, angle=-6, fill=(255, 255, 255), stroke=(40, 60, 200))
     elif preset == "bosses":
         put_text(c, "CAN YOU ROB THEM ALL?", (W / 2, H - 260), 230, angle=-2, fill=(255, 255, 255), stroke=(170, 10, 40))
     elif preset == "leviathan":
