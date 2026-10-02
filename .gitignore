@@ -79,3 +79,4 @@ models_3d/event/*_concept.png
 models_3d/event/*.mp4
 models_3d/props/*_concept.png
 ui_art/event/*_raw.png
+ui_art/event/icon_raw_*.png

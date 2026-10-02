@@ -114,6 +114,17 @@ function EventPanel.Create(screen: Instance): Panel
 	local driver = FancyKit.driver(root)
 	local shell = FancyKit.shell(root, e.emoji .. " " .. e.name, { e.color, e.color2, e.color:Lerp(Color3.new(1, 1, 1), 0.3) }, HEADER, Z, driver, 44)
 	local body = shell.body
+	local icons = UiArt.EventIcon[e.id] or { currency = 0, crew = 0 }
+	local function iconImage(parent: Instance, id: number, size: UDim2, z: number): ImageLabel
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Image = "rbxassetid://" .. id
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Size = size
+		img.ZIndex = z
+		img.Parent = parent
+		return img
+	end
 
 	-- Tema arka planı (UiArt.EventArt): kenarlarda temanın süsü, ortası kartların altında sakin
 	local artId = UiArt.EventArt[e.id]
@@ -164,6 +175,14 @@ function EventPanel.Create(screen: Instance): Panel
 	candyText.Size = UDim2.new(0.45, -16, 0, 48)
 	candyText.TextXAlignment = Enum.TextXAlignment.Right
 	CardKit.fit(candyText, 40, 18)
+	if icons.currency ~= 0 then
+		-- Para ikonu bakiyenin sağında; yazılar ikona yer açıyor
+		local coin = iconImage(top, icons.currency, UDim2.fromOffset(76, 76), Z + 5)
+		coin.AnchorPoint = Vector2.new(1, 0.5)
+		coin.Position = UDim2.new(1, -8, 0.5, 0)
+		candyTitle.Position = UDim2.new(1, -90, 0, 10)
+		candyText.Position = UDim2.new(1, -90, 0, 32)
+	end
 
 	-- ─── Nasıl kazanılır ────────────────────────────────────────────────
 	local how = CardKit.bold(body, string.format(
@@ -331,7 +350,8 @@ function EventPanel.Create(screen: Instance): Panel
 	local ladder = e.dailyLadder
 	local dayCard = section(-1, 112, e.color:Lerp(e.color2, 0.5):Lerp(Color3.new(0, 0, 0), 0.2))
 	local dayTitle = line(dayCard, "", 20, Color3.new(1, 1, 1), 8)
-	local dayBoxes: { { box: Frame, top: TextLabel, amount: TextLabel } } = {}
+	local dayBoxes: { { box: Frame, top: TextLabel, amount: TextLabel, glow: UIStroke } } = {}
+	local todayGlow: UIStroke? = nil -- bugünün kutusu: nabız gibi parlayan sarı kenar
 	local boxRow = Instance.new("Frame")
 	boxRow.Position = UDim2.fromOffset(12, 36)
 	boxRow.Size = UDim2.new(1, -24, 0, 46)
@@ -357,7 +377,12 @@ function EventPanel.Create(screen: Instance): Panel
 		amount.Position = UDim2.fromOffset(0, 20)
 		amount.Size = UDim2.new(1, 0, 0, 22)
 		CardKit.fit(amount, 17, 9)
-		table.insert(dayBoxes, { box = box, top = top, amount = amount })
+		local glow = Instance.new("UIStroke")
+		glow.Color = CardKit.YELLOW
+		glow.Thickness = 0
+		glow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		glow.Parent = box
+		table.insert(dayBoxes, { box = box, top = top, amount = amount, glow = glow })
 	end
 	local daySub = line(dayCard, "", 14, Color3.fromRGB(255, 235, 170), 88)
 
@@ -428,7 +453,12 @@ function EventPanel.Create(screen: Instance): Panel
 		local doneToday = player:GetAttribute("EventDayDone") == true
 		dayTitle.Text = string.format("📅 DAILY %s  ·  DAY %d / %d", string.upper(e.currency), math.min(days, #ladder), #ladder)
 		local nextDay = days + 1
+		todayGlow = nil
 		for i, b in dayBoxes do
+			b.glow.Thickness = 0
+			if i == nextDay and active and not doneToday then
+				todayGlow = b.glow
+			end
 			if i <= days then
 				b.box.BackgroundColor3 = CardKit.GREEN:Lerp(Color3.new(0, 0, 0), 0.2)
 				b.top.Text = "✓ DAY " .. i
@@ -493,9 +523,17 @@ function EventPanel.Create(screen: Instance): Panel
 				table.insert(spinners, model)
 			end
 		else
-			local emoji = if item.kind == "unit" then e.emoji elseif item.kind == "superspin" then "🎡" else e.icon
-			local icon = CardKit.bold(iconSlot, emoji, 44, Color3.new(1, 1, 1), Z + 5, 0)
-			icon.Size = UDim2.fromScale(1, 1)
+			-- Görsel ikon varsa o (etkinlik crewmate'i, çark, para), yoksa emoji
+			local art = if item.kind == "unit" then icons.crew
+				elseif item.kind == "superspin" then (UiArt.Icon.ExtraSpin or 0)
+				else icons.currency
+			if art ~= 0 then
+				iconImage(iconSlot, art, UDim2.fromScale(1, 1), Z + 5)
+			else
+				local emoji = if item.kind == "unit" then e.emoji elseif item.kind == "superspin" then "🎡" else e.icon
+				local icon = CardKit.bold(iconSlot, emoji, 44, Color3.new(1, 1, 1), Z + 5, 0)
+				icon.Size = UDim2.fromScale(1, 1)
+			end
 		end
 
 		local name = CardKit.bold(card, item.name, 22, Color3.new(1, 1, 1), Z + 4, 3)
@@ -697,6 +735,12 @@ function EventPanel.Create(screen: Instance): Panel
 				local cf, _ = model:GetBoundingBox()
 				model:PivotTo(CFrame.new(cf.Position) * CFrame.Angles(0, dt * 0.9, 0) * CFrame.new(-cf.Position) * model:GetPivot())
 			end
+		end
+		local glow = todayGlow
+		if glow then
+			local k = 0.5 + 0.5 * math.sin(os.clock() * 5)
+			glow.Thickness = 2 + 2 * k
+			glow.Transparency = 0.4 * (1 - k)
 		end
 		elapsed += dt
 		if elapsed >= 1 then

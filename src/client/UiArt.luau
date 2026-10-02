@@ -83,6 +83,13 @@ UiArt.EventArt = {
 	Spooky2026 = 0,
 } :: { [string]: number }
 
+--[[ Etkinlik ikonları (2026-10-02, ChatGPT; ui_art/event/): etkinlik parası ve
+     etkinlik mutasyonlu crewmate. 0 = yok (pencere emojiye düşüyor). ]]
+UiArt.EventIcon = {
+	Starfall2026 = { currency = 0, crew = 0 },
+	Spooky2026 = { currency = 0, crew = 0 },
+} :: { [string]: { currency: number, crew: number } }
+
 function UiArt.Image(kind: string, name: string): string
 	local id = (UiArt :: any)[kind][name]
 	return if id then "rbxassetid://" .. id else ""
