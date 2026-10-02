@@ -10,8 +10,9 @@
 	    glow           yumuşak daire (ikon arkası hale)
 	    stripes        döşenebilir çapraz şeritler (başlık şeridi)
 
-	  İkonlar (ui_art/icons/, tools/ui_icons.py): oyunun kendi modelleriyle
-	  Studio'da 3B render + koyu dış çizgi.
+	  İkonlar: 2026-10-02'den beri ui_art/icons_v2/ (ChatGPT, magenta zeminli
+	  3x3 sayfalar → tools/icon_sheet.py; parlak çizgi film stili). Eskileri
+	  (ui_art/icons/, Studio'da 3B render) dosya olarak duruyor.
 
 	Yeni görsel: PNG'yi üret, Studio MCP upload_image ile yükle, kimliği
 	buraya yaz.
@@ -31,46 +32,46 @@ UiArt.Texture = {
 }
 
 UiArt.Icon = {
-	Cash100K = 83419074810007,
-	Cash1M = 95690573965959,
-	Cash10M = 134477383072280,
-	DoubleIncome = 83645543792614,
-	ExtraPodiums = 77969748690488,
-	TripleHatch = 83748630208294,
-	FastSteal = 129745034534885,
-	StrongLock = 110311137898872,
-	ExtraSpin = 140532760122223,
-	LuckyRoll = 71477843264344,
-	InstantRebirth = 110316852701915,
-	Potion_Income2x = 89145444737480,
-	Potion_Income3x = 134082346937668,
-	Potion_FastSteal = 131791620825008,
-	Potion_StrongLock = 91791015797563,
-	Gift = 139278632459793,
-	Crewmate = 103077116178309,
-	Jackpot = 140269949452609,
+	Cash100K = 101600801200737,
+	Cash1M = 127364938569593,
+	Cash10M = 136211766671654,
+	DoubleIncome = 133557552469415,
+	ExtraPodiums = 106705094573175,
+	TripleHatch = 121118783438751,
+	FastSteal = 120979117242158,
+	StrongLock = 92050187191209,
+	ExtraSpin = 110502213246084,
+	LuckyRoll = 98801791089572,
+	InstantRebirth = 79936549702522,
+	Potion_Income2x = 76711568720765,
+	Potion_Income3x = 117620987532024,
+	Potion_FastSteal = 120389774662304,
+	Potion_StrongLock = 77243707333799,
+	Gift = 91789982665200,
+	Crewmate = 133066838831577,
+	Jackpot = 135057121803128,
 	-- Sol menü, üst şerit, gear (2026-09-28)
-	Nav_Shop = 97169877415725,
-	Nav_Items = 100732446466588,
-	Nav_Pass = 101823903298869,
-	Nav_Index = 101101085972157,
-	Top_Invite = 79813361359000,
-	Top_Eye = 85711644460792,
-	Top_Settings = 92911947544549,
-	Gear_SlapGlove = 132543684529943,
-	Gear_SpeedCoil = 106848659288772,
-	Gear_StunGun = 111727037136617,
-	Gear_EmergencyButton = 120840718417896,
+	Nav_Shop = 75153510754378,
+	Nav_Items = 113753771507006,
+	Nav_Pass = 115232483891113,
+	Nav_Index = 82447085989765,
+	Top_Invite = 98723437212104,
+	Top_Eye = 123892011958484,
+	Top_Settings = 120433182136660,
+	Gear_SlapGlove = 114915689320946,
+	Gear_SpeedCoil = 77142471834660,
+	Gear_StunGun = 128260156202040,
+	Gear_EmergencyButton = 123780118268197,
 	-- Envanter sekmeleri, sol alt haplar
-	Tab_Pets = 105447129249807,
-	Tab_Potion = 105612339081576,
-	Tab_Style = 91214765132761,
-	Stat_Speed = 99403146956988,
+	Tab_Pets = 132303795808238,
+	Tab_Potion = 73196109363977,
+	Tab_Style = 95551139044578,
+	Stat_Speed = 120497940892462,
 	-- Sunucu şansı ve troller (mağaza SERVER bölümü, şans hapı)
-	ServerLuck = 79817173307828,
-	Troll_Tiny = 109290408619292,
-	Troll_Moon = 86179954993615,
-	Troll_Alarm = 115282988948591,
+	ServerLuck = 76100846397960,
+	Troll_Tiny = 93073892358290,
+	Troll_Moon = 102387005407705,
+	Troll_Alarm = 78113371691560,
 }
 
 --[[
