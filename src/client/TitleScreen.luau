@@ -6,6 +6,9 @@
 	Among Us'ın ana menüsünden esinlenildi: kapkara uzay, kayan yıldızlar,
 	boşlukta dönerek süzülen mürettebat, ortada büyük logo ve altında beyaz
 	çerçeveli düğmeler. Hazır varlık kullanılmıyor; her şey Frame'lerden.
+	2026-10-03: ChatGPT görselleri (UiArt.TitleScreen, ui_art/title_screen):
+	nebula arka planı (yavaşça yaklaşıp uzaklaşıyor), maskotlu logo, parlak
+	düğme yüzleri ve cam oyuncu kartı. Görsel yoksa eski Frame çizimi kalıyor.
 
 	Ekranda:
 	  PLAY          — büyük yeşil düğme (Enter / gamepad A da çalışıyor)
@@ -37,6 +40,23 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 
 local UiKit = require(script.Parent.UiKit)
+local UiArt = require(script.Parent.UiArt)
+local ART: { [string]: string } = (UiArt :: any).TitleScreen or {}
+-- Düğme görsellerinin dokuz-dilim ortası (kaynak piksel) ve köşe ölçeği: uçlar ezilmesin
+local SLICE: { [string]: { Rect | number } } = {
+	play = { Rect.new(110, 90, 914, 110), 0.55 },
+	purple = { Rect.new(110, 100, 656, 122), 0.32 },
+	orange = { Rect.new(110, 100, 657, 122), 0.32 },
+	panel = { Rect.new(110, 80, 914, 107), 0.48 },
+}
+local function sliced(img: ImageLabel, key: string)
+	local sl = SLICE[key]
+	if sl then
+		img.ScaleType = Enum.ScaleType.Slice
+		img.SliceCenter = sl[1] :: Rect
+		img.SliceScale = sl[2] :: number
+	end
+end
 
 local TitleScreen = {}
 
@@ -179,6 +199,47 @@ local function hoverScale(button: GuiButton, target: GuiObject)
 end
 
 --[[ Among Us menüsündeki beyaz çerçeveli düğme: koyu dolgu, kalın beyaz çerçeve. ]]
+--[[ Düğmeye ChatGPT yüzü giydirir: zemin/kontur kapanıyor, görsel altta,
+     yazı üstte ayrı etiket (Sibling'de çocuk görsel ebeveynin yazısını örtüyordu). ]]
+local function skinButton(b: TextButton, key: string, z: number)
+	local image = ART[key]
+	if not image then
+		return
+	end
+	b.BackgroundTransparency = 1
+	local st = b:FindFirstChildOfClass("UIStroke")
+	if st then
+		st.Enabled = false
+	end
+	local face = Instance.new("ImageLabel")
+	face.Name = "Face"
+	face.BackgroundTransparency = 1
+	face.AnchorPoint = Vector2.new(0.5, 0.5)
+	face.Position = UDim2.fromScale(0.5, 0.5)
+	face.Size = UDim2.fromScale(1.08, 1.16)
+	face.Image = image
+	face.ZIndex = z
+	face.Parent = b
+	sliced(face, key)
+	if b.Text ~= "" then
+		local t = Instance.new("TextLabel")
+		t.Name = "Label"
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.new(1, 0, 1, -4)
+		t.Font = b.Font
+		t.TextSize = b.TextSize
+		t.TextColor3 = b.TextColor3
+		t.Text = b.Text
+		t.ZIndex = z + 1
+		t.Parent = b
+		local ts = Instance.new("UIStroke")
+		ts.Color = Color3.fromRGB(16, 18, 40)
+		ts.Thickness = 2.5
+		ts.Parent = t
+		b.TextTransparency = 1
+	end
+end
+
 local function outlinedButton(parent: Instance, text: string, size: Vector2, z: number): TextButton
 	local b = Instance.new("TextButton")
 	b.Name = text
@@ -358,6 +419,24 @@ function TitleScreen.Show(options: Options?): Handle
 	})
 	bgGrad.Parent = bg
 
+	-- ChatGPT arka planı: yavaşça yaklaşıp uzaklaşıyor (canlı dursun)
+	local backdrop: ImageLabel? = nil
+	if ART.bg then
+		local img = Instance.new("ImageLabel")
+		img.Name = "Backdrop"
+		img.BackgroundTransparency = 1
+		img.AnchorPoint = Vector2.new(0.5, 0.5)
+		img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromScale(1.02, 1.02)
+		img.ScaleType = Enum.ScaleType.Crop
+		img.Image = ART.bg
+		img.ZIndex = 1
+		img.Parent = bg
+		TweenService:Create(img, TweenInfo.new(22, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ Size = UDim2.fromScale(1.1, 1.1), Position = UDim2.fromScale(0.52, 0.49) }):Play()
+		backdrop = img
+	end
+
 	-- Gezegen ve uydusu: derinlik veriyor, yıldızların altında değil üstünde
 	local planet = frame(bg, "Planet", 2)
 	planet.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -394,6 +473,11 @@ function TitleScreen.Show(options: Options?): Handle
 	mg.Rotation = 45
 	mg.Color = ColorSequence.new(Color3.fromRGB(210, 220, 235), Color3.fromRGB(70, 80, 100))
 	mg.Parent = moon
+	if backdrop then
+		-- Görselde gezegen ve ay zaten var
+		planet.Visible = false
+		moon.Visible = false
+	end
 
 	-- Yıldızlar: üç katman, uzaktaki yavaş ve sönük (paralaks)
 	type Star = { f: Frame, x: number, y: number, speed: number, base: number, phase: number }
@@ -437,6 +521,8 @@ function TitleScreen.Show(options: Options?): Handle
 	local drifterLayer = frame(bg, "Drifters", 3)
 	drifterLayer.Size = UDim2.fromScale(1, 1)
 	drifterLayer.BackgroundTransparency = 1
+	-- Görselde süzülen mürettebat çizili; düz Frame figürler onun yanında sırıtıyordu
+	drifterLayer.Visible = backdrop == nil
 	local function spawnDrifter(x: number)
 		local h = rng:NextNumber(34, 78)
 		local color = CREW_COLORS[rng:NextInteger(1, #CREW_COLORS)]
@@ -528,15 +614,33 @@ function TitleScreen.Show(options: Options?): Handle
 	bagHolder.BackgroundTransparency = 1
 	UiKit.Coin(bagHolder, 46, UiKit.CREW.LIME)
 
+	-- ChatGPT logosu (maskot dahil): yazı logoları gizleniyor
+	local logoArt: ImageLabel? = nil
+	if ART.logo then
+		top.Visible = false
+		main.Visible = false
+		mascot.Visible = false
+		local img = Instance.new("ImageLabel")
+		img.Name = "LogoArt"
+		img.BackgroundTransparency = 1
+		img.AnchorPoint = Vector2.new(0.5, 0)
+		img.Position = UDim2.fromOffset(380, -24)
+		img.Size = UDim2.fromOffset(620, 270)
+		img.Image = ART.logo
+		img.ZIndex = 12
+		img.Parent = logo
+		logoArt = img
+	end
+
 	local tagline = label(logo, TAGLINE, Enum.Font.GothamBold, 20, Color3.fromRGB(190, 200, 222), 12)
 	tagline.AnchorPoint = Vector2.new(0.5, 0)
-	tagline.Position = UDim2.fromOffset(380, 182)
+	tagline.Position = UDim2.fromOffset(380, if logoArt then 250 else 182)
 	tagline.Size = UDim2.fromOffset(760, 26)
 
 	-- Düğmeler
 	local buttons = frame(content, "Buttons", 11)
 	buttons.AnchorPoint = Vector2.new(0.5, 0)
-	buttons.Position = UDim2.fromOffset(REF.X / 2, 330)
+	buttons.Position = UDim2.fromOffset(REF.X / 2, if logoArt then 350 else 330)
 	buttons.Size = UDim2.fromOffset(420, 220)
 	buttons.BackgroundTransparency = 1
 
@@ -583,6 +687,21 @@ function TitleScreen.Show(options: Options?): Handle
 	pts.Thickness = 3
 	pts.Parent = playText
 	hoverScale(play, play)
+	if ART.play then
+		play.BackgroundTransparency = 1
+		pst.Enabled = false
+		pgr.Enabled = false
+		local face = Instance.new("ImageLabel")
+		face.Name = "Face"
+		face.BackgroundTransparency = 1
+		face.AnchorPoint = Vector2.new(0.5, 0.5)
+		face.Position = UDim2.fromScale(0.5, 0.5)
+		face.Size = UDim2.fromScale(1.08, 1.2)
+		face.Image = ART.play
+		face.ZIndex = 12
+		face.Parent = play
+		sliced(face, "play")
+	end
 
 	-- Parlayan hale: PLAY nefes alıyor
 	local glow = frame(buttons, "Glow", 11)
@@ -597,12 +716,14 @@ function TitleScreen.Show(options: Options?): Handle
 	settingsButton.Position = UDim2.new(0.5, -102, 0, 142)
 	local helpButton = outlinedButton(buttons, "HOW TO PLAY", Vector2.new(196, 60), 12)
 	helpButton.Position = UDim2.new(0.5, 102, 0, 142)
+	skinButton(settingsButton, "purple", 12)
+	skinButton(helpButton, "orange", 12)
 
 	local hint = label(content, "Press ENTER to play", Enum.Font.GothamMedium, 14, Color3.fromRGB(130, 140, 164), 11)
 	-- Telefonda ENTER yok
 	hint.Visible = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
 	hint.AnchorPoint = Vector2.new(0.5, 0)
-	hint.Position = UDim2.fromOffset(REF.X / 2, 560)
+	hint.Position = UDim2.fromOffset(REF.X / 2, if logoArt then 580 else 560)
 	hint.Size = UDim2.fromOffset(300, 20)
 	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
 		hint.Visible = false
@@ -621,6 +742,20 @@ function TitleScreen.Show(options: Options?): Handle
 	cst.Transparency = 0.6
 	cst.Thickness = 2
 	cst.Parent = card
+	if ART.panel then
+		card.BackgroundTransparency = 1
+		cst.Enabled = false
+		local glass = Instance.new("ImageLabel")
+		glass.Name = "Glass"
+		glass.BackgroundTransparency = 1
+		glass.AnchorPoint = Vector2.new(0.5, 0.5)
+		glass.Position = UDim2.fromScale(0.5, 0.5)
+		glass.Size = UDim2.fromScale(1.06, 1.18)
+		glass.Image = ART.panel
+		glass.ZIndex = 11
+		glass.Parent = card
+		sliced(glass, "panel")
+	end
 
 	local avatar = Instance.new("ImageLabel")
 	avatar.Name = "Avatar"
@@ -1075,7 +1210,7 @@ function TitleScreen.Show(options: Options?): Handle
 		if content.Visible then
 			introOffset += (0 - introOffset) * math.min(1, dt * 6)
 		end
-		logo.Position = UDim2.fromOffset(REF.X / 2, 70 + math.sin(t * 1.2) * 5 + introOffset)
+		logo.Position = UDim2.fromOffset(REF.X / 2, (if logoArt then 50 else 70) + math.sin(t * 1.2) * 5 + introOffset)
 		mascot.Rotation = -12 + math.sin(t * 1.6) * 5
 	end))
 
@@ -1092,7 +1227,7 @@ function TitleScreen.Show(options: Options?): Handle
 		end)
 		task.spawn(function()
 			pcall(function()
-				game:GetService("ContentProvider"):PreloadAsync({ main, playText, top, tagline })
+				game:GetService("ContentProvider"):PreloadAsync({ main, playText, top, tagline, logoArt or main, backdrop or main })
 			end)
 			done = true
 		end)

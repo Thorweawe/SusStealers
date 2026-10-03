@@ -140,4 +140,15 @@ UiArt.TitleIcon = {
 	Auto = "rbxassetid://82367906378172",
 } :: { [string]: string }
 
+--[[ 2026-10-03: ana ekran (TitleScreen) ChatGPT görselleri, ui_art/title_screen:
+     nebula arka planı, maskotlu logo, düğme yüzleri (dokuz dilim), cam kart. ]]
+UiArt.TitleScreen = {
+	bg = "rbxassetid://126802633649069",
+	logo = "rbxassetid://74805130441503",
+	play = "rbxassetid://131398909374576",
+	purple = "rbxassetid://81675585191268",
+	orange = "rbxassetid://113801390466137",
+	panel = "rbxassetid://117742854490258",
+}
+
 return UiArt

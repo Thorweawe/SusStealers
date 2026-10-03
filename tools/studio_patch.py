@@ -50,7 +50,8 @@ def target_path(path: str) -> tuple[str, str]:
     return "game.StarterPlayer.StarterPlayerScripts.Client", name
 
 
-WRITE = ("game:GetService('ScriptEditorService'):UpdateSourceAsync(s, function() return src end)" + NL
+WRITE = ("local f_, e_ = loadstring(src) if not f_ then print('DERLEME HATASI', e_) return end" + NL
+         + "game:GetService('ScriptEditorService'):UpdateSourceAsync(s, function() return src end)" + NL
          + "print('yazildi', s:GetFullName(), H(s.Source))" + NL)
 
 
