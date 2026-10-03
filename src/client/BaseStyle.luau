@@ -33,7 +33,8 @@ local function texture(p: BasePart)
 	if not p:IsA("Part") or p.Material ~= Enum.Material.SmoothPlastic or p.Shape ~= Enum.PartType.Block then
 		return
 	end
-	if p.Name == "Podium" or p.Transparency >= 1 then
+	-- Görünmez (kilitli kat) parçalar da dokulanıyor: kat açılınca hazır
+	if p.Name == "Podium" then
 		return
 	end
 	local s = p.Size
