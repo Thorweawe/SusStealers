@@ -774,6 +774,9 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		return dir
 	end
 
+	-- Son gidilen yatay yön: dururken karakter buna bakıyor (kameraya değil)
+	local lastFlyLook: Vector3? = nil
+
 	local function stepFlight(dt: number, root: BasePart)
 		--[[
 			Gear'la vurulduysan (GearFX "hit", uzayda): denetim yok, sersemlik
@@ -860,14 +863,20 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		if flyAlign then
 			local flat = Vector3.new(v.X, 0, v.Z)
 			local look = if flat.Magnitude > 2 then flat.Unit else nil
+			--[[
+				2026-10-03 ("uçarken kamera yüzü çevirmesin, serbestçe etrafa
+				bakabileyim"): dururken artık kameranın yönüne DEĞİL, son
+				gidilen yöne bakıyor; kamera karakteri döndürmeden dolaşıyor.
+			]]
+			if look then
+				lastFlyLook = look
+			else
+				look = lastFlyLook
+			end
 			if not look then
-				local camera = workspace.CurrentCamera
-				local cl = if camera then camera.CFrame.LookVector else Vector3.new(0, 0, -1)
-				look = Vector3.new(cl.X, 0, cl.Z)
-				if look.Magnitude < 0.01 then
-					look = Vector3.new(0, 0, -1)
-				end
-				look = look.Unit
+				local rl = root.CFrame.LookVector
+				look = Vector3.new(rl.X, 0, rl.Z)
+				look = if look.Magnitude > 0.01 then look.Unit else Vector3.new(0, 0, -1)
 			end
 			local lean = math.clamp(v.Magnitude / math.max(1, speed), 0, 1)
 			-- Dururken dik süzülür, hızlanınca ~45° öne yatar (kol ileride, klip FlyPose)
