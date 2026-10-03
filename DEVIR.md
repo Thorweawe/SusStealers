@@ -13,6 +13,21 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-03 (91) — Yusuf → **Batur, oku** (ortak UI kiti değişti; DefenseUI görünüşü de etkilenir)
+- **Pencere kiti (ChatGPT görselleri, `UiArt.Kit` + `UiArt.kit()/plain()`):**
+  `FancyKit.shell/button`, `CardKit.skin/card/button` ve `UiKit.Modernize(shell)`
+  artık nebula gövde, renge boyanan parlak başlık, kırmızı X görseli, parlak
+  kart ve düğme kullanıyor (dokuz dilim). Çağrı imzaları AYNI; senin
+  `DefenseUI` (FancyKit.shell) kodun değişmedi ama yeni görünüşü alıyor.
+  Görsel kimlikleri `tools/asset_ids.json` → `ui_kit_2026_10_03`.
+- Ana ekran (`TitleScreen`): ChatGPT arka plan, logo, düğmeler (`UiArt.TitleScreen`).
+- Unvanlar: her unvanın amblemi (`UiArt.TitleIcon`), Titles sekmesinde ve
+  baş üstünde (`TitleTags`); kademeye göre parıltı/ışık şeridi/dönen ışık.
+- Pet altı halka: neon disk yerine iki çıkartmalı ışık halkası (`PetModel` "Aura").
+- **Düşük Grafik:** parçacıklar artık kapanmıyor, %30'a iniyor (`SettingsPanel`).
+- `PetMeshes.TheEgg` yeniden üretildi (deliksizdi değil, oyuktu).
+- Hepsi Studio'ya basıldı (hash kontrollü); Ctrl+S Yusuf'ta.
+
 ## 2026-10-02 (90) — Yusuf → **Batur, oku** (gezegen savunması 3D; SENİN dosyalarına dokunuldu)
 - Kullanıcı isteği: "farklı mape gidiyorsun, ordaki modelleri de 3d yap herşeyi, efektleri ayarla".
   Hepsi **ağ yoksa eski hâline düşüyor**: `ReplicatedStorage.DefenseMeshes.<ad>` yoksa senin parça
