@@ -134,8 +134,10 @@ local function meshTemplate(name: string): Model?
 	return if t and t:IsA("Model") then t else nil
 end
 
--- Şablonun MeshPart'larını cf çerçevesine, k ölçeğinde kopyalar
-local function skin(parent: Instance, template: Model, cf: CFrame, k: number?)
+-- Şablonun MeshPart'larını cf çerçevesine, k ölçeğinde kopyalar.
+-- collide: ağın kendisi katı (şablonda CollisionFidelity önceden ayarlı;
+-- 2026-10-03 ana gemi: "içinden geçiliyor")
+local function skin(parent: Instance, template: Model, cf: CFrame, k: number?, collide: boolean?)
 	local scale = k or 1
 	for _, src in template:GetDescendants() do
 		if not src:IsA("MeshPart") then
@@ -151,7 +153,7 @@ local function skin(parent: Instance, template: Model, cf: CFrame, k: number?)
 		p.Size = src.Size * scale
 		p.CFrame = cf * (src.CFrame.Rotation + src.CFrame.Position * scale)
 		p.Anchored = true
-		p.CanCollide = false
+		p.CanCollide = collide == true
 		p.CanQuery = false
 		p.CanTouch = false
 		p.Parent = parent
@@ -575,7 +577,7 @@ local function buildShip(model: Model, origin: Vector3)
 				d:Destroy()
 			end
 		end
-		skin(ship, mesh, CFrame.new(c + SHIP_MESH_OFFSET) * CFrame.Angles(0, math.rad(SHIP_MESH_YAW), 0))
+		skin(ship, mesh, CFrame.new(c + SHIP_MESH_OFFSET) * CFrame.Angles(0, math.rad(SHIP_MESH_YAW), 0), nil, true)
 		local rTop, rBottom = c + SHIP_RAMP_TOP, c + SHIP_RAMP_BOTTOM
 		part(ship, "Collision", Vector3.new(11, 1, (rTop - rBottom).Magnitude), CFrame.lookAt((rTop + rBottom) / 2, rBottom),
 			WHITE, { Transparency = 1, CanQuery = false, CastShadow = false })

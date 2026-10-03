@@ -302,14 +302,30 @@ local function modal(parent: Instance, title: string, size: Vector2, z: number):
 	grad.Rotation = 90
 	grad.Color = ColorSequence.new(UiKit.SHELL:Lerp(ACCENT, 0.08), UiKit.SHELL_DEEP)
 	grad.Parent = panel
+	-- 2026-10-03: oyun içi pencerelerle aynı kit (nebula gövde + renkli başlık şeridi)
+	if UiArt.Kit then
+		UiArt.plain(panel)
+		UiArt.kit(panel, "window", -1)
+		local bar = UiArt.kit(panel, "header", z + 1, ACCENT)
+		bar.AnchorPoint = Vector2.new(0.5, 0)
+		bar.Position = UDim2.new(0.5, 0, 0, 8)
+		bar.Size = UDim2.new(1, -16, 0, 58)
+	end
 
 	local heading = label(panel, title, Enum.Font.FredokaOne, 30, WHITE, z + 2)
 	heading.Position = UDim2.fromOffset(0, 14)
 	heading.Size = UDim2.new(1, 0, 0, 36)
 	local hs = Instance.new("UIStroke")
-	hs.Thickness = 2
+	hs.Thickness = if UiArt.Kit then 3.5 else 2
 	hs.Color = Color3.fromRGB(10, 10, 16)
 	hs.Parent = heading
+	if UiArt.Kit then
+		-- Sarı → turuncu başlık (mağaza başlıkları gibi)
+		local hg = Instance.new("UIGradient")
+		hg.Rotation = 90
+		hg.Color = ColorSequence.new(Color3.fromRGB(255, 240, 150), Color3.fromRGB(255, 160, 30))
+		hg.Parent = heading
+	end
 
 	local close = Instance.new("TextButton")
 	close.Name = "Close"
@@ -331,6 +347,11 @@ local function modal(parent: Instance, title: string, size: Vector2, z: number):
 	cs.Thickness = 2
 	cs.Parent = close
 	hoverScale(close, close)
+	if UiArt.Kit then
+		UiArt.plain(close)
+		close.TextTransparency = 1
+		UiArt.kit(close, "close", z + 3).Size = UDim2.fromScale(1.25, 1.25)
+	end
 
 	return veil, panel, close
 end
@@ -871,6 +892,10 @@ function TitleScreen.Show(options: Options?): Handle
 		r.BackgroundColor3 = Color3.fromRGB(34, 40, 58)
 		r.BackgroundTransparency = 0.2
 		corner(r, UDim.new(0, 12))
+		if UiArt.Kit then
+			r.BackgroundTransparency = 1
+			UiArt.kit(r, "card", 43, Color3.fromRGB(64, 74, 112))
+		end
 		local t = label(r, title, Enum.Font.FredokaOne, 22, WHITE, 44)
 		t.Position = UDim2.fromOffset(18, 0)
 		t.Size = UDim2.new(0, 170, 1, 0)
@@ -1068,6 +1093,10 @@ function TitleScreen.Show(options: Options?): Handle
 		c.BackgroundColor3 = Color3.fromRGB(34, 40, 58)
 		c.BackgroundTransparency = 0.2
 		corner(c, UDim.new(0, 12))
+		if UiArt.Kit then
+			c.BackgroundTransparency = 1
+			UiArt.kit(c, "card", 43, Color3.fromRGB(56, 64, 100):Lerp(tip.color, 0.3))
+		end
 		local disc = frame(c, "Icon", 44)
 		disc.AnchorPoint = Vector2.new(0, 0.5)
 		disc.Position = UDim2.new(0, 14, 0.5, 0)
