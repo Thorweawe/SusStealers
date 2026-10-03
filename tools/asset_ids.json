@@ -565,5 +565,14 @@
  "terrain_2026_10_03": {
   "grass_image": 139241702342594,
   "grass_decal": 122115376361633
+ },
+ "station_2026_10_03": {
+  "meetingtable_lo": 117556051477337,
+  "cafetable_lo": 90204193047305,
+  "potionvendor_full": 105008286924029,
+  "floor_image": 120566944685373,
+  "wall_image": 108110387450676,
+  "floor_decal": 121743321276468,
+  "wall_decal": 109048176396197
  }
 }

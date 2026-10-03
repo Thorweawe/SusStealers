@@ -27,7 +27,7 @@ for seed in seeds:
     try:
         r = c.predict(image=handle_file(pre if isinstance(pre, str) else pre["path"]), multiimages=[], seed=seed,
                       ss_guidance_strength=7.5, ss_sampling_steps=12, slat_guidance_strength=3.0, slat_sampling_steps=12,
-                      multiimage_algo="stochastic", mesh_simplify=0.95, texture_size=1024, api_name="/generate_and_extract_glb")
+                      multiimage_algo="stochastic", mesh_simplify=0.95, texture_size=int(os.environ.get("TEX", "1024")), api_name="/generate_and_extract_glb")
         glb = r[2] if isinstance(r[2], str) else r[1]
         dst = f'{prefix}_s{seed}.glb'
         shutil.copy(glb, dst)
