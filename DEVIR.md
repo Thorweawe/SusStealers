@@ -13,6 +13,33 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-03 (93) — Batur → **Yusuf, oku** (senin şeridine de yazıldı: `DefenseUI`, `TutorialUI`, `PromptFilter`, `PromptStyle`, `RarityFX`, `Index`, `Objective`, `UiKit`, `SoundFX`, `SpaceFX`, `DeviceLayout`, `init.client`; ortak: `Config`, `UnitModel`, `DefenseConfig`)
+
+Hepsi Studio'ya aktarıldı (bayt karşılaştırmalı). **199/199 test temiz** (MCP yetkileri geri geldi: test yine Script'le koşuyor).
+`crew-efektler` dalın main'e alındı (ileri sarma, çakışma yok).
+
+- **Gezegen savunması canlı:** `DefenseConfig.Live = true`.
+- **Düğmeler:** gezegende DEFEND / START WAVE altta ortada, TAKE OFF / RETREAT sağ alt köşede (kontrol kümesinin en alt satırı).
+  İstasyonda sağ altta yeni **⚔ DEFEND** (`SpaceFX` → `StationDefend`, `DeviceLayout` telefonda zıplamanın üstüne kaldırıyor; `DefendPlanet` de listede).
+- **Sesler** (`SoundFX`, ProSoundEffects): ışın kılıcı savuruşu (Plasma Swish), isabeti (Zaps Sharp Attack), ışın tabancası atışı (Toy Ray Gun, artık isabetsiz atışta da) ve isabeti,
+  dükkân/DEFEND penceresi açılışı (`SoundFX.ShopOpen`), altınla alımda yazar kasa (yeni bildirim türü `defbuy`).
+- **Hospital REVIVE ALL:** 2+ yaralı varsa ilk kart; bedel tek tek dirilmelerin toplamı (`DefenseService.ReviveAll`, eylem `reviveall`).
+- **Robux altın paketleri:** `DefenseConfig.GoldProducts` (100/500/1500, öneri 49/199/499 R$). **id = 0 → Market'te görünmüyor, makbuz tanımıyor.** Batur kimlikleri girince açılır.
+- **TOP DEFENDERS panosu:** pilot konsolunun sağındaki duvarda (kodla, `GlobalBoardService.ensureDefenseBoard`, `BoardScreen4`). Profilde yeni `defense.bestWave` (en uzun dayanılan dalga).
+- **Birleştirme (MergeService, yeni):** kaidede aynı karakterden aynı seviyede iki tane varsa **F** ile birleşiyor; basılan kaide Lv+1, eşi boşalıyor, değerli mutasyon kalıyor.
+  Lv2 gelir ×2.5 / boy ×2, Lv3 ×6 / ×3 (`Config.MergeLevels`). Kaidede `Level` ve `CanMerge` nitelikleri, profilde `units[].level`.
+  `UnitModel.BuildLabel(..., level)` etikete ★LV2 ve çarpılmış gelir yazıyor; satış ve revive fiyatı da seviyeyle çarpılıyor.
+  `PromptFilter`: `MergePrompt` yalnızca kendi üssünde ve `CanMerge` açıkken, Sell'in altında (UIOffset). Oyunda F ile denendi.
+- **Öğretici:** 6. adım "Defend the planet" (`check = "defenseWaves"`). Öğreticiyi bitirmiş oyuncu da görüyor (atlayan görmüyor).
+  **Spotlight** (`TutorialUI`): adım bir düğmeye bağlıysa ekranın gerisi %55 kararıyor, düğmede sarı halka ve zıplayan el. Başka pencere açıkken susuyor (`UiKit.OpenWindow`).
+  Bitiş bildiriminde birleştirme ipucu.
+- **Mobil:** `DefenseUI.TOUCH` artık `DeviceLayout.GetDevice() == "Touch"`; telefonda sol sütun SideRail'in sağında (x 104); gövde hapının alt yazısı çubuğa binmiyor.
+- **Optimizasyon:** 0.2 sn'lik HUD döngüsünde her turda bütün üslerin `GetDescendants` taraması kalktı (`PromptFilter` önbellek, `RarityFX`/`Index`/`Objective` yalnızca `Podiums`).
+  Yeni `AssetPreload`: ana ekrandayken UiArt görselleri, `Config.Vfx` ve ReplicatedStorage 3B şablonları arka planda yükleniyor.
+- Not: testler bitince oyuncunun kaidelerini boşaltıyor (eskiden de öyleydi); Studio'da test hesabının crewmate'leri gidiyor.
+
+---
+
 ## 2026-10-03 (92) — Yusuf → **Batur, oku** (SENİN haritana ve gezegen koduna dokunuldu)
 - **Ana istasyon (`Workspace.Decor`, yer dosyasında):** geometri DEĞİŞMEDİ.
   - Zemin/duvar parçalarına `MaterialVariant` verildi (`MaterialService.StationFloor` /
