@@ -444,7 +444,6 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	foot.Parent = header
 	-- Parlak beyaz başlık görseli pencere rengine boyanıyor
 	UiArt.plain(header)
-	header.ClipsDescendants = false
 	foot.Visible = false
 	UiArt.kit(header, "header", z + 1, color:Lerp(WHITE, 0.1))
 	-- Kayan çapraz şeritler, noktalar ve periyodik parıltı (mağaza başlığı)

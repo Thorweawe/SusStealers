@@ -444,7 +444,6 @@ function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH:
 	-- Parlak beyaz başlık görseli pencerenin renk gradyanıyla boyanıyor
 	header.BackgroundTransparency = 1
 	foot.Visible = false
-	header.ClipsDescendants = false
 	hg:Clone().Parent = UiArt.kit(header, "header", z + 1)
 	hg.Enabled = false
 	local stripes = Instance.new("ImageLabel")
