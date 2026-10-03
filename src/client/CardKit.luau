@@ -20,6 +20,7 @@
 
 
 local FancyKit = require(script.Parent.FancyKit)
+local UiArt = require(script.Parent.UiArt)
 
 local CardKit = {}
 
@@ -117,6 +118,11 @@ local function paintCard(card: Frame, tint: Color3)
 	if strip and strip:IsA("Frame") then
 		strip.BackgroundColor3 = tint
 	end
+	-- 2026-10-03: parlak kart görseli (beyaz) lacivert-renk karışımıyla çarpılıyor
+	local art = card:FindFirstChild("Kit_card")
+	if art and art:IsA("ImageLabel") then
+		art.ImageColor3 = CardKit.BODY:Lerp(tint, 0.5):Lerp(WHITE, 0.12)
+	end
 	local inner = card:FindFirstChild("Inner")
 	local stroke = inner and inner:FindFirstChildOfClass("UIStroke")
 	if stroke then
@@ -137,6 +143,8 @@ function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	CardKit.corner(card, 14)
 	local g = CardKit.gradient(card, CardKit.BODY, CardKit.BODY_DEEP)
 	g.Name = "Body"
+	UiArt.kit(card, "card", -1) -- zemin: kart içeriğinin altında
+	card.BackgroundTransparency = 1
 	FancyKit.halftone(card, WHITE, 0.9, z, true)
 
 	-- Üstte ince vurgu şeridi
@@ -155,6 +163,9 @@ function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	frame.Parent = card
 	CardKit.corner(frame, 14)
 	CardKit.border(frame, OUTLINE, 3)
+	-- Görselin kendi konturu var: çizgi kenar ve üst şerit gizli
+	frame.Visible = false
+	strip.Visible = false
 	local inner = Instance.new("Frame")
 	inner.Name = "Inner"
 	inner.Position = UDim2.fromOffset(3, 3)
@@ -164,6 +175,7 @@ function CardKit.card(parent: Instance, tint: Color3, size: UDim2, z: number, ra
 	inner.Parent = card
 	CardKit.corner(inner, 11)
 	CardKit.border(inner, tint, 1.5, 0.55)
+	inner.Visible = false
 	paintCard(card, tint)
 	return card
 end
@@ -299,6 +311,14 @@ function CardKit.button(parent: Instance, size: UDim2, z: number, textSize: numb
 	gloss.Parent = button
 	CardKit.corner(gloss, 6)
 
+	-- 2026-10-03: ChatGPT düğme yüzü (beyaz, renge boyanıyor)
+	UiArt.plain(button)
+	gloss.Visible = false
+	shadow.Visible = false
+	local face = UiArt.kit(button, "button", z + 1)
+	face.Size = UDim2.new(1, 6, 1, 8)
+	face.Position = UDim2.new(0.5, 0, 0.5, 2)
+
 	local label = CardKit.bold(button, "", textSize, WHITE, z + 3)
 	label.Size = UDim2.new(1, -10, 1, 0)
 	label.Position = UDim2.fromOffset(5, 0)
@@ -309,6 +329,7 @@ function CardKit.button(parent: Instance, size: UDim2, z: number, textSize: numb
 		button.BackgroundColor3 = c
 		shadow.BackgroundColor3 = c:Lerp(BLACK, 0.55)
 		grad.Color = ColorSequence.new(c:Lerp(WHITE, 0.25), c:Lerp(BLACK, 0.12))
+		face.ImageColor3 = c:Lerp(WHITE, 0.08)
 		label.Text = text
 		button.Active = tone ~= nil
 	end
@@ -383,6 +404,9 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	root.BackgroundColor3 = CardKit.BODY
 	CardKit.gradient(root, CardKit.BODY, CardKit.BODY_DEEP)
 	CardKit.border(root, OUTLINE, 5)
+	-- 2026-10-03: ChatGPT nebula gövdesi (UiArt.Kit)
+	UiArt.plain(root)
+	UiArt.kit(root, "window", -1) -- her şeyin altında
 
 	local size = root.Size
 	local w, h = size.X.Offset, size.Y.Offset
@@ -418,6 +442,11 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	foot.BorderSizePixel = 0
 	foot.ZIndex = z + 1
 	foot.Parent = header
+	-- Parlak beyaz başlık görseli pencere rengine boyanıyor
+	UiArt.plain(header)
+	header.ClipsDescendants = false
+	foot.Visible = false
+	UiArt.kit(header, "header", z + 1, color:Lerp(WHITE, 0.1))
 	-- Kayan çapraz şeritler, noktalar ve periyodik parıltı (mağaza başlığı)
 	local stripes = Instance.new("ImageLabel")
 	stripes.Name = "Stripes"
@@ -472,8 +501,11 @@ function CardKit.skin(root: Frame, color: Color3, titleText: string, headerH: nu
 	CardKit.corner(close, 8)
 	CardKit.border(close, OUTLINE, 3)
 	CardKit.gradient(close, Color3.fromRGB(250, 70, 70), Color3.fromRGB(190, 20, 30))
+	UiArt.plain(close)
+	UiArt.kit(close, "close", z + 5).Size = UDim2.fromScale(1.2, 1.2)
 	local x = CardKit.bold(close, "X", math.floor(closeSize * 0.72), WHITE, z + 6, 4)
 	x.Size = UDim2.fromScale(1, 1)
+	x.Visible = false -- görselde X var
 	FancyKit.gleam(close, driver, 4.2, 2, 0.4)
 	FancyKit.juicy(close, close, 1.1, -8)
 

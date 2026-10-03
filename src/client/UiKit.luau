@@ -299,6 +299,11 @@ function UiKit.Modernize(root: GuiObject, accent: Color3?, shell: boolean?)
 				child.Transparency = 0
 			end
 		end
+		-- 2026-10-03: ChatGPT nebula gövdesi (UiArt.Kit); kenar çizgisi görselde
+		if not root:FindFirstChild("Kit_window") then
+			UiArt.plain(root)
+			UiArt.kit(root, "window", -1) -- her şeyin altında
+		end
 		if accent and not root:FindFirstChild("ModernRim") then
 			local rim = Instance.new("Frame")
 			rim.Name = "ModernRim"
@@ -314,6 +319,7 @@ function UiKit.Modernize(root: GuiObject, accent: Color3?, shell: boolean?)
 			s.Thickness = 2
 			s.Transparency = 0.35
 			s.Parent = rim
+			rim.Visible = false
 		end
 	end
 	for _, d in root:GetDescendants() do

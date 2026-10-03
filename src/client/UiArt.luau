@@ -151,4 +151,58 @@ UiArt.TitleScreen = {
 	panel = "rbxassetid://117742854490258",
 }
 
+--[[ 2026-10-03: pencere kiti (ChatGPT, ui_art/ui_kit). Gövde lacivert nebula;
+     başlık, kart ve düğme BEYAZ parlak — ImageColor3 / UIGradient ile her
+     pencerenin rengine boyanıyor. Dokuz dilim: köşeler ezilmeden uzuyor.
+     FancyKit.shell/button, CardKit.skin/card/button ve UiKit.Modernize kullanıyor. ]]
+UiArt.Kit = {
+	window = "rbxassetid://125183331560292",
+	header = "rbxassetid://134089146330446",
+	close = "rbxassetid://112600623751479",
+	card = "rbxassetid://110491807654880",
+	button = "rbxassetid://98372071047587",
+}
+-- Kaynak pikselde dokuz-dilim ortası ve ekrandaki köşe ölçeği
+local KIT_SLICE: { [string]: { Rect | number } } = {
+	window = { Rect.new(84, 84, 627, 540), 0.3 },
+	header = { Rect.new(80, 62, 834, 119), 0.36 },
+	card = { Rect.new(72, 72, 647, 190), 0.26 },
+	button = { Rect.new(114, 100, 910, 128), 0.22 },
+}
+
+--[[ Kit parçasını `parent`ı kaplayan görsel olarak ekler (zemin olarak:
+     çağıran aynı ZIndex'teki içerikten ÖNCE eklemeli). ]]
+function UiArt.kit(parent: Instance, key: string, z: number, color: Color3?): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Kit_" .. key
+	img.BackgroundTransparency = 1
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.fromScale(0.5, 0.5)
+	img.Size = UDim2.fromScale(1, 1)
+	img.Image = UiArt.Kit[key] or ""
+	img.ImageColor3 = color or Color3.new(1, 1, 1)
+	img.ZIndex = z
+	img.Active = false
+	local sl = KIT_SLICE[key]
+	if sl then
+		img.ScaleType = Enum.ScaleType.Slice
+		img.SliceCenter = sl[1] :: Rect
+		img.SliceScale = sl[2] :: number
+	end
+	img.Parent = parent
+	return img
+end
+
+--[[ Kenarlık/gradyan çizgilerini kapatır (görselin kendi konturu var). ]]
+function UiArt.plain(target: Instance)
+	for _, c in target:GetChildren() do
+		if c:IsA("UIStroke") or c:IsA("UIGradient") then
+			c.Enabled = false
+		end
+	end
+	if target:IsA("GuiObject") then
+		target.BackgroundTransparency = 1
+	end
+end
+
 return UiArt

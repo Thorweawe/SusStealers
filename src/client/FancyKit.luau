@@ -408,6 +408,9 @@ function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH:
 	if not root:FindFirstChildOfClass("UICorner") then
 		corner(root, 16)
 	end
+	-- 2026-10-03: ChatGPT nebula gövdesi (UiArt.Kit); düz gradyan + kenar kapanıyor
+	UiArt.plain(root)
+	UiArt.kit(root, "window", -1) -- her şeyin altında
 
 	local body = Instance.new("Frame")
 	body.Name = "FancyBody"
@@ -438,6 +441,12 @@ function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH:
 	foot.ZIndex = z + 1
 	foot.Parent = header
 	hg:Clone().Parent = foot
+	-- Parlak beyaz başlık görseli pencerenin renk gradyanıyla boyanıyor
+	header.BackgroundTransparency = 1
+	foot.Visible = false
+	header.ClipsDescendants = false
+	hg:Clone().Parent = UiArt.kit(header, "header", z + 1)
+	hg.Enabled = false
 	local stripes = Instance.new("ImageLabel")
 	stripes.BackgroundTransparency = 1
 	stripes.Size = UDim2.new(1, 64, 1, 0)
@@ -478,6 +487,8 @@ function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH:
 	corner(close, 8)
 	border(close, OUTLINE, 3)
 	gradient(close, { Color3.fromRGB(250, 70, 70), Color3.fromRGB(190, 20, 30) }, 90)
+	UiArt.plain(close)
+	UiArt.kit(close, "close", z + 5).Size = UDim2.fromScale(1.2, 1.2)
 	local x = Instance.new("TextLabel")
 	x.BackgroundTransparency = 1
 	x.Size = UDim2.fromScale(1, 1)
@@ -486,6 +497,7 @@ function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH:
 	x.TextSize = math.floor((headerH - 16) * 0.72)
 	x.TextColor3 = WHITE
 	x.ZIndex = z + 6
+	x.Visible = false -- görselde X var
 	x.Parent = close
 	local xs = Instance.new("UIStroke")
 	xs.Color = OUTLINE
@@ -543,6 +555,13 @@ function FancyKit.button(parent: Instance, size: UDim2, color: Color3, textSize:
 	gloss.ZIndex = z + 2
 	gloss.Parent = button
 	corner(gloss, 8)
+	-- ChatGPT düğme yüzü (beyaz, renge boyanıyor); kendi gölgesi ve parlaması var
+	UiArt.plain(button)
+	gloss.Visible = false
+	shadow.Visible = false
+	local face = UiArt.kit(button, "button", z + 1)
+	face.Size = UDim2.new(1, 6, 1, 8)
+	face.Position = UDim2.new(0.5, 0, 0.5, 2)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.fromScale(1, 1)
 	row.BackgroundTransparency = 1
@@ -583,6 +602,7 @@ function FancyKit.button(parent: Instance, size: UDim2, color: Color3, textSize:
 		local c = tone or GREY
 		shadow.BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.55)
 		grad.Color = ColorSequence.new(c:Lerp(WHITE, 0.25), c:Lerp(Color3.new(0, 0, 0), 0.12))
+		face.ImageColor3 = c:Lerp(WHITE, 0.08)
 		label.Text = text
 		icon.Visible = robux == true
 		button.Active = tone ~= nil
