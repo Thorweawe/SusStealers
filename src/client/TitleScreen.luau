@@ -198,7 +198,6 @@ local function hoverScale(button: GuiButton, target: GuiObject)
 	end)
 end
 
---[[ Among Us menüsündeki beyaz çerçeveli düğme: koyu dolgu, kalın beyaz çerçeve. ]]
 --[[ Düğmeye ChatGPT yüzü giydirir: zemin/kontur kapanıyor, görsel altta,
      yazı üstte ayrı etiket (Sibling'de çocuk görsel ebeveynin yazısını örtüyordu). ]]
 local function skinButton(b: TextButton, key: string, z: number)
@@ -240,6 +239,7 @@ local function skinButton(b: TextButton, key: string, z: number)
 	end
 end
 
+--[[ Among Us menüsündeki beyaz çerçeveli düğme: koyu dolgu, kalın beyaz çerçeve. ]]
 local function outlinedButton(parent: Instance, text: string, size: Vector2, z: number): TextButton
 	local b = Instance.new("TextButton")
 	b.Name = text
