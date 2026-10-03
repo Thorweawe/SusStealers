@@ -335,9 +335,13 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		if not locked then
 			price.TextColor3 = WHITE
 			local pill = art(c, "pill", 6)
+			-- görselin üstünde boşluk var: yalnız hap kısmı (361x147)
+			pill.ImageRectOffset = Vector2.new(0, 78)
+			pill.ImageRectSize = Vector2.new(361, 147)
 			pill.AnchorPoint = Vector2.new(0.5, 0)
-			pill.Position = UDim2.fromOffset(204, 28)
-			pill.Size = UDim2.fromOffset(130, 30)
+			pill.Position = UDim2.fromOffset(200, 24)
+			pill.Size = UDim2.fromOffset(84, 34)
+			price.Position = UDim2.fromOffset(212, 30)
 		end
 		local ps = Instance.new("UIStroke")
 		ps.Color = INK
