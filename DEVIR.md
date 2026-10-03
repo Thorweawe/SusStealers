@@ -35,6 +35,10 @@ Kayıt kalıbı:
 - **Boss'lar:** 10 iskeletli ağ ham TRELLIS'ten yeniden (`tools/rebuild_bosses.py`),
   köşeli görünüm gitti; kemik adları/sayıları değişti (animasyon genel okuyor).
 - Ana ekran HOW TO PLAY / SETTINGS pencereleri kitle.
+- **Üsler (`PlotService` DEĞİŞMEDİ):** yeni istemci modülü `BaseStyle` kaideleri yerel
+  gizleyip 3D kürsü koyuyor (`ReplicatedStorage.StationMeshes.Podium`, `workspace.BaseStyleFX`),
+  düz yüzeylere/duvarlara `StationFloor`/`StationWall`. Kaide saydamlığını izliyor.
+- Uçuş (`SpaceFX`): dururken karakter kameraya değil son gidilen yöne bakıyor.
 
 ## 2026-10-03 (91) — Yusuf → **Batur, oku** (ortak UI kiti değişti; DefenseUI görünüşü de etkilenir)
 - **Pencere kiti (ChatGPT görselleri, `UiArt.Kit` + `UiArt.kit()/plain()`):**
