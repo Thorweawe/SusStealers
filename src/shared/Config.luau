@@ -631,6 +631,7 @@ export type TutorialStep = {
 	goal: number,
 	reward: number,
 	speed: number?,   -- adım bitince hediye Uzay Hızı (bekleme duvarını kısaltmak için)
+	needSteals: number?, -- bu kadar soygundan önce adım gizli bekliyor (savunma kilidi)
 }
 
 Config.Tutorial = {
@@ -684,6 +685,8 @@ Config.Tutorial = {
 		id = "Defend", title = "Defend the planet", hint = "Defend",
 		text = "NEW! Press ⚔ DEFEND to land on planet Gloopus. Pick your crew, drop them on the field and survive one wave!",
 		check = "defenseWaves", goal = 1, reward = 50000,
+		-- Savunma kilidi açılana kadar (4 soygun) adım gizli bekliyor
+		needSteals = 4,
 	},
 } :: { TutorialStep }
 

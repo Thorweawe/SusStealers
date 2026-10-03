@@ -36,6 +36,8 @@ Hepsi Studio'ya aktarıldı (bayt karşılaştırmalı). **199/199 test temiz** 
 - **Mobil:** `DefenseUI.TOUCH` artık `DeviceLayout.GetDevice() == "Touch"`; telefonda sol sütun SideRail'in sağında (x 104); gövde hapının alt yazısı çubuğa binmiyor.
 - **Optimizasyon:** 0.2 sn'lik HUD döngüsünde her turda bütün üslerin `GetDescendants` taraması kalktı (`PromptFilter` önbellek, `RarityFX`/`Index`/`Objective` yalnızca `Podiums`).
   Yeni `AssetPreload`: ana ekrandayken UiArt görselleri, `Config.Vfx` ve ReplicatedStorage 3B şablonları arka planda yükleniyor.
+- **Savunma kilidi:** 4 soygundan önce (`DefenseConfig.UnlockSteals`, skor tablosundaki Stolen) DEFEND düğmeleri gizli, iniş reddediliyor; öğreticinin Defend adımı o zamana kadar gizli bekliyor (`needSteals`, kart görünmüyor, GOAL kartı açık).
+- **Hastane tanıtımı:** ilk kez crewmate düşünce (bir kez, `defense.hospitalSeen`) sonuç bandından sonra "YOUR CREW IS HURT" bandı ve hastane gemisinde 12 sn nabız atan vurgu + "✚ HOSPITAL ▼" oku (`DefenseClient`, durum `hospitalIntro`).
 - Not: testler bitince oyuncunun kaidelerini boşaltıyor (eskiden de öyleydi); Studio'da test hesabının crewmate'leri gidiyor.
 
 ---

@@ -275,6 +275,27 @@ local function publish(player: Player, force: boolean?)
 
 	local profile = DataService.Get(player)
 	local index = if profile then profile.tutorialStep + 1 else 1
+
+	--[[
+		Kilitli adım (needSteals, 2026-10-03: savunma 4. soygundan sonra):
+		koşul gelene kadar kart gizli, oyuncu bitmiş gibi serbest (GOAL kartı
+		görünsün diye nitelik "bitti"). Açılınca normal yayına dönüyor.
+	]]
+	local need = (step :: any).needSteals
+	if need and profile and (profile.stolen or 0) < need then
+		local signature = "wait:" .. index
+		if not force and lastSignature[player] == signature then
+			return
+		end
+		lastSignature[player] = signature
+		lastIndex[player] = index
+		player:SetAttribute("TutorialStep", stepCount())
+		if tutorialRemote then
+			tutorialRemote:FireClient(player, { active = true, hidden = true, index = index, total = stepCount() })
+		end
+		return
+	end
+
 	local value = math.min(checkValue(player, step.check), step.goal)
 
 	local signature = string.format("%d/%d", index, value)

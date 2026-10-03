@@ -326,6 +326,20 @@ end
 -- Aşağıda tanımlı (eldeki crewmate'ler ve kılıç); endRun önce çağırıyor
 local takeDefenseTools: (Player, number?) -> ()
 
+--[[
+	Hastane tanıtımı (2026-10-03, Batur: "ilk defa kaybedene hospitalı
+	tanıt"): ilk kez crewmate düştüğünde, dalga ya da koşu bitince BİR KEZ.
+	İstemci sonuç bandından sonra hastane gemisini vurgulayıp anlatıyor.
+]]
+local function hospitalIntro(player: Player)
+	local profile = DataService.Get(player)
+	if not profile or profile.defense.hospitalSeen then
+		return
+	end
+	profile.defense.hospitalSeen = true
+	send(player, "hospitalIntro", nil)
+end
+
 --[[ Koşuyu bitirir. Ayakta kalanlar `toHospital` ise hastaneye, değilse kaideye. ]]
 local function endRun(player: Player, toHospital: boolean, reason: string)
 	local s = sessions[player]
@@ -359,6 +373,9 @@ local function endRun(player: Player, toHospital: boolean, reason: string)
 	})
 	pushRun(player)
 	DefenseService.PushData(player)
+	if fell > 0 or run.sectorLosses > 0 then
+		hospitalIntro(player)
+	end
 end
 
 local function valid(n: any): boolean
@@ -792,6 +809,9 @@ local function onWaveEnd(player: Player, run: Run, sim: DefenseSim.Sim)
 	end
 	refreshDeployedFlag(player)
 	send(player, "waveEnd", result)
+	if (sim.losses or 0) > 0 then
+		hospitalIntro(player)
+	end
 	pushRun(player)
 	DefenseService.PushData(player)
 	if aliveDeployed(run) == 0 then
@@ -1128,6 +1148,11 @@ function DefenseService.Land(player: Player, planet: number): boolean
 	-- ya da canavarın elindeyken değil
 	if player:GetAttribute("SpaceCarry") == true or player:GetAttribute("SpaceGrabbed") ~= nil then
 		notify(player, "Not while carrying a crewmate!", true)
+		return false
+	end
+	if not DefenseConfig.IsUnlocked(profile.stolen) then
+		notify(player, string.format("Steal %d more crewmates in space to unlock Planet Defense!",
+			DefenseConfig.UnlockSteals - (profile.stolen or 0)), true)
 		return false
 	end
 	local ok, why = DefenseService.IsPlanetUnlocked(profile, planet)

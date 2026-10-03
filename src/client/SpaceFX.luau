@@ -1276,11 +1276,15 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		if returnButton.Visible ~= canReturn then
 			returnButton.Visible = canReturn
 		end
-		local canDefend = canReturn and defenseOn
+		-- Savunma 4. soygundan sonra açılıyor (DefenseConfig.UnlockSteals; skor tablosundaki Stolen)
+		local stats = player:FindFirstChild("leaderstats")
+		local stolen = stats and stats:FindFirstChild("Stolen")
+		local unlocked = DefenseConfig.IsUnlocked(if stolen and stolen:IsA("IntValue") then stolen.Value else 0)
+		local canDefend = canReturn and defenseOn and unlocked
 		if defendButton.Visible ~= canDefend then
 			defendButton.Visible = canDefend
 		end
-		local atStation = defenseOn and not flying and humanoid.Health > 0
+		local atStation = defenseOn and unlocked and not flying and humanoid.Health > 0
 			and player:GetAttribute("DefensePlanet") == nil and player:GetAttribute("SpaceCarry") ~= true
 		if stationDefend.Visible ~= atStation then
 			stationDefend.Visible = atStation

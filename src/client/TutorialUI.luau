@@ -820,6 +820,20 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 			hide()
 			return
 		end
+		-- Kilitli adım (savunma 4. soygundan sonra): önceki adımı kutla, kartı gizle
+		if payload.hidden then
+			local index = payload.index or 0
+			if lastIndex ~= nil and index > (lastIndex :: number) then
+				local done = Config.GetTutorialStep(lastIndex :: number)
+				local amount = if done then done.reward else 0
+				banner("STEP COMPLETE!", done and string.upper(done.title) or "NICE!",
+					if amount > 0 then "+$" .. Config.FormatCash(amount) else "", Color3.fromRGB(50, 170, 60), 1.6, true)
+			end
+			lastIndex = nil
+			currentHint = nil
+			hide()
+			return
+		end
 		show(payload, target)
 	end)
 

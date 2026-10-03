@@ -61,6 +61,8 @@ export type DefenseData = {
 	planets: { [string]: { best: number, stars: { [string]: number } } },
 	-- En uzun dayanılan dalga (tüm koşular; pilot konsolundaki TOP DEFENDERS panosu)
 	bestWave: number,
+	-- Hastane tanıtımı (ilk kez crewmate düşünce bir kez) gösterildi mi
+	hospitalSeen: boolean?,
 }
 
 export type Profile = {
@@ -795,6 +797,7 @@ local function sanitize(raw: any): Profile
 		d.saber = num(def.saber, 20)
 		d.raygun = num(def.raygun, 20)
 		d.bestWave = num(def.bestWave, 1000000)
+		d.hospitalSeen = if def.hospitalSeen == true then true else nil
 		if typeof(def.roles) == "table" then
 			for role, level in def.roles do
 				if typeof(role) == "string" and #role <= 24 then

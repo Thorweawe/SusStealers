@@ -33,6 +33,18 @@ function DefenseConfig.IsEnabled(): boolean
 	return DefenseConfig.Live or RunService:IsStudio()
 end
 
+--[[
+	Kilit (2026-10-03, Batur: "crewmate yoksa DEFEND boş pencere açıyor;
+	4. steal'den sonra açılsın, ondan sonra görünsün"). Uzaydan kaç crewmate
+	çalınmış (profile.stolen, skor tablosundaki "Stolen"). Daha azken DEFEND
+	düğmeleri gizli, iniş reddediliyor, öğreticinin savunma adımı bekliyor.
+]]
+DefenseConfig.UnlockSteals = 4
+
+function DefenseConfig.IsUnlocked(stolen: number?): boolean
+	return (stolen or 0) >= DefenseConfig.UnlockSteals
+end
+
 -- ─── Genel ──────────────────────────────────────────────────────────────────
 
 DefenseConfig.TickRate = 10              -- simülasyon adımı (Hz)

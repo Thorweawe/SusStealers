@@ -722,6 +722,53 @@ function DefenseClient.Start(screen: ScreenGui)
 						Color3.fromRGB(120, 255, 140))
 				end
 			end
+		elseif kind == "hospitalIntro" then
+			-- İlk düşüş: sonuç bandı kalktıktan sonra hastane gemisi vurgulanıyor
+			task.delay(3.8, function()
+				ui.Banner("✚ YOUR CREW IS HURT", "Fallen crewmates wait in the HOSPITAL ship. Walk there to REVIVE them!",
+					Color3.fromRGB(255, 110, 120))
+				local arena = player:GetAttribute("DefenseArena")
+				local world = if typeof(arena) == "number" then workspace:FindFirstChild("Arena_" .. arena, true) else nil
+				local stall = world and world:FindFirstChild("Stall_hospital", true)
+				if not (stall and stall:IsA("Model")) then
+					return
+				end
+				local glow = Instance.new("Highlight")
+				glow.Name = "HospitalIntro"
+				glow.FillColor = Color3.fromRGB(255, 90, 100)
+				glow.OutlineColor = Color3.fromRGB(255, 230, 230)
+				glow.FillTransparency = 0.6
+				glow.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				glow.Adornee = stall
+				glow.Parent = stall
+				local pin = Instance.new("BillboardGui")
+				pin.Name = "HospitalIntroPin"
+				pin.Size = UDim2.fromOffset(220, 90)
+				pin.StudsOffsetWorldSpace = Vector3.new(0, 14, 0)
+				pin.AlwaysOnTop = true
+				pin.Adornee = stall.PrimaryPart or stall:FindFirstChildWhichIsA("BasePart", true)
+				pin.Parent = stall
+				local text = Instance.new("TextLabel")
+				text.BackgroundTransparency = 1
+				text.Size = UDim2.fromScale(1, 1)
+				text.Font = Enum.Font.FredokaOne
+				text.TextScaled = true
+				text.TextColor3 = Color3.fromRGB(255, 120, 130)
+				text.TextStrokeTransparency = 0
+				text.Text = "✚ HOSPITAL\n▼"
+				text.Parent = pin
+				task.spawn(function()
+					local t0 = os.clock()
+					while glow.Parent and os.clock() - t0 < 12 do
+						local k = 0.5 + 0.5 * math.sin((os.clock() - t0) * 5)
+						glow.FillTransparency = 0.45 + 0.35 * k
+						pin.StudsOffsetWorldSpace = Vector3.new(0, 14 + 1.5 * k, 0)
+						task.wait()
+					end
+					glow:Destroy()
+					pin:Destroy()
+				end)
+			end)
 		elseif kind == "over" then
 			if payload.reason == "lost" then
 				ui.Banner("DEFEATED", string.format("The ship fell on wave %d. %d crewmate(s) went to the hospital.",
