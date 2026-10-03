@@ -37,7 +37,8 @@ local function texture(p: BasePart)
 		return
 	end
 	local s = p.Size
-	if s.Y <= 1.5 and s.X * s.Z >= 16 then
+	-- Düz: ince (üs zemini 2 stud) ve geniş
+	if s.Y <= 2.5 and s.Y * 4 <= math.min(s.X, s.Z) and s.X * s.Z >= 16 then
 		p.MaterialVariant = FLOOR_VARIANT
 	elseif s.Y >= 4 and math.min(s.X, s.Z) <= 2.5 and math.max(s.X, s.Z) >= 4 then
 		p.MaterialVariant = WALL_VARIANT
