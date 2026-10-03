@@ -45,17 +45,28 @@ export type Panel = {
 
 --[[
 	Açıkken: gölgeler kapalı, Lighting'deki son işlem efektleri (Bloom,
-	SunRays, DepthOfField, Blur hariç) kapalı, dünyadaki parçacık/iz/ışın
+	SunRays, DepthOfField, Blur hariç) kapalı, dünyadaki iz/ışın/duman
 	yayıcıları kapalı (sonradan eklenenler de). Kapatınca yalnızca BİZİM
 	kapattıklarımız geri açılıyor.
+	2026-10-03: parçacıklar artık KAPANMIYOR, yoğunlukları %30'a iniyor —
+	tamamen kapanınca boss ve crewmate'ler efektsiz, "bozuk" görünüyordu.
 ]]
+local LOW_RATE = 0.3
 local lowOn = false
 local touched: { [Instance]: boolean } = {}
+local savedRate: { [ParticleEmitter]: number } = {}
 local addedConn: RBXScriptConnection? = nil
 local oldShadows: boolean? = nil
 
 local function dim(d: Instance)
-	if (d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Sparkles") or d:IsA("Smoke") or d:IsA("Fire"))
+	if d:IsA("ParticleEmitter") then
+		if not savedRate[d] then
+			savedRate[d] = d.Rate
+			d.Rate *= LOW_RATE
+		end
+		return
+	end
+	if (d:IsA("Trail") or d:IsA("Beam") or d:IsA("Sparkles") or d:IsA("Smoke") or d:IsA("Fire"))
 		and (d :: any).Enabled then
 		(d :: any).Enabled = false
 		touched[d] = true
@@ -98,6 +109,12 @@ local function setLowGraphics(on: boolean)
 			end
 		end
 		table.clear(touched)
+		for e, rate in savedRate do
+			if e.Parent then
+				e.Rate = rate
+			end
+		end
+		table.clear(savedRate)
 	end
 end
 

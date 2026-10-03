@@ -710,8 +710,24 @@ function PetModel.Build(key: string): Model?
 		Common ve Uncommon'da hiçbiri yok: ışık kazanılan bir şey olmalı.
 	]]
 	if order >= Config.Rarities.Rare.order then
-		local aura = b.cylinder("Aura", 0.08, 2.4, CFrame.new(0, 0.04, 0) * CFrame.Angles(0, 0, math.rad(90)), glow, Enum.Material.Neon)
-		aura.Transparency = 0.55
+		-- 2026-10-03: düz neon disk yerine yere işlenmiş ışık halkası:
+		-- görünmez ince levhanın üstünde iki çıkartma (yumuşak hale + ince halka)
+		local aura = b.part("Aura", Vector3.new(2.8, 0.05, 2.8), CFrame.new(0, 0.03, 0), glow)
+		aura.Transparency = 1
+		local fill = Instance.new("Decal")
+		fill.Name = "AuraGlow"
+		fill.Face = Enum.NormalId.Top
+		fill.Texture = Config.Vfx.Orb
+		fill.Color3 = glow
+		fill.Transparency = 0.55
+		fill.Parent = aura
+		local ring = Instance.new("Decal")
+		ring.Name = "AuraRing"
+		ring.Face = Enum.NormalId.Top
+		ring.Texture = Config.Vfx.Ring
+		ring.Color3 = glow:Lerp(Color3.new(1, 1, 1), 0.25)
+		ring.Transparency = if order >= Config.Rarities.Legendary.order then 0.1 else 0.3
+		ring.Parent = aura
 	end
 
 	if order >= Config.Rarities.Epic.order then

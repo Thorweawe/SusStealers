@@ -187,7 +187,7 @@ local function step(dt: number)
 		if hide ~= s.hidden then
 			s.hidden = hide
 			for _, d in model:GetDescendants() do
-				if d:IsA("BasePart") then
+				if d:IsA("BasePart") or d:IsA("Decal") then
 					d.LocalTransparencyModifier = hide
 				end
 			end
