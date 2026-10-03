@@ -1210,7 +1210,8 @@ function TitleScreen.Show(options: Options?): Handle
 		if content.Visible then
 			introOffset += (0 - introOffset) * math.min(1, dt * 6)
 		end
-		logo.Position = UDim2.fromOffset(REF.X / 2, (if logoArt then 50 else 70) + math.sin(t * 1.2) * 5 + introOffset)
+		-- Görsel logo sabit duruyor (kullanıcı: "yukarı aşağı gitmesin"); yalnız açılışta süzülüyor
+		logo.Position = UDim2.fromOffset(REF.X / 2, if logoArt then 50 + introOffset else 70 + math.sin(t * 1.2) * 5 + introOffset)
 		mascot.Rotation = -12 + math.sin(t * 1.6) * 5
 	end))
 
