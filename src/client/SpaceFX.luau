@@ -554,6 +554,32 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 			Net.Get("Defense"):FireServer("land")
 		end
 	end))
+	--[[
+		İstasyonda da DEFEND (2026-10-03, Batur: "ana üste sağ alt köşede DEFEND,
+		gezegendeki TAKE OFF'un yerinde"). Uzaydaki Return to Station'ın yeri;
+		gezegende, uzayda ve taşırken gizli.
+	]]
+	local stationDefend = Instance.new("TextButton")
+	stationDefend.Name = "StationDefend"
+	stationDefend.AnchorPoint = Vector2.new(1, 1)
+	stationDefend.Position = UDim2.new(1, -24, 1, -110)
+	stationDefend.Size = UDim2.fromOffset(210, 54)
+	stationDefend.AutoButtonColor = false
+	stationDefend.Text = ""
+	stationDefend.Visible = false
+	stationDefend.ZIndex = Z
+	stationDefend.Parent = screen
+	CardKit.corner(stationDefend, 14)
+	CardKit.border(stationDefend, CardKit.OUTLINE, 3)
+	CardKit.gradient(stationDefend, Color3.fromRGB(120, 230, 130), Color3.fromRGB(40, 150, 70))
+	local stationLabel = CardKit.bold(stationDefend, "⚔ DEFEND", 22, CardKit.WHITE, Z + 1, 2.8)
+	stationLabel.Size = UDim2.fromScale(1, 1)
+	CardKit.fit(stationLabel, 22, 12)
+	table.insert(connections, stationDefend.Activated:Connect(function()
+		if stationDefend.Visible then
+			Net.Get("Defense"):FireServer("land")
+		end
+	end))
 	local defenseOn = DefenseConfig.IsEnabled()
 	table.insert(connections, UserInputService.InputBegan:Connect(function(input, processed)
 		if not processed and input.KeyCode == Enum.KeyCode.R then
@@ -1253,6 +1279,11 @@ function SpaceFX.Start(screen: Instance, effects: Shaker): Handle
 		local canDefend = canReturn and defenseOn
 		if defendButton.Visible ~= canDefend then
 			defendButton.Visible = canDefend
+		end
+		local atStation = defenseOn and not flying and humanoid.Health > 0
+			and player:GetAttribute("DefensePlanet") == nil and player:GetAttribute("SpaceCarry") ~= true
+		if stationDefend.Visible ~= atStation then
+			stationDefend.Visible = atStation
 		end
 		if flying then
 			stepRings(root)

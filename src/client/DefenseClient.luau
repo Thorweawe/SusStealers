@@ -899,7 +899,10 @@ function DefenseClient.Start(screen: ScreenGui)
 		local color = if blade then blade.Color else Color3.fromRGB(140, 220, 255)
 		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if root then
-			SoundFX.WorldSound("GearSwing", root.Position, 0.6, if combo == 3 then 0.75 else (if combo == 2 then 0.9 else 1.05), 0.5)
+			-- Işın kılıcı vınlaması (plazma savuruşu); düz rüzgâr sesi altta, hafif
+			SoundFX.WorldSound(if combo == 2 then "SaberSwingB" else "SaberSwingA", root.Position, 0.75,
+				if combo == 3 then 0.8 else (if combo == 2 then 1.0 else 1.1), 0.75)
+			SoundFX.WorldSound("GearSwing", root.Position, 0.3, if combo == 3 then 0.75 else 1.05, 0.4)
 		end
 		local WIND, HIT = 0.22, 0.6
 		local arcDone = false
@@ -995,7 +998,13 @@ function DefenseClient.Start(screen: ScreenGui)
 				end)
 				return
 			end
-			if not isGun then
+			if isGun then
+				-- Atış sesi hemen (isabet sesi sunucudan "pshot" gelince, DefenseFX)
+				local muzzle = t:FindFirstChild("Muzzle") :: BasePart?
+				local handle = t:FindFirstChild("Handle") :: BasePart?
+				local at = if muzzle then muzzle.Position elseif handle then handle.Position else camera.CFrame.Position
+				SoundFX.WorldSound("RayShot", at, 0.55, 1.1, 0.45)
+			else
 				SoundFX.GearSound("GearPoof", camera.CFrame.Position)
 			end
 			task.spawn(function()

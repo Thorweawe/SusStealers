@@ -57,6 +57,8 @@ export type DefenseData = {
 	supports: { [string]: number },
 	-- stars: bölüm no (dize; DataStore delikli diziyi sevmiyor) -> 1..3
 	planets: { [string]: { best: number, stars: { [string]: number } } },
+	-- En uzun dayanılan dalga (tüm koşular; pilot konsolundaki TOP DEFENDERS panosu)
+	bestWave: number,
 }
 
 export type Profile = {
@@ -325,7 +327,7 @@ local function newProfile(): Profile
 		},
 		petsFound = {},
 		limited = { id = "", candy = 0, bought = {}, lastDaily = 0, earned = 0, awarded = 0, days = 0, ms = 0, gt = 0 },
-		defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, saber = 0, raygun = 0, roles = {}, supports = {}, planets = {} },
+		defense = { gold = 0, goldEarned = 0, slots = 0, hull = 0, saber = 0, raygun = 0, roles = {}, supports = {}, planets = {}, bestWave = 0 },
 	}
 end
 
@@ -788,6 +790,7 @@ local function sanitize(raw: any): Profile
 		d.hull = num(def.hull, 20)
 		d.saber = num(def.saber, 20)
 		d.raygun = num(def.raygun, 20)
+		d.bestWave = num(def.bestWave, 1000000)
 		if typeof(def.roles) == "table" then
 			for role, level in def.roles do
 				if typeof(role) == "string" and #role <= 24 then

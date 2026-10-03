@@ -42,6 +42,7 @@ local UnitModel = require(Shared.UnitModel)
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
 local EconomyService = require(script.Parent.EconomyService)
+local MonetizationService = require(script.Parent.MonetizationService)
 local PlanetWorldService = require(script.Parent.PlanetWorldService)
 local PromptGuard = require(script.Parent.PromptGuard)
 
@@ -761,6 +762,10 @@ local function onWaveEnd(player: Player, run: Run, sim: DefenseSim.Sim)
 
 	local finished = run.wave
 	run.wavesCleared += 1
+	local owner = DataService.Get(player)
+	if owner and finished > (owner.defense.bestWave or 0) then
+		owner.defense.bestWave = finished
+	end
 	local result: { [string]: any } = { won = true, wave = finished, losses = sim.losses, kills = sim.kills }
 	if finished % DefenseConfig.WavesPerSector == 0 then
 		local sectorIndex = finished // DefenseConfig.WavesPerSector
@@ -944,7 +949,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 			return false
 		end
 		d.roles[role.id] = level + 1
-		notify(player, string.format("%s upgraded to level %d", role.name, level + 1), false, "upgrade")
+		notify(player, string.format("%s upgraded to level %d", role.name, level + 1), false, "defbuy")
 	elseif kind == "slot" then
 		local cost = DefenseConfig.SlotCosts[d.slots + 1]
 		if not cost then
@@ -955,7 +960,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 			return false
 		end
 		d.slots += 1
-		notify(player, string.format("Crew slots: %d", DefenseConfig.GetSlots(d.slots)), false, "upgrade")
+		notify(player, string.format("Crew slots: %d", DefenseConfig.GetSlots(d.slots)), false, "defbuy")
 	elseif kind == "hull" then
 		local cost = DefenseConfig.HullCosts[d.hull + 1]
 		if not cost then
@@ -966,7 +971,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 			return false
 		end
 		d.hull += 1
-		notify(player, string.format("Ship hull: %d", DefenseConfig.GetHull(d.hull)), false, "upgrade")
+		notify(player, string.format("Ship hull: %d", DefenseConfig.GetHull(d.hull)), false, "defbuy")
 	elseif kind == "saber" then
 		local S = DefenseConfig.Saber
 		local cost = if d.saber == 0 then S.price else S.upgradeCosts[d.saber]
@@ -979,7 +984,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 		end
 		d.saber += 1
 		notify(player, if d.saber == 1 then "Lightsaber unlocked! Pick it as your gear when you DEFEND"
-			else string.format("Lightsaber level %d", d.saber), false, "upgrade")
+			else string.format("Lightsaber level %d", d.saber), false, "defbuy")
 		-- Koşuda zaten seçiliyse yeni seviyesiyle yenile
 		local s = sessions[player]
 		if s and s.run and s.run.gear == "Lightsaber" then
@@ -998,7 +1003,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 		end
 		d.raygun = level + 1
 		notify(player, if d.raygun == 1 then "Ray Gun unlocked! Pick it as your gear when you DEFEND"
-			else string.format("Ray Gun level %d", d.raygun), false, "upgrade")
+			else string.format("Ray Gun level %d", d.raygun), false, "defbuy")
 		local s = sessions[player]
 		if s and s.run and s.run.gear == "RayGun" then
 			DefenseService.GiveRayGun(player)
@@ -1017,7 +1022,7 @@ function DefenseService.Buy(player: Player, kind: string, id: string?): boolean
 			return false
 		end
 		d.supports[def.id] = have + 1
-		notify(player, def.name .. " bought", false, "buy")
+		notify(player, def.name .. " bought", false, "defbuy")
 	else
 		return false
 	end
@@ -1043,6 +1048,40 @@ function DefenseService.Revive(player: Player, slot: number): boolean
 	PlotService.SetAway(podium, nil)
 	local def = Config.GetUnit(unitId)
 	notify(player, string.format("%s is back on its podium!", if def then def.name else "Crewmate"), false, "reward")
+	DefenseService.PushData(player)
+	return true
+end
+
+--[[
+	Hepsini dirilt (2026-10-03, Batur: "Hospital'a REVIVE ALL, bedeli tek tek
+	dirilmelerin toplamı"). Tek ödeme; para yetmezse hiçbiri dirilmiyor.
+]]
+function DefenseService.ReviveAll(player: Player): boolean
+	local plot = PlotService.GetPlotOf(player)
+	if not plot then
+		return false
+	end
+	local podiums = {}
+	local total = 0
+	for _, podium in PlotService.GetPodiums(plot) do
+		local unitId = podium:GetAttribute("UnitId") :: string
+		if unitId ~= "" and PlotService.GetAway(podium) == "hospital" then
+			local m = podium:GetAttribute("MutationId") :: string
+			total += DefenseService.GetReviveCost(player, unitId, if m == "" then nil else m)
+			table.insert(podiums, podium)
+		end
+	end
+	if #podiums == 0 then
+		return false
+	end
+	if not EconomyService.TrySpend(player, total) then
+		notify(player, string.format("Reviving everyone costs $%s", Config.FormatCash(total)), true)
+		return false
+	end
+	for _, podium in podiums do
+		PlotService.SetAway(podium, nil)
+	end
+	notify(player, string.format("%d crewmates are back on their podiums!", #podiums), false, "reward")
 	DefenseService.PushData(player)
 	return true
 end
@@ -1416,6 +1455,11 @@ local function onAction(player: Player, action: any, a: any, b: any, c: any)
 			DefenseService.Revive(player, math.floor(a))
 		end
 		return
+	elseif action == "reviveall" then
+		if s.planet then
+			DefenseService.ReviveAll(player)
+		end
+		return
 	elseif action == "release" then
 		if valid(a) and s.planet then
 			DefenseService.Release(player, math.floor(a))
@@ -1559,6 +1603,18 @@ function DefenseService.Start()
 	if not DefenseConfig.IsEnabled() then
 		return
 	end
+	-- Robux altın paketleri (makbuz ve kaydetme MonetizationService'te)
+	MonetizationService.RegisterGranter("defgold", function(player, product)
+		local profile = DataService.Get(player)
+		local amount = (product :: any).amount
+		if not (profile and typeof(amount) == "number" and amount > 0) then
+			return false
+		end
+		profile.defense.gold += amount
+		notify(player, string.format("+%d 💰 gold!", amount), false, "defbuy")
+		DefenseService.PushData(player)
+		return true
+	end)
 	PlanetWorldService.Start()
 	PlanetWorldService.OnPrompt(onPrompt)
 	-- İlk inen beklemesin: ilk arena sunucu açılırken kuruluyor

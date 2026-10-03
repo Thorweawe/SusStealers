@@ -2320,6 +2320,7 @@ case("Ses: her tınının kaynağı gerçekten var", function()
 		UiA = true, UiB = true, UiC = true, UiD = true,
 		Throb = true, Deny = true, Success = true,
 		StarChime = true, Harp = true, Fanfare = true, StarFall = true,
+		CashReg = true,
 	}
 
 	local bad = {}

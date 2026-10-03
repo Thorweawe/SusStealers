@@ -85,6 +85,17 @@ local ID = {
 	Fanfare   = "rbxassetid://1846266827",   -- Short Fanfare
 	StarFall  = "rbxassetid://9125646917",   -- Magic Whooshes Pass Bys Metallic Shimmering
 
+	-- Gezegen savunması silahları ve dükkânlar (2026-10-03, Batur: "kılıç ve
+	-- tabancanın sesi yok, dükkân kartlarına alma/red/açılma sesi"). Hepsi
+	-- ProSoundEffects (Roblox lisanslı) kütüphanesinden.
+	SaberSwingA = "rbxassetid://9117405979",  -- Plasma Swish 1
+	SaberSwingB = "rbxassetid://9117406326",  -- Plasma Swish 5
+	SaberHit    = "rbxassetid://9120985861",  -- Zaps Sharp Attack 2
+	RayShot     = "rbxassetid://9120221105",  -- Toy Ray Gun 1
+	RayHit      = "rbxassetid://9125625388",  -- Layered Rips High End Short Energy Bursts
+	CashReg     = "rbxassetid://9113728625",  -- Cash Register 1
+	ShopOpen    = "rbxassetid://9113867104",  -- Computer Beeps And Tones Synth Hits Bright 3
+
 	-- Eski red sesi korunuyor: kısa ve boğuk, hata için doğru
 	Deny    = "rbxassetid://87437544236708",
 	Success = "rbxassetid://125296945528316",
@@ -245,6 +256,11 @@ end
 
 function SoundFX.Deny()
 	fire("Deny")
+end
+
+-- Dükkân / DEFEND penceresi açılışı: kısa parlak bip
+function SoundFX.ShopOpen()
+	fire("ShopOpen", 0, 0.5)
 end
 
 --[[
@@ -672,6 +688,13 @@ function SoundFX.Preload()
 	effect("WireZap", ID.WireZap, 0.4)
 	effect("CardSwipe", ID.CardSwipe, 0.6)
 	effect("CardAccept", ID.CardAccept, 0.4)
+	effect("ShopOpen", ID.ShopOpen, 0.5)
+	-- Savunma silahları (WorldSound şablonları; ilk savuruşta sessiz kalmasın)
+	effect("SaberSwingA", ID.SaberSwingA, 0.6)
+	effect("SaberSwingB", ID.SaberSwingB, 0.6)
+	effect("SaberHit", ID.SaberHit, 0.6)
+	effect("RayShot", ID.RayShot, 0.5)
+	effect("RayHit", ID.RayHit, 0.5)
 	for key, spec in GEAR_SOUNDS do
 		effect(key, ID[key], spec.volume)
 	end
@@ -682,7 +705,7 @@ function SoundFX.Preload()
 
 	-- Olay tınılarının kaynakları da önden yüklensin: ilk tetiklemede
 	-- sessizlik olmasın
-	for _, key in { "UiA", "UiB", "UiC", "UiD", "Throb" } do
+	for _, key in { "UiA", "UiB", "UiC", "UiD", "Throb", "CashReg" } do
 		effect(key, ID[key], 0.5)
 	end
 

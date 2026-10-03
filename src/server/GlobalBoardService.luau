@@ -93,7 +93,58 @@ local BOARDS: { Board } = {
 	{ index = 3, title = "TOP INCOME", store = "Global_Income_v2", log = true, legacy = "Global_Income_v1",
 		value = function(p) return p.incomePerSecond or 0 end,
 		format = function(v) return "+$" .. Config.FormatCash(v) .. "/s" end },
+	-- 2026-10-03 (Batur): pilot konsolunun yanında, gezegen savunmasında en uzun dayanılan dalga
+	{ index = 4, title = "TOP DEFENDERS", store = "Global_DefenseWave_v1",
+		value = function(p) return if p.defense then (p.defense.bestWave or 0) else 0 end,
+		format = function(v) return "WAVE " .. tostring(math.floor(v)) end },
 }
+
+--[[
+	TOP DEFENDERS panosu haritada yok; pilot konsolunun (Navigation.Dash)
+	sağında, doğu duvarında kodla kuruluyor. Diğer panolarla aynı görünüş
+	(BoardScreen1'in Display'i kopyalanıyor), adı BoardScreen4.
+]]
+local function ensureDefenseBoard()
+	local decor = workspace:FindFirstChild("Decor")
+	local boards = decor and decor:FindFirstChild("Boards")
+	local landmarks = decor and decor:FindFirstChild("Landmarks")
+	local nav = landmarks and landmarks:FindFirstChild("Navigation")
+	local dash = nav and nav:FindFirstChild("Dash")
+	if not (boards and dash and dash:IsA("BasePart")) or boards:FindFirstChild("BoardScreen4") then
+		return
+	end
+	-- Duvar yüzü x≈484.8 (Hull.EastLow), konsolun sağ ucunun ötesinde; pano batıya (odaya) bakıyor
+	local center = dash.Position + Vector3.new(3.9, 7.8, 42)
+	local face = CFrame.lookAt(center, center + Vector3.new(-1, 0, 0))
+	local function part(name: string, size: Vector3, cf: CFrame, color: Color3): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Material = Enum.Material.SmoothPlastic
+		p.Color = color
+		p.Size = size
+		p.CFrame = cf
+		p.Parent = boards
+		return p
+	end
+	part("DefenseBoardBack", Vector3.new(15.6, 9.2, 0.5), face * CFrame.new(0, 0, 0.35), Color3.fromRGB(160, 178, 190))
+	part("DefenseBoardFrame", Vector3.new(15, 8.6, 0.4), face * CFrame.new(0, 0, 0.05), Color3.fromRGB(226, 236, 242))
+	local screen = part("BoardScreen4", Vector3.new(14, 7.5, 0.2), face * CFrame.new(0, 0, -0.2), Color3.fromRGB(14, 24, 38))
+	local source = boards:FindFirstChild("BoardScreen1")
+	local display = source and source:FindFirstChild("Display")
+	if display then
+		local copy = display:Clone()
+		local header = copy:FindFirstChild("Header")
+		if header and header:IsA("TextLabel") then
+			-- Savunma rengi: yeşil başlık
+			header.BackgroundColor3 = Color3.fromRGB(60, 170, 90)
+		end
+		copy.Parent = screen
+	end
+end
 
 -- İlk üçün renkleri: altın, gümüş, bronz
 local PODIUM = { "#FFC83C", "#C8D2DE", "#D68C50" }
@@ -463,6 +514,7 @@ local function migrate(board: Board)
 end
 
 function GlobalBoardService.Start()
+	ensureDefenseBoard()
 	task.spawn(function()
 		task.wait(10)
 		for _, board in BOARDS do

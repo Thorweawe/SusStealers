@@ -1468,7 +1468,10 @@ local function onPlayerShot(x: number, z: number, eid: number, amount: number?)
 	flare.Transparency = 0.1
 	fadeAway(flare, 0.1, Vector3.one * 1.6)
 	sound("raygun", 0.06, function()
-		SoundFX.Laser()
+		if e then
+			local to = e.model:GetPivot().Position
+			SoundFX.WorldSound("RayHit", to, 0.5, 1.15, 0.45)
+		end
 	end)
 end
 
@@ -1493,7 +1496,8 @@ local function onSlash(x: number, z: number, hits: number, amount: number?)
 	fadeAway(ring, 0.25, Vector3.new(0.3, r, r))
 	if hits > 0 then
 		sound("saberhit", 0.08, function()
-			SoundFX.GearSound("GearZap", at)
+			SoundFX.WorldSound("SaberHit", at, 0.6, 1.0, 0.5)
+			SoundFX.WorldSound("GearSlap", at, 0.35, 0.8, 0.35)
 		end)
 	end
 end

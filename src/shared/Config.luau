@@ -784,6 +784,8 @@ Config.NotifyCues = {
 	buy      = { source = "UiA", startAt = 1.20, length = 0.28, pitch = 1.15, volume = 0.45 },
 	sell     = { source = "UiB", startAt = 2.40, length = 0.30, pitch = 0.85, volume = 0.45 },
 	upgrade  = { source = "UiC", startAt = 3.60, length = 0.26, pitch = 1.00, volume = 0.50, repeats = 2, gap = 0.13 },
+	-- Gezegen savunması dükkânları (altınla alım): yazar kasa
+	defbuy   = { source = "CashReg", startAt = 0, length = 0.9, pitch = 1.05, volume = 0.55 },
 
 	-- Çalma döngüsü: uyarı ailesinden, kısa ve gergin
 	steal    = { source = "Alarm", startAt = 2.00, length = 0.22, pitch = 1.25, volume = 0.45 },

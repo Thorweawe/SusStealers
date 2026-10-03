@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local DefenseConfig = require(Shared.DefenseConfig)
 local Net = require(Shared.Net)
 
 local DataService = require(script.Parent.DataService)
@@ -260,6 +261,12 @@ local function findProduct(productId: number): Config.ProductDef?
 	end
 	-- Sunucu şansı ve troller (Config.ServerProducts; ServerBoostService veriyor)
 	for _, def in Config.ServerProducts do
+		if def.id > 0 and def.id == productId then
+			return def :: any
+		end
+	end
+	-- Gezegen savunması altın paketleri (DefenseConfig.GoldProducts; DefenseService veriyor)
+	for _, def in DefenseConfig.GoldProducts do
 		if def.id > 0 and def.id == productId then
 			return def :: any
 		end

@@ -63,6 +63,9 @@ local TOUCH_LIFT = {
 	FlyPad = "right",
 	-- Uzaydaki "Return to Station" (SpaceFX): zıplama düğmesinin üstüne
 	ReturnToStation = "right",
+	-- Uzaydaki DEFEND PLANET (Return'ün üstünde) ve istasyondaki DEFEND (sağ alt köşe)
+	DefendPlanet = "right",
+	StationDefend = "right",
 	-- MenuDock artık sağ ortada (Envanter + Rebirth): zıplama düğmesine denk gelmiyor.
 }
 

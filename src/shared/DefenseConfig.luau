@@ -27,7 +27,7 @@ local DefenseConfig = {}
 	false iken canlı sunucuda PILOT istemi yok, remote her şeyi reddediyor,
 	istemci hiçbir şey kurmuyor. Studio'da test için her zaman açık.
 ]]
-DefenseConfig.Live = false
+DefenseConfig.Live = true
 
 function DefenseConfig.IsEnabled(): boolean
 	return DefenseConfig.Live or RunService:IsStudio()
@@ -647,5 +647,17 @@ function DefenseConfig.GetSupport(id: string): SupportDef?
 	end
 	return nil
 end
+
+--[[
+	Robux'la altın (2026-10-03, Batur: "gold Robux'la da alınsın"). Ürün
+	kimliklerini Batur Creator Dashboard'da açacak; id = 0 iken paket ne
+	Market'te görünüyor ne de makbuzda tanınıyor (kapalı). Robux fiyatları öneri.
+]]
+export type GoldProduct = { key: string, id: number, name: string, kind: string, amount: number, robux: number }
+DefenseConfig.GoldProducts = {
+	{ key = "Gold100", id = 0, name = "Gold Pouch", kind = "defgold", amount = 100, robux = 49 },
+	{ key = "Gold500", id = 0, name = "Gold Crate", kind = "defgold", amount = 500, robux = 199 },
+	{ key = "Gold1500", id = 0, name = "Gold Vault", kind = "defgold", amount = 1500, robux = 499 },
+} :: { GoldProduct }
 
 return DefenseConfig

@@ -18,6 +18,8 @@
 	Mantık sunucuda; buradan yalnızca hooks.send(...) ile istek gidiyor.
 ]]
 
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -29,6 +31,7 @@ local DefenseConfig = require(Shared.DefenseConfig)
 local EnemyModel = require(Shared.EnemyModel)
 
 local FancyKit = require(script.Parent.FancyKit)
+local SoundFX = require(script.Parent.SoundFX)
 local UiArt = require(script.Parent.UiArt)
 local UiKit = require(script.Parent.UiKit)
 
@@ -824,12 +827,42 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 					end,
 				})
 			end
+			-- Robux altın paketleri (kimliği girilmemiş paket görünmüyor)
+			for i, g in DefenseConfig.GoldProducts do
+				if g.id > 0 then
+					shopCard({
+						order = 100 + i, tint = Color3.fromRGB(255, 190, 40), icon = "💰",
+						title = string.upper(g.name), level = string.format("+%d GOLD", g.amount),
+						sub = "Spend it in any planet shop.",
+						buyText = "R$ " .. g.robux, buyColor = Color3.fromRGB(60, 200, 90),
+						onBuy = function()
+							MarketplaceService:PromptProductPurchase(Players.LocalPlayer, g.id)
+						end,
+					})
+				end
+			end
 		elseif kind == "hospital" then
 			if #data.hospital == 0 then
 				shopCard({
 					order = 1, tint = Color3.fromRGB(80, 200, 120), icon = "✚", title = "ALL HEALTHY",
 					sub = "Crewmates that fall in battle come here. Revive them for 15 minutes of their earnings.",
 					buyText = "NOBODY HERE", buyColor = nil,
+				})
+			end
+			-- Birden fazla yaralı varsa en başta HEPSİNİ DİRİLT (bedeli toplam)
+			if #data.hospital >= 2 then
+				local total = 0
+				for _, h in data.hospital do
+					total += h.cost
+				end
+				shopCard({
+					order = 0, tint = Color3.fromRGB(80, 200, 120), icon = "✚", title = "REVIVE ALL",
+					level = string.format("%d CREWMATES", #data.hospital),
+					sub = "Bring everyone back at once.",
+					buyText = "$" .. Config.FormatCash(total), buyColor = GREEN,
+					onBuy = function()
+						hooks.send("reviveall")
+					end,
 				})
 			end
 			for i, h in data.hospital do
@@ -1065,6 +1098,9 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end
 	local topRow = row(1)
 	local supportBar = row(2)
+	-- En altta TAKE OFF / RETREAT (Batur: "TAKE OFF sağ alt köşede")
+	local sideRow = row(3)
+	sideRow.Size = UDim2.fromOffset(340, 56)
 	-- Hız
 	local speedB = button(topRow, "▶ 1x", UDim2.fromOffset(96, 48), GREY, Z - 10, 18)
 	speedB.holder.LayoutOrder = 1
@@ -1079,18 +1115,16 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	end)
 	local autoDeadline: number? = nil
 
-	-- Altta, alet çubuğunun üstünde
+	-- Altta ortada, alet çubuğunun üstünde yalnızca DEFEND / START WAVE
 	local bottom = Instance.new("Frame")
 	bottom.AnchorPoint = Vector2.new(0.5, 1)
 	bottom.Position = UDim2.new(0.5, 0, 1, -100)
-	bottom.Size = UDim2.fromOffset(470, 66)
+	bottom.Size = UDim2.fromOffset(260, 66)
 	bottom.BackgroundTransparency = 1
 	bottom.ZIndex = Z - 11
 	bottom.Parent = hud
 	local mainB = button(bottom, "⚔ DEFEND", UDim2.fromOffset(260, 62), GREEN, Z - 10, 26)
-	local sideB = button(bottom, "🚀 TAKE OFF", UDim2.fromOffset(196, 54), BLUE, Z - 10, 18)
-	sideB.holder.AnchorPoint = Vector2.new(1, 0)
-	sideB.holder.Position = UDim2.new(1, 0, 0, 4)
+	local sideB = button(sideRow, "🚀 TAKE OFF", UDim2.fromOffset(196, 54), BLUE, Z - 10, 18)
 	local mode = "idle"
 	mainB.button.Activated:Connect(function()
 		if mode == "idle" then
@@ -1243,6 +1277,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 			autoDeadline = nil
 		end
 		bottom.Visible = mode ~= "fight"
+		sideRow.Visible = mode ~= "fight"
 		if mode == "idle" then
 			mainB.set("⚔ DEFEND", GREEN)
 			sideB.set("🚀 TAKE OFF", BLUE)
@@ -1357,12 +1392,16 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		hooks.send("sync")
 		renderPrep()
 		prepRoot.Visible = true
+		SoundFX.ShopOpen()
 	end
 
 	function ui.OpenShop(kind: string)
 		openShop = kind
 		renderShop()
 		prepRoot.Visible = false
+		if not shopRoot.Visible then
+			SoundFX.ShopOpen()
+		end
 		shopRoot.Visible = true
 	end
 
