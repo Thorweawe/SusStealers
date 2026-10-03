@@ -100,3 +100,4 @@ models_3d/hats2/*_concept.png
 models_3d/hats2/*.mp4
 models_3d/hats2/[A-Z]*.glb
 !models_3d/hats2/*_lo.glb
+models_3d/_fix/

@@ -41,10 +41,30 @@ def main():
         faces = np.arange(len(verts)).reshape(-1, 3)
     else:
         verts, faces, uvs = v, f, m.vertex_tex_coord_matrix()
-    out = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
-    out.merge_vertices(merge_tex=False, merge_norm=True) if False else None
+    # 2026-10-03 düzeltme ("petler kırık görünüyor"): her üçgen kendi köşeleriyle
+    # yazılınca (köşe = 3 x üçgen) Roblox her yüzü düz gölgeliyor, ağ kırık cam
+    # gibi duruyordu. Aynı konum + aynı UV'li köşeler birleşiyor, normaller konuma
+    # göre (UV dikişlerinde de) yumuşak hesaplanıp dosyaya yazılıyor.
+    key = np.round(np.hstack([verts, uvs]), 6)
+    _, first, inverse = np.unique(key, axis=0, return_index=True, return_inverse=True)
+    inverse = inverse.reshape(-1)
+    verts, uvs, faces = verts[first], uvs[first], inverse[faces]
+    pos = np.round(verts, 6)
+    _, pinv = np.unique(pos, axis=0, return_inverse=True)
+    pinv = pinv.reshape(-1)
+    smooth = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+    fn = smooth.face_normals * smooth.area_faces[:, None]
+    acc = np.zeros((pinv.max() + 1, 3))
+    for k in range(3):
+        np.add.at(acc, pinv[faces[:, k]], fn)
+    vn = acc[pinv]
+    vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-12)
+    out = trimesh.Trimesh(vertices=verts, faces=faces, vertex_normals=vn, process=False)
+    # Doku: TRELLIS'in alfa kanalı Roblox'ta yarı saydam yamalar yapıyordu
+    if isinstance(tex, Image.Image):
+        tex = tex.convert("RGB")
     out.visual = trimesh.visual.TextureVisuals(uv=uvs, material=trimesh.visual.material.PBRMaterial(baseColorTexture=tex if isinstance(tex, Image.Image) else None))
-    out.export(dst)
+    out.export(dst, include_normals=True)
     print(f"{before} -> {len(faces)} üçgen, {dst}")
 
 

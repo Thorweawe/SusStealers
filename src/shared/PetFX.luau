@@ -23,8 +23,17 @@ local function c3(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
 
+--[[
+	2026-10-03 (kullanıcı: "petlerde efektler yok gibi"): saniyede 0.6–2
+	parçacık oyunda fark edilmiyordu. Tüm pet efektleri buradan güçleniyor.
+]]
+local RATE_BOOST = 3
+local SIZE_BOOST = 1.35
+
 local function emit(body: BasePart, name: string, at: Vector3, tex: string, c1: Color3, c2: Color3, size: number, rate: number, life: number, o: Opts?)
 	local opts: Opts = o or {}
+	size *= SIZE_BOOST
+	rate = math.max(2, rate * RATE_BOOST)
 	local e = Instance.new("ParticleEmitter")
 	e.Name = "PetFX_" .. name
 	e.Texture = tex
