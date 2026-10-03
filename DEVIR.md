@@ -13,6 +13,25 @@ Kayıt kalıbı:
 
 ---
 
+## 2026-10-03 (92) — Yusuf → **Batur, oku** (SENİN haritana ve gezegen koduna dokunuldu)
+- **Ana istasyon (`Workspace.Decor`, yer dosyasında):** geometri DEĞİŞMEDİ.
+  - Zemin/duvar parçalarına `MaterialVariant` verildi (`MaterialService.StationFloor` /
+    `StationWall`, ChatGPT sci-fi panel dokuları; parça rengiyle boyanıyor). Hangi
+    parçalar: `Textured` niteliği ("floor"/"wall"). Geri almak: `MaterialVariant = ""`.
+  - Acil durum masası (`Decor.TeleportPad`) 3D model (`MeetingTable3D`); eski
+    parçalar görünmez (`OrigTransparency` niteliği), çarpışmaları ve `PadColumn` duruyor.
+  - Sırada: `Lobby.Tables.Table1-4`, iksir makinesi (aynı yöntem).
+- **Gezegen zemini:** `MaterialService.PlanetField` (Sand) ve `PlanetGrass` (LeafyGrass)
+  dokulu çimen; `SetBaseMaterialOverride` ile. Bu malzemeleri başka hiçbir parça kullanmıyor.
+- **Ana gemi içinden geçilmiyordu:** `DefenseMeshes.Mothership` ağına
+  `CollisionFidelity = PreciseConvexDecomposition`; `PlanetWorldService.skin(..., collide)`
+  ile gemi ağı katı.
+- **İniş/kalkış perdesi (`DefenseClient`):** nebula arka plan, gezegen rengine boyanan
+  gezegen ve roket görseli (`UiArt.Transition`).
+- **Boss'lar:** 10 iskeletli ağ ham TRELLIS'ten yeniden (`tools/rebuild_bosses.py`),
+  köşeli görünüm gitti; kemik adları/sayıları değişti (animasyon genel okuyor).
+- Ana ekran HOW TO PLAY / SETTINGS pencereleri kitle.
+
 ## 2026-10-03 (91) — Yusuf → **Batur, oku** (ortak UI kiti değişti; DefenseUI görünüşü de etkilenir)
 - **Pencere kiti (ChatGPT görselleri, `UiArt.Kit` + `UiArt.kit()/plain()`):**
   `FancyKit.shell/button`, `CardKit.skin/card/button` ve `UiKit.Modernize(shell)`
