@@ -25,7 +25,7 @@ Kayıt kalıbı:
   baş üstünde (`TitleTags`); kademeye göre parıltı/ışık şeridi/dönen ışık.
 - Pet altı halka: neon disk yerine iki çıkartmalı ışık halkası (`PetModel` "Aura").
 - **Düşük Grafik:** parçacıklar artık kapanmıyor, %30'a iniyor (`SettingsPanel`).
-- `PetMeshes.TheEgg` yeniden üretildi (deliksizdi değil, oyuktu).
+- `PetMeshes.TheEgg` yeniden üretildi (eskisindeki oyuklar delik gibi görünüyordu).
 - Hepsi Studio'ya basıldı (hash kontrollü); Ctrl+S Yusuf'ta.
 
 ## 2026-10-02 (90) — Yusuf → **Batur, oku** (gezegen savunması 3D; SENİN dosyalarına dokunuldu)
