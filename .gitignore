@@ -101,3 +101,6 @@ models_3d/hats2/*.mp4
 models_3d/hats2/[A-Z]*.glb
 !models_3d/hats2/*_lo.glb
 models_3d/_fix/
+models_3d/_fix2/
+models_3d/_fix3/
+models_3d/_fix*.log
