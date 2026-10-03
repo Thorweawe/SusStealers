@@ -20,7 +20,11 @@ Kayıt kalıbı:
     parçalar: `Textured` niteliği ("floor"/"wall"). Geri almak: `MaterialVariant = ""`.
   - Acil durum masası (`Decor.TeleportPad`) 3D model (`MeetingTable3D`); eski
     parçalar görünmez (`OrigTransparency` niteliği), çarpışmaları ve `PadColumn` duruyor.
-  - Sırada: `Lobby.Tables.Table1-4`, iksir makinesi (aynı yöntem).
+  - Aynı yöntemle: `Lobby.Tables.Table1-4` (`CafeTable3D`), iksir makinesi
+    (`Lobby.Corners.PotionVendor3D`, tam çözünürlük 4 parça), 64 kürsü
+    (`Plots.PlotN.Podiums3D`; `PodiumPad/Ring` görünmez).
+- **Ana gemi ağı yeniden:** 2048 dokulu TRELLIS, doku bölgelerine göre 4 parça
+  (`tools/split_hires.py`; her parça kendi 1024 dokusu) — boyut birebir aynı, rampa hizası korunuyor.
 - **Gezegen zemini:** `MaterialService.PlanetField` (Sand) ve `PlanetGrass` (LeafyGrass)
   dokulu çimen; `SetBaseMaterialOverride` ile. Bu malzemeleri başka hiçbir parça kullanmıyor.
 - **Ana gemi içinden geçilmiyordu:** `DefenseMeshes.Mothership` ağına

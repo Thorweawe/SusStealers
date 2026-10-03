@@ -573,6 +573,10 @@
   "floor_image": 120566944685373,
   "wall_image": 108110387450676,
   "floor_decal": 121743321276468,
-  "wall_decal": 109048176396197
+  "wall_decal": 109048176396197,
+  "podium_lo": 111596147245811
+ },
+ "defense_hires_2026_10_03": {
+  "mothership_hires": 130292959175773
  }
 }
