@@ -143,6 +143,41 @@ function PromptFilter.Create(): Filter
 	Players.LocalPlayer:GetAttributeChangedSignal("Rebirths"):Connect(refreshHeist)
 	refreshHeist()
 
+	--[[
+		PERFORMANS (2026-10-03, Batur: "oyun kasıyor"): her 0.2 sn'de bütün
+		üslerin GetDescendants'ı geziliyordu (8 üs × binlerce parça, her
+		turda yeni dizi = çöp toplayıcı takılması). Artık her üsteki
+		promptlar bir kez toplanıp DescendantAdded/Removing ile güncelleniyor.
+	]]
+	local promptCache: { [Model]: { [ProximityPrompt]: boolean } } = {}
+	local function promptsOf(plot: Model): { [ProximityPrompt]: boolean }
+		local set = promptCache[plot]
+		if set then
+			return set
+		end
+		local fresh: { [ProximityPrompt]: boolean } = {}
+		promptCache[plot] = fresh
+		for _, d in plot:GetDescendants() do
+			if d:IsA("ProximityPrompt") then
+				fresh[d] = true
+			end
+		end
+		plot.DescendantAdded:Connect(function(d)
+			if d:IsA("ProximityPrompt") then
+				fresh[d] = true
+			end
+		end)
+		plot.DescendantRemoving:Connect(function(d)
+			if d:IsA("ProximityPrompt") then
+				fresh[d] = nil
+			end
+		end)
+		plot.Destroying:Connect(function()
+			promptCache[plot] = nil
+		end)
+		return fresh
+	end
+
 	local function update(myPlot: Model?)
 		local plots = workspace:FindFirstChild("Plots")
 		if not plots then
@@ -158,11 +193,7 @@ function PromptFilter.Create(): Filter
 			-- Son karakterini satmana izin yok (yukarıdaki nota bak)
 			local lastUnit = mine and filledCount(plot) <= 1
 
-			for _, d in plot:GetDescendants() do
-				if not d:IsA("ProximityPrompt") then
-					continue
-				end
-
+			for d in promptsOf(plot) do
 				local offset = UI_OFFSET[d.Name]
 				if offset and d.UIOffset ~= offset then
 					d.UIOffset = offset

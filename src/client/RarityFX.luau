@@ -446,7 +446,13 @@ function RarityFX.Create(): FX
 				continue
 			end
 
-			for _, podium in plot:GetDescendants() do
+			-- Kaideler hep Podiums klasöründe (PlotService.GetPodiums); her 0.2 sn'de
+			-- bütün üssü gezmek kasıyordu (2026-10-03)
+			local folder = plot:FindFirstChild("Podiums")
+			if not folder then
+				continue
+			end
+			for _, podium in folder:GetChildren() do
 				if not (podium:IsA("BasePart") and podium.Name == "Podium") then
 					continue
 				end

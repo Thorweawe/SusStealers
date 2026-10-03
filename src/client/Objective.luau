@@ -70,7 +70,9 @@ local function podiumsFull(): boolean
 	end
 	local unlocked = (plot:GetAttribute("UnlockedFloors") :: number?) or 1
 	local total = 0
-	for _, d in plot:GetDescendants() do
+	-- Kaideler Podiums klasöründe; yarım saniyede bir bütün üssü gezmeyelim
+	local folder = plot:FindFirstChild("Podiums")
+	for _, d in (if folder then folder:GetChildren() else {}) do
 		if d:IsA("BasePart") and d.Name == "Podium" then
 			local floor = (d:GetAttribute("Floor") :: number?) or 1
 			if floor <= unlocked and not d:GetAttribute("Bonus") then

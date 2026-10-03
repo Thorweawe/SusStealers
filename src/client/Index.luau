@@ -673,7 +673,8 @@ function Index.Create(screen: ScreenGui): Catalog
 		if not plot then
 			return
 		end
-		for _, podium in plot:GetDescendants() do
+		local folder = plot:FindFirstChild("Podiums")
+		for _, podium in (if folder then folder:GetChildren() else {}) do
 			if podium:IsA("BasePart") and podium.Name == "Podium" then
 				local unitId = podium:GetAttribute("UnitId")
 				if typeof(unitId) == "string" and unitId ~= "" then

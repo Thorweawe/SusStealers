@@ -223,6 +223,8 @@ local BANNER_TITLES: { [string]: string } = {
 	rogue = "Rogue impostor!",
 }
 SoundFX.Preload()
+-- Görseller ve 3B şablonlar ana ekrandayken arka planda yükleniyor (geç yükleme şikâyeti)
+require(script.AssetPreload).Start()
 SoundFX.StartAmbient()
 
 --[[
