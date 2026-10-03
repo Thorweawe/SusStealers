@@ -108,7 +108,9 @@ function EconomyService.GetIncome(player: Player): number
 			if def then
 				local mutationId = podium:GetAttribute("MutationId") :: string
 				local mutation = Config.GetMutation(if mutationId == "" then nil else mutationId)
+				local level = podium:GetAttribute("Level")
 				total += def.income * (if mutation then mutation.incomeMul else 1)
+					* Config.MergeIncome(if typeof(level) == "number" then level else 1)
 			end
 		end
 	end
@@ -168,13 +170,14 @@ function EconomyService.GetIncomeMultiplier(player: Player): number
 end
 
 --[[ Tek bir karakterin şu anki çarpanlarla saniyelik geliri. ]]
-function EconomyService.GetUnitIncome(player: Player, unitId: string, mutationId: string?): number
+function EconomyService.GetUnitIncome(player: Player, unitId: string, mutationId: string?, level: number?): number
 	local def = Config.GetUnit(unitId)
 	if not def then
 		return 0
 	end
 	local mutation = Config.GetMutation(mutationId)
-	return def.income * (if mutation then mutation.incomeMul else 1) * EconomyService.GetIncomeMultiplier(player)
+	return def.income * (if mutation then mutation.incomeMul else 1) * Config.MergeIncome(level)
+		* EconomyService.GetIncomeMultiplier(player)
 end
 
 -- ─── Yaşam döngüsü ──────────────────────────────────────────────────────────

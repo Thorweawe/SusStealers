@@ -90,7 +90,7 @@ function SellService.Sell(player: Player, podium: Part): boolean
 	-- Fiyatı kaide boşalmadan önce oku
 	local unitId = podium:GetAttribute("UnitId") :: string
 	local mutationId = podium:GetAttribute("MutationId") :: string
-	local payout = Config.GetSellPrice(unitId, if mutationId == "" then nil else mutationId)
+	local payout = Config.GetSellPrice(unitId, if mutationId == "" then nil else mutationId, PlotService.GetLevel(podium))
 
 	local cleared = PlotService.ClearUnit(podium)
 	if not cleared then
@@ -134,7 +134,7 @@ local function setupPodiumPrompt(podium: Part)
 		end
 
 		local mutationId = podium:GetAttribute("MutationId") :: string
-		local payout = Config.GetSellPrice(unitId, if mutationId == "" then nil else mutationId)
+		local payout = Config.GetSellPrice(unitId, if mutationId == "" then nil else mutationId, PlotService.GetLevel(podium))
 
 		prompt.ObjectText = "$" .. Config.FormatCash(payout)
 		prompt.Enabled = true
@@ -142,6 +142,7 @@ local function setupPodiumPrompt(podium: Part)
 
 	podium:GetAttributeChangedSignal("UnitId"):Connect(refresh)
 	podium:GetAttributeChangedSignal("Away"):Connect(refresh)
+	podium:GetAttributeChangedSignal("Level"):Connect(refresh)
 	refresh()
 
 	PromptGuard.Connect(prompt, function(player)

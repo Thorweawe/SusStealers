@@ -50,6 +50,7 @@ local NotifyService = require(Server.NotifyService)
 local LobbyBoardService = require(Server.LobbyBoardService)
 local LimitedEventService = require(Server.LimitedEventService)
 local DefenseService = require(Server.DefenseService)
+local MergeService = require(Server.MergeService)
 local DefenseConfig = require(ReplicatedStorage.Shared.DefenseConfig)
 local DefenseSim = require(ReplicatedStorage.Shared.DefenseSim)
 local MeteorShower = require(ReplicatedStorage.Shared.MeteorShower)
@@ -2781,6 +2782,44 @@ function ServerTests2.Register(kit: Kit)
 		DefenseService._setPlanet(ctx.player, nil)
 		ctx.profile.defense = keepDefense
 		clearPlot(ctx.plot)
+	end)
+
+	case("Birleştirme: iki aynı crewmate bir üst seviyeye çıkıyor, eşi boşalıyor", function(ctx)
+		eq("Lv1 gelir", Config.MergeIncome(1), 1)
+		eq("Lv2 gelir", Config.MergeIncome(2), 2.5)
+		eq("Lv3 gelir", Config.MergeIncome(3), 6)
+		eq("Lv3 boy", Config.MergeSize(3), 3)
+		eq("tavan", Config.MergeLevel(9), Config.MergeMaxLevel)
+		local plot = PlotService.GetPlotOf(ctx.player)
+		if not plot then
+			return
+		end
+		-- Boş iki açık kaide
+		local free = {}
+		for _, podium in PlotService.GetUnlockedPodiums(plot) do
+			if not PlotService.IsOccupied(podium) then
+				table.insert(free, podium)
+			end
+		end
+		if #free < 2 then
+			return
+		end
+		local a, b = free[1], free[2]
+		local unitId = Config.Units[1].id
+		ok("yerleşti a", PlotService.PlaceUnit(a, unitId, nil))
+		ok("yerleşti b", PlotService.PlaceUnit(b, unitId, "Golden"))
+		MergeService._refreshPlot(plot)
+		eq("eş bulundu", MergeService.FindPartner(a), b)
+		eq("CanMerge", a:GetAttribute("CanMerge"), true)
+		ok("birleşti", MergeService.Merge(ctx.player, a))
+		eq("seviye 2", PlotService.GetLevel(a), 2)
+		ok("eşi boşaldı", not PlotService.IsOccupied(b))
+		eq("değerli mutasyon kaldı", a:GetAttribute("MutationId"), "Golden")
+		ok("tek başına birleşmiyor", not MergeService.Merge(ctx.player, a))
+		local income = Config.Units[1].income * 15
+		eq("satış fiyatı ×2.5", Config.GetSellPrice(unitId, "Golden", 2), math.max(1, math.floor(income * 2.5 * Config.SellIncomeSeconds)))
+		PlotService.ClearUnit(a)
+		eq("boşalınca seviye 1", PlotService.GetLevel(a), 1)
 	end)
 
 	case("Savunma: dükkânlar altın harcıyor, tavanı aşmıyor", function(ctx)

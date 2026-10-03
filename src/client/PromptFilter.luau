@@ -27,6 +27,7 @@ export type Filter = {
 -- Yalnızca kendi üssünde görünmeli
 local OWN_ONLY: { [string]: boolean } = {
 	SellPrompt = true,
+	MergePrompt = true,
 	RebirthPrompt = true,
 	UpgradePrompt = true,
 	CapsulePrompt = true,
@@ -40,6 +41,7 @@ local OWN_ONLY: { [string]: boolean } = {
 ]]
 local NEEDS_UNIT: { [string]: boolean } = {
 	SellPrompt = true,
+	MergePrompt = true,
 }
 
 --[[
@@ -54,6 +56,8 @@ local NEEDS_UNIT: { [string]: boolean } = {
 ]]
 local UI_OFFSET: { [string]: Vector2 } = {
 	RebirthPrompt = Vector2.new(0, 46),
+	-- Birleştirme (MergeService): Sell'in hemen altında
+	MergePrompt = Vector2.new(0, 46),
 }
 
 local function podiumHasUnit(prompt: ProximityPrompt): boolean
@@ -178,6 +182,12 @@ function PromptFilter.Create(): Filter
 
 				if want and d.Name == "SellPrompt" and lastUnit then
 					want = false
+				end
+
+				-- Birleştirme yalnızca kaidede eşi varken (sunucu "CanMerge" yazıyor)
+				if want and d.Name == "MergePrompt" then
+					local podium = d.Parent
+					want = podium ~= nil and podium:GetAttribute("CanMerge") == true
 				end
 
 				-- Sadece gerçekten değişiyorsa yaz

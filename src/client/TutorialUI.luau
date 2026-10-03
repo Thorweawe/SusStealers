@@ -692,6 +692,115 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		end
 	end
 
+	--[[
+		Spotlight (2026-10-03, Batur: "tutorialda bir düğmeye bastırmak
+		istiyorsan diğer ekranı hafif karart, basılacak düğme belli olsun").
+		Adım bir arayüz düğmesine bağlıysa (UI_TARGETS) o düğmenin çevresi
+		dört yarı saydam karartma çerçevesiyle kapanıyor, düğmenin etrafında
+		sarı halka ve zıplayan el. Karartma tıklamayı yutmuyor (Active
+		kapalı): oyuncu yine her yere basabiliyor. İlk görünen düğme seçiliyor
+		(öncelik sırası: pencere içi -> gezegen -> istasyon).
+	]]
+	local UI_TARGETS: { [string]: { string } } = {
+		Defend = { "DefenseGoButton", "DefenseNextButton", "DefenseMainButton", "StationDefend", "DefendPlanet" },
+	}
+	local GuiService = game:GetService("GuiService")
+	local spotGui = Instance.new("ScreenGui")
+	spotGui.Name = "TutorialSpotlight"
+	spotGui.IgnoreGuiInset = true
+	spotGui.ResetOnSpawn = false
+	spotGui.DisplayOrder = 2
+	spotGui.Enabled = false
+	spotGui.Parent = player:WaitForChild("PlayerGui")
+	local dims: { Frame } = {}
+	for i = 1, 4 do
+		local d = Instance.new("Frame")
+		d.Name = "Dim" .. i
+		d.BackgroundColor3 = Color3.new(0, 0, 0)
+		d.BackgroundTransparency = 0.45
+		d.BorderSizePixel = 0
+		d.Active = false
+		d.Parent = spotGui
+		dims[i] = d
+	end
+	local ring = Instance.new("Frame")
+	ring.Name = "Ring"
+	ring.BackgroundTransparency = 1
+	ring.Parent = spotGui
+	local ringCorner = Instance.new("UICorner")
+	ringCorner.CornerRadius = UDim.new(0, 18)
+	ringCorner.Parent = ring
+	local ringStroke = Instance.new("UIStroke")
+	ringStroke.Color = CardKit.YELLOW
+	ringStroke.Thickness = 4
+	ringStroke.Parent = ring
+	local hand = Instance.new("TextLabel")
+	hand.Name = "Hand"
+	hand.BackgroundTransparency = 1
+	hand.AnchorPoint = Vector2.new(0.5, 1)
+	hand.Size = UDim2.fromOffset(60, 60)
+	hand.Font = Enum.Font.FredokaOne
+	hand.TextSize = 48
+	hand.Text = "👇"
+	hand.Parent = spotGui
+
+	local function shown(g: GuiObject): boolean
+		local node: Instance? = g
+		while node and node:IsA("GuiObject") do
+			if not node.Visible then
+				return false
+			end
+			node = node.Parent
+		end
+		if node and node:IsA("ScreenGui") and not node.Enabled then
+			return false
+		end
+		return g.AbsoluteSize.X > 4 and g.AbsoluteSize.Y > 4
+	end
+
+	local function uiTarget(): GuiObject?
+		local names = currentHint and UI_TARGETS[currentHint]
+		if not names or not frame.Visible then
+			return nil
+		end
+		for _, name in names do
+			for _, root in { screen, player.PlayerGui } do
+				local g = root:FindFirstChild(name, true)
+				if g and g:IsA("GuiObject") and shown(g) then
+					return g
+				end
+			end
+		end
+		return nil
+	end
+
+	local spotConnection = RunService.RenderStepped:Connect(function()
+		local g = uiTarget()
+		if not g then
+			if spotGui.Enabled then
+				spotGui.Enabled = false
+			end
+			return
+		end
+		spotGui.Enabled = true
+		local inset = GuiService:GetGuiInset()
+		local W, H = spotGui.AbsoluteSize.X, spotGui.AbsoluteSize.Y
+		local pad = 10
+		local x0 = math.max(0, g.AbsolutePosition.X + inset.X - pad)
+		local y0 = math.max(0, g.AbsolutePosition.Y + inset.Y - pad)
+		local x1 = math.min(W, g.AbsolutePosition.X + inset.X + g.AbsoluteSize.X + pad)
+		local y1 = math.min(H, g.AbsolutePosition.Y + inset.Y + g.AbsoluteSize.Y + pad)
+		dims[1].Position, dims[1].Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(W, y0)
+		dims[2].Position, dims[2].Size = UDim2.fromOffset(0, y1), UDim2.fromOffset(W, H - y1)
+		dims[3].Position, dims[3].Size = UDim2.fromOffset(0, y0), UDim2.fromOffset(x0, y1 - y0)
+		dims[4].Position, dims[4].Size = UDim2.fromOffset(x1, y0), UDim2.fromOffset(W - x1, y1 - y0)
+		local t = os.clock()
+		ring.Position = UDim2.fromOffset(x0, y0)
+		ring.Size = UDim2.fromOffset(x1 - x0, y1 - y0)
+		ringStroke.Transparency = 0.15 + 0.35 * (0.5 + 0.5 * math.sin(t * 6))
+		hand.Position = UDim2.fromOffset((x0 + x1) / 2, y0 - 2 - 10 * math.abs(math.sin(t * 4)))
+	end)
+
 	local connection = Net.Get("Tutorial").OnClientEvent:Connect(function(payload: Payload, target: Instance?)
 		if typeof(payload) ~= "table" or not payload.active then
 			-- Aktifken bitti ve atlanmadıysa: final
@@ -722,6 +831,8 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		Destroy = function()
 			connection:Disconnect()
 			renderConnection:Disconnect()
+			spotConnection:Disconnect()
+			spotGui:Destroy()
 			highlight:Destroy()
 			marker:Destroy()
 			pathFolder:Destroy()

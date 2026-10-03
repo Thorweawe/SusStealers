@@ -1275,11 +1275,13 @@ local function syncProfile(podium: Part)
 		if unitId ~= "" then
 			local mutationId = other:GetAttribute("MutationId") :: string
 			local away = other:GetAttribute("Away")
+			local level = PlotService.GetLevel(other)
 			table.insert(units, {
 				slot = other:GetAttribute("SlotIndex") :: number,
 				unitId = unitId,
 				mutationId = if mutationId == "" then nil else mutationId,
 				away = if typeof(away) == "string" and away ~= "" then away else nil,
+				level = if level > 1 then level else nil,
 			})
 		end
 	end
@@ -1287,8 +1289,14 @@ local function syncProfile(podium: Part)
 	profile.units = units
 end
 
---[[ Kaideye karakter yerleştirir. Doluysa false döner. ]]
-function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?): boolean
+--[[ Kaidedeki karakterin birleştirme seviyesi (1..Config.MergeMaxLevel). ]]
+function PlotService.GetLevel(podium: Part): number
+	local level = podium:GetAttribute("Level")
+	return Config.MergeLevel(if typeof(level) == "number" then level else 1)
+end
+
+--[[ Kaideye karakter yerleştirir. Doluysa false döner. level: birleştirme seviyesi (nil = 1). ]]
+function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?, level: number?): boolean
 	if PlotService.IsOccupied(podium) then
 		return false
 	end
@@ -1300,6 +1308,14 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 
 	local model = UnitModel.Build(unitId, mutationId)
 	model.Name = "Unit"
+	-- Birleşmiş crewmate büyük (Lv2 ×2, Lv3 ×3); ayaklar kaidede kalsın diye ölçek konumdan önce
+	local lv = Config.MergeLevel(level)
+	local size = Config.MergeSize(lv)
+	if size ~= 1 then
+		pcall(function()
+			model:ScaleTo(model:GetScale() * size)
+		end)
+	end
 	model:PivotTo(podium.CFrame * CFrame.new(0, podium.Size.Y / 2, 0))
 
 	for _, descendant in model:GetDescendants() do
@@ -1308,11 +1324,16 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 		end
 	end
 
-	local label = UnitModel.BuildLabel(unitId, mutationId)
+	local label = UnitModel.BuildLabel(unitId, mutationId, nil, lv)
+	if size ~= 1 then
+		label.StudsOffsetWorldSpace = Vector3.new(0, 6.8 * size, 0)
+		label.MaxDistance *= size
+	end
 	label.Parent = model.PrimaryPart
 
 	model.Parent = podium
 
+	podium:SetAttribute("Level", lv)
 	podium:SetAttribute("UnitId", unitId)
 	podium:SetAttribute("MutationId", mutationId or "")
 	podium:SetAttribute("PlacedAt", os.clock())
@@ -1349,14 +1370,15 @@ function PlotService.PlaceUnit(podium: Part, unitId: string, mutationId: string?
 	return true
 end
 
---[[ Kaideyi boşaltır ve üstündeki karakterin kimliğini döner. ]]
-function PlotService.ClearUnit(podium: Part): (string?, string?)
+--[[ Kaideyi boşaltır ve üstündeki karakterin kimliğini (mutasyonunu, seviyesini) döner. ]]
+function PlotService.ClearUnit(podium: Part): (string?, string?, number?)
 	if not PlotService.IsOccupied(podium) then
-		return nil, nil
+		return nil, nil, nil
 	end
 
 	local unitId = podium:GetAttribute("UnitId") :: string
 	local mutationId = podium:GetAttribute("MutationId") :: string
+	local level = PlotService.GetLevel(podium)
 
 	local model = podium:FindFirstChild("Unit")
 	if model then
@@ -1365,6 +1387,7 @@ function PlotService.ClearUnit(podium: Part): (string?, string?)
 
 	podium:SetAttribute("UnitId", "")
 	podium:SetAttribute("MutationId", "")
+	podium:SetAttribute("Level", 1)
 	podium:SetAttribute("PlacedAt", 0)
 	podium:SetAttribute("Away", nil)
 	local awayLabel = podium:FindFirstChild("AwayLabel")
@@ -1373,7 +1396,7 @@ function PlotService.ClearUnit(podium: Part): (string?, string?)
 	end
 
 	syncProfile(podium)
-	return unitId, (if mutationId == "" then nil else mutationId)
+	return unitId, (if mutationId == "" then nil else mutationId), level
 end
 
 -- ─── Gezegen savunması: kaidedeki karakter uzakta ───────────────────────────
@@ -1534,7 +1557,7 @@ local function restoreUnits(player: Player)
 	for _, entry in stored do
 		local podium = podiums[entry.slot]
 		if podium and not PlotService.IsOccupied(podium) then
-			if PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId) and entry.away then
+			if PlotService.PlaceUnit(podium, entry.unitId, entry.mutationId, entry.level) and entry.away then
 				PlotService.SetAway(podium, entry.away)
 			end
 		end

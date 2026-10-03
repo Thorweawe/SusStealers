@@ -22,7 +22,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -30,6 +29,7 @@ local DefenseConfig = require(Shared.DefenseConfig)
 
 local EnemyModel = require(Shared.EnemyModel)
 
+local DeviceLayout = require(script.Parent.DeviceLayout)
 local FancyKit = require(script.Parent.FancyKit)
 local SoundFX = require(script.Parent.SoundFX)
 local UiArt = require(script.Parent.UiArt)
@@ -58,7 +58,8 @@ local Z = 50
 	gelen dalga kartı sol üste (üst çubuğun altı) küçülerek geçiyor, hız
 	düğmesi her cihazda alttaki düğme sırasında.
 ]]
-local TOUCH = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+-- 2026-10-03: oyunun geri kalanıyla aynı karar (DeviceLayout); klavyeli dokunmatik cihazda ayrışıyordu
+local TOUCH = DeviceLayout.GetDevice() == "Touch"
 
 export type Hooks = {
 	send: (...any) -> (),
@@ -254,6 +255,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	crewList.ScrollBarThickness = 10
 	list(crewList, false, 6)
 	local nextB = button(crewPage, "NEXT ▶", UDim2.fromOffset(240, 58), GREEN, Z + 4, 24)
+	-- Adlar öğreticinin spotlight'ı için (TutorialUI "Defend" adımı)
+	nextB.holder.Name = "DefenseNextButton"
 	nextB.holder.AnchorPoint = Vector2.new(1, 1)
 	nextB.holder.Position = UDim2.new(1, 0, 1, 0)
 	local crewNote = label(crewPage, "Tap crewmates to take them. Stronger ones earn more, but they can fall!", 14, SOFT, Z + 4, 1.2)
@@ -307,6 +310,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	backB.holder.AnchorPoint = Vector2.new(0, 1)
 	backB.holder.Position = UDim2.new(0, 0, 1, 0)
 	local goPrepB = button(gearPage, "DEFEND! ▶", UDim2.fromOffset(260, 58), GREEN, Z + 4, 26)
+	goPrepB.holder.Name = "DefenseGoButton"
 	goPrepB.holder.AnchorPoint = Vector2.new(1, 1)
 	goPrepB.holder.Position = UDim2.new(1, 0, 1, 0)
 
@@ -905,7 +909,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	local side = Instance.new("Frame")
 	side.Name = "DefenseSide"
 	side.AnchorPoint = if TOUCH then Vector2.zero else Vector2.new(1, 0)
-	side.Position = if TOUCH then UDim2.fromOffset(12, 72) else UDim2.new(1, -12, 0, 170)
+	-- Telefonda sol üstte ama sol menü rayının (SideRail, x 22..90) SAĞINDA: üst üste biniyordu
+	side.Position = if TOUCH then UDim2.fromOffset(104, 72) else UDim2.new(1, -12, 0, 170)
 	side.Size = UDim2.fromOffset(236, 0)
 	side.AutomaticSize = Enum.AutomaticSize.Y
 	side.BackgroundTransparency = 1
@@ -925,6 +930,12 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 		UiKit.ArtIcon(disc, 44, icon, 1.25)
 		value.TextSize = 20
 		value.TextScaled = false
+		-- 46 piksellik hapta: değer üstte, alt yazı ortada, gövde çubuğu en altta (üst üste binmesin)
+		value.Position = UDim2.new(0, 54, 0, 1)
+		value.Size = UDim2.new(1, -64, 0, 22)
+		sub.Position = UDim2.new(0, 55, 0, 22)
+		sub.Size = UDim2.new(1, -64, 0, 12)
+		sub.TextSize = 12
 		return p, value, sub
 	end
 	local planetPill, planetValue, planetSub = pill("DefensePlanetPill", UiKit.CREW.CYAN, "Crewmate", 1, 214)
@@ -934,8 +945,8 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	-- Gövde çubuğu: hapın içinde, altta ince
 	local hullBack = Instance.new("Frame")
 	hullBack.AnchorPoint = Vector2.new(0, 1)
-	hullBack.Position = UDim2.new(0, 54, 1, -5)
-	hullBack.Size = UDim2.new(1, -70, 0, 6)
+	hullBack.Position = UDim2.new(0, 54, 1, -4)
+	hullBack.Size = UDim2.new(1, -70, 0, 5)
 	hullBack.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 	hullBack.BorderSizePixel = 0
 	hullBack.ZIndex = 5
@@ -949,7 +960,6 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	hullFill.Parent = hullBack
 	FancyKit.corner(hullFill, 3)
 	local hullGrad = FancyKit.gradient(hullFill, { Color3.fromRGB(120, 230, 255), Color3.fromRGB(40, 140, 230) }, 0)
-	hullSub.Position = UDim2.new(0, 55, 0, 27)
 
 	-- Yönlendirme: yalnızca hazırlıkta, alttaki düğmelerin üstünde, kutusuz
 	local hint = label(hud, "", 15, WHITE, Z - 10, 2)
@@ -1124,6 +1134,7 @@ function DefenseUI.Create(screen: ScreenGui, hooks: Hooks): UI
 	bottom.ZIndex = Z - 11
 	bottom.Parent = hud
 	local mainB = button(bottom, "⚔ DEFEND", UDim2.fromOffset(260, 62), GREEN, Z - 10, 26)
+	mainB.holder.Name = "DefenseMainButton"
 	local sideB = button(sideRow, "🚀 TAKE OFF", UDim2.fromOffset(196, 54), BLUE, Z - 10, 18)
 	local mode = "idle"
 	mainB.button.Activated:Connect(function()

@@ -1123,13 +1123,15 @@ local function labelText(parent: Instance, name: string, text: string, color: Co
 	return t
 end
 
-function UnitModel.BuildLabel(unitId: string, mutationId: string?, moving: boolean?): BillboardGui
+function UnitModel.BuildLabel(unitId: string, mutationId: string?, moving: boolean?, level: number?): BillboardGui
 	local def = Config.GetUnit(unitId)
 	assert(def, string.format("UnitModel: bilinmeyen karakter '%s'", unitId))
 
 	local mutation = Config.GetMutation(mutationId)
 	local rarity = Config.Rarities[def.rarity]
-	local income = def.income * (if mutation then mutation.incomeMul else 1)
+	-- Birleştirme seviyesi (Batur, 2026-10-03): gelir çarpanı ve etikette "LV2"
+	local lv = Config.MergeLevel(level)
+	local income = def.income * (if mutation then mutation.incomeMul else 1) * Config.MergeIncome(lv)
 	local isMoving = moving == true
 
 	local gui = Instance.new("BillboardGui")
@@ -1151,6 +1153,9 @@ function UnitModel.BuildLabel(unitId: string, mutationId: string?, moving: boole
 	local tag = string.upper(def.rarity)
 	if mutation then
 		tag = string.format('<font color="#%s">%s</font>  %s', mutation.tint and mutation.tint:ToHex() or "FFFFFF", string.upper(mutation.name), tag)
+	end
+	if lv > 1 then
+		tag = string.format('<font color="#FFD23C">★LV%d</font>  %s', lv, tag)
 	end
 
 	local rarityLabel = labelText(gui, "Rarity", tag, tagColor, 0, 0.28, isMoving, if isMoving then 14 else 16, if isMoving then 2 else 1.5)

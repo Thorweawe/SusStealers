@@ -33,6 +33,8 @@ export type StoredUnit = {
 	-- Gezegen savunması (DefenseService): "mission" sahada, "hospital"
 	-- düşmüş (revive bekliyor). İkisinde de kaide gelir üretmiyor.
 	away: string?,
+	-- Birleştirme seviyesi (MergeService); nil = 1
+	level: number?,
 }
 
 --[[
@@ -595,6 +597,8 @@ local function sanitize(raw: any): Profile
 					-- (oyuncu çıkarken DefenseService hastaneye ya da kaideye
 					-- çeviriyor): oyuncunun suçu değil, kaideye dönüyor
 					away = if entry.away == "hospital" then "hospital" else nil,
+					level = if typeof(entry.level) == "number" and entry.level >= 2
+						then Config.MergeLevel(entry.level) else nil,
 				})
 			end
 		end

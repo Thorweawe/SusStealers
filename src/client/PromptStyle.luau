@@ -58,6 +58,7 @@ local TONES: { [string]: Color3 } = {
 	HeistPrompt = Color3.fromRGB(240, 60, 70),
 	CapsulePrompt = Color3.fromRGB(80, 200, 255),
 	SellPrompt = Color3.fromRGB(255, 196, 40),
+	MergePrompt = Color3.fromRGB(190, 110, 255),
 	TrainingPrompt = Color3.fromRGB(110, 230, 120),
 	UpgradePrompt = Color3.fromRGB(255, 140, 40),
 	RebirthPrompt = Color3.fromRGB(255, 140, 40),

@@ -134,6 +134,10 @@ local function checkValue(player: Player, check: string): number
 		end
 		return owned
 
+	elseif check == "defenseWaves" then
+		-- Gezegen savunmasında dayanılan en uzun dalga (DefenseService)
+		return if profile.defense then (profile.defense.bestWave or 0) else 0
+
 	elseif check == "gear" then
 		local owned = 0
 		for _, has in profile.gear do
@@ -360,7 +364,7 @@ function TutorialService.Check(player: Player)
 			EconomyService.AddCash(player, bonus)
 		end
 		notify(player, string.format(
-			"Tutorial complete! +$%s  ·  You know the job now, Crewmate.",
+			"Tutorial complete! +$%s  ·  Tip: two of the same crewmate MERGE into a stronger one (F on a podium)!",
 			Config.FormatCash(bonus)), false)
 	end
 

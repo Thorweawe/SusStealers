@@ -670,8 +670,20 @@ Config.Tutorial = {
 	},
 	{
 		id = "Spin", title = "Take your free spin", hint = "Wheel",
-		text = "Last one! The lucky wheel in the Cafeteria gives a free spin every day. Go spin it!",
+		text = "The lucky wheel in the Cafeteria gives a free spin every day. Go spin it!",
 		check = "spins", goal = 1, reward = 40000,
+	},
+	--[[
+		2026-10-03 (Batur: "öğreticiyi geliştir ama kısa kalsın, eklenenleri
+		anlat"): yeni gezegen savunması son adım. İstasyondaki ⚔ DEFEND
+		düğmesi öğreticide parlıyor (ekranın geri kalanı kararıyor,
+		TutorialUI spotlight). Öğreticiyi önceden bitirmiş oyuncu da bu
+		adımı görüyor: yeni modu böyle öğreniyor.
+	]]
+	{
+		id = "Defend", title = "Defend the planet", hint = "Defend",
+		text = "NEW! Press ⚔ DEFEND to land on planet Gloopus. Pick your crew, drop them on the field and survive one wave!",
+		check = "defenseWaves", goal = 1, reward = 50000,
 	},
 } :: { TutorialStep }
 
@@ -784,6 +796,8 @@ Config.NotifyCues = {
 	buy      = { source = "UiA", startAt = 1.20, length = 0.28, pitch = 1.15, volume = 0.45 },
 	sell     = { source = "UiB", startAt = 2.40, length = 0.30, pitch = 0.85, volume = 0.45 },
 	upgrade  = { source = "UiC", startAt = 3.60, length = 0.26, pitch = 1.00, volume = 0.50, repeats = 2, gap = 0.13 },
+	-- İki crewmate birleşti: yükselen hızlı üçlü
+	merge    = { source = "UiB", startAt = 1.00, length = 0.22, pitch = 1.40, volume = 0.55, repeats = 3, gap = 0.08 },
 	-- Gezegen savunması dükkânları (altınla alım): yazar kasa
 	defbuy   = { source = "CashReg", startAt = 0, length = 0.9, pitch = 1.05, volume = 0.55 },
 
@@ -1981,14 +1995,39 @@ function Config.GetCheapestUnitPrice(): number
 end
 
 --[[ Karakteri satınca eline geçen para. ]]
-function Config.GetSellPrice(unitId: string, mutationId: string?): number
+function Config.GetSellPrice(unitId: string, mutationId: string?, level: number?): number
 	local def = Config.GetUnit(unitId)
 	if not def then
 		return 0
 	end
 	local mutation = Config.GetMutation(mutationId)
-	local income = def.income * (if mutation then mutation.incomeMul else 1)
+	local income = def.income * (if mutation then mutation.incomeMul else 1) * Config.MergeIncome(level)
 	return math.max(1, math.floor(income * Config.SellIncomeSeconds))
+end
+
+--[[
+	Birleştirme (2026-10-03, Batur): kaidedeki iki AYNI crewmate (aynı
+	karakter, aynı seviye) birleşip bir üst seviyeye çıkıyor, diğer kaide
+	boşalıyor. Mutasyon ikisinden değerlisi. Gelir ve model boyu taban
+	karaktere göre: Lv2 gelir ×2.5 / boy ×2, Lv3 gelir ×6 / boy ×3.
+]]
+Config.MergeLevels = {
+	{ income = 1, size = 1 },
+	{ income = 2.5, size = 2 },
+	{ income = 6, size = 3 },
+}
+Config.MergeMaxLevel = #Config.MergeLevels
+
+function Config.MergeLevel(level: number?): number
+	return math.clamp(math.floor(level or 1), 1, Config.MergeMaxLevel)
+end
+
+function Config.MergeIncome(level: number?): number
+	return Config.MergeLevels[Config.MergeLevel(level)].income
+end
+
+function Config.MergeSize(level: number?): number
+	return Config.MergeLevels[Config.MergeLevel(level)].size
 end
 
 --[[ Bir sonraki rebirth'ün maliyeti. Seviye 0 -> ilk rebirth'ün fiyatı. ]]

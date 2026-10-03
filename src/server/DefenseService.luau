@@ -180,8 +180,8 @@ function DefenseService.IsPlanetUnlocked(profile: DataService.Profile, planet: n
 	return true, nil
 end
 
-function DefenseService.GetReviveCost(player: Player, unitId: string, mutationId: string?): number
-	local perSecond = EconomyService.GetUnitIncome(player, unitId, mutationId)
+function DefenseService.GetReviveCost(player: Player, unitId: string, mutationId: string?, level: number?): number
+	local perSecond = EconomyService.GetUnitIncome(player, unitId, mutationId, level)
 	return math.max(100, math.ceil(perSecond * 60 * DefenseConfig.ReviveMinutes))
 end
 
@@ -227,7 +227,7 @@ local function dataPayload(player: Player): any?
 					slot = podium:GetAttribute("SlotIndex"),
 					unitId = unitId,
 					mutationId = mutationId,
-					cost = DefenseService.GetReviveCost(player, unitId, mutationId),
+					cost = DefenseService.GetReviveCost(player, unitId, mutationId, PlotService.GetLevel(podium)),
 				})
 			end
 		end
@@ -1040,7 +1040,7 @@ function DefenseService.Revive(player: Player, slot: number): boolean
 	end
 	local unitId = podium:GetAttribute("UnitId") :: string
 	local m = podium:GetAttribute("MutationId") :: string
-	local cost = DefenseService.GetReviveCost(player, unitId, if m == "" then nil else m)
+	local cost = DefenseService.GetReviveCost(player, unitId, if m == "" then nil else m, PlotService.GetLevel(podium))
 	if not EconomyService.TrySpend(player, cost) then
 		notify(player, string.format("Revive costs $%s", Config.FormatCash(cost)), true)
 		return false
@@ -1067,7 +1067,7 @@ function DefenseService.ReviveAll(player: Player): boolean
 		local unitId = podium:GetAttribute("UnitId") :: string
 		if unitId ~= "" and PlotService.GetAway(podium) == "hospital" then
 			local m = podium:GetAttribute("MutationId") :: string
-			total += DefenseService.GetReviveCost(player, unitId, if m == "" then nil else m)
+			total += DefenseService.GetReviveCost(player, unitId, if m == "" then nil else m, PlotService.GetLevel(podium))
 			table.insert(podiums, podium)
 		end
 	end

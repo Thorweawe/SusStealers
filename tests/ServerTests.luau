@@ -1253,6 +1253,7 @@ case("Öğretici: adım tanımları tutarlı", function()
 	local checks = {
 		units = true, upgrades = true, spins = true, tasks = true, pets = true, gear = true,
 		salvaged = true, spaceSpeed = true, trainings = true, bestPlanet = true, jetpacks = true,
+		defenseWaves = true,
 	}
 
 	local ids = {}
@@ -1589,6 +1590,11 @@ case("Öğretici: hedef nesneler dünyada var", function(ctx)
 		JetpackStand = function()
 			local t = TutorialService._TargetFor(ctx.player, "JetpackStand")
 			return if t and t:FindFirstChild("JetpackPrompt") then t else nil
+		end,
+		-- Dünyada hedef yok: istemci ⚔ DEFEND düğmesini spotlight'la gösteriyor; mod açık olmalı
+		Defend = function()
+			local DefenseConfig = require(game:GetService("ReplicatedStorage").Shared.DefenseConfig) :: any
+			return if DefenseConfig.IsEnabled() then workspace else nil
 		end,
 	}
 
