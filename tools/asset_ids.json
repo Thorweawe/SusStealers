@@ -543,5 +543,27 @@
   "close": 112600623751479,
   "card": 110491807654880,
   "button": 98372071047587
+ },
+ "boss_rigs_2026_10_03": {
+  "blackhole_rig": 103287978362094,
+  "chomper_rig": 138292058969818,
+  "crystalgolem_rig": 111879521481305,
+  "frostwyrm_rig": 116051351429285,
+  "galaxytitan_rig": 121333964816265,
+  "glorp_rig": 117838335237697,
+  "riftstalker_rig": 104115644711199,
+  "sandmaw_rig": 131276733983787,
+  "solarphoenix_rig": 117984369015408,
+  "voidleviathan_rig": 107089167319709
+ },
+ "transition_2026_10_03": {
+  "planet": 90695776459986,
+  "rocket": 133418543567954,
+  "planet_decal": 118376937321488,
+  "rocket_decal": 117384643017015
+ },
+ "terrain_2026_10_03": {
+  "grass_image": 139241702342594,
+  "grass_decal": 122115376361633
  }
 }
