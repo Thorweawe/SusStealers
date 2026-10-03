@@ -205,4 +205,11 @@ function UiArt.plain(target: Instance)
 	end
 end
 
+--[[ 2026-10-03: gezegen iniş/kalkış perdesi (DefenseClient), ui_art/transition:
+     planet beyaz-gri (gezegen rengine boyanıyor), rocket yukarı bakıyor. ]]
+UiArt.Transition = {
+	planet = "rbxassetid://90695776459986",
+	rocket = "rbxassetid://133418543567954",
+}
+
 return UiArt

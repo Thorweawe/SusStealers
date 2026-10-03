@@ -25,6 +25,7 @@ local DefenseConfig = require(Shared.DefenseConfig)
 
 local DefenseFX = require(script.Parent.DefenseFX)
 local DefenseUI = require(script.Parent.DefenseUI)
+local UiArt = require(script.Parent.UiArt)
 local SoundFX = require(script.Parent.SoundFX)
 
 local DefenseClient = {}
@@ -67,6 +68,18 @@ function DefenseClient.Start(screen: ScreenGui)
 	curtain.BackgroundTransparency = 1
 	curtain.Visible = false
 	curtain.Parent = overlayGui
+	-- 2026-10-03 (Yusuf): ChatGPT görselleri — nebula arka plan, gezegen, roket
+	local TS_ART: { [string]: string } = (UiArt :: any).TitleScreen or {}
+	local TR_ART: { [string]: string } = (UiArt :: any).Transition or {}
+	local nebula = Instance.new("ImageLabel")
+	nebula.Name = "Nebula"
+	nebula.Size = UDim2.fromScale(1, 1)
+	nebula.BackgroundTransparency = 1
+	nebula.ScaleType = Enum.ScaleType.Crop
+	nebula.Image = TS_ART.bg or ""
+	nebula.ImageTransparency = 1
+	nebula.ZIndex = 0 -- gezegen ve roketin altında
+	nebula.Parent = curtain
 	local planetDisc = Instance.new("Frame")
 	planetDisc.AnchorPoint = Vector2.new(0.5, 0.5)
 	planetDisc.Size = UDim2.fromScale(0.9, 0.9)
@@ -80,6 +93,17 @@ function DefenseClient.Start(screen: ScreenGui)
 	local discGrad = Instance.new("UIGradient")
 	discGrad.Rotation = 90
 	discGrad.Parent = planetDisc
+	local planetArt = Instance.new("ImageLabel")
+	planetArt.Name = "PlanetArt"
+	planetArt.AnchorPoint = Vector2.new(0.5, 0.5)
+	planetArt.Position = UDim2.fromScale(0.5, 0.5)
+	planetArt.Size = UDim2.fromScale(1.04, 1.04)
+	planetArt.BackgroundTransparency = 1
+	planetArt.Image = TR_ART.planet or ""
+	planetArt.ImageTransparency = 1
+	planetArt.Parent = planetDisc
+	-- Görsel varsa düz disk yerine o (rengi gezegenin paletinden)
+	local discAlpha = if TR_ART.planet then 1 else 0
 	local shipIcon = Instance.new("TextLabel")
 	shipIcon.AnchorPoint = Vector2.new(0.5, 0.5)
 	shipIcon.Position = UDim2.fromScale(0.5, -0.1)
@@ -90,6 +114,18 @@ function DefenseClient.Start(screen: ScreenGui)
 	shipIcon.Rotation = 180
 	shipIcon.AutoLocalize = false
 	shipIcon.Parent = curtain
+	local rocketArt = Instance.new("ImageLabel")
+	rocketArt.Name = "RocketArt"
+	rocketArt.AnchorPoint = Vector2.new(0.5, 0.5)
+	rocketArt.Position = UDim2.fromScale(0.5, 0.5)
+	rocketArt.Size = UDim2.fromOffset(110, 224)
+	rocketArt.BackgroundTransparency = 1
+	rocketArt.Image = TR_ART.rocket or ""
+	rocketArt.ImageTransparency = 1
+	rocketArt.Parent = shipIcon
+	if TR_ART.rocket then
+		shipIcon.Text = ""
+	end
 	local curtainText = Instance.new("TextLabel")
 	curtainText.AnchorPoint = Vector2.new(0.5, 0)
 	curtainText.Position = UDim2.fromScale(0.5, 0.12)
@@ -112,7 +148,10 @@ function DefenseClient.Start(screen: ScreenGui)
 		for _, l in { curtainText, shipIcon } do
 			TweenService:Create(l, TweenInfo.new(seconds), { TextTransparency = if show then 0 else 1 }):Play()
 		end
-		TweenService:Create(planetDisc, TweenInfo.new(seconds), { BackgroundTransparency = if show then 0 else 1 }):Play()
+		TweenService:Create(planetDisc, TweenInfo.new(seconds), { BackgroundTransparency = if show then discAlpha else 1 }):Play()
+		for _, img in { nebula, planetArt, rocketArt } do
+			TweenService:Create(img, TweenInfo.new(seconds), { ImageTransparency = if show and img.Image ~= "" then 0 else 1 }):Play()
+		end
 		if not show then
 			task.delay(seconds, function()
 				if curtain.BackgroundTransparency > 0.99 then
@@ -518,10 +557,15 @@ function DefenseClient.Start(screen: ScreenGui)
 		local def = Config.SpaceMonsters[index]
 		if def then
 			discGrad.Color = ColorSequence.new(def.planetColor:Lerp(WHITE, 0.2), def.planetColor2)
+			planetArt.ImageColor3 = def.planetColor:Lerp(WHITE, 0.25)
 			curtainText.Text = "LANDING ON " .. string.upper(def.planet) .. "..."
 		end
 		planetDisc.Position = UDim2.fromScale(0.5, 1.6)
 		shipIcon.Position = UDim2.fromScale(0.5, -0.1)
+		-- İnerken burun aşağı (alev frenliyor), gezegen yavaşça dönüyor
+		shipIcon.Rotation = 180
+		planetArt.Rotation = 0
+		TweenService:Create(planetArt, TweenInfo.new(2.6, Enum.EasingStyle.Linear), { Rotation = 14 }):Play()
 		fadeCurtain(true, 0.45)
 		TweenService:Create(planetDisc, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ Position = UDim2.fromScale(0.5, 1.15) }):Play()
@@ -591,6 +635,10 @@ function DefenseClient.Start(screen: ScreenGui)
 		curtainText.Text = "TAKING OFF..."
 		planetDisc.Position = UDim2.fromScale(0.5, 1.15)
 		shipIcon.Position = UDim2.fromScale(0.5, 0.62)
+		-- Kalkarken burun yukarı, alev aşağıda
+		shipIcon.Rotation = 0
+		planetArt.Rotation = 0
+		TweenService:Create(planetArt, TweenInfo.new(1.8, Enum.EasingStyle.Linear), { Rotation = -10 }):Play()
 		fadeCurtain(true, 0.4)
 		TweenService:Create(planetDisc, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 			{ Position = UDim2.fromScale(0.5, 1.7) }):Play()
