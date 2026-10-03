@@ -200,8 +200,10 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	local function refreshTriple()
 		if tripleButton and tripleLabel then
 			local owned = hasTriple()
-			tripleButton.Text = if owned then "R" else ""
-			tripleButton.TextSize = 34
+			local key = tripleButton:FindFirstChild("Key")
+			if key and key:IsA("TextLabel") then
+				key.Text = if owned then "R" else ""
+			end
 			local face = tripleButton:FindFirstChild("Face")
 			if face and face:IsA("ImageLabel") then
 				face.ImageColor3 = if owned then Color3.fromRGB(170, 90, 255) else Color3.fromRGB(110, 96, 140)
@@ -294,7 +296,7 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			yumurtanın rengine hafif çalan koyu ton.
 		]]
 		local panelH = math.max(cardH, 38 + #rarities * 25)
-		local panel = art(c, "panel", 1)
+		local panel = art(c, "panel", 1, WHITE:Lerp(tint, 0.4))
 		panel.Position = UDim2.fromOffset(-16, 12)
 		panel.Size = UDim2.fromOffset(PANEL_W + 32, panelH + 50)
 
@@ -306,7 +308,7 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		card.Parent = c
 
 		-- Başlık hapı kartın üst kenarına oturuyor (tek UIStroke: çerçeve; yazının konturu TextStroke)
-		local ribbon = art(c, "ribbon", 5)
+		local ribbon = art(c, "ribbon", 5, WHITE:Lerp(tint, 0.45))
 		ribbon.AnchorPoint = Vector2.new(0.5, 0)
 		ribbon.Position = UDim2.fromOffset(192, -18)
 		ribbon.Size = UDim2.fromOffset(340, 127)
@@ -425,12 +427,12 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		local del = Instance.new("Frame")
 		del.Position = UDim2.fromOffset(396, 26)
 		del.Size = UDim2.fromOffset(164, delH)
-		del.BackgroundColor3 = Color3.fromRGB(14, 12, 40)
+		del.BackgroundColor3 = Color3.fromRGB(14, 12, 40):Lerp(tint, 0.18)
 		del.BackgroundTransparency = 0.25
 		del.ZIndex = 2
 		del.Parent = c
 		corner(del, 14)
-		stroke(del, Color3.fromRGB(120, 200, 255), 2)
+		stroke(del, tint:Lerp(WHITE, 0.4), 2)
 
 		local delTitle = text(del, "AUTO-DELETE", 17, WHITE, 5)
 		delTitle.Position = UDim2.fromOffset(0, 6)
@@ -511,10 +513,7 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			b.Size = UDim2.fromOffset(68, 68)
 			b.BackgroundTransparency = 1
 			b.AutoButtonColor = false
-			b.Font = Enum.Font.FredokaOne
-			b.TextSize = 34
-			b.TextColor3 = WHITE
-			b.Text = key
+			b.Text = ""
 			b.ZIndex = 5
 			b.Parent = bar
 			local face = art(b, "button", 4, color)
@@ -522,10 +521,15 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			face.AnchorPoint = Vector2.new(0.5, 0.5)
 			face.Position = UDim2.fromScale(0.5, 0.5)
 			face.Size = UDim2.fromScale(1.12, 1.12)
+			-- Harf görselin ÜSTÜNDE ayrı yazı (Sibling'de çocuk görsel ebeveynin yazısını örtüyordu)
+			local k = text(b, key, 34, WHITE, 7)
+			k.Name = "Key"
+			k.Size = UDim2.fromScale(1, 1)
+			k.Position = UDim2.fromOffset(0, -3)
 			local ks = Instance.new("UIStroke")
 			ks.Color = INK
 			ks.Thickness = 2.4
-			ks.Parent = b
+			ks.Parent = k
 			local s = text(b, sub, 15, WHITE, 6)
 			s.AnchorPoint = Vector2.new(0.5, 1)
 			s.Position = UDim2.new(0.5, 0, 1, 8)
