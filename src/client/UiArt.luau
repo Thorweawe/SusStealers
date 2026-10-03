@@ -91,6 +91,20 @@ UiArt.EventIcon = {
 	Spooky2026 = { currency = 114255378192611, crew = 97201831635569, egg = 0 },
 } :: { [string]: { currency: number, crew: number, egg: number? } }
 
+--[[ Yumurta penceresi parçaları (2026-10-03, ChatGPT taslağından; ui_art/egg_panel/).
+     card ve button beyaz: nadirlik / düğme rengine ImageColor3 ile boyanıyor. ]]
+UiArt.EggPanel = {
+	panel = 88071937394696,
+	ribbon = 132227460423845,
+	pill = 107693385557081,
+	card = 139933795705752,
+	button = 107252720516918,
+	padlock = 83299827826686,
+	toggleOn = 99240466746290,
+	toggleOff = 135665526365399,
+	sparkle = 87251950512046,
+} :: { [string]: number }
+
 function UiArt.Image(kind: string, name: string): string
 	local id = (UiArt :: any)[kind][name]
 	return if id then "rbxassetid://" .. id else ""

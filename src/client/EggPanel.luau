@@ -30,6 +30,7 @@ local Net = require(Shared.Net)
 local PetModel = require(Shared.PetModel)
 
 local UiKit = require(script.Parent.UiKit)
+local UiArt = require(script.Parent.UiArt)
 
 local EggPanel = {}
 
@@ -80,6 +81,26 @@ local function stroke(parent: Instance, color: Color3, thickness: number)
 	s.Thickness = thickness
 	s.Parent = parent
 	return s
+end
+
+--[[
+	2026-10-03 görünüm (kullanıcı: "bu UI'yi ChatGPT ile güzelleştirelim"):
+	ChatGPT taslağından kesilen parçalar (ui_art/egg_panel/, UiArt.EggPanel):
+	uzay camı pano, başlık şeridi, fiyat hapı, nadirlik renginde boyanan kart
+	çerçevesi, boyanan yuvarlak düğme, kilit, aç/kapa anahtarı, parıltı.
+]]
+local ART = UiArt.EggPanel
+
+local function art(parent: Instance, key: string, z: number, color: Color3?): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Art_" .. key
+	img.BackgroundTransparency = 1
+	img.Image = "rbxassetid://" .. tostring(ART[key] or 0)
+	img.ScaleType = Enum.ScaleType.Stretch
+	img.ImageColor3 = color or WHITE
+	img.ZIndex = z
+	img.Parent = parent
+	return img
 end
 
 local function text(parent: Instance, value: string, size: number, color: Color3, z: number): TextLabel
@@ -179,9 +200,21 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 	local function refreshTriple()
 		if tripleButton and tripleLabel then
 			local owned = hasTriple()
-			tripleButton.Text = if owned then "R" else "🔒"
-			tripleButton.TextSize = if owned then 34 else 28
-			tripleButton.BackgroundColor3 = if owned then Color3.fromRGB(150, 70, 230) else Color3.fromRGB(96, 84, 120)
+			tripleButton.Text = if owned then "R" else ""
+			tripleButton.TextSize = 34
+			local face = tripleButton:FindFirstChild("Face")
+			if face and face:IsA("ImageLabel") then
+				face.ImageColor3 = if owned then Color3.fromRGB(170, 90, 255) else Color3.fromRGB(110, 96, 140)
+			end
+			local lock = tripleButton:FindFirstChild("Art_padlock")
+			if not owned and not lock then
+				local l = art(tripleButton, "padlock", 6)
+				l.AnchorPoint = Vector2.new(0.5, 0.5)
+				l.Position = UDim2.fromScale(0.5, 0.45)
+				l.Size = UDim2.fromOffset(30, 36)
+			elseif owned and lock then
+				lock:Destroy()
+			end
 			tripleLabel.Text = if owned then "x3" else "x3 R$"
 		end
 	end
@@ -215,7 +248,10 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		local id = if auto then (auto.Current()) else nil
 		local on = id == currentEgg.id
 		autoLabel.Text = if on then "ON" else "Auto"
-		autoButton.BackgroundColor3 = if on then Color3.fromRGB(255, 120, 60) else Color3.fromRGB(230, 60, 70)
+		local face = autoButton:FindFirstChild("Face")
+		if face and face:IsA("ImageLabel") then
+			face.ImageColor3 = if on then Color3.fromRGB(255, 150, 60) else Color3.fromRGB(240, 70, 80)
+		end
 	end
 
 	--[[ Paneli bir yumurta için baştan kurar. ]]
@@ -257,36 +293,52 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			boyuyor ve beyaz çerçeve koyulaşıp kayboluyordu. Zemin düz,
 			yumurtanın rengine hafif çalan koyu ton.
 		]]
+		local panelH = math.max(cardH, 38 + #rarities * 25)
+		local panel = art(c, "panel", 1)
+		panel.Position = UDim2.fromOffset(-16, 12)
+		panel.Size = UDim2.fromOffset(PANEL_W + 32, panelH + 50)
+
 		local card = Instance.new("Frame")
 		card.Position = UDim2.fromOffset(0, 26)
 		card.Size = UDim2.fromOffset(384, cardH)
-		card.BackgroundColor3 = UiKit.SHELL:Lerp(tint, 0.16)
+		card.BackgroundTransparency = 1
 		card.ZIndex = 2
 		card.Parent = c
-		corner(card, 16)
-		stroke(card, WHITE, 3)
 
 		-- Başlık hapı kartın üst kenarına oturuyor (tek UIStroke: çerçeve; yazının konturu TextStroke)
+		local ribbon = art(c, "ribbon", 5)
+		ribbon.AnchorPoint = Vector2.new(0.5, 0)
+		ribbon.Position = UDim2.fromOffset(192, -18)
+		ribbon.Size = UDim2.fromOffset(340, 127)
 		local title = text(c, string.upper(egg.name), 26, WHITE, 6)
 		title.AnchorPoint = Vector2.new(0.5, 0)
-		title.Position = UDim2.fromOffset(192, 2)
+		title.Position = UDim2.fromOffset(204, -6)
 		title.Size = UDim2.fromOffset(250, 44)
-		title.BackgroundTransparency = 0
-		title.BackgroundColor3 = tint:Lerp(INK, 0.35)
 		title.TextStrokeColor3 = INK
 		title.TextStrokeTransparency = 0
-		corner(title, 12)
-		stroke(title, WHITE, 3)
+		for k, at in { Vector2.new(30, -12), Vector2.new(356, -8), Vector2.new(372, 22) } do
+			local sp = art(c, "sparkle", 7)
+			sp.AnchorPoint = Vector2.new(0.5, 0.5)
+			sp.Position = UDim2.fromOffset(at.X, at.Y)
+			sp.Size = UDim2.fromOffset(if k == 1 then 22 else 16, if k == 1 then 24 else 18)
+		end
 
 		-- Rebirth yumurtası kilitliyken fiyat yerine kilit
 		local rb = game:GetService("Players").LocalPlayer:GetAttribute("Rebirths")
 		local locked = not Config.EggUnlocked(egg, if typeof(rb) == "number" then rb else 0)
 		local price = text(c, if locked then string.format("🔒 REBIRTH %d", egg.rebirths or 0) else "$" .. Config.FormatCash(egg.price), 16,
 			if locked then Color3.fromRGB(255, 154, 107) else UiKit.CREW.LIME, 7)
-		price.AnchorPoint = Vector2.new(1, 0)
-		price.Position = UDim2.fromOffset(378, 34)
+		price.AnchorPoint = Vector2.new(0.5, 0)
+		price.Position = UDim2.fromOffset(212, 32)
 		price.Size = UDim2.fromOffset(if locked then 140 else 100, 22)
-		price.TextXAlignment = Enum.TextXAlignment.Right
+		price.TextXAlignment = Enum.TextXAlignment.Center
+		if not locked then
+			price.TextColor3 = WHITE
+			local pill = art(c, "pill", 6)
+			pill.AnchorPoint = Vector2.new(0.5, 0)
+			pill.Position = UDim2.fromOffset(204, 28)
+			pill.Size = UDim2.fromOffset(130, 30)
+		end
 		local ps = Instance.new("UIStroke")
 		ps.Color = INK
 		ps.Thickness = 2
@@ -310,11 +362,11 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			local hidden = def.rarity == "Secret" and not found[def.id]
 			local cell = Instance.new("Frame")
 			cell.LayoutOrder = i
-			cell.BackgroundColor3 = tone:Lerp(UiKit.SHELL_DEEP, 0.7)
+			cell.BackgroundTransparency = 1
 			cell.ZIndex = 4
 			cell.Parent = grid
-			corner(cell, 10)
-			stroke(cell, tone, 2)
+			local frame = art(cell, "card", 4, tone:Lerp(WHITE, 0.25))
+			frame.Size = UDim2.fromScale(1, 1)
 
 			local fig = Instance.new("Frame")
 			fig.AnchorPoint = Vector2.new(0.5, 0)
@@ -369,11 +421,12 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 		local del = Instance.new("Frame")
 		del.Position = UDim2.fromOffset(396, 26)
 		del.Size = UDim2.fromOffset(164, delH)
-		del.BackgroundColor3 = UiKit.SHELL:Lerp(UiKit.CREW.RED, 0.14)
+		del.BackgroundColor3 = Color3.fromRGB(14, 12, 40)
+		del.BackgroundTransparency = 0.25
 		del.ZIndex = 2
 		del.Parent = c
-		corner(del, 16)
-		stroke(del, WHITE, 3)
+		corner(del, 14)
+		stroke(del, Color3.fromRGB(120, 200, 255), 2)
 
 		local delTitle = text(del, "AUTO-DELETE", 17, WHITE, 5)
 		delTitle.Position = UDim2.fromOffset(0, 6)
@@ -414,29 +467,15 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			ns.Thickness = 1.4
 			ns.Parent = name
 
-			local pill = Instance.new("Frame")
+			local pillH = rowHeight - 6
+			local pill = art(row, "toggleOff", 5)
 			pill.AnchorPoint = Vector2.new(1, 0.5)
-			pill.Position = UDim2.new(1, -6, 0.5, 0)
-			pill.Size = UDim2.fromOffset(46, rowHeight - 8)
-			pill.ZIndex = 5
-			pill.Parent = row
-			corner(pill, 10)
-			local knob = Instance.new("Frame")
-			knob.AnchorPoint = Vector2.new(0.5, 0.5)
-			knob.Size = UDim2.fromOffset(rowHeight - 12, rowHeight - 12)
-			knob.BackgroundColor3 = WHITE
-			knob.ZIndex = 6
-			knob.Parent = pill
-			corner(knob, 10)
-			local state = text(pill, "", 10, WHITE, 7)
-			state.Font = Enum.Font.FredokaOne
-			state.Size = UDim2.fromScale(1, 1)
+			pill.Position = UDim2.new(1, -4, 0.5, 0)
+			pill.Size = UDim2.fromOffset(math.floor(pillH * 404 / 215), pillH)
 
 			local function draw()
 				local on = readAutoDelete()[rarity] == true
-				pill.BackgroundColor3 = if on then Color3.fromRGB(220, 60, 70) else Color3.fromRGB(70, 76, 96)
-				knob.Position = UDim2.new(if on then 1 else 0, if on then -(rowHeight - 12) / 2 - 3 else (rowHeight - 12) / 2 + 3, 0.5, 0)
-				state.Text = if on then "ON   " else "   OFF"
+				pill.Image = "rbxassetid://" .. tostring(if on then ART.toggleOn else ART.toggleOff)
 			end
 			draw()
 			row.Activated:Connect(function()
@@ -466,16 +505,19 @@ function EggPanel.Create(auto: AutoHandle?, isHatching: (() -> boolean)?)
 			local b = Instance.new("TextButton")
 			b.LayoutOrder = order
 			b.Size = UDim2.fromOffset(68, 68)
-			b.BackgroundColor3 = color
-			b.AutoButtonColor = true
+			b.BackgroundTransparency = 1
+			b.AutoButtonColor = false
 			b.Font = Enum.Font.FredokaOne
 			b.TextSize = 34
 			b.TextColor3 = WHITE
 			b.Text = key
-			b.ZIndex = 4
+			b.ZIndex = 5
 			b.Parent = bar
-			corner(b, 34)
-			stroke(b, WHITE, 3)
+			local face = art(b, "button", 4, color)
+			face.Name = "Face"
+			face.AnchorPoint = Vector2.new(0.5, 0.5)
+			face.Position = UDim2.fromScale(0.5, 0.5)
+			face.Size = UDim2.fromScale(1.12, 1.12)
 			local ks = Instance.new("UIStroke")
 			ks.Color = INK
 			ks.Thickness = 2.4
