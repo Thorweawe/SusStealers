@@ -398,7 +398,7 @@ FancyKit.gradient = gradient
 export type Shell = { header: Frame, close: TextButton, body: Frame }
 function FancyKit.shell(root: Frame, title: string, colors: { Color3 }, headerH: number, z: number, driver: Driver, titleSize: number?): Shell
 	for _, child in root:GetChildren() do
-		if child:IsA("UIGradient") or child:IsA("UIStroke") or child.Name == "ModernRim" then
+		if child:IsA("UIGradient") or child:IsA("UIStroke") or child.Name == "ModernRim" or child.Name == "Kit_window" then
 			child:Destroy()
 		end
 	end
