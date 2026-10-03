@@ -110,4 +110,34 @@ function UiArt.Image(kind: string, name: string): string
 	return if id then "rbxassetid://" .. id else ""
 end
 
+--[[ 2026-10-03: unvan amblemleri (ChatGPT, ui_art/title_emblems; magenta zemin
+     tools/cut_emblems.py ile kesildi). Anahtar Config.Titles kimliği; "Auto" =
+     otomatik seçim satırı. Menüde ve baş üstü etiketinde. ]]
+UiArt.TitleIcon = {
+	Crewmate = "rbxassetid://78594507077324",
+	SpaceRookie = "rbxassetid://114318060659644",
+	SpaceThief = "rbxassetid://90067359652140",
+	Rocketeer = "rbxassetid://80826202577036",
+	Yeeted = "rbxassetid://124072381304024",
+	HeistPro = "rbxassetid://127798963826874",
+	MonsterTamer = "rbxassetid://98064024258130",
+	IronWill = "rbxassetid://138631536178253",
+	Captain = "rbxassetid://100532327581939",
+	WarpRunner = "rbxassetid://130596462800335",
+	VoidRaider = "rbxassetid://74437127033652",
+	MutantHunter = "rbxassetid://99769028712891",
+	Engineer = "rbxassetid://100824654622763",
+	WeeklyTop10 = "rbxassetid://87947734407303",
+	Lightspeed = "rbxassetid://116851664576203",
+	GalaxyBandit = "rbxassetid://71015742679578",
+	Collector = "rbxassetid://108856287751339",
+	Admiral = "rbxassetid://109394160672775",
+	WeeklyTop3 = "rbxassetid://89234230359248",
+	LeviathanRobber = "rbxassetid://97820865159020",
+	AmogusPrime = "rbxassetid://73824692760624",
+	WeeklyChampion = "rbxassetid://71576547215012",
+	MonstersNightmare = "rbxassetid://132055619931274",
+	Auto = "rbxassetid://82367906378172",
+} :: { [string]: string }
+
 return UiArt

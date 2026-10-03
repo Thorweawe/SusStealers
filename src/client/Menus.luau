@@ -33,6 +33,8 @@ local Net = require(Shared.Net)
 
 local CardKit = require(script.Parent.CardKit)
 local UiKit = require(script.Parent.UiKit)
+local UiArt = require(script.Parent.UiArt)
+local TweenService = game:GetService("TweenService")
 
 local Menus = {}
 
@@ -368,6 +370,43 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 	local clearSlot = UiKit.ClearSlot
 
 	--[[
+		2026-10-03: unvan amblemi (UiArt.TitleIcon, ChatGPT). Rozetten biraz
+		taşıyor; kilitliyken karanlık siluet, Legendary+ açıkken arkasında
+		dönen ışık. Amblem yoksa false (çağıran eski figürü çiziyor).
+	]]
+	local EMBLEM_TIER = { Legendary = true, Mythic = true, Secret = true }
+	local function drawEmblem(slot: Frame, id: string, unlocked: boolean, rarity: string?, tone: Color3): boolean
+		clearSlot(slot)
+		local icon = UiArt.TitleIcon[id]
+		if not icon then
+			return false
+		end
+		if unlocked and rarity and EMBLEM_TIER[rarity] then
+			local rays = Instance.new("ImageLabel")
+			rays.BackgroundTransparency = 1
+			rays.AnchorPoint = Vector2.new(0.5, 0.5)
+			rays.Position = UDim2.fromScale(0.5, 0.5)
+			rays.Size = UDim2.fromScale(2.3, 2.3)
+			rays.Image = Config.Vfx.Star
+			rays.ImageColor3 = tone
+			rays.ImageTransparency = 0.2
+			rays.ZIndex = 16
+			rays.Parent = slot
+			TweenService:Create(rays, TweenInfo.new(6, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1), { Rotation = 360 }):Play()
+		end
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.AnchorPoint = Vector2.new(0.5, 0.5)
+		img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromScale(1.55, 1.55)
+		img.Image = icon
+		img.ImageColor3 = if unlocked then Color3.new(1, 1, 1) else Color3.fromRGB(70, 74, 92)
+		img.ZIndex = 17
+		img.Parent = slot
+		return true
+	end
+
+	--[[
 		İksir şişesi. Gövdesi UiKit'te: aynı şişe sağ kenardaki düğmede de
 		çiziliyordu ve iki kopya birbirinden ayrışmaya başlamıştı.
 	]]
@@ -460,8 +499,9 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 		local autoRow = bindRow(index)
 		autoRow.frame.Visible = true
 		-- Otomatik seçim: nötr gri figür
-		clearSlot(autoRow.slot)
-		UiKit.Crewmate(autoRow.slot, 34, Color3.fromRGB(220, 226, 240)).ZIndex = 16
+		if not drawEmblem(autoRow.slot, "Auto", true, nil, Color3.new(1, 1, 1)) then
+			UiKit.Crewmate(autoRow.slot, 34, Color3.fromRGB(220, 226, 240)).ZIndex = 16
+		end
 		autoRow.name.Text = "Automatic"
 		autoRow.detail.Text = "Always wear your highest title"
 		paintRow(autoRow, Color3.fromRGB(60, 110, 220), if activeTitle == "" then "IN USE" else "AUTO",
@@ -483,10 +523,11 @@ function Menus.Create(screen: ScreenGui, host: Frame?, onCount: ((tab: string, t
 				then titleTone(row, highest)
 				else UiKit.DIM
 
-			clearSlot(widget.slot)
-			UiKit.Crewmate(widget.slot, 34, if row.unlocked then tone:Lerp(Color3.new(1, 1, 1), 0.3) else UiKit.DIM).ZIndex = 16
-
 			local rarity = (row :: any).rarity
+			if not drawEmblem(widget.slot, row.id, row.unlocked, if typeof(rarity) == "string" then rarity else nil, titleTone(row, highest)) then
+				UiKit.Crewmate(widget.slot, 34, if row.unlocked then tone:Lerp(Color3.new(1, 1, 1), 0.3) else UiKit.DIM).ZIndex = 16
+			end
+
 			widget.name.Text = if typeof(rarity) == "string"
 				then string.format('%s  <font color="#%s">%s</font>', row.name, titleTone(row, highest):ToHex(), string.upper(rarity))
 				else row.name
