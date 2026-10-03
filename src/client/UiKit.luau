@@ -135,6 +135,16 @@ function UiKit.OnWindowOpened(listener: (GuiObject) -> ())
 	table.insert(openedListeners, listener)
 end
 
+--[[ Şu an açık olan tek pencere (yoksa nil). Öğreticinin spotlight'ı pencere açıkken susuyor. ]]
+function UiKit.OpenWindow(): GuiObject?
+	for _, frame in exclusive do
+		if frame.Visible and frame.Parent then
+			return frame
+		end
+	end
+	return nil
+end
+
 function UiKit.Exclusive(frame: GuiObject)
 	table.insert(exclusive, frame)
 	frame:GetPropertyChangedSignal("Visible"):Connect(function()

@@ -763,10 +763,12 @@ function TutorialUI.Create(screen: ScreenGui): Panel
 		if not names or not frame.Visible then
 			return nil
 		end
+		-- Başka bir pencere açıksa (çark, mağaza...) karartma onu kapatmasın
+		local open = UiKit.OpenWindow()
 		for _, name in names do
 			for _, root in { screen, player.PlayerGui } do
 				local g = root:FindFirstChild(name, true)
-				if g and g:IsA("GuiObject") and shown(g) then
+				if g and g:IsA("GuiObject") and shown(g) and (open == nil or g:IsDescendantOf(open)) then
 					return g
 				end
 			end

@@ -1477,15 +1477,14 @@ case("Öğretici: bitince bonus veriyor ve susuyor", function(ctx)
 	ctx.profile.tutorialStep = #Config.Tutorial - 1
 	setCash(ctx.player, 0)
 
-	-- Son adımın koşulunu sağla (2026-09-29: son adım bedava çark)
+	-- Son adımın koşulunu sağla (2026-10-03: son adım gezegen savunması, bir dalga)
 	local last = Config.Tutorial[#Config.Tutorial]
-	eq("son adım çark", last.check, "spins")
-	-- "spins" sayacı: çark bir kez çevrildiyse (lastSpinAt) tamam
-	local hadSpinAt = ctx.profile.lastSpinAt
-	ctx.profile.lastSpinAt = os.time()
+	eq("son adım savunma", last.check, "defenseWaves")
+	local hadBest = ctx.profile.defense.bestWave
+	ctx.profile.defense.bestWave = last.goal
 
 	TutorialService.Check(ctx.player)
-	ctx.profile.lastSpinAt = hadSpinAt
+	ctx.profile.defense.bestWave = hadBest
 	eq("öğretici bitti", ctx.profile.tutorialStep, #Config.Tutorial)
 	eq("bitiş bonusu dahil", EconomyService.GetCash(ctx.player),
 		last.reward + Config.TutorialFinishBonus)
